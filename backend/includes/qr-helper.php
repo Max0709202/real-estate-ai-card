@@ -5,6 +5,8 @@
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/../config/config.php';
 
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\Image\ImagickImageBackEnd;
@@ -104,6 +106,69 @@ function generateBusinessCardQRCode($businessCardId, $db) {
         $stmt->execute([$qrCodeRelativePath, $businessCardId]);
         
         error_log("QR code generated successfully for business_card_id: {$businessCardId}, path: {$qrCodeRelativePath}");
+        
+        // Send email notifications
+        try {
+            // Get user name for email
+            $userName = $card['email'] ?? 'お客様';
+            if (!empty($card['phone_number'])) {
+                // Try to get full name from database
+                $stmt = $db->prepare("SELECT name FROM business_cards WHERE id = ?");
+                $stmt->execute([$businessCardId]);
+                $bcData = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($bcData && !empty($bcData['name'])) {
+                    $userName = $bcData['name'];
+                }
+            }
+            
+            $qrCodeFullUrl = BASE_URL . '/' . $qrCodeRelativePath;
+            $paymentAmount = !empty($card['total_amount']) ? $card['total_amount'] : null;
+            
+            // Send email to user
+            if (!empty($card['email'])) {
+                $userEmailSent = sendQRCodeIssuedEmailToUser(
+                    $card['email'],
+                    $userName,
+                    $qrUrl,
+                    $qrCodeFullUrl,
+                    $card['url_slug'],
+                    $paymentAmount
+                );
+                
+                if ($userEmailSent) {
+                    error_log("QR code email sent to user: {$card['email']}");
+                } else {
+                    error_log("Failed to send QR code email to user: {$card['email']}");
+                }
+            }
+            
+            // Send email to admin
+            $userId = null;
+            $stmt = $db->prepare("SELECT user_id FROM business_cards WHERE id = ?");
+            $stmt->execute([$businessCardId]);
+            $bcUser = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($bcUser) {
+                $userId = $bcUser['user_id'];
+            }
+            
+            $adminEmailSent = sendQRCodeIssuedEmailToAdmin(
+                $card['email'] ?? 'Unknown',
+                $userName,
+                $userId ?? 0,
+                $card['url_slug'],
+                $paymentAmount
+            );
+            
+            if ($adminEmailSent) {
+                error_log("QR code admin notification sent");
+            } else {
+                error_log("Failed to send QR code admin notification");
+            }
+            
+        } catch (Exception $emailException) {
+            // Don't fail the whole operation if email fails
+            error_log("Error sending QR code emails: " . $emailException->getMessage());
+        }
         
         return [
             'success' => true,

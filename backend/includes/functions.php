@@ -670,6 +670,229 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
 }
 
 /**
+ * ユーザーにQRコード発行完了メールを送信
+ */
+function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl, $urlSlug, $paymentAmount = null) {
+    if (empty($userEmail)) {
+        error_log("sendQRCodeIssuedEmailToUser: User email is empty");
+        return false;
+    }
+
+    $issuedDate = date('Y年m月d日 H:i:s');
+    $cardFullUrl = QR_CODE_BASE_URL . $urlSlug;
+    
+    // メール件名
+    $emailSubject = '【不動産AI名刺】デジタル名刺のQRコード発行完了';
+    
+    // HTML本文
+    $emailBody = "
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <style>
+            body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .success-icon { font-size: 48px; margin-bottom: 10px; }
+            .info-box { background: #fff; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #667eea; }
+            .info-box h3 { margin-top: 0; color: #667eea; }
+            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: #fff; text-decoration: none; border-radius: 6px; margin: 10px 0; font-weight: bold; }
+            .button:hover { background: #5568d3; }
+            .qr-info { background: #e8f4f8; padding: 15px; border-radius: 6px; margin: 15px 0; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+            ul { padding-left: 20px; }
+            li { margin: 8px 0; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <div class='success-icon'>✅</div>
+                <h1>QRコード発行完了</h1>
+                <p>不動産AI名刺へようこそ</p>
+            </div>
+            <div class='content'>
+                <p>{$userName} 様</p>
+                <p>お支払いいただき、ありがとうございます。<br>
+                デジタル名刺のQRコードが正常に発行されました。</p>
+                
+                <div class='info-box'>
+                    <h3>📱 あなたのデジタル名刺</h3>
+                    <p><strong>名刺URL:</strong><br>
+                    <a href='{$cardFullUrl}' target='_blank'>{$cardFullUrl}</a></p>
+                    <p>
+                        <a href='{$cardFullUrl}' class='button' target='_blank'>名刺を表示する</a>
+                    </p>
+                </div>
+                
+                <div class='qr-info'>
+                    <h3>🔲 QRコードについて</h3>
+                    <p>QRコードは名刺ページに表示されています。このQRコードをスキャンすると、上記の名刺URLに直接アクセスできます。</p>
+                    <ul>
+                        <li>名刺ページからQRコード画像をダウンロードできます</li>
+                        <li>印刷物やメールに添付して共有できます</li>
+                        <li>スマートフォンでスキャンするだけでアクセス可能</li>
+                    </ul>
+                </div>
+                
+                <div class='info-box'>
+                    <h3>📝 次のステップ</h3>
+                    <ul>
+                        <li>名刺の内容を確認・編集できます</li>
+                        <li>QRコードを名刺に印刷して配布できます</li>
+                        <li>SNSやメールで簡単に共有できます</li>
+                    </ul>
+                    <p>
+                        <a href='" . BASE_URL . "/frontend/edit.php' class='button'>マイページで編集する</a>
+                    </p>
+                </div>";
+    
+    if ($paymentAmount) {
+        $emailBody .= "
+                <div class='info-box'>
+                    <h3>💳 お支払い情報</h3>
+                    <p><strong>お支払い金額:</strong> ¥" . number_format($paymentAmount) . "</p>
+                    <p><strong>発行日時:</strong> {$issuedDate}</p>
+                </div>";
+    }
+    
+    $emailBody .= "
+                <div class='footer'>
+                    <p>ご不明な点がございましたら、お気軽にお問い合わせください。</p>
+                    <p>このメールは自動送信されています。</p>
+                    <p>© " . date('Y') . " 不動産AI名刺 All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+    
+    // プレーンテキスト版
+    $emailBodyText = 
+        "{$userName} 様\n\n" .
+        "お支払いいただき、ありがとうございます。\n" .
+        "デジタル名刺のQRコードが正常に発行されました。\n\n" .
+        "【あなたのデジタル名刺】\n" .
+        "名刺URL: {$cardFullUrl}\n\n" .
+        "【QRコードについて】\n" .
+        "QRコードは名刺ページに表示されています。\n" .
+        "このQRコードをスキャンすると、上記の名刺URLに直接アクセスできます。\n\n" .
+        "【次のステップ】\n" .
+        "- 名刺の内容を確認・編集できます\n" .
+        "- QRコードを名刺に印刷して配布できます\n" .
+        "- SNSやメールで簡単に共有できます\n\n" .
+        "マイページ: " . BASE_URL . "/frontend/edit.php\n\n" .
+        ($paymentAmount ? "【お支払い情報】\nお支払い金額: ¥" . number_format($paymentAmount) . "\n発行日時: {$issuedDate}\n\n" : "") .
+        "発行日時: {$issuedDate}\n";
+    
+    return sendEmail($userEmail, $emailSubject, $emailBody, $emailBodyText, 'qr_code_issued', null, null);
+}
+
+/**
+ * 管理者にQRコード発行通知メールを送信
+ */
+function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, $paymentAmount = null) {
+    $adminEmail = 'nishio@rchukai.jp';
+    
+    $issuedDate = date('Y年m月d日 H:i:s');
+    $cardFullUrl = QR_CODE_BASE_URL . $urlSlug;
+    
+    // メール件名
+    $emailSubject = '【不動産AI名刺】QRコード発行通知';
+    
+    // HTML本文
+    $emailBody = "
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <style>
+            body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #0066cc; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; }
+            .info-table th { background: #e9ecef; padding: 12px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; width: 35%; }
+            .info-table td { padding: 12px; border: 1px solid #dee2e6; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+            .highlight { background: #fff3cd; padding: 2px 6px; border-radius: 3px; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h1>🔲 QRコード発行通知</h1>
+                <p>不動産AI名刺 - 管理者通知</p>
+            </div>
+            <div class='content'>
+                <p>新しいQRコードが発行されました。</p>
+                <table class='info-table'>
+                    <tr>
+                        <th>ユーザーID</th>
+                        <td>{$userId}</td>
+                    </tr>
+                    <tr>
+                        <th>ユーザー名</th>
+                        <td>{$userName}</td>
+                    </tr>
+                    <tr>
+                        <th>メールアドレス</th>
+                        <td>{$userEmail}</td>
+                    </tr>
+                    <tr>
+                        <th>URLスラッグ</th>
+                        <td><span class='highlight'>{$urlSlug}</span></td>
+                    </tr>
+                    <tr>
+                        <th>名刺URL</th>
+                        <td><a href='{$cardFullUrl}' target='_blank'>{$cardFullUrl}</a></td>
+                    </tr>
+                    <tr>
+                        <th>QRコードスキャン先</th>
+                        <td>{$cardFullUrl}</td>
+                    </tr>";
+    
+    if ($paymentAmount) {
+        $emailBody .= "
+                    <tr>
+                        <th>支払い金額</th>
+                        <td>¥" . number_format($paymentAmount) . "</td>
+                    </tr>";
+    }
+    
+    $emailBody .= "
+                    <tr>
+                        <th>発行日時</th>
+                        <td>{$issuedDate}</td>
+                    </tr>
+                </table>
+                <div class='footer'>
+                    <p>このメールは自動送信されています。返信はできません。</p>
+                    <p>© " . date('Y') . " 不動産AI名刺 All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+    
+    // プレーンテキスト版
+    $emailBodyText = 
+        "新しいQRコードが発行されました。\n\n" .
+        "ユーザーID: {$userId}\n" .
+        "ユーザー名: {$userName}\n" .
+        "メールアドレス: {$userEmail}\n" .
+        "URLスラッグ: {$urlSlug}\n" .
+        "名刺URL: {$cardFullUrl}\n" .
+        "QRコードスキャン先: {$cardFullUrl}\n" .
+        ($paymentAmount ? "支払い金額: ¥" . number_format($paymentAmount) . "\n" : "") .
+        "発行日時: {$issuedDate}\n";
+    
+    return sendEmail($adminEmail, $emailSubject, $emailBody, $emailBodyText, 'admin_qr_notification', null, $userId);
+}
+
+/**
  * バリデーション: メールアドレス
  */
 function validateEmail($email) {
