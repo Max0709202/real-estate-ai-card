@@ -150,6 +150,7 @@ body {
 
 /* Communication Section */
 .communication-section {
+    margin-top: 2rem;
     margin-bottom: 2rem;
 }
 
@@ -157,10 +158,64 @@ body {
     font-size: 1.3rem;
     font-weight: 600;
     color: #333;
-    margin-bottom: 1rem;
     text-align: center;
 }
 
+/* Communication Grid Layout */
+.communication-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+/* Communication Card */
+.comm-card {
+    background: #fff;
+    padding-inline: 2rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+/* SNS Logo */
+.comm-logo {
+    width: 100%;
+    max-width: 300px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.comm-logo img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* Details Button */
+.comm-details-button {
+    display: inline-block;
+    background: #dc3545;
+    color: #fff;
+    text-align: center;
+    text-decoration: none;
+    font-size: 1rem;
+    transition: all 0.3s 
+ease;
+    border: none;
+    cursor: pointer;
+    padding: 10px 20px;
+}
+
+.comm-details-button:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
+/* Old styles - keep for backward compatibility */
 .communication-buttons {
     display: flex;
     flex-wrap: wrap;
@@ -400,9 +455,13 @@ body {
 .qr-code-section {
     margin-top: 2rem;
     padding: 2rem;
-    background: #f8f9fa;
+    /* background: #f8f9fa; */
     border-radius: 12px;
     text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;    
+    gap: 2rem;
 }
 
 .qr-code-section h3 {
@@ -413,6 +472,13 @@ body {
 }
 
 .qr-code-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 5rem;
+}
+
+.qr-code-content {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -457,52 +523,60 @@ body {
     text-decoration: underline;
 }
 
-/* Responsive adjustments */
+/* Responsive adjustments for Mobile (SP) */
 @media (max-width: 768px) {
     body {
-        padding: 0.5rem;
+        padding: 0;
+        font-size: 14px;
+    }
+
+    .card-container {
+        max-width: 100%;
+        margin: 0;
+    }
+
+    .card-section {
+        margin-bottom: 0;
+        border-radius: 0;
+    }
+
+    /* Header - Mobile */
+    .card-header {
+        padding: 1rem;
+        /* flex-direction: column; */
+        gap: 10px;
+    }
+
+    .company-logo {
+        max-width: 100px;
+        max-height: 100px;
+    }
+
+    .company-name {
+        font-size: 1.1rem;
+        text-align: center;
+    }
+
+    hr {
+        margin: 0;
+    }
+
+    /* Card Body - Mobile */
+    .card-body {
+        padding: 1rem;
     }
 
     /* Profile and Greeting Section - Stack on mobile */
     .profile-greeting-section {
         flex-direction: column;
-        gap: 1.5rem;
+        gap: 1rem;
         align-items: center;
+        margin-bottom: 1.5rem;
     }
 
     .profile-photo-container {
         text-align: center;
-    }
-
-    .profile-photo {
-        width: 150px;
-        height: 150px;
-    }
-
-    .greeting-content {
         width: 100%;
-    }
-
-    /* Info Layout - Single column on mobile */
-    .info-layout {
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
-    }
-
-    .person-name-section .person-name-large {
-        font-size: 1.25rem;
-    }
-
-    .card-header {
-        padding: 1.5rem;
-    }
-
-    .company-name {
-        font-size: 1.25rem;
-    }
-
-    .card-body {
-        padding: 1.5rem;
     }
 
     .profile-photo {
@@ -510,49 +584,219 @@ body {
         height: 120px;
     }
 
-    .person-name {
-        font-size: 1.5rem;
+    .greeting-content {
+        width: 100%;
     }
 
-    /* Tech Tools Banner - Mobile adjustments */
-    .tech-tools-grid {
+    .greeting-title {
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .greeting-text {
+        font-size: 0.85rem;
+        line-height: 1.6;
+    }
+
+    /* Info Layout - Single column on mobile */
+    .info-layout {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .info-left,
+    .info-right {
+        width: 100% !important;
+        gap: 0.75rem;
+    }
+
+    .info-section {
+        padding-bottom: 0.5rem;
+    }
+
+    .info-section h3 {
+        font-size: 0.75rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .info-section p {
+        font-size: 1rem;
+        line-height: 1.4;
+        float: none !important;
+    }
+
+    .person-name-section .person-name-large {
+        font-size: 1.1rem;
+    }
+
+    .person-name-section .name-romaji {
+        font-size: 0.8rem;
+    }
+
+    /* QR Code Section - Mobile */
+    .qr-code-section {
+        padding: 1rem;
+        margin-top: 1rem;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .qr-code-section h3 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+    }
+
+    .qr-code-container {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .qr-code-image {
+        max-width: 200px;
+    }
+
+    .qr-code-description {
+        font-size: 0.85rem;
+    }
+
+    .qr-code-content {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    /* Communication Section - Mobile */
+    .communication-section {
+        padding: 1rem 0;
+        margin-top: 1rem;
+    }
+
+    .communication-section h3 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+    }
+
+    .communication-grid {
         grid-template-columns: 1fr;
-        gap: 1.5rem;
+        gap: 1rem;
+        padding: 0 0.5rem;
     }
 
-    .tool-banner-header {
-        height: 150px;
+    .comm-card {
+        padding: 1rem;
+        gap: 1rem;
     }
 
-    .tool-banner-content {
-        padding: 1.25rem;
+    .comm-logo {
+        height: 80px;
+        max-width: 100%;
     }
 
-    .tool-description {
+    .comm-details-button {
+        max-width: 50%;
+        width: 50%;
+        padding: 0.75rem 1rem;
         font-size: 0.9rem;
     }
 
-    .tool-details-button {
-        padding: 0.75rem 1.25rem;
-        font-size: 0.95rem;
+    /* Tech Tools Section - Mobile */
+    .tech-tools-section {
+        padding: 1rem;
     }
 
-    /* Old card styles */
+    .tech-tools-section h2 {
+        font-size: 1.3rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .section-description {
+        font-size: 0.85rem;
+        margin-bottom: 1rem;
+    }
+
+    .tech-tools-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .tech-tool-banner-card {
+        margin-bottom: 0.5rem;
+    }
+
+    .tool-banner-header {
+        height: 120px;
+        background-size: cover;
+    }
+
+    .tool-banner-content {
+        padding: 1rem;
+        height: auto;
+    }
+
+    .tool-description {
+        font-size: 0.8rem;
+        line-height: 1.6;
+        margin-bottom: 1rem;
+    }
+
+    .tool-details-button {
+        padding: 0.7rem 1rem;
+        font-size: 0.9rem;
+        width: 50%;
+    }
+
+    /* Edit Link - Mobile */
+    .edit-link {
+        padding: 1rem;
+        margin-top: 1rem;
+        border-radius: 0;
+    }
+
+    .edit-link a {
+        font-size: 0.85rem;
+    }
+
+    /* Old card styles - Backward compatibility */
     .tech-tool-card {
-        padding: 1.25rem;
+        padding: 1rem;
     }
 
     .tool-icon {
-        font-size: 2.5rem;
+        font-size: 2rem;
     }
 
     .communication-buttons {
         flex-direction: column;
+        gap: 0.75rem;
     }
 
     .comm-btn {
         width: 100%;
         justify-content: center;
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+    }
+
+    .person-name {
+        font-size: 1.3rem;
+    }
+
+    /* Free Input Section - Mobile */
+    .free-input-content {
+        font-size: 0.85rem;
+    }
+
+    .free-input-content img {
+        max-width: 100%;
+        height: auto !important;
+    }
+
+    .free-input-link a {
+        word-break: break-all;
+        font-size: 1rem;
+    }
+
+    .comm-logo img {
+        width: 80% !important;
     }
 }
 

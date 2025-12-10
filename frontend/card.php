@@ -271,7 +271,7 @@ $communicationMethods = $stmt->fetchAll();
 
                                         // Display embedded image if exists
                                         if (!empty($freeInputData['image'])) {
-                                            echo '<div class="free-input-image" style="font-size: 1.25rem; font-weight: bold; color: black;">';
+                                            echo '<div class="free-input-image" style="font-size: 1rem; font-weight: bold; color: black;">';
                                             $imagePath = htmlspecialchars($freeInputData['image']);
                                             // Add BASE_URL if the path doesn't start with http
                                             if (!preg_match('/^https?:\/\//', $imagePath)) {
@@ -395,31 +395,29 @@ $communicationMethods = $stmt->fetchAll();
                         </div>
                     </section>
                 <?php endif; ?>
-
+                <hr>
                 <!-- コミュニケーション方法 -->
                 <?php if (!empty($communicationMethods)): ?>
                     <div class="communication-section">
-                        <h3>連絡先</h3>
-                        <div class="communication-buttons">
+                        <h3>コミュニケーション方法</h3>
+                        <div class="communication-grid">
                             <?php foreach ($communicationMethods as $method): ?>
-                                <?php
-                                $methodIcons = [
-                                    'line' => '💬',
-                                    'messenger' => '💌',
-                                    'whatsapp' => '📱',
-                                    'instagram' => '📷',
-                                    'facebook' => '👥',
-                                    'twitter' => '🐦',
-                                    'youtube' => '📺'
-                                ];
-                                $icon = $methodIcons[$method['method_type']] ?? '📞';
-                                ?>
                                 <?php if ($method['method_url'] || $method['method_id']): ?>
-                                    <a href="<?php echo htmlspecialchars($method['method_url'] ?? '#'); ?>" class="comm-btn"
-                                        target="_blank">
-                                        <span class="comm-icon"><?php echo $icon; ?></span>
-                                        <span><?php echo htmlspecialchars($method['method_name']); ?></span>
-                                    </a>
+                                    <div class="comm-card">
+                                        <!-- SNS Logo -->
+                                        <div class="comm-logo">
+                                            <img src="<?php echo BASE_URL; ?>/frontend/assets/images/sns/<?php echo htmlspecialchars($method['method_type']); ?>.png" 
+                                                 alt="<?php echo htmlspecialchars($method['method_name']); ?>"
+                                                 onerror="this.style.display='none'; this.parentElement.innerHTML='<?php echo htmlspecialchars($method['method_name']); ?>';">
+                                        </div>
+                                        
+                                        <!-- Details Button -->
+                                        <a href="<?php echo htmlspecialchars($method['method_url'] ?? '#'); ?>" 
+                                           class="comm-details-button" 
+                                           target="_blank">
+                                            詳細はこちら
+                                        </a>
+                                    </div>
                                 <?php endif; ?>
                             <?php endforeach; ?>
                         </div>
@@ -427,15 +425,17 @@ $communicationMethods = $stmt->fetchAll();
                 <?php endif; ?>
             </div>
         </section>
-
+        <hr>
         <!-- QRコード -->
         <?php if (!empty($card['qr_code']) && $card['qr_code_issued']): ?>
             <div class="qr-code-section">
-                <h3>デジタル名刺のQRコード</h3>
                 <div class="qr-code-container">
                     <img src="<?php echo htmlspecialchars(BASE_URL . '/backend/' . $card['qr_code']); ?>" alt="QRコード"
-                        class="qr-code-image" onerror="this.style.display='none'">
-                    <p class="qr-code-description">このQRコードをスキャンして名刺を共有できます</p>
+                    class="qr-code-image" onerror="this.style.display='none'">
+                    <div class="qr-code-content">
+                        <h3>デジタル名刺のQRコード</h3>
+                        <p class="qr-code-description">このQRコードをスキャンして名刺を共有できます</p>
+                    </div>
                 </div>
             </div>
         <?php endif; ?>
