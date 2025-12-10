@@ -193,7 +193,7 @@ $defaultGreetings = [
                                 <div class="form-group">
                                     <label>登録番号</label>
                                     <input type="text" name="real_estate_license_registration_number" id="license_registration" class="form-control" placeholder="例：12345">
-                                    <button type="button" class="btn-outline" id="lookup-license" style="margin-top: 0.5rem;">住所を自動入力</button>
+                                    <!-- <button type="button" class="btn-outline" id="lookup-license" style="margin-top: 0.5rem;">住所を自動入力</button> -->
                                 </div>
                             </div>
                         </div>

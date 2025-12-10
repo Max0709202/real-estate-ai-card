@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/qr-helper.php';
 
 // Stripe SDK読み込み
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -70,7 +71,7 @@ try {
                 ");
                 $stmt->execute([$payment['business_card_id'], $payment['user_id']]);
                 
-                // QRコードが未発行の場合、発行処理をトリガー
+                // QRコードが未発行の場合、発行処理を実行
                 $stmt = $db->prepare("
                     SELECT qr_code_issued FROM business_cards WHERE id = ?
                 ");
@@ -78,9 +79,13 @@ try {
                 $bc = $stmt->fetch();
                 
                 if ($bc && !$bc['qr_code_issued']) {
-                    // QRコード発行APIを呼び出す（非同期で実行）
-                    // ここではログに記録するのみ（実際の実装ではバックグラウンドジョブを使用）
-                    error_log("QR code generation triggered for business_card_id: " . $payment['business_card_id']);
+                    // Generate QR code immediately
+                    $qrResult = generateBusinessCardQRCode($payment['business_card_id'], $db);
+                    if ($qrResult['success']) {
+                        error_log("QR code generated successfully for business_card_id: " . $payment['business_card_id']);
+                    } else {
+                        error_log("Failed to generate QR code for business_card_id: " . $payment['business_card_id'] . " - " . ($qrResult['message'] ?? 'Unknown error'));
+                    }
                 }
             }
             

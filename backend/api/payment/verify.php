@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/qr-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 // Stripe SDK読み込み
@@ -82,6 +83,14 @@ try {
                 ");
                 $stmt->execute([$payment['id']]);
                 $payment['payment_status'] = 'completed';
+                
+                // Generate QR code for business card after payment completion
+                if (!empty($payment['business_card_id'])) {
+                    $qrResult = generateBusinessCardQRCode($payment['business_card_id'], $db);
+                    if (!$qrResult['success']) {
+                        error_log("Failed to generate QR code after payment: " . ($qrResult['message'] ?? 'Unknown error'));
+                    }
+                }
             } elseif ($stripeStatus === 'requires_payment_method' || 
                       $stripeStatus === 'canceled' || 
                       $stripeStatus === 'requires_capture') {

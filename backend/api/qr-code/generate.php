@@ -5,10 +5,8 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/qr-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
-
-// QR Codeライブラリ読み込み（PHP QR Code等を想定）
-// require_once __DIR__ . '/../../vendor/phpqrcode/qrlib.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -43,29 +41,12 @@ try {
         sendErrorResponse('決済が完了していません', 400);
     }
 
-    // QRコードURL生成
-    $qrUrl = QR_CODE_BASE_URL . $businessCard['url_slug'];
+    // Generate QR code using helper function
+    $result = generateBusinessCardQRCode($businessCard['id'], $db);
     
-    // QRコードディレクトリ作成
-    if (!is_dir(QR_CODE_DIR)) {
-        mkdir(QR_CODE_DIR, 0755, true);
+    if (!$result['success']) {
+        sendErrorResponse($result['message'] ?? 'QRコードの生成に失敗しました', 500);
     }
-
-    // QRコード生成（実際の実装ではQR Codeライブラリを使用）
-    $qrCodeFileName = 'qr_' . $businessCard['url_slug'] . '.png';
-    $qrCodePath = QR_CODE_DIR . $qrCodeFileName;
-    $qrCodeRelativePath = 'uploads/qr_codes/' . $qrCodeFileName;
-
-    // QRコード生成（簡易版 - 実際にはライブラリを使用）
-    // QRcode::png($qrUrl, $qrCodePath, QR_ECLEVEL_H, 10, 2);
-
-    // ビジネスカードにQRコード情報を保存
-    $stmt = $db->prepare("
-        UPDATE business_cards 
-        SET qr_code = ?, qr_code_issued = 1, qr_code_issued_at = NOW(), is_published = 1
-        WHERE id = ?
-    ");
-    $stmt->execute([$qrCodeRelativePath, $businessCard['id']]);
 
     // 通知メール送信
     $stmt = $db->prepare("SELECT email, user_type FROM users WHERE id = ?");
@@ -89,10 +70,10 @@ QRコード発行日時: " . date('Y-m-d H:i:s') . "
     }
 
     sendSuccessResponse([
-        'qr_code_url' => BASE_URL . '/' . $qrCodeRelativePath,
-        'qr_code_path' => $qrCodeRelativePath,
-        'business_card_url' => $qrUrl,
-        'url_slug' => $businessCard['url_slug']
+        'qr_code_url' => $result['qr_code_url'],
+        'qr_code_path' => $result['qr_code_path'],
+        'business_card_url' => $result['business_card_url'],
+        'url_slug' => $result['url_slug']
     ], 'QRコードを発行しました');
 
 } catch (Exception $e) {

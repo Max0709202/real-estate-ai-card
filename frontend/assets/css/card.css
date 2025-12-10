@@ -223,6 +223,45 @@ body {
 }
 
 /* Edit Link */
+/* QR Code Section */
+.qr-code-section {
+    margin-top: 2rem;
+    padding: 2rem;
+    background: #f8f9fa;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.qr-code-section h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 1.5rem;
+}
+
+.qr-code-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.qr-code-image {
+    max-width: 300px;
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    background: #fff;
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.qr-code-description {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 0;
+}
+
 .edit-link {
     text-align: center;
     margin-top: 2rem;

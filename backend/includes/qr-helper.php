@@ -1,0 +1,139 @@
+<?php
+/**
+ * QR Code Helper Functions
+ * Helper functions for generating QR codes for business cards
+ */
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\Image\ImagickImageBackEnd;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
+
+/**
+ * Generate QR code for a business card
+ * 
+ * @param int $businessCardId Business card ID
+ * @param PDO $db Database connection
+ * @return array Result with success status and QR code info
+ */
+function generateBusinessCardQRCode($businessCardId, $db) {
+    try {
+        // Get business card info
+        $stmt = $db->prepare("
+            SELECT bc.id, bc.url_slug, bc.qr_code, bc.qr_code_issued, 
+                   p.id as payment_id, p.payment_status, p.total_amount, 
+                   p.paid_at, u.email, u.phone_number
+            FROM business_cards bc
+            JOIN users u ON bc.user_id = u.id
+            LEFT JOIN payments p ON bc.id = p.business_card_id 
+                AND p.payment_status = 'completed'
+            WHERE bc.id = ?
+            ORDER BY p.paid_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$businessCardId]);
+        $card = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$card) {
+            return [
+                'success' => false,
+                'message' => 'Business card not found'
+            ];
+        }
+        
+        // Generate QR code URL (card viewing URL)
+        $qrUrl = QR_CODE_BASE_URL . $card['url_slug'];
+        
+        // Create QR codes directory if it doesn't exist
+        if (!is_dir(QR_CODE_DIR)) {
+            mkdir(QR_CODE_DIR, 0755, true);
+        }
+        
+        // Generate QR code file name
+        $qrCodeFileName = 'qr_' . $card['url_slug'] . '_' . time() . '.png';
+        $qrCodePath = QR_CODE_DIR . $qrCodeFileName;
+        $qrCodeRelativePath = 'uploads/qr_codes/' . $qrCodeFileName;
+        
+        // Generate QR code using BaconQrCode
+        try {
+            $renderer = new ImageRenderer(
+                new RendererStyle(400, 2), // Size 400x400, margin 2
+                new ImagickImageBackEnd()
+            );
+            $writer = new Writer($renderer);
+            $writer->writeFile($qrUrl, $qrCodePath);
+        } catch (Exception $e) {
+            // Fallback: Try with GD backend if Imagick is not available
+            error_log("Imagick not available, trying GD backend: " . $e->getMessage());
+            try {
+                require_once __DIR__ . '/../vendor/bacon/bacon-qr-code/src/Renderer/Image/SvgImageBackEnd.php';
+                $renderer = new ImageRenderer(
+                    new RendererStyle(400, 2),
+                    new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
+                );
+                $writer = new Writer($renderer);
+                
+                // Generate SVG first, then convert to PNG if needed
+                $svgContent = $writer->writeString($qrUrl);
+                
+                // Save as SVG for now (can be converted to PNG later if needed)
+                $qrCodeFileName = 'qr_' . $card['url_slug'] . '_' . time() . '.svg';
+                $qrCodePath = QR_CODE_DIR . $qrCodeFileName;
+                $qrCodeRelativePath = 'uploads/qr_codes/' . $qrCodeFileName;
+                file_put_contents($qrCodePath, $svgContent);
+            } catch (Exception $e2) {
+                error_log("QR Code generation failed: " . $e2->getMessage());
+                return [
+                    'success' => false,
+                    'message' => 'Failed to generate QR code: ' . $e2->getMessage()
+                ];
+            }
+        }
+        
+        // Update business card with QR code info
+        $stmt = $db->prepare("
+            UPDATE business_cards 
+            SET qr_code = ?, 
+                qr_code_issued = 1, 
+                qr_code_issued_at = NOW(),
+                is_published = 1
+            WHERE id = ?
+        ");
+        $stmt->execute([$qrCodeRelativePath, $businessCardId]);
+        
+        error_log("QR code generated successfully for business_card_id: {$businessCardId}, path: {$qrCodeRelativePath}");
+        
+        return [
+            'success' => true,
+            'qr_code_url' => BASE_URL . '/' . $qrCodeRelativePath,
+            'qr_code_path' => $qrCodeRelativePath,
+            'business_card_url' => $qrUrl,
+            'url_slug' => $card['url_slug']
+        ];
+        
+    } catch (Exception $e) {
+        error_log("QR Code generation error: " . $e->getMessage());
+        return [
+            'success' => false,
+            'message' => 'Server error: ' . $e->getMessage()
+        ];
+    }
+}
+
+/**
+ * Check if QR code file exists
+ * 
+ * @param string $qrCodePath Relative path to QR code
+ * @return bool True if file exists
+ */
+function qrCodeExists($qrCodePath) {
+    if (empty($qrCodePath)) {
+        return false;
+    }
+    
+    $fullPath = __DIR__ . '/../../' . $qrCodePath;
+    return file_exists($fullPath);
+}
+

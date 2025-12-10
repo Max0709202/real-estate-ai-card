@@ -119,6 +119,20 @@ $communicationMethods = $stmt->fetchAll();
                 </div>
                 <?php endif; ?>
 
+                <!-- QRコード -->
+                <?php if (!empty($card['qr_code']) && $card['qr_code_issued']): ?>
+                <div class="qr-code-section">
+                    <h3>デジタル名刺のQRコード</h3>
+                    <div class="qr-code-container">
+                        <img src="<?php echo htmlspecialchars(BASE_URL . '/backend/' . $card['qr_code']); ?>" 
+                             alt="QRコード" 
+                             class="qr-code-image"
+                             onerror="this.style.display='none'">
+                        <p class="qr-code-description">このQRコードをスキャンして名刺を共有できます</p>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <!-- コミュニケーション方法 -->
                 <?php if (!empty($communicationMethods)): ?>
                 <div class="communication-section">

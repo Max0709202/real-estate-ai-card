@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../backend/config/config.php';
 require_once __DIR__ . '/../backend/config/database.php';
 require_once __DIR__ . '/../backend/includes/functions.php';
+require_once __DIR__ . '/../backend/includes/qr-helper.php';
 
 // Stripe SDK読み込み
 require_once __DIR__ . '/../backend/vendor/autoload.php';
@@ -56,6 +57,20 @@ if ($paymentId) {
                         ");
                         $stmt->execute([$paymentId]);
                         $paymentInfo['payment_status'] = 'completed';
+                        
+                        // Generate QR code if not already generated
+                        if (!empty($paymentInfo['business_card_id'])) {
+                            $stmt = $db->prepare("SELECT qr_code_issued FROM business_cards WHERE id = ?");
+                            $stmt->execute([$paymentInfo['business_card_id']]);
+                            $bc = $stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            if ($bc && !$bc['qr_code_issued']) {
+                                $qrResult = generateBusinessCardQRCode($paymentInfo['business_card_id'], $db);
+                                if (!$qrResult['success']) {
+                                    error_log("Failed to generate QR code on payment success page: " . ($qrResult['message'] ?? 'Unknown error'));
+                                }
+                            }
+                        }
                     } elseif ($paymentIntent->status === 'requires_payment_method' ||
                               $paymentIntent->status === 'canceled') {
                         // Payment failed
@@ -234,10 +249,10 @@ if ($paymentId) {
             <?php endif; ?>
             
             <div class="action-buttons">
-                <a href="edit.php" class="btn btn-primary">マイページへ</a>
                 <?php if ($paymentInfo && $paymentInfo['url_slug']): ?>
-                <a href="card.php?slug=<?php echo htmlspecialchars($paymentInfo['url_slug']); ?>" class="btn btn-secondary" target="_blank">名刺を見る</a>
+                <a href="card.php?slug=<?php echo htmlspecialchars($paymentInfo['url_slug']); ?>" class="btn btn-primary" target="_blank">名刺を見る</a>
                 <?php endif; ?>
+                <a href="edit.php" class="btn btn-secondary">マイページへ</a>
             </div>
         </div>
     </div>
