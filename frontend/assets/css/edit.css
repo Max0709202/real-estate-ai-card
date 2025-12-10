@@ -1,0 +1,664 @@
+/* Business Card Editor Page Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background: #f5f5f5;
+}
+
+/* Edit Container */
+.edit-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Edit Header */
+.edit-header {
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.edit-header h1 {
+    font-size: 1.5rem;
+    color: #333;
+    font-weight: 600;
+}
+
+.btn-back {
+    background: #fff;
+    color: #0066cc;
+    padding: 0.55rem 1rem;
+    border: 1px solid #0066cc;
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s;
+    font-size: 0.9rem;
+}
+
+.btn-back:hover {
+    background: #0066cc;
+    color: #fff;
+}
+
+/* Edit Content */
+.edit-content {
+    display: grid;
+    grid-template-columns: 250px 1fr 350px;
+    gap: 2rem;
+    padding: 2rem;
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+    flex: 1;
+}
+
+/* Edit Sidebar */
+.edit-sidebar {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    padding: 1.5rem 0;
+    height: fit-content;
+    position: sticky;
+    top: 100px;
+}
+
+.edit-nav {
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-item {
+    padding: 1rem 1.5rem;
+    text-decoration: none;
+    color: #666;
+    border-left: 3px solid transparent;
+    transition: all 0.3s;
+    font-weight: 500;
+}
+
+.nav-item:hover {
+    background: #f0f7ff;
+    color: #0066cc;
+}
+
+.nav-item.active {
+    background: #f0f7ff;
+    color: #0066cc;
+    border-left-color: #0066cc;
+    font-weight: 600;
+}
+
+/* Edit Main */
+.edit-main {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    padding: 2rem;
+    min-height: 600px;
+}
+
+.edit-section {
+    display: none;
+}
+
+.edit-section.active {
+    display: block;
+}
+
+.edit-section h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    color: #333;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.edit-section p {
+    color: #666;
+    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+}
+
+/* Edit Form */
+.edit-form {
+    margin-top: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #333;
+}
+
+.form-group .required {
+    color: #e74c3c;
+    margin-left: 0.25rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+    font-family: inherit;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #0066cc;
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+/* Upload Area */
+.upload-area {
+    position: relative;
+    cursor: pointer;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    background: #fafafa;
+    transition: all 0.3s;
+}
+
+.upload-area:hover {
+    border-color: #0066cc;
+    background: #f0f7ff;
+}
+
+.upload-area.drag-over {
+    border-color: #0066cc;
+    background: #e6f2ff;
+    border-style: solid;
+    transform: scale(1.02);
+}
+
+.upload-area.drag-over::before {
+    content: 'ファイルをドロップしてください';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 102, 204, 0.9);
+    color: #fff;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.btn-upload {
+    background: #0066cc;
+    color: #fff;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.3s;
+}
+
+.btn-upload:hover {
+    background: #0052a3;
+}
+
+.upload-preview {
+    margin-top: 1rem;
+    min-height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.upload-preview img {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 8px;
+    object-fit: cover;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Buttons */
+.btn-primary {
+    background: #0066cc;
+    color: #fff;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
+    display: inline-block;
+    transition: background 0.3s;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.btn-primary:hover {
+    background: #0052a3;
+}
+
+.btn-add {
+    background: #fff;
+    color: #0066cc;
+    padding: 0.75rem 1.5rem;
+    border: 1px solid #0066cc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s;
+    margin-bottom: 1rem;
+}
+
+.btn-add:hover {
+    background: #0066cc;
+    color: #fff;
+}
+
+/* Greetings Section */
+#greetings-list {
+    margin-bottom: 1.5rem;
+}
+
+.greeting-item {
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    cursor: move;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.greeting-item:hover {
+    border-color: #0066cc;
+}
+
+.greeting-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.greeting-item.drag-over {
+    border-color: #0066cc;
+    border-style: dashed;
+    background: #e6f2ff;
+}
+
+.greeting-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.greeting-number {
+    font-weight: bold;
+    color: #0066cc;
+    font-size: 1.1rem;
+}
+
+.greeting-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-move-up,
+.btn-move-down,
+.btn-delete {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+    color: #666;
+}
+
+.btn-move-up:hover:not(:disabled),
+.btn-move-down:hover:not(:disabled) {
+    background: #0066cc;
+    color: #fff;
+    border-color: #0066cc;
+}
+
+.btn-delete:hover {
+    background: #e74c3c;
+    color: #fff;
+    border-color: #e74c3c;
+}
+
+.btn-move-up:disabled,
+.btn-move-down:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.greeting-item input[type="text"],
+.greeting-item textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    margin-bottom: 0.75rem;
+}
+
+.greeting-item textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Tech Tools Section */
+#tech-tools-list {
+    margin-bottom: 1.5rem;
+}
+
+.tech-tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.tech-tool-card {
+    position: relative;
+}
+
+.tech-tool-card input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.tech-tool-card label {
+    display: block;
+    padding: 1.5rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: #fff;
+}
+
+.tech-tool-card input[type="checkbox"]:checked + label,
+.tech-tool-card:has(input[type="checkbox"]:checked) label {
+    border-color: #0066cc;
+    background: #f0f7ff;
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.tech-tool-card label:hover {
+    border-color: #0066cc;
+}
+
+.tool-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.tech-tool-card h4 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.tech-tool-card p {
+    font-size: 0.875rem;
+    color: #666;
+    margin: 0;
+}
+
+/* Communication Section */
+#communication-list {
+    margin-bottom: 1.5rem;
+}
+
+.communication-item {
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.communication-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.communication-type {
+    font-weight: 600;
+    color: #0066cc;
+}
+
+.communication-item input[type="text"],
+.communication-item input[type="url"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.communication-item .btn-delete {
+    background: #fff;
+    border: 1px solid #e74c3c;
+    color: #e74c3c;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+}
+
+.communication-item .btn-delete:hover {
+    background: #e74c3c;
+    color: #fff;
+}
+
+/* Edit Preview */
+.edit-preview {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    padding: 2rem;
+    height: fit-content;
+    position: sticky;
+    top: 100px;
+}
+
+.edit-preview h3 {
+    font-size: 1.3rem;
+    margin-bottom: 1.5rem;
+    color: #333;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+#preview-content {
+    min-height: 400px;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+}
+
+#preview-content p {
+    text-align: center;
+    color: #999;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .edit-content {
+        grid-template-columns: 200px 1fr 300px;
+        gap: 1.5rem;
+    }
+}
+
+@media (max-width: 968px) {
+    .edit-content {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+
+    .edit-sidebar {
+        position: static;
+        order: 1;
+    }
+
+    .edit-nav {
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding: 0.5rem;
+        /* Make scrollbar visible */
+        scrollbar-width: thin;
+    }
+
+    .edit-nav::-webkit-scrollbar {
+        display: block;
+        height: 8px;
+    }
+
+    .edit-nav::-webkit-scrollbar-track {
+        background: #f0f0f0;
+        border-radius: 4px;
+    }
+
+    .edit-nav::-webkit-scrollbar-thumb {
+        background: #0066cc;
+        border-radius: 4px;
+    }
+
+    .edit-nav::-webkit-scrollbar-thumb:hover {
+        background: #0052a3;
+    }
+
+    .nav-item {
+        border-left: none;
+        border-bottom: 3px solid transparent;
+        white-space: nowrap;
+        padding: 0.75rem 1rem;
+    }
+
+    .nav-item.active {
+        border-left: none;
+        /* border-bottom-color: #0066cc; */
+    }
+
+    .edit-main {
+        order: 2;
+    }
+
+    .edit-preview {
+        position: static;
+        order: 3;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .tech-tools-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+
+    /* Hide sidebar action buttons on mobile/tablet - they're in the header dropdown */
+    .edit-sidebar-actions {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .edit-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+        padding: 1rem;
+    }
+
+    .edit-header h1 {
+        font-size: 1.3rem;
+    }
+
+    .edit-main {
+        padding: 1.5rem;
+    }
+
+    .edit-section h2 {
+        font-size: 1.5rem;
+    }
+
+    .tech-tools-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .edit-content {
+        padding: 0.5rem;
+    }
+
+    .edit-main {
+        padding: 1rem;
+    }
+
+    .edit-preview {
+        padding: 1rem;
+    }
+
+    .edit-preview h3 {
+        font-size: 1.1rem;
+    }
+
+    #preview-content {
+        min-height: 300px;
+        padding: 1rem;
+    }
+}
+
+

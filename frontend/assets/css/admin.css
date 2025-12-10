@@ -1,0 +1,610 @@
+/* Admin Dashboard & Login CSS */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background: #f5f5f5;
+}
+
+/* ============================================
+   Admin Login Page
+   ============================================ */
+
+.admin-login-container {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 2rem;
+}
+
+.admin-login-box {
+    background: #fff;
+    padding: 3rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    width: 100%;
+    max-width: 450px;
+}
+
+.admin-login-box h1 {
+    text-align: center;
+    margin-bottom: 2rem;
+    color: #333;
+    font-size: 1.8rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #555;
+    font-weight: 500;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #0066cc;
+    box-shadow: 0 0 0 3px rgba(0,102,204,0.1);
+}
+
+/* Password Input Wrapper */
+.password-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-input-wrapper .form-control {
+    padding-right: 3rem;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    transition: color 0.3s;
+    z-index: 1;
+}
+
+.password-toggle:hover {
+    color: #0066cc;
+}
+
+.password-toggle:focus {
+    outline: none;
+    color: #0066cc;
+}
+
+.eye-icon {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+}
+
+.btn-primary {
+    background: #0066cc;
+    color: #fff;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.3s;
+    width: 100%;
+}
+
+.btn-primary:hover {
+    background: #0052a3;
+}
+
+.btn-block {
+    width: 100%;
+}
+
+.error-message {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: #fee;
+    color: #c33;
+    border: 1px solid #fcc;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* ============================================
+   Admin Dashboard
+   ============================================ */
+
+.admin-container {
+    min-height: 100vh;
+    background: #f5f5f5;
+}
+
+/* Admin Header */
+.admin-header {
+    background: #fff;
+    padding: 1.5rem 2rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.admin-header h1 {
+    font-size: 1.5rem;
+    color: #333;
+    margin: 0;
+}
+
+.admin-info {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.admin-info p {
+    margin: 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.admin-info p strong {
+    color: #333;
+    font-weight: 600;
+}
+
+.btn-logout {
+    background: #dc3545;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background 0.3s;
+}
+
+.btn-logout:hover {
+    background: #c82333;
+}
+
+/* Admin Content */
+.admin-content {
+    padding: 2rem;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+/* Bulk Actions Section */
+.bulk-actions {
+    background: #fff;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+}
+
+.btn-delete-bulk {
+    background: #dc3545;
+    color: #fff;
+    padding: 0.5rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.3s;
+    font-weight: 500;
+    position: absolute;
+    right : 3rem;
+}
+
+.btn-delete-bulk:hover:not(:disabled) {
+    background: #c82333;
+}
+
+.btn-delete-bulk:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Filters Section */
+.filters {
+    background: #fff;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 2rem;
+}
+
+.filter-form {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-form select {
+    padding: 0.5rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background: #fff;
+    cursor: pointer;
+    min-width: 150px;
+}
+
+.recipient-email-input {
+    padding: 0.5rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background: #fff;
+    cursor: pointer;
+    min-width: 150px;
+}
+
+.filter-form select:focus {
+    outline: none;
+    border-color: #0066cc;
+    box-shadow: 0 0 0 3px rgba(0,102,204,0.1);
+}
+
+.btn-filter {
+    background: #0066cc;
+    color: #fff;
+    padding: 0.5rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.btn-filter:hover {
+    background: #0052a3;
+}
+
+.btn-export {
+    background: #28a745;
+    color: #fff;
+    padding: 0.5rem 1.5rem;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.95rem;
+    transition: background 0.3s;
+    display: inline-block;
+}
+
+.btn-export:hover {
+    background: #218838;
+}
+
+/* Users Table */
+.users-table {
+    width: 100%;
+    background: #fff;
+    border-collapse: collapse;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow: hidden;
+    min-width: 1400px;
+}
+
+.users-table thead {
+    background: #0066cc;
+    color: #fff;
+}
+
+.users-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+}
+
+.users-table th:hover {
+    background: #0052a3;
+}
+
+.users-table th.sortable::after {
+    content: '';
+    position: absolute;
+    right: 0.5rem;
+    font-size: 0.7rem;
+    opacity: 0;
+}
+
+.users-table th.sort-asc::after {
+    content: '▲';
+    opacity: 1;
+}
+
+.users-table th.sort-desc::after {
+    content: '▼';
+    opacity: 1;
+}
+
+.users-table tbody tr {
+    border-bottom: 1px solid #e0e0e0;
+    transition: background 0.2s;
+}
+
+.users-table tbody tr.even-row {
+    background: #ffffff;
+}
+
+.users-table tbody tr.odd-row {
+    background: #f5f5f5;
+}
+
+.users-table tbody tr.even-row:hover {
+    background: #f0f0f0;
+}
+
+.users-table tbody tr.odd-row:hover {
+    background: #e8e8e8;
+}
+
+.users-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.users-table td {
+    padding: 1rem;
+    font-size: 0.9rem;
+    vertical-align: middle;
+}
+
+.users-table td:last-child {
+    text-align: center;
+    width: 40px;
+}
+
+.users-table th:last-child {
+    text-align: center;
+    width: 40px;
+    cursor: default;
+}
+
+.users-table th:last-child:hover {
+    background: #0066cc;
+}
+
+.users-table td:nth-child(2),
+.users-table td:nth-child(3) {
+    text-align: center;
+}
+
+/* Checkboxes */
+.user-select-checkbox,
+.payment-checkbox,
+.open-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #0066cc;
+}
+
+.payment-checkbox:checked {
+    background: #28a745;
+}
+
+.open-checkbox:checked {
+    background: #0066cc;
+}
+
+/* Table Links */
+.users-table a {
+    color: #0066cc;
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.users-table a:hover {
+    text-decoration: underline;
+}
+
+/* Action Buttons */
+.btn-action {
+    background: #0066cc;
+    color: #fff;
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.3s;
+    white-space: nowrap;
+}
+
+.btn-action:hover {
+    background: #0052a3;
+}
+
+/* Modal/Popup Styles */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-content {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+}
+
+.modal-content h3 {
+    margin-bottom: 1.5rem;
+    color: #333;
+    font-size: 1.3rem;
+}
+
+.modal-content p {
+    margin-bottom: 2rem;
+    color: #666;
+    line-height: 1.6;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.modal-btn {
+    padding: 0.75rem 2rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 120px;
+}
+
+.modal-btn-yes {
+    background: #28a745;
+    color: #fff;
+}
+
+.modal-btn-yes:hover {
+    background: #218838;
+}
+
+.modal-btn-no {
+    background: #6c757d;
+    color: #fff;
+}
+
+.modal-btn-no:hover {
+    background: #5a6268;
+}
+
+/* Responsive Design (PC Optimized - minimal mobile support) */
+@media (max-width: 1200px) {
+    .admin-content {
+        padding: 1rem;
+    }
+    
+    .users-table {
+        font-size: 0.85rem;
+    }
+    
+    .users-table th,
+    .users-table td {
+        padding: 0.75rem 0.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .admin-info {
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .filter-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filter-form select,
+    .btn-filter,
+    .btn-export {
+        width: 100%;
+    }
+    
+    .users-table {
+        font-size: 0.8rem;
+        min-width: 1000px;
+    }
+    
+    .admin-content {
+        overflow-x: scroll;
+    }
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Status Indicators */
+.status-paid {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.status-unpaid {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.status-open {
+    color: #0066cc;
+    font-weight: 600;
+}
+
+.status-closed {
+    color: #6c757d;
+    font-weight: 600;
+}
+

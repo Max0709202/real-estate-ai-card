@@ -1,0 +1,8 @@
+prefecture,prefecture_code,renewal_number,registration_number,company_name,representative_name,office_name,address,phone_number
+青森県,02,15,000586,三和興業株式会社,吉町 敦子,本店,青森県青森市橋本1－9－14,017-XXX-XXXX
+青森県,02,17,100,テスト青森不動産株式会社,青森 太郎,本店,青森県青森市新町1-2-3,017-YYY-YYYY
+東京都,13,4,12345,株式会社サンプル不動産,山田 太郎,本店,東京都新宿区西新宿1-1-1,03-XXXX-XXXX
+東京都,13,6,98765,有限会社テスト住宅,鈴木 花子,本店,東京都渋谷区渋谷2-2-2,03-YYYY-YYYY
+大阪府,27,3,54321,合同会社大阪ホーム,田中 次郎,本店,大阪府大阪市北区梅田1-1-1,06-XXXX-XXXX
+神奈川県,14,5,11111,株式会社横浜不動産,佐藤 三郎,本店,神奈川県横浜市中区本町1-1-1,045-XXX-XXXX
+

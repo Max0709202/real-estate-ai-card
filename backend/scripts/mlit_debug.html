@@ -1,0 +1,646 @@
+
+
+
+
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+
+
+<html>
+
+<head>
+
+
+    <meta http-equiv="Pragma" content="no-cache"/>
+    <meta http-equiv="Cache-Control" content="no-cache"/>
+    <meta http-equiv="Expires" content="-1"/>
+    <meta http-equiv="content-Language" content="ja"/>
+    <meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"/>
+    <meta http-equiv="Content-Script-Type" content="text/javascript"/>
+    <meta http-equiv="Content-Style-Type" content="text/css"/>
+	<meta name="copyright" content="Copyright&copy; 2008-2019 MLIT Japan. All Rights Reserved." />
+	<meta name="description" content="" />
+	<meta http-equiv="keywords" content="情報検索,建設業,宅建業,マンション管理業,賃貸住宅管理業,住宅宿泊管理業,不動産業" />
+<!-- js -->
+    <script type="text/javascript" src="/TAKKEN/js/common/common.js"></script>
+    <script type="text/javascript" src="/TAKKEN/js/common/commonValidate.js"></script>
+    <script type="text/javascript" src="/TAKKEN/js/common/message.js"></script>
+	<script type="text/javascript" src="/TAKKEN/js/common/smartRollover.js" ></script>
+<!--   <script src="js/tk/VSTakken.js" language="JavaScript"></script> -->
+<!-- css -->
+	<link rel="stylesheet" type="text/css" href="/TAKKEN/css/base.css"/>
+<!-- icon & title -->
+	<link rel="shortcut icon" href="/TAKKEN/images/icon.ico"/>
+	<title>国土交通省 | 宅地建物取引業者 検索</title>
+
+</head>
+
+
+
+
+
+<script type="text/javascript">
+<!--
+	//***************************************************************************
+	//
+	//    機能　　　　　　：初期化処理
+	//    戻り値　　　　　：なし
+	//    引数　　　　　　：なし
+	//
+	//    機能説明　　　：初期化処理を行う。
+	//
+	//***************************************************************************
+	function js_Init() {
+
+	   var blnFlag = false;
+	   var elements = document.forms[0].elements;
+
+	   with (document.forms[0]) {
+
+	       for (var i = 0; i < elements.length; i++) {
+	           if (elements[i].type == "radio" && elements[i].name.indexOf("rdoSelect") != -1) {
+	              if (elements[i].value == sv_rdoSelect.value) {
+	              	blnFlag = true;
+	                   elements[i].focus();
+	                   break;
+	               }
+	           }
+	       }
+
+	       if (!blnFlag) {
+	           rdoSelect[0].checked = true;
+
+	           // 画面のフォーカスを設定する。
+	           rdoSelect[0].focus();
+	       }
+	   }
+
+	}
+	//***************************************************************************
+	//
+	//    機能　　　　　　：押されたキーの判定
+	//    戻り値　　　　　：なし
+	//    引数　　　　　　：押されたキーの値
+	//
+	//    機能説明　　　：Enterキーが押されたかのチェック
+	//
+	//***************************************************************************
+	function keyCheck(key){
+		var ent = key.keyCode;
+
+		if(ent == 13){
+	    	js_Search("0");
+	    }
+	}
+
+	//***************************************************************************
+	//
+	//    機能　　　　　　：スペースキー押下による検索実行
+	//    戻り値　　　　　：なし
+	//    引数　　　　　　：押されたキーの値、イベント区分
+	//
+	//    機能説明　　　：キーボード操作によるイベント実行
+	//
+	//***************************************************************************
+	function jikkouKey(key,kbn){
+
+		var key_Code = key.keyCode;
+		var evKbn = kbn;
+
+		if(evKbn=="0" && (key_Code==0 || key_Code==32)){
+		//キーボード操作　検索実行
+			js_Search("0");
+		}else if(evKbn=="1" && (key_Code==0 || key_Code==32)){
+		//キーボード操作　クリア
+			js_Cancle();
+		}else if(evKbn=="2" && (key_Code==0 || key_Code==32)){
+		//キーボード操作　前ページ
+			js_Search("1");
+		}else if(evKbn=="3" && (key_Code==0 || key_Code==32)){
+		//キーボード操作　次ページ
+			js_Search("2");
+		}
+	}
+
+	//***************************************************************************
+	//    機能　　　　　　：ページ番号選択時に上下のページリストの同期をとる
+	//    戻り値　　　　　：なし
+	//    引数　　　　　　：選択したリストの上下判別
+	//    機能説明　　　：上下どちらのリストよりページ番号を選択しても、表示上同期を取る処理を行う
+	//***************************************************************************
+	function js_PageSearch(flg){
+		var selectedValue = flg;
+		with (document.forms[0]) {
+			if (selectedValue == "1") {
+				pageListNo2.selectedIndex = pageListNo1.selectedIndex;
+			} else if(selectedValue == "2") {
+				pageListNo1.selectedIndex = pageListNo2.selectedIndex;
+			} else {
+				pageListNo1.selectedIndex = pageListNo2.selectedIndex;
+			}
+		}
+		js_Search("3");
+	}
+	//***************************************************************************
+	//    機能　　　　　　：検索処理
+	//    戻り値　　　　　：なし
+	//    引数　　　　　　：strType リクエスト・タイプ(0:検索/1:前ページ/2:次ページ)
+	//    機能説明　　　：検索処理を行う。
+	//***************************************************************************
+	function js_Search(strType) {
+		with (document.forms[0]) {
+			if (strType == "0") {					// 検索
+				if (js_Check()) {
+			    	document.forms['tkModel'].CMD.value='search';           // 検索
+			    	action = "takkenKensaku.do";
+			    	submit();
+			    }
+			} else if (js_Check()) {
+				if (strType == "1") {			// 前ページ
+					document.forms['tkModel'].CMD.value='prev';             // 前ページ
+					action = "takkenKensaku.do";
+					submit();
+				} else if (strType == "2") {	// 次ページ
+					document.forms['tkModel'].CMD.value='next';             // 次ページ
+					action = "takkenKensaku.do";
+					submit();
+				} else if (strType == "3") {	// ページ選択時
+					document.forms['tkModel'].CMD.value='selectPage';       // ページ選択時
+					action = "takkenKensaku.do";
+					submit();
+				} else {
+					// 何もしない
+				}
+			}
+		}
+	}
+
+	//***************************************************************************
+	//
+	//    機能　　　　　　：クリア処理
+	//    戻り値　　　　　：なし
+	//    引数　　　　　　：なし
+	//
+	//    機能説明　　　：クリア処理を行う。
+	//
+	//***************************************************************************
+	function js_Cancle() {
+
+	    with (document.forms[0]) {
+			setMessageArea("");					// メッセージをクリアする。
+
+	        comNameKanaOnly.value		= "";
+	        comNameKanjiOnly.value		= "";
+	        rdoSelectJoken[0].checked	= true;
+	        licenseNoKbn.selectedIndex	= 0;
+	        licenseNoFrom.value			= "";
+	        licenseNoTo.value			= "";
+	        kenCode.selectedIndex		= 0;
+	        dispCount.selectedIndex		= 0;
+	        rdoSelect[0].checked		= true;
+	        rdoSelectJoken[0].checked	= true;
+	        rdoSelectSort[0].checked	= true;
+//	        keyWord.value				= "";
+	        choice.selectedIndex		= 0;
+	        sortValue.selectedIndex		= 0;
+	        pageListNo1.selectedIndex	= 0;
+	        pageListNo2.selectedIndex	= 0;
+
+	        rdoSelect[0].focus();				// フォーカス設定処理
+	    }
+
+	}
+
+	//***************************************************************************
+	//
+	//    機能　　　　　　：業者概要画面の表示処理
+	//    戻り値　　　　　：なし
+	//    引数　　　　　　：strLicenseNo　免許番号
+	//
+	//    機能説明　　　：業者概要画面の表示処理を行う。
+	//
+	//***************************************************************************
+	function js_ShowDetail(strLicenseNo) {
+
+	    with (document.forms[0]) {
+	    	sv_licenseNo.value = strLicenseNo;
+		    action = "tkGaiyo.do";
+		    submit();
+	    }
+	}
+
+	//***************************************************************************
+	//
+	//    機能　　　　　　：画面入力データのチェック処理
+	//    戻り値　　　　　：エラーがあればfalseを返す
+	//    引数　　　　　　：なし
+	//
+	//    機能説明　　　：画面入力データのチェック処理を行う。
+	//
+	//***************************************************************************
+    function js_Check() {
+
+    	var array = null;
+        var blnResult = true;
+        const	KEY_SEARCH 			 = "\u691C\u7D22\u6761\u4EF6";	// 検索条件
+        const	KEY_LICENSENO		 = "\u8A31\u53EF\u756A\u53F7";	// 許可番号
+        const	KEY_COMNAMEKANAONLY	 = "\u5546\u53f7\u53c8\u306f\u540d\u79f0\uff08\u534a\u89d2\u30ab\u30ca\u691c\u7d22\uff09";	// 商号又は名称（半角カナ検索）
+        const	KEY_COMNAMEKANJIONLY = "\u5546\u53f7\u53c8\u306f\u540d\u79f0\uff08\u6f22\u5b57\u691c\u7d22\uff09";				// 商号又は名称（漢字検索）
+        const	KEY_PERMIT			 = "\u514d\u8a31\u756a\u53f7";	// 免許番号
+
+        with (document.forms[0]) {
+
+            // チェックがない名称は""にする
+		    if (!rdoSelect[0].checked && comNameKanaOnly.value != "") {
+				comNameKanaOnly.value = "";
+			}
+
+            if (!rdoSelect[1].checked && comNameKanjiOnly.value != "") {
+				comNameKanjiOnly.value = "";
+			}
+
+        	// 名称も免許番号もない場合
+            if (comNameKanaOnly.value == "" && comNameKanjiOnly.value == "") {
+            	if (licenseNoFrom.value == "" && licenseNoTo.value == "" && licenseNoKbn.selectedIndex == "0" ) {
+                	if(kenCode.selectedIndex == "0" ) {
+              			setMessageArea(getMessage(E012, [KEY_SEARCH]));		// 「検索条件を入力してください。」
+                    	comNameKanaOnly.focus();
+	                   	return false;
+            		}
+            	}
+           	}
+
+           	// OR検索時
+            if (rdoSelectJoken[1].checked) {
+            	// 名称及び許可区分、番号が何も入力されていないとき
+            	if(comNameKanaOnly.value == "" && comNameKanjiOnly.value == ""
+            					&& licenseNoFrom.value == "" && licenseNoTo.value == "" && licenseNoKbn.selectedIndex == "0"){
+        		    var itemKey = "";
+          			setMessageArea(getMessage(E014, [itemKey]));
+                	comNameKanaOnly.focus();
+                   	return false;
+
+            	} else if(comNameKanaOnly.value == "" && comNameKanjiOnly.value == "") {
+           			array = [
+						["comNameKanaOnly", KEY_COMNAMEKANAONLY, "","","","mustInput(?)","","","",""]
+           			];
+
+            	// 免許番号関連に入力がなければエラー
+                } else if (licenseNoFrom.value == "" && licenseNoTo.value == "") {
+                    if (licenseNoKbn.selectedIndex == "0") {//「大臣／知事」と「免許番号」の未入力チェック
+                        array = [
+                            ["licenseNoFrom", KEY_PERMIT, "","","","mustInput(?)","checkIntNumber(?)","","",""]
+                        ];
+
+                        blnResult = check(array, document.forms[0]);
+    			        if (!blnResult) {
+    			            return false;
+    			        }
+                    }
+                }
+            }
+
+            // 免許番号
+			if (licenseNoFrom.value != "" && licenseNoTo.value != "") {	// 「免許番号　自」、「免許番号　至」が共に入力のチェック
+              	// 「免許番号　自」の半角数字チェック
+                array = [
+                    ["licenseNoFrom", KEY_PERMIT, "","","","checkIntNumber(?)","","","",""]
+                ];
+                blnResult = check(array, document.forms[0]);
+		        if (!blnResult) {
+		            return false;
+		        }
+
+		        // 「免許番号　至」の半角数字チェック
+		        array = [
+                    ["licenseNoTo", KEY_PERMIT, "","","","checkIntNumber(?)","","","",""]
+                ];
+                blnResult = check(array, document.forms[0]);
+		        if (!blnResult) {
+		            return false;
+		        }
+
+		        // 「免許番号　自」、「免許番号　至」の範囲チェック
+		        if (Number(licenseNoFrom.value) > Number(licenseNoTo.value)) {
+               		setMessageArea(getMessage(E006, [KEY_PERMIT]));
+                    licenseNoFrom.focus();
+                    return false;
+               }
+
+			} else if (licenseNoFrom.value != "") {	// 「免許番号　自」の入力チェック
+                array = [
+                    ["licenseNoFrom", KEY_PERMIT, "","","","checkIntNumber(?)","","","",""]
+                ];
+
+			} else if (licenseNoTo.value != "") {	// 「免許番号　至」の入力チェック
+				array = [
+				    ["licenseNoTo", KEY_PERMIT, "","","","checkIntNumber(?)","","","",""]
+				];
+
+            }
+        }
+
+        if (array != null) {
+			blnResult = check(array, document.forms[0]);
+	        if (!blnResult) {
+	            return false;
+        	}
+		}
+
+		// メッセージをクリアする。
+		setMessageArea("");
+
+        return blnResult;
+    }
+
+-->
+</script>
+
+
+<body onload = "js_Init();" onkeypress = "keyCheck(event);">
+
+<form id="tkModel" name="tkModel" action="takkenKensaku.do" method="post">
+
+  
+  <input id="CMD" name="CMD" type="hidden" value=""/>
+  
+  <input id="sv_rdoSelect" name="sv_rdoSelect" type="hidden" value=""/>
+  
+  <input id="sv_rdoSelectJoken" name="sv_rdoSelectJoken" type="hidden" value=""/>
+  
+  <input id="sv_rdoSelectSort" name="sv_rdoSelectSort" type="hidden" value=""/>
+  
+  <input id="sv_kenCode" name="sv_kenCode" type="hidden" value=""/>
+  
+  <input id="sv_choice" name="sv_choice" type="hidden" value=""/>
+  
+  <input id="sv_sortValue" name="sv_sortValue" type="hidden" value=""/>
+  
+  <input id="sv_pageListNo1" name="sv_pageListNo1" type="hidden" value=""/>
+  
+  <input id="sv_pageListNo2" name="sv_pageListNo2" type="hidden" value=""/>
+
+  
+  <input id="sv_comNameKanaOnly" name="sv_comNameKanaOnly" type="hidden" value=""/>
+  
+  <input id="sv_comNameKanjiOnly" name="sv_comNameKanjiOnly" type="hidden" value=""/>
+  
+  <input id="sv_licenseNoKbn" name="sv_licenseNoKbn" type="hidden" value=""/>
+  
+  <input id="sv_licenseNoFrom" name="sv_licenseNoFrom" type="hidden" value=""/>
+  
+  <input id="sv_licenseNoTo" name="sv_licenseNoTo" type="hidden" value=""/>
+  
+  <input id="sv_licenseNo" name="sv_licenseNo" type="hidden" value=""/>
+  
+  <input id="sv_dispCount" name="sv_dispCount" type="hidden" value="0"/>
+  
+  <input id="sv_dispPage" name="sv_dispPage" type="hidden" value="0"/>
+
+  
+  <input id="resultCount" name="resultCount" type="hidden" value="0"/>
+  
+  <input id="pageCount" name="pageCount" type="hidden" value="0"/>
+  
+  <input id="dispPage" name="dispPage" type="hidden" value="1"/>
+
+  <input id="caller" name="caller" type="hidden" value="TK"/>
+
+<!-- frame -->
+<div id="container_all">
+<!-- head -->
+	<div id="head" class="clr">
+		<div class="hd_tit">
+			<a href="https://www.mlit.go.jp/index.html">
+				<img src="/TAKKEN/images/tit.png" alt="建設業者・宅建業者等企業情報検索システム" width="354px" height="78px" />
+			</a>
+		</div>
+		<div class="hd_ava" style="display:none;">
+			<img src="/TAKKEN/images/btn_ava_off.png" alt="システムのご利用方法" width="171px" height="29px" />
+		</div>
+		<div class="hd_inq" style="display:none;">
+			<img src="/TAKKEN/images/btn_inq_off.png" alt="お問合わせ" width="92px" height="29px" />
+		</div>
+	</div>
+
+<!-- contents -->
+	<div id="container_cont">
+
+<!-- pancuz -->
+	<div id="pancuz" class="clr">
+		<p class="pancuz">
+			<a href="/TAKKEN/">データ閲覧</a>
+			<span class="pancuz_now"> ＞ 宅地建物取引業者</span>
+		</p>
+		<p class="pancuz_home">
+			<a href="/TAKKEN/">メニュー画面に戻る</a>
+		</p>
+	</div>
+
+<!-- global -->
+<!-- タブ設定 -->
+	<div id="global" class="clr">
+		<ul>
+			<li>
+				<a href="/TAKKEN/kensetuKensaku.do?outPutKbn=1">
+					<img src="/TAKKEN/images/gbtn_builder_off.jpg" alt="建設業者" width="70px" height="26px" />
+				</a>
+			</li>
+			<li>
+				<img src="/TAKKEN/images/gbtn_buil_on.jpg" alt="宅地建物取引業者" width="130px" height="26px" />
+			</li>
+			<li>
+				<a href="/TAKKEN/mansionKensaku.do">
+					<img src="/TAKKEN/images/gbtn_mansion_off.jpg" alt="マンション管理業者" width="140px" height="26px" />
+				</a>
+			</li>
+			<li>
+				<a href="/TAKKEN/chintaiKensaku.do">
+					<img src="/TAKKEN/images/gbtn_lease_off.jpg" alt="賃貸住宅管理業者" width="130px" height="26px" />
+				</a>
+			</li>
+			<li>
+				<a href="/TAKKEN/jutakuKensaku.do">
+					<img src="/TAKKEN/images/gbtn_home_off.jpg" alt="住宅宿泊管理業者" width="130px" height="26px" />
+				</a>
+			</li>
+			<li>
+				<a href="/TAKKEN/sokatsuKensaku.do">
+					<img src="/TAKKEN/images/gbtn_general_off.jpg" alt="業者総括検索" width="100px" height="26px" />
+				</a>
+			</li>
+<li class="gb_help">
+	<a href="javascript:void(0);"><img src="/TAKKEN/images/gbtn_help_off.jpg" alt="" width="32px" height="19px"
+		onclick="window.open('/TAKKEN/manual/manual.pdf#page=10',
+		'_blank','toolbar=yes,location=yes,status=yes,resizable=yes,scrollbars=yes,menubar=yes');" /></a>
+</li>
+		</ul>
+	</div>
+
+<!-- page title -->
+	<div class="ptit">
+		<img src="/TAKKEN/images/ptit_buildinglot_search.jpg" alt="" width="752px" height="29px" />
+	</div>
+
+<!-- input -->
+	<div id="input_bg">
+		<div id="input">
+
+<!-- メッセージエリア -->
+		
+		<div id="messageArea"   style="display:none" >
+			<div class="warning_area">
+				<label id="messageText">
+					
+				</label>
+			</div>
+		</div>
+		<div class="input_frame clr">
+<!-- 商号または名称（ラジオボタン） -->
+				<div class="inp_item">
+					<p>
+						<input id="rdoSelectKana" name="rdoSelect" type="radio" value="1" checked="checked"/>
+						<label class="name" class="tx_thin" for="rdoSelectKana">商号又は名称（全角カナ検索）</label>
+					</p>
+          			<div class="input_bou"></div>
+					<p>
+            			<input id="rdoSelectKanji" name="rdoSelect" type="radio" value="2"/>
+            			<label class="name" for="rdoSelectKanji">商号又は名称（漢字検索）</label>
+          			</p>
+				</div>
+<!-- 商号または名称（テキストボックス） -->
+				<div class="inp_cont_name">
+					<input id="comNameKanaOnly" name="comNameKanaOnly" tabindex="2" style="margin:0 0 5px 0;width:235px;" class="textfield" onfocus="doClick(&#39;rdoSelectKana&#39;);" type="text" value="" size="80" maxlength="40"/>
+					<input id="comNameKanjiOnly" name="comNameKanjiOnly" tabindex="3" style="width : 235px ;" class="textfield" onfocus="doClick(&#39;rdoSelectKanji&#39;);" type="text" value="" size="80" maxlength="40"/>
+				</div>
+<!-- 商号または名称（注意文） -->
+				<div class="inp_notes">※商号又は名称は株式会社・有限会社等を<br />　除いた名称で入力してください。</div>
+			</div>
+<!-- AND OR -->
+			<div class="bg_anor">
+		        <input id="rdoSelectAnd" name="rdoSelectJoken" tabindex="4" class="radiobtn" type="radio" value="1" checked="checked"/>
+        		<label style="margin : 0 20px 0 4px ;" for="rdoSelectAnd">AND条件</label>　
+		        <input id="rdoSelectOr" name="rdoSelectJoken" tabindex="4" class="radiobtn" type="radio" value="2"/>
+		        <label style="margin : 0 10px 0 4px ;" for="rdoSelectOr">OR条件</label>
+			</div>
+<!-- 免許番号 -->
+			<div class="input_frame clr" style="margin : 0 0 10px 0 ;">
+				<div class="inp_item">
+					<p class="inp_name" >免許番号</p>
+				</div>
+				<div class="inp_cont">
+					<select id="licenseNoKbn" name="licenseNoKbn" tabindex="5" style="margin:0 4px 0 0;padding:0px;height:20px;" class="select">
+				  		
+                    		<option value=""></option><option value="-1">信託会社等</option><option value="00">00 国土交通大臣</option><option value="01">01 北海道</option><option value="02">02 青森県</option><option value="03">03 岩手県</option><option value="04">04 宮城県</option><option value="05">05 秋田県</option><option value="06">06 山形県</option><option value="07">07 福島県</option><option value="08">08 茨城県</option><option value="09">09 栃木県</option><option value="10">10 群馬県</option><option value="11">11 埼玉県</option><option value="12">12 千葉県</option><option value="13">13 東京都</option><option value="14">14 神奈川県</option><option value="15">15 新潟県</option><option value="16">16 富山県</option><option value="17">17 石川県</option><option value="18">18 福井県</option><option value="19">19 山梨県</option><option value="20">20 長野県</option><option value="21">21 岐阜県</option><option value="22">22 静岡県</option><option value="23">23 愛知県</option><option value="24">24 三重県</option><option value="25">25 滋賀県</option><option value="26">26 京都府</option><option value="27">27 大阪府</option><option value="28">28 兵庫県</option><option value="29">29 奈良県</option><option value="30">30 和歌山県</option><option value="31">31 鳥取県</option><option value="32">32 島根県</option><option value="33">33 岡山県</option><option value="34">34 広島県</option><option value="35">35 山口県</option><option value="36">36 徳島県</option><option value="37">37 香川県</option><option value="38">38 愛媛県</option><option value="39">39 高知県</option><option value="40">40 福岡県</option><option value="41">41 佐賀県</option><option value="42">42 長崎県</option><option value="43">43 熊本県</option><option value="44">44 大分県</option><option value="45">45 宮崎県</option><option value="46">46 鹿児島県</option><option value="47">47 沖縄県</option><option value="51">51 北海道（石狩）</option><option value="52">52 北海道（渡島）</option><option value="53">53 北海道（檜山）</option><option value="54">54 北海道（後志）</option><option value="55">55 北海道（空知）</option><option value="56">56 北海道（上川）</option><option value="57">57 北海道（留萌）</option><option value="58">58 北海道（宗谷）</option><option value="59">59 北海道（オホ）</option><option value="60">60 北海道（胆振）</option><option value="61">61 北海道（日高）</option><option value="62">62 北海道（十勝）</option><option value="63">63 北海道（釧路）</option><option value="64">64 北海道（根室）</option>
+				  		
+                	</select>
+					免許 第
+					<input id="licenseNoFrom" name="licenseNoFrom" tabindex="6" style="margin:0 0 5px 4px;width:80px;" class="textfield" type="text" value="" size="6" maxlength="6"/>
+					号～
+					<input id="licenseNoTo" name="licenseNoTo" tabindex="7" style="margin:0 0 5px 2px;width:80px;" class="textfield" type="text" value="" size="6" maxlength="6"/>
+					号
+				</div>
+			</div>
+<!-- 詳細絞込み -->
+			<div class="input_frame clr" style="margin:0 0 10px 0;">
+				<div class="inp_item">
+					<p class="inp_name">所在地検索指定</p>
+				</div>
+				<div class="inp_cont2">
+ 					<select id="choice" name="choice" tabindex="8" style="margin : 0 4px 0 0 ; padding : 0px ; height : 20px ; width : 70px ;" class="select">
+			  			<option value="2">&nbsp;</option>
+			    		<option value="1">本店</option>
+                	</select>
+					都道府県選択
+	 				<select id="kenCode" name="kenCode" tabindex="9" style="margin : 0 4px 6px 0 ; padding : 0px ; height : 20px ;" class="select">
+						<option value="" selected="selected"></option><option value="01">01 北海道</option><option value="02">02 青森県</option><option value="03">03 岩手県</option><option value="04">04 宮城県</option><option value="05">05 秋田県</option><option value="06">06 山形県</option><option value="07">07 福島県</option><option value="08">08 茨城県</option><option value="09">09 栃木県</option><option value="10">10 群馬県</option><option value="11">11 埼玉県</option><option value="12">12 千葉県</option><option value="13">13 東京都</option><option value="14">14 神奈川県</option><option value="15">15 新潟県</option><option value="16">16 富山県</option><option value="17">17 石川県</option><option value="18">18 福井県</option><option value="19">19 山梨県</option><option value="20">20 長野県</option><option value="21">21 岐阜県</option><option value="22">22 静岡県</option><option value="23">23 愛知県</option><option value="24">24 三重県</option><option value="25">25 滋賀県</option><option value="26">26 京都府</option><option value="27">27 大阪府</option><option value="28">28 兵庫県</option><option value="29">29 奈良県</option><option value="30">30 和歌山県</option><option value="31">31 鳥取県</option><option value="32">32 島根県</option><option value="33">33 岡山県</option><option value="34">34 広島県</option><option value="35">35 山口県</option><option value="36">36 徳島県</option><option value="37">37 香川県</option><option value="38">38 愛媛県</option><option value="39">39 高知県</option><option value="40">40 福岡県</option><option value="41">41 佐賀県</option><option value="42">42 長崎県</option><option value="43">43 熊本県</option><option value="44">44 大分県</option><option value="45">45 宮崎県</option><option value="46">46 鹿児島県</option><option value="47">47 沖縄県</option><option value="51">51 北海道（石狩）</option><option value="52">52 北海道（渡島）</option><option value="53">53 北海道（檜山）</option><option value="54">54 北海道（後志）</option><option value="55">55 北海道（空知）</option><option value="56">56 北海道（上川）</option><option value="57">57 北海道（留萌）</option><option value="58">58 北海道（宗谷）</option><option value="59">59 北海道（オホ）</option><option value="60">60 北海道（胆振）</option><option value="61">61 北海道（日高）</option><option value="62">62 北海道（十勝）</option><option value="63">63 北海道（釧路）</option><option value="64">64 北海道（根室）</option>
+                	</select>
+				</div>
+				<div class="inp_note2">※本店選択メニュー<br/>空欄時は事務所所在地も検索対象となります。</div>
+			</div>
+<!-- 検索 -->
+			<div class="clr" style="font-size : 12px ; margin : 0 0 0 55px ">
+				<div style="float : left">
+					結果をソート
+					<select id="sortValue" name="sortValue" tabindex="10" style="margin : 0 0 4px 0 ; padding : 0px ; height : 20px ;" class="select">
+						<option value="1">免許行政庁</option>
+						<option value="2">免許証番号</option>
+						<option value="3">商号または名称</option>
+						<option value="4">代表者名</option>
+						<option value="5">所在地</option>
+					</select>
+					<br />
+<!-- 昇順　降順 -->
+					<p>
+						<input id="rdoSelectSho" name="rdoSelectSort" tabindex="11" style="margin : 0 0 0 75px" class="radiobtn" type="radio" value="1" checked="checked"/>
+						<label style="margin : 0 4px 0 4px ;" for="rdoSelectSho">昇順</label>　
+						<input id="rdoSelectKo" name="rdoSelectSort" tabindex="11" class="radiobtn" type="radio" value="2"/>
+						<label style="margin:0 4px 0 4px;" for="rdoSelectKo">降順</label>
+					</p>
+		  		</div>
+				<div style="float : left ; margin : 0 10px 0 10px ;">
+					<img src="/TAKKEN/images/line_sort.gif" alt="" width="2px" height="35px" />
+				</div>
+				<div style="float : left">
+					検索結果表示
+					<select id="dispCount" name="dispCount" tabindex="12" style="margin : 0 0 4px 0 ; padding : 0px ; height : 20px ;" class="select">
+				  		
+	                		<option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option>
+				  		
+	            	</select>
+					件ずつ表示
+				</div>
+				<div style="float : left ; margin : 0 10px 0 10px ;"><img src="/TAKKEN/images/line_sort.gif" alt="" width="2px" height="35px" /></div>
+<!-- 検索ボタン -->
+				<div style="float : left ;">
+					<img src="/TAKKEN/images/btn_search_off.png" alt="" width="125px" height="41px" tabindex="13" onkeypress="jikkouKey(event,0)" onclick="js_Search('0')"/>
+				</div>
+<!-- クリアボタン -->
+				<div style="float : left ; margin : 3px 0 0 0 ;">
+					<img src="/TAKKEN/images/btn_clear_off.png" alt="" width="73px" height="34px" tabindex="14" onkeypress="jikkouKey(event,1)" onclick="js_Cancle()" />
+				</div>
+		  	</div>
+	  	</div>
+  	</div>
+	<div class="input_under"></div>
+
+<Ver.002_Add_start>
+<!-- 補足説明 -->
+<div class="input_frame2 clr" style="width:702px; line-height:1.2; margin : -20px 0 5px 0 ">
+	（補足説明）<br />　宅地建物取引業者については、国土交通大臣が免許をした業者と都道府県知事が免許をした業者の情報を掲載しております。
+	</br>　「商号又は名称」欄の「※」印は、eMLIT（国土交通省手続業務一貫処理システム）からのデジタル閲覧(電子閲覧)が可能な場合を表しています。
+</div>
+<Ver.002_Add_end>
+
+
+<!-- result -->
+	
+
+
+
+
+
+<div class="clr">
+	<p class="foot_pancuz"><a href="/TAKKEN/">メニュー画面に戻る</a></p>
+</div>
+
+<!-- /contents -->
+</div>
+
+<!-- foot -->
+<div id="foot">
+<p class="foot_copy">Copyright&copy; 2008-2019 MLIT Japan. All Rights Reserved.</p>
+</div>
+
+<!-- /frame -->
+</div>
+
+</form>
+
+</body>
+
+</html>

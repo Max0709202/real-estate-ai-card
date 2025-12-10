@@ -1,0 +1,362 @@
+/**
+ * Mobile-First Responsive Design for Auth Pages
+ * Optimized for forgot-password, reset-password, reset-email, verify pages
+ */
+
+/* ============================================
+   AUTH PAGES - MOBILE OPTIMIZATIONS
+   ============================================ */
+
+@media (max-width: 768px) {
+    /* Base container adjustments */
+    .forgot-password-container,
+    .reset-password-container,
+    .reset-email-container,
+    .verification-container {
+        min-height: 100vh;
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f5f5f5;
+    }
+
+    /* Form boxes */
+    .forgot-password-box,
+    .reset-password-box,
+    .reset-email-box {
+        width: 100%;
+        max-width: 100%;
+        padding: 2rem 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        margin: 0;
+    }
+
+    /* Headings */
+    .forgot-password-box h1,
+    .reset-password-box h1,
+    .reset-email-box h1,
+    .verification-title {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+        line-height: 1.3;
+    }
+
+    /* Paragraphs */
+    .forgot-password-box p,
+    .reset-password-box p,
+    .reset-email-box p,
+    .verification-message {
+        font-size: 0.95rem;
+        line-height: 1.7;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Form groups */
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-bottom: 0.625rem;
+        display: block;
+    }
+
+    /* Form controls - Touch-friendly */
+    .form-control {
+        width: 100%;
+        padding: 0.875rem 1rem;
+        font-size: 16px; /* Prevent iOS zoom */
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        transition: all 0.2s;
+        -webkit-appearance: none;
+        appearance: none;
+        box-sizing: border-box;
+    }
+
+    .form-control:focus {
+        border-color: #0066cc;
+        box-shadow: 0 0 0 4px rgba(0, 102, 204, 0.1);
+        outline: none;
+    }
+
+    /* Password input wrapper */
+    .password-input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .password-input-wrapper .form-control {
+        padding-right: 3.5rem;
+    }
+
+    /* Password toggle button - Larger touch target */
+    .password-toggle {
+        position: absolute;
+        right: 0.75rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #666;
+        transition: color 0.3s;
+        z-index: 1;
+        min-width: 44px;
+        min-height: 44px;
+        border-radius: 4px;
+    }
+
+    .password-toggle:hover,
+    .password-toggle:focus {
+        color: #0066cc;
+        background: rgba(0, 102, 204, 0.1);
+        outline: none;
+    }
+
+    .eye-icon {
+        width: 22px;
+        height: 22px;
+    }
+
+    /* Buttons */
+    .btn-primary {
+        width: 100%;
+        padding: 0.875rem 1.5rem;
+        min-height: 48px;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        touch-action: manipulation;
+    }
+
+    .btn-primary:active {
+        transform: scale(0.98);
+        transition: transform 0.1s;
+    }
+
+    /* Back links */
+    .back-link {
+        text-align: center;
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e0e0e0;
+    }
+
+    .back-link a {
+        color: #0066cc;
+        text-decoration: none;
+        font-size: 0.95rem;
+        display: inline-block;
+        padding: 0.5rem;
+        min-height: 44px;
+        line-height: 1.5;
+        -webkit-tap-highlight-color: rgba(0, 102, 204, 0.1);
+    }
+
+    .back-link a:hover,
+    .back-link a:active {
+        text-decoration: underline;
+    }
+
+    /* Messages */
+    .message {
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        text-align: left;
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+
+    .message.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+
+    .message.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+
+    .message.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+    }
+
+    /* Email display boxes */
+    .email-display,
+    .current-email {
+        background: #f9f9f9;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        text-align: center;
+        color: #666;
+        font-size: 0.9rem;
+        word-break: break-all;
+    }
+
+    /* Password requirements */
+    .password-requirements {
+        font-size: 0.85rem;
+        color: #666;
+        margin-top: 0.5rem;
+        line-height: 1.5;
+    }
+
+    /* Verification page specific */
+    .verification-container {
+        max-width: 100%;
+        margin: 2rem auto;
+        padding: 2rem 1.5rem;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .verification-icon {
+        width: 70px;
+        height: 70px;
+        margin: 0 auto 1.5rem;
+        font-size: 36px;
+    }
+
+    .verification-title {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .verification-message {
+        font-size: 0.95rem;
+        margin-bottom: 2rem;
+        line-height: 1.7;
+    }
+
+    /* Button groups for verification pages */
+    .verification-container .btn-primary,
+    .verification-container .btn-secondary {
+        display: block;
+        width: 100%;
+        margin: 0.5rem 0;
+        padding: 0.875rem 1.5rem;
+        min-height: 48px;
+        text-align: center;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        text-decoration: none;
+        touch-action: manipulation;
+    }
+
+    .verification-container .btn-secondary {
+        background: #6c757d;
+        color: #fff;
+        margin-left: 0;
+    }
+
+    .verification-container .btn-secondary:hover,
+    .verification-container .btn-secondary:active {
+        background: #5a6268;
+    }
+}
+
+/* ============================================
+   VERY SMALL SCREENS (320px - 480px)
+   ============================================ */
+
+@media (max-width: 480px) {
+    .forgot-password-container,
+    .reset-password-container,
+    .reset-email-container,
+    .verification-container {
+        padding: 0.75rem;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .forgot-password-box,
+    .reset-password-box,
+    .reset-email-box,
+    .verification-container {
+        padding: 1.5rem 1.25rem;
+    }
+
+    .forgot-password-box h1,
+    .reset-password-box h1,
+    .reset-email-box h1,
+    .verification-title {
+        font-size: 1.35rem;
+    }
+
+    .form-control {
+        padding: 0.75rem;
+        font-size: 16px;
+    }
+
+    .btn-primary {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.95rem;
+    }
+
+    .verification-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 30px;
+    }
+}
+
+/* ============================================
+   LANDSCAPE ORIENTATION
+   ============================================ */
+
+@media (max-width: 768px) and (orientation: landscape) {
+    .forgot-password-container,
+    .reset-password-container,
+    .reset-email-container {
+        align-items: flex-start;
+        padding-top: 2rem;
+    }
+
+    .forgot-password-box,
+    .reset-password-box,
+    .reset-email-box {
+        max-height: 90vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+@media (max-width: 768px) {
+    /* Focus indicators */
+    *:focus-visible {
+        outline: 3px solid #0066cc;
+        outline-offset: 2px;
+        border-radius: 4px;
+    }
+
+    /* Better touch targets */
+    button,
+    .btn-primary,
+    .btn-secondary,
+    a {
+        -webkit-tap-highlight-color: rgba(0, 102, 204, 0.1);
+        touch-action: manipulation;
+    }
+}
+

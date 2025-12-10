@@ -1,0 +1,481 @@
+/**
+ * Mobile-First Responsive Design for Admin Pages
+ * Optimized for admin login and dashboard
+ */
+
+/* ============================================
+   ADMIN LOGIN - MOBILE
+   ============================================ */
+
+@media (max-width: 768px) {
+    .admin-login-container {
+        min-height: 100vh;
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .admin-login-box {
+        width: 100%;
+        max-width: 100%;
+        padding: 2rem 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+
+    .admin-login-box h1 {
+        font-size: 1.5rem;
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-bottom: 0.625rem;
+        display: block;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.875rem 1rem;
+        font-size: 16px; /* Prevent iOS zoom */
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        transition: all 0.2s;
+        -webkit-appearance: none;
+        appearance: none;
+        box-sizing: border-box;
+    }
+
+    .form-control:focus {
+        border-color: #0066cc;
+        box-shadow: 0 0 0 4px rgba(0, 102, 204, 0.1);
+        outline: none;
+    }
+
+    .password-input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .password-input-wrapper .form-control {
+        padding-right: 3.5rem;
+    }
+
+    .password-toggle {
+        position: absolute;
+        right: 0.75rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #666;
+        transition: color 0.3s;
+        z-index: 1;
+        min-width: 44px;
+        min-height: 44px;
+        border-radius: 4px;
+    }
+
+    .password-toggle:hover,
+    .password-toggle:focus {
+        color: #0066cc;
+        background: rgba(0, 102, 204, 0.1);
+        outline: none;
+    }
+
+    .btn-primary.btn-block {
+        width: 100%;
+        padding: 0.875rem 1.5rem;
+        min-height: 48px;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        touch-action: manipulation;
+    }
+
+    .btn-primary:active {
+        transform: scale(0.98);
+        transition: transform 0.1s;
+    }
+
+    .error-message {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 8px;
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+}
+
+/* ============================================
+   ADMIN DASHBOARD - MOBILE
+   ============================================ */
+
+@media (max-width: 768px) {
+    .admin-container {
+        min-height: 100vh;
+        background: #f5f5f5;
+    }
+
+    /* Header */
+    .admin-header {
+        background: #fff;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+
+    .admin-header h1 {
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+        color: #333;
+    }
+
+    .admin-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .admin-info p {
+        font-size: 0.85rem;
+        color: #666;
+        margin: 0;
+    }
+
+    .btn-logout {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        background: #dc3545;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-top: 0.75rem;
+        text-align: center;
+        min-height: 44px;
+        touch-action: manipulation;
+    }
+
+    .btn-logout:hover,
+    .btn-logout:active {
+        background: #c82333;
+    }
+
+    /* Filters */
+    .filters {
+        padding: 1rem;
+        background: #fff;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .filter-form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .filter-form select {
+        width: 100%;
+        padding: 0.875rem 1rem;
+        font-size: 16px; /* Prevent iOS zoom */
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        background: #fff;
+        -webkit-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 1rem center;
+        background-size: 12px;
+        padding-right: 2.5rem;
+    }
+
+    .filter-form select:focus {
+        border-color: #0066cc;
+        box-shadow: 0 0 0 4px rgba(0, 102, 204, 0.1);
+        outline: none;
+    }
+
+    .btn-filter,
+    .btn-export {
+        width: 100%;
+        padding: 0.875rem 1.5rem;
+        min-height: 48px;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        touch-action: manipulation;
+    }
+
+    .btn-filter {
+        background: #0066cc;
+        color: #fff;
+    }
+
+    .btn-filter:hover,
+    .btn-filter:active {
+        background: #0052a3;
+    }
+
+    .btn-export {
+        background: #28a745;
+        color: #fff;
+        text-decoration: none;
+        display: block;
+        text-align: center;
+    }
+
+    .btn-export:hover,
+    .btn-export:active {
+        background: #218838;
+    }
+
+    /* Table - Mobile card layout */
+    .admin-content {
+        padding: 1rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .users-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: transparent;
+        display: block;
+    }
+
+    .users-table thead {
+        display: none; /* Hide header on mobile */
+    }
+
+    .users-table tbody {
+        display: block;
+    }
+
+    .users-table tr {
+        display: block;
+        margin-bottom: 1rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1rem;
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .users-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f0f0f0;
+        text-align: left;
+        word-break: break-word;
+    }
+
+    .users-table td:last-child {
+        border-bottom: none;
+        padding-top: 1rem;
+        margin-top: 0.5rem;
+        border-top: 1px solid #e0e0e0;
+    }
+
+    .users-table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: #333;
+        flex-shrink: 0;
+        margin-right: 1rem;
+        min-width: 100px;
+        font-size: 0.9rem;
+    }
+
+    /* Special handling for checkboxes */
+    .users-table td[data-label="入金"],
+    .users-table td[data-label="OPEN"] {
+        align-items: center;
+    }
+
+    .users-table td[data-label="入金"]::before,
+    .users-table td[data-label="OPEN"]::before {
+        margin-right: auto;
+    }
+
+    /* URL links */
+    .users-table td[data-label="名刺URL"] a {
+        word-break: break-all;
+        color: #0066cc;
+        text-decoration: none;
+        font-size: 0.85rem;
+    }
+
+    .users-table td[data-label="名刺URL"] a:hover {
+        text-decoration: underline;
+    }
+
+    /* Checkboxes */
+    .payment-checkbox,
+    .open-checkbox {
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
+        min-height: 24px;
+        cursor: pointer;
+        margin: 0;
+    }
+
+    /* Action buttons */
+    .btn-action {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: #0066cc;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        min-height: 44px;
+        touch-action: manipulation;
+    }
+
+    .btn-action:hover,
+    .btn-action:active {
+        background: #0052a3;
+    }
+
+    /* Remove default data-label display since we're using ::before */
+    .users-table td[data-label]::before {
+        content: attr(data-label) ": ";
+    }
+
+    .users-table td[data-label="操作"]::before {
+        content: "";
+    }
+}
+
+/* ============================================
+   VERY SMALL SCREENS (320px - 480px)
+   ============================================ */
+
+@media (max-width: 480px) {
+    .admin-login-box {
+        padding: 1.5rem 1.25rem;
+    }
+
+    .admin-login-box h1 {
+        font-size: 1.35rem;
+    }
+
+    .admin-header h1 {
+        font-size: 1.15rem;
+    }
+
+    .admin-info p {
+        font-size: 0.8rem;
+    }
+
+    .users-table td {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .users-table td::before {
+        margin-right: 0;
+        margin-bottom: 0.25rem;
+    }
+}
+
+/* ============================================
+   TABLET (769px - 1024px)
+   ============================================ */
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .admin-content {
+        padding: 1.5rem;
+    }
+
+    .users-table {
+        display: table;
+    }
+
+    .users-table thead {
+        display: table-header-group;
+    }
+
+    .users-table tbody {
+        display: table-row-group;
+    }
+
+    .users-table tr {
+        display: table-row;
+        margin-bottom: 0;
+        border: none;
+        border-radius: 0;
+        padding: 0;
+        box-shadow: none;
+    }
+
+    .users-table td {
+        display: table-cell;
+        padding: 0.75rem;
+        border-bottom: 1px solid #e0e0e0;
+        text-align: left;
+    }
+
+    .users-table td::before {
+        display: none;
+    }
+
+    /* Make table horizontally scrollable on tablet */
+    .admin-content {
+        overflow-x: auto;
+    }
+
+    .users-table {
+        min-width: 800px;
+    }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+@media (max-width: 768px) {
+    *:focus-visible {
+        outline: 3px solid #0066cc;
+        outline-offset: 2px;
+        border-radius: 4px;
+    }
+
+    button,
+    .btn-primary,
+    .btn-secondary,
+    a,
+    select {
+        -webkit-tap-highlight-color: rgba(0, 102, 204, 0.1);
+        touch-action: manipulation;
+    }
+}
+

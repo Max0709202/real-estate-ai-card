@@ -1,0 +1,16 @@
+{
+    "name": "real-estate-ai-business-card/backend",
+    "description": "Backend API for Real Estate AI Business Card System",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "stripe/stripe-php": "^10.0",
+        "endroid/qr-code": "^4.0",
+        "phpmailer/phpmailer": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    }
+}
