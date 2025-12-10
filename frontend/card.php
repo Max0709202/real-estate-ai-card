@@ -70,130 +70,375 @@ $communicationMethods = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
     <title><?php echo htmlspecialchars($card['name']); ?> - デジタル名刺</title>
     <link rel="stylesheet" href="assets/css/card.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
 </head>
+
 <body>
     <div class="card-container">
         <!-- 名刺部 -->
         <section class="card-section">
             <div class="card-header">
                 <?php if ($card['company_logo']): ?>
-                <img src="<?php echo htmlspecialchars($card['company_logo']); ?>" alt="ロゴ" class="company-logo">
+                    <img src="<?php echo htmlspecialchars($card['company_logo']); ?>" alt="ロゴ" class="company-logo">
                 <?php endif; ?>
                 <h1 class="company-name"><?php echo htmlspecialchars($card['company_name'] ?? ''); ?></h1>
             </div>
+            <hr>
 
             <div class="card-body">
-                <?php if ($card['profile_photo']): ?>
-                <img src="<?php echo htmlspecialchars($card['profile_photo']); ?>" alt="プロフィール写真" class="profile-photo">
-                <?php endif; ?>
-
-                <div class="person-info">
-                    <h2 class="person-name"><?php echo htmlspecialchars($card['name']); ?></h2>
-                    <?php if ($card['position']): ?>
-                    <p class="person-position"><?php echo htmlspecialchars($card['position']); ?></p>
+                <!-- プロフィール写真と挨拶文のセクション -->
+                <div class="profile-greeting-section">
+                    <?php if ($card['profile_photo']): ?>
+                        <div class="profile-photo-container">
+                            <img src="<?php echo htmlspecialchars($card['profile_photo']); ?>" alt="プロフィール写真"
+                                class="profile-photo">
+                        </div>
                     <?php endif; ?>
-                    <?php if ($card['qualifications']): ?>
-                    <p class="person-qualification"><?php echo htmlspecialchars($card['qualifications']); ?></p>
-                    <?php endif; ?>
-                </div>
 
-                <!-- 挨拶文 -->
-                <?php if (!empty($greetings)): ?>
-                <div class="greetings-section">
-                    <?php foreach ($greetings as $greeting): ?>
-                    <div class="greeting-item">
-                        <?php if (!empty($greeting['title'])): ?>
-                        <h3><?php echo htmlspecialchars($greeting['title']); ?></h3>
-                        <?php endif; ?>
-                        <?php if (!empty($greeting['content'])): ?>
-                        <p><?php echo nl2br(htmlspecialchars($greeting['content'])); ?></p>
+                    <div class="greeting-content">
+                        <?php if (!empty($greetings)): ?>
+                            <?php $firstGreeting = $greetings[0]; ?>
+                            <div class="greeting-item">
+                                <?php if (!empty($firstGreeting['title'])): ?>
+                                    <h3 class="greeting-title"><?php echo htmlspecialchars($firstGreeting['title']); ?></h3>
+                                <?php endif; ?>
+                                <?php if (!empty($firstGreeting['content'])): ?>
+                                    <p class="greeting-text"><?php echo nl2br(htmlspecialchars($firstGreeting['content'])); ?>
+                                    </p>
+                                <?php endif; ?>
+                            </div>
                         <?php endif; ?>
                     </div>
-                    <?php endforeach; ?>
                 </div>
-                <?php endif; ?>
+            </div>
+            <hr>
+            <div class="card-body">
+                <!-- 個人情報セクション -->
+                <div class="info-layout">
+                    <div class="info-left" style="width:40%">
+                        <!-- 会社名 -->
+                        <div class="info-section company-info">
+                            <h3>会社名</h3>
+                            <p><?php echo htmlspecialchars($card['company_name'] ?? ''); ?></p>
+                        </div>
 
-                <!-- QRコード -->
-                <?php if (!empty($card['qr_code']) && $card['qr_code_issued']): ?>
-                <div class="qr-code-section">
-                    <h3>デジタル名刺のQRコード</h3>
-                    <div class="qr-code-container">
-                        <img src="<?php echo htmlspecialchars(BASE_URL . '/backend/' . $card['qr_code']); ?>" 
-                             alt="QRコード" 
-                             class="qr-code-image"
-                             onerror="this.style.display='none'">
-                        <p class="qr-code-description">このQRコードをスキャンして名刺を共有できます</p>
+                        <?php if ($card['real_estate_license_prefecture'] || $card['real_estate_license_renewal_number'] || $card['real_estate_license_registration_number']): ?>
+                            <div class="info-section">
+                                <h3>宅建業番号</h3>
+                                <p>
+                                    <?php
+                                    if ($card['real_estate_license_prefecture']) {
+                                        echo htmlspecialchars($card['real_estate_license_prefecture']);
+                                        if ($card['real_estate_license_renewal_number']) {
+                                            echo '(' . htmlspecialchars($card['real_estate_license_renewal_number']) . ')';
+                                        }
+                                        if ($card['real_estate_license_registration_number']) {
+                                            echo '第' . htmlspecialchars($card['real_estate_license_registration_number']) . '号';
+                                        }
+                                    }
+                                    ?>
+                                </p>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($card['company_postal_code'] || $card['company_address']): ?>
+                            <div class="info-section">
+                                <h3>所在地</h3>
+                                <?php if ($card['company_postal_code']): ?>
+                                    <p style="margin-right: 10px; float:left">
+                                        〒<?php echo htmlspecialchars($card['company_postal_code']); ?></p>
+                                <?php endif; ?>
+                                <?php if ($card['company_address']): ?>
+                                    <p style="float:left"><?php echo htmlspecialchars($card['company_address']); ?></p>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($card['company_phone']): ?>
+                            <div class="info-section">
+                                <h3>会社電話番号</h3>
+                                <p><?php echo htmlspecialchars($card['company_phone']); ?></p>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($card['company_website']): ?>
+                            <div class="info-section">
+                                <h3>HP</h3>
+                                <p><a href="<?php echo htmlspecialchars($card['company_website']); ?>"
+                                        target="_blank"><?php echo htmlspecialchars($card['company_website']); ?></a></p>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- 部署 / 役職 -->
+                        <?php if ($card['branch_department'] || $card['position']): ?>
+                            <div class="info-section">
+                                <h3>部署 / 役職</h3>
+                                <p>
+                                    <?php
+                                    $dept_position = array_filter([
+                                        $card['branch_department'] ?? '',
+                                        $card['position'] ?? ''
+                                    ]);
+                                    echo htmlspecialchars(implode(' / ', $dept_position));
+                                    ?>
+                                </p>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- 名前 -->
+                        <div class="info-section person-name-section">
+                            <h3>名前</h3>
+                            <p class="person-name-large">
+                                <?php echo htmlspecialchars($card['name']); ?>
+                                <?php if ($card['name_romaji']): ?>
+                                    <span class="name-romaji">(<?php echo htmlspecialchars($card['name_romaji']); ?>)</span>
+                                <?php endif; ?>
+                            </p>
+                        </div>
+
+                        <!-- 携帯番号 -->
+                        <div class="info-section">
+                            <h3>携帯番号</h3>
+                            <p><?php echo htmlspecialchars($card['mobile_phone']); ?></p>
+                        </div>
+
+                        <?php if ($card['birth_date']): ?>
+                            <div class="info-section">
+                                <h3>誕生日</h3>
+                                <p><?php echo date('Y年m月d日', strtotime($card['birth_date'])); ?></p>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($card['current_residence'] || $card['hometown']): ?>
+                            <div class="info-section">
+                                <h3>現在の居住地 / 出身地</h3>
+                                <p>
+                                    <?php
+                                    $residence_parts = array_filter([
+                                        $card['current_residence'] ?? '',
+                                        $card['hometown'] ?? ''
+                                    ]);
+                                    echo htmlspecialchars(implode(' / ', $residence_parts));
+                                    ?>
+                                </p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="info-right" style="width:50%">
+                        <?php if ($card['alma_mater']): ?>
+                            <div class="info-section">
+                                <h3>出身大学</h3>
+                                <p><?php echo nl2br(htmlspecialchars($card['alma_mater'])); ?></p>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($card['qualifications']): ?>
+                            <div class="info-section">
+                                <h3>資格</h3>
+                                <p><?php echo nl2br(htmlspecialchars($card['qualifications'])); ?></p>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($card['hobbies']): ?>
+                            <div class="info-section">
+                                <h3>趣味</h3>
+                                <p><?php echo nl2br(htmlspecialchars($card['hobbies'])); ?></p>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($card['free_input']): ?>
+                            <div class="info-section">
+                                <h3>その他</h3>
+                                <div class="free-input-content" style="overflow-wrap: anywhere;">
+                                    <?php
+                                    // Try to decode JSON
+                                    $freeInputData = json_decode($card['free_input'], true);
+
+                                    if (json_last_error() === JSON_ERROR_NONE && is_array($freeInputData)) {
+                                        // Valid JSON - display each field line by line
+                                
+                                        // Display text if exists
+                                        if (!empty($freeInputData['text'])) {
+                                            echo '<p class="free-input-text">' . nl2br(htmlspecialchars($freeInputData['text'])) . '</p>';
+                                        }
+
+                                        // Display embedded image if exists
+                                        if (!empty($freeInputData['image'])) {
+                                            echo '<div class="free-input-image" style="font-size: 1.25rem; font-weight: bold; color: black;">';
+                                            $imagePath = htmlspecialchars($freeInputData['image']);
+                                            // Add BASE_URL if the path doesn't start with http
+                                            if (!preg_match('/^https?:\/\//', $imagePath)) {
+                                                $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
+                                            }
+                                            echo $imagePath;
+                                            echo '</div>';
+                                        }
+
+                                        // Display image_link if exists
+                                        if (!empty($freeInputData['image_link'])) {
+                                            echo '<p class="free-input-link">';
+                                            echo '<a href="' . htmlspecialchars($freeInputData['image_link']) . '" target="_blank" rel="noopener noreferrer">';
+
+                                            // Check if it's an image URL to display thumbnail
+                                            $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                                            $urlExtension = strtolower(pathinfo(parse_url($freeInputData['image_link'], PHP_URL_PATH), PATHINFO_EXTENSION));
+
+                                            if (in_array($urlExtension, $imageExtensions)) {
+                                                echo $freeInputData['image_link'];
+                                            } else {
+                                                echo htmlspecialchars($freeInputData['image_link']);
+                                            }
+
+                                            echo '</a>';
+                                            echo '</p>';
+                                        }
+
+                                    } else {
+                                        // Not JSON or invalid JSON - display as plain text
+                                        echo '<p>' . nl2br(htmlspecialchars($card['free_input'])) . '</p>';
+                                    }
+                                    ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
+                <hr>
+
+                <!-- テックツール部 -->
+                <?php if (!empty($techTools)): ?>
+                    <section class="tech-tools-section">
+                        <h2>不動産テックツール</h2>
+                        <p class="section-description">物件の購入・売却に役立つツールをご利用いただけます</p>
+
+                        <div class="tech-tools-grid">
+                            <?php 
+                            // Tool descriptions and banner images
+                            $toolInfo = [
+                                'slp' => [
+                                    'description' => '<div id="cc-m-13442757931" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><strong><span style="color: #000000;">AI評価付き『SelFin（セルフィン）』は消費者自ら</span></strong><span style="color: #ff0000;"><span style="font-weight: 700 !important;">「物件の資産性」を自動判定できる</span></span></span><span style="color: #000000;"><strong><span style="font-size: 14px;">ツールです。「価格の妥当性」「街力」「流動性」「耐震性」「管理費・修繕積立金の妥当性」を自動判定します。また物件提案ロボで配信される物件にはSelFin評価が付随します。&nbsp;</span></strong></span>
+</p></div>',
+                                    'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/slp.jpg'
+                                ],
+                                'rlp' => [
+                                    'description' => '<div id="cc-m-13442765431" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><span style="color: #000000;"><span style="color: #000000;"><strong>AI評価付き『物件提案ロボ』は</strong><strong>貴社顧客の希望条件に合致する不動産情<span style="color: #000000;">報を「</span></strong></span></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><strong><span style="color: #000000;">」で自動配信します。WEB上に登録になった</span></strong><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span>
+</p></div>',
+                                    'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/rlp.jpg'
+                                ],
+                                'llp' => [
+                                    'description' => '<div id="cc-m-13442765531" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><span style="color: #000000;"><strong>『土地情報ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><span style="color: #000000;"><strong>」で自動配信します。WEB上に登録になった</strong></span><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span>
+</p></div>',
+                                    'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/llp.jpg'
+                                ],
+                                'mdb' => [
+                                    'description' => '<div id="cc-m-13442765731" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span>
+</p></div>',
+                                    'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/mdb.jpg'
+                                ],
+                                'ai' => [
+                                    'description' => '<div id="cc-m-13442765731" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span>
+</p></div>',
+                                    'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/ai.jpg'
+                                ],
+                                'olp' => [
+                                    'description' => '<div id="cc-m-13442765831" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><span color="#000000" style="color: #000000;"><span style="color: #000000;"><strong>オーナーコネクトはマンション所有者様向けのサービスで、</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">誰でも簡単に自宅の資産状況を確認できます。</span></span></span><span style="color: #000000;"><strong><span color="#000000">登録されたマンションで新たに売り出し情報が出たらメールでお知らせいたします。</span></strong></span><span color="#000000" style="color: #000000;"><span style="color: #000000;"><strong>また、</strong></span><span style="font-weight: 700 !important;"><span style="color: #ff0000;">毎週自宅の資産状況をまとめたレポートメールも送信</span></span><strong><span style="color: #000000;">いたします。</span></strong></span></span>
+</p></div>',
+                                    'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/olp.jpg'
+                                ],
+                                'alp' => [
+                                    'description' => '<div id="cc-m-13412853831" class="j-module n j-text" style="clear: both;">
+    <p>
+        <span style="font-size: 14px;"><strong><span style="color: #ff0000;">「SelFin Pro(セルフィンプロ)」</span><span style="color: #000000;">（AI・ロボット・ビッグデータ）はお客様との継続的な</span><span style="color: #ff0000;">コミュニケーションを自動化するWEBシステム</span><span style="color: #000000;">です。</span><span style="color: #ff0000;">全てのサービスが御社名で提供</span><span style="color: #000000;">されます。バックオフィスの自動化という後方支援を貴社の顧客・売上増加にご活用ください。</span></strong></span>
+    </p>
+</div>',
+                                    'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/alp.jpg'
+                                ]
+                            ];
+                            
+                            foreach ($techTools as $tool): 
+                                $info = $toolInfo[$tool['tool_type']] ?? [
+                                    'description' => '',
+                                    'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/default.jpg'
+                                ];
+                            ?>
+                                <div class="tech-tool-banner-card">
+                                    <!-- Banner Header with Background Image -->
+                                    <div class="tool-banner-header" style="background-image: url('<?php echo htmlspecialchars($info['banner_image']); ?>'); background-size: contain; background-position: center; background-repeat: no-repeat;">
+                                    </div>
+                                    
+                                    <!-- Description -->
+                                    <div class="tool-banner-content">
+                                        <div class="tool-description"><?php echo $info['description']; ?></div>
+                                        
+                                        <!-- Button -->
+                                        <a href="<?php echo htmlspecialchars($tool['tool_url']); ?>" 
+                                           class="tool-details-button" 
+                                           target="_blank">
+                                            詳細はこちら
+                                        </a>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </section>
                 <?php endif; ?>
 
                 <!-- コミュニケーション方法 -->
                 <?php if (!empty($communicationMethods)): ?>
-                <div class="communication-section">
-                    <h3>連絡先</h3>
-                    <div class="communication-buttons">
-                        <?php foreach ($communicationMethods as $method): ?>
-                        <?php
-                        $methodIcons = [
-                            'line' => '💬',
-                            'messenger' => '💌',
-                            'whatsapp' => '📱',
-                            'instagram' => '📷',
-                            'facebook' => '👥',
-                            'twitter' => '🐦',
-                            'youtube' => '📺'
-                        ];
-                        $icon = $methodIcons[$method['method_type']] ?? '📞';
-                        ?>
-                        <?php if ($method['method_url'] || $method['method_id']): ?>
-                        <a href="<?php echo htmlspecialchars($method['method_url'] ?? '#'); ?>" class="comm-btn" target="_blank">
-                            <span class="comm-icon"><?php echo $icon; ?></span>
-                            <span><?php echo htmlspecialchars($method['method_name']); ?></span>
-                        </a>
-                        <?php endif; ?>
-                        <?php endforeach; ?>
+                    <div class="communication-section">
+                        <h3>連絡先</h3>
+                        <div class="communication-buttons">
+                            <?php foreach ($communicationMethods as $method): ?>
+                                <?php
+                                $methodIcons = [
+                                    'line' => '💬',
+                                    'messenger' => '💌',
+                                    'whatsapp' => '📱',
+                                    'instagram' => '📷',
+                                    'facebook' => '👥',
+                                    'twitter' => '🐦',
+                                    'youtube' => '📺'
+                                ];
+                                $icon = $methodIcons[$method['method_type']] ?? '📞';
+                                ?>
+                                <?php if ($method['method_url'] || $method['method_id']): ?>
+                                    <a href="<?php echo htmlspecialchars($method['method_url'] ?? '#'); ?>" class="comm-btn"
+                                        target="_blank">
+                                        <span class="comm-icon"><?php echo $icon; ?></span>
+                                        <span><?php echo htmlspecialchars($method['method_name']); ?></span>
+                                    </a>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
-                </div>
                 <?php endif; ?>
             </div>
         </section>
 
-        <!-- テックツール部 -->
-        <?php if (!empty($techTools)): ?>
-        <section class="tech-tools-section">
-            <h2>不動産テックツール</h2>
-            <p class="section-description">物件の購入・売却に役立つツールをご利用いただけます</p>
-            
-            <div class="tech-tools-grid">
-                <?php foreach ($techTools as $tool): ?>
-                <a href="<?php echo htmlspecialchars($tool['tool_url']); ?>" class="tech-tool-card" target="_blank">
-                    <div class="tool-icon">
-                        <?php
-                        $icons = [
-                            'mdb' => '🏢',
-                            'rlp' => '🤖',
-                            'llp' => '🏞️',
-                            'ai' => '📊',
-                            'slp' => '🔍',
-                            'olp' => '💼',
-                            'alp' => '🔗'
-                        ];
-                        echo $icons[$tool['tool_type']] ?? '📋';
-                        ?>
-                    </div>
-                    <h3><?php echo htmlspecialchars($tool['tool_name']); ?></h3>
-                </a>
-                <?php endforeach; ?>
+        <!-- QRコード -->
+        <?php if (!empty($card['qr_code']) && $card['qr_code_issued']): ?>
+            <div class="qr-code-section">
+                <h3>デジタル名刺のQRコード</h3>
+                <div class="qr-code-container">
+                    <img src="<?php echo htmlspecialchars(BASE_URL . '/backend/' . $card['qr_code']); ?>" alt="QRコード"
+                        class="qr-code-image" onerror="this.style.display='none'">
+                    <p class="qr-code-description">このQRコードをスキャンして名刺を共有できます</p>
+                </div>
             </div>
-        </section>
         <?php endif; ?>
-
         <!-- 編集リンク（管理者のみ） -->
         <div class="edit-link">
             <a href="<?php echo BASE_URL; ?>/frontend/edit.php">不動産AI名刺の編集はこちら</a>
@@ -202,5 +447,5 @@ $communicationMethods = $stmt->fetchAll();
 
     <script src="assets/js/card.js"></script>
 </body>
-</html>
 
+</html>

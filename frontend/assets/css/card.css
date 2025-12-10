@@ -10,13 +10,13 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
     line-height: 1.6;
     color: #333;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
     min-height: 100vh;
     padding: 1rem;
 }
 
 .card-container {
-    max-width: 800px;
+    max-width: 1000px;
     margin: 0 auto;
 }
 
@@ -24,22 +24,26 @@ body {
 .card-section {
     background: #fff;
     border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    /* box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); */
     overflow: hidden;
     margin-bottom: 2rem;
 }
 
 .card-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
     padding: 2rem;
     text-align: center;
-    color: #fff;
+    /* color: #fff; */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap:20px
 }
 
 .company-logo {
     max-width: 120px;
     max-height: 120px;
-    margin: 0 auto 1rem;
+    /* margin: 0 auto 1rem; */
     display: block;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.1);
@@ -54,18 +58,33 @@ body {
 }
 
 .card-body {
-    padding: 2rem;
+    padding: 1rem;
+}
+
+/* Profile and Greeting Section */
+.profile-greeting-section {
+    display: flex;
+    gap: 2rem;
+    /* margin-bottom: 2rem; */
+    align-items: center;
+    justify-content: center;
+}
+
+.profile-photo-container {
+    flex-shrink: 0;
 }
 
 .profile-photo {
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
+    width: 200px;
+    height: 200px;
     object-fit: cover;
-    display: block;
-    margin: 0 auto 1.5rem;
-    border: 4px solid #667eea;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    /* border-radius: 8px; */
+    /* box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); */
+}
+
+.greeting-content {
+    flex: 1;
+    min-width: 0;
 }
 
 .person-info {
@@ -98,23 +117,35 @@ body {
 }
 
 .greeting-item {
-    background: #f8f9fa;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    border-left: 4px solid #667eea;
+    background: #fff;
+    padding: 0;
+}
+
+.greeting-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.75rem;
+}
+
+.greeting-text {
+    color: #555;
+    line-height: 1.8;
+    margin: 0;
+    font-size: 0.95rem;
 }
 
 .greeting-item h3 {
-    font-size: 1.2rem;
+    font-size: 1.5rem;
     font-weight: 600;
-    color: #333;
+    color: #000000;
     margin-bottom: 0.75rem;
 }
 
 .greeting-item p {
     color: #555;
     line-height: 1.8;
+    font-size: 0.95rem;
 }
 
 /* Communication Section */
@@ -163,8 +194,8 @@ body {
 /* Tech Tools Section */
 .tech-tools-section {
     background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    /* border-radius: 16px; */
+    /* box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); */
     padding: 2rem;
     margin-bottom: 2rem;
 }
@@ -186,10 +217,66 @@ body {
 
 .tech-tools-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
 }
 
+/* Banner Card Styles */
+.tech-tool-banner-card {
+    background: #fff;
+    overflow: hidden;
+}
+
+/* Banner Header with Background Image */
+.tool-banner-header {
+    width: 100%;
+    height: 200px;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+}
+
+/* Banner Content */
+.tool-banner-content {
+    padding: 1.5rem;
+    background: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-direction: column;
+    height: 15rem;
+}
+
+.tool-description {
+    color: #333;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+}
+
+/* Details Button */
+.tool-details-button {
+    display: inline-block;
+    background: #dc3545;
+    color: #fff;
+    text-align: center;
+    text-decoration: none;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    padding: 10px 20px;
+}
+
+.tool-details-button:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
+/* Old styles - keep for backward compatibility */
 .tech-tool-card {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     border-radius: 12px;
@@ -223,6 +310,92 @@ body {
 }
 
 /* Edit Link */
+/* Info Layout - Two Column */
+.info-layout {
+    display: flex;
+    /* display: grid;
+    grid-template-columns: 1fr 1fr; */
+    gap: 3rem;
+    margin-bottom: 2rem;
+}
+
+.info-left,
+.info-right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* gap: 0.75rem; */
+}
+
+.info-section {
+    text-align: center;
+    background: #fff;
+    padding: 0;
+    width: 100%;
+    /* border-bottom: 1px solid #e9ecef; */
+    /* padding-bottom: 0.75rem; */
+}
+
+.info-section:last-child {
+    border-bottom: none;
+}
+
+.info-section h3 {
+    font-size: 0.85rem;
+    color: #a3a3a3;
+    margin-bottom: 0 rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-section p {
+    color: #000000;
+    line-height: 1.6;
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: bold;
+    overflow-wrap: break-word;
+}
+
+.info-section a {
+    color: #000000;
+    text-decoration: none;
+}
+
+.info-section a:hover {
+    text-decoration: underline;
+}
+
+/* Person Name Section */
+.person-name-section .person-name-large {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.person-name-section .name-romaji {
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: #666;
+    display: block;
+    margin-top: 0.25rem;
+}
+
+.person-name-section .person-position {
+    font-size: 1rem;
+    color: #555;
+    margin-top: 0.25rem;
+}
+
+.company-info {
+    font-weight: 600;
+}
+
 /* QR Code Section */
 .qr-code-section {
     margin-top: 2rem;
@@ -290,6 +463,36 @@ body {
         padding: 0.5rem;
     }
 
+    /* Profile and Greeting Section - Stack on mobile */
+    .profile-greeting-section {
+        flex-direction: column;
+        gap: 1.5rem;
+        align-items: center;
+    }
+
+    .profile-photo-container {
+        text-align: center;
+    }
+
+    .profile-photo {
+        width: 150px;
+        height: 150px;
+    }
+
+    .greeting-content {
+        width: 100%;
+    }
+
+    /* Info Layout - Single column on mobile */
+    .info-layout {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .person-name-section .person-name-large {
+        font-size: 1.25rem;
+    }
+
     .card-header {
         padding: 1.5rem;
     }
@@ -311,11 +514,30 @@ body {
         font-size: 1.5rem;
     }
 
+    /* Tech Tools Banner - Mobile adjustments */
     .tech-tools-grid {
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 1rem;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
     }
 
+    .tool-banner-header {
+        height: 150px;
+    }
+
+    .tool-banner-content {
+        padding: 1.25rem;
+    }
+
+    .tool-description {
+        font-size: 0.9rem;
+    }
+
+    .tool-details-button {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.95rem;
+    }
+
+    /* Old card styles */
     .tech-tool-card {
         padding: 1.25rem;
     }
