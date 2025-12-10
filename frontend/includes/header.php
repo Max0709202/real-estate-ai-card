@@ -14,6 +14,35 @@ startSessionIfNotStarted();
 
 $isLoggedIn = !empty($_SESSION['user_id']);
 $showNavLinks = isset($showNavLinks) ? $showNavLinks : true;
+
+// Check if user has completed payment and has QR code
+$showMyCard = false;
+$cardSlug = '';
+if ($isLoggedIn) {
+    try {
+        require_once __DIR__ . '/../../backend/config/database.php';
+        $database = new Database();
+        $db = $database->getConnection();
+        
+        $stmt = $db->prepare("
+            SELECT bc.url_slug, bc.qr_code_issued, p.payment_status
+            FROM business_cards bc
+            LEFT JOIN payments p ON bc.id = p.business_card_id AND p.payment_status = 'completed'
+            WHERE bc.user_id = ?
+            ORDER BY p.paid_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$_SESSION['user_id']]);
+        $cardData = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($cardData && $cardData['qr_code_issued'] && $cardData['payment_status'] === 'completed') {
+            $showMyCard = true;
+            $cardSlug = $cardData['url_slug'];
+        }
+    } catch (Exception $e) {
+        error_log("Header card check error: " . $e->getMessage());
+    }
+}
 ?>
 <!-- Mobile CSS -->
 <link rel="stylesheet" href="assets/css/mobile.css">
@@ -47,6 +76,11 @@ $showNavLinks = isset($showNavLinks) ? $showNavLinks : true;
                         </svg>
                     </div>
                     <div class="user-dropdown" id="user-dropdown">
+                        <?php if ($showMyCard): ?>
+                        <a href="card.php?slug=<?php echo htmlspecialchars($cardSlug); ?>" class="dropdown-item" target="_blank">
+                            <span>マイ名刺</span>
+                        </a>
+                        <?php endif; ?>
                         <a href="edit.php" class="dropdown-item">
                             <span>マイページ</span>
                         </a>

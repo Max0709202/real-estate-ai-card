@@ -86,7 +86,14 @@ $communicationMethods = $stmt->fetchAll();
         <section class="card-section">
             <div class="card-header">
                 <?php if ($card['company_logo']): ?>
-                    <img src="<?php echo htmlspecialchars($card['company_logo']); ?>" alt="ロゴ" class="company-logo">
+                    <?php 
+                    $logoPath = $card['company_logo'];
+                    // Add BASE_URL if path doesn't start with http
+                    if (!preg_match('/^https?:\/\//', $logoPath)) {
+                        $logoPath = BASE_URL . '/' . ltrim($logoPath, '/');
+                    }
+                    ?>
+                    <img src="<?php echo htmlspecialchars($logoPath); ?>" alt="ロゴ" class="company-logo">
                 <?php endif; ?>
                 <h1 class="company-name"><?php echo htmlspecialchars($card['company_name'] ?? ''); ?></h1>
             </div>
@@ -97,8 +104,14 @@ $communicationMethods = $stmt->fetchAll();
                 <div class="profile-greeting-section">
                     <?php if ($card['profile_photo']): ?>
                         <div class="profile-photo-container">
-                            <img src="<?php echo htmlspecialchars($card['profile_photo']); ?>" alt="プロフィール写真"
-                                class="profile-photo">
+                            <?php 
+                            $photoPath = $card['profile_photo'];
+                            // Add BASE_URL if path doesn't start with http
+                            if (!preg_match('/^https?:\/\//', $photoPath)) {
+                                $photoPath = BASE_URL . '/' . ltrim($photoPath, '/');
+                            }
+                            ?>
+                            <img src="<?php echo htmlspecialchars($photoPath); ?>" alt="プロフィール写真" class="profile-photo">
                         </div>
                     <?php endif; ?>
 
@@ -271,13 +284,13 @@ $communicationMethods = $stmt->fetchAll();
 
                                         // Display embedded image if exists
                                         if (!empty($freeInputData['image'])) {
-                                            echo '<div class="free-input-image" style="font-size: 1rem; font-weight: bold; color: black;">';
-                                            $imagePath = htmlspecialchars($freeInputData['image']);
+                                            echo '<div class="free-input-image">';
+                                            $imagePath = $freeInputData['image'];
                                             // Add BASE_URL if the path doesn't start with http
                                             if (!preg_match('/^https?:\/\//', $imagePath)) {
                                                 $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
                                             }
-                                            echo $imagePath;
+                                            echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" style="max-width: 100%; height: auto; border-radius: 4px; margin: 0.5rem 0; display: block;">';
                                             echo '</div>';
                                         }
 

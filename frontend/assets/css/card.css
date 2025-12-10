@@ -798,6 +798,10 @@ ease;
     .comm-logo img {
         width: 80% !important;
     }
+
+    .free-input-image {
+        font-size: 1rem !important;
+    }
 }
 
 
