@@ -577,7 +577,7 @@ function updateGreetingButtons() {
     });
 }
 
-// Display tech tools (same format as register.php)
+// Display tech tools (Banner format - matching register.php)
 function displayTechTools(techTools) {
     const techToolsList = document.getElementById('tech-tools-list');
     if (!techToolsList) {
@@ -588,39 +588,39 @@ function displayTechTools(techTools) {
     const toolData = {
         'mdb': {
             name: '全国マンションデータベース',
-            icon: '🏢',
-            description: '全国の分譲マンションの95％以上を網羅',
-            id: 'tool-mdb-edit'
+            id: 'tool-mdb-edit',
+            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span></p></div>',
+            banner_image: 'assets/images/tech_banner/mdb.jpg'
         },
         'rlp': {
             name: '物件提案ロボ',
-            icon: '🤖',
-            description: '希望条件に合致した物件情報を自動配信',
-            id: 'tool-rlp-edit'
+            id: 'tool-rlp-edit',
+            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>AI評価付き『物件提案ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><strong><span style="color: #000000;">」で自動配信します。WEB上に登録になった</span></strong><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span></p></div>',
+            banner_image: 'assets/images/tech_banner/rlp.jpg'
         },
         'llp': {
             name: '土地情報ロボ',
-            icon: '🏞️',
-            description: '希望条件に合致した土地情報を自動配信',
-            id: 'tool-llp-edit'
+            id: 'tool-llp-edit',
+            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>『土地情報ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><span style="color: #000000;"><strong>」で自動配信します。WEB上に登録になった</strong></span><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span></p></div>',
+            banner_image: 'assets/images/tech_banner/llp.jpg'
         },
         'ai': {
             name: 'AIマンション査定',
-            icon: '📊',
-            description: '個人情報不要でマンションの査定を実施',
-            id: 'tool-ai-edit'
+            id: 'tool-ai-edit',
+            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span></p></div>',
+            banner_image: 'assets/images/tech_banner/ai.jpg'
         },
         'slp': {
             name: 'セルフィン',
-            icon: '🔍',
-            description: '物件の良し悪しを自動判定するツール',
-            id: 'tool-slp-edit'
+            id: 'tool-slp-edit',
+            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><strong><span style="color: #000000;">AI評価付き『SelFin（セルフィン）』は消費者自ら</span></strong><span style="color: #ff0000;"><span style="font-weight: 700 !important;">「物件の資産性」を自動判定できる</span></span></span><span style="color: #000000;"><strong><span style="font-size: 14px;">ツールです。「価格の妥当性」「街力」「流動性」「耐震性」「管理費・修繕積立金の妥当性」を自動判定します。また物件提案ロボで配信される物件にはSelFin評価が付随します。</span></strong></span></p></div>',
+            banner_image: 'assets/images/tech_banner/slp.jpg'
         },
         'olp': {
             name: 'オーナーコネクト',
-            icon: '💼',
-            description: 'マンション所有者向けの資産ウォッチツール',
-            id: 'tool-olp-edit'
+            id: 'tool-olp-edit',
+            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>オーナーコネクトはマンション所有者様向けのサービスで、</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">誰でも簡単に自宅の資産状況を確認できます。</span></span></span><span style="color: #000000;"><strong>登録されたマンションで新たに売り出し情報が出たらメールでお知らせいたします。</strong></span><span style="color: #000000;"><strong>また、</strong></span><span style="font-weight: 700 !important;"><span style="color: #ff0000;">毎週自宅の資産状況をまとめたレポートメールも送信</span></span><strong><span style="color: #000000;">いたします。</span></strong></span></p></div>',
+            banner_image: 'assets/images/tech_banner/olp.jpg'
         }
     };
     
@@ -629,33 +629,45 @@ function displayTechTools(techTools) {
     
     techToolsList.innerHTML = '';
     
-    // Display all tools in card grid format (same as register.php)
+    // Display all tools in banner card format (same as register.php)
     allTools.forEach((toolType) => {
         const tool = toolData[toolType];
         const existingTool = techTools ? techTools.find(t => t.tool_type === toolType) : null;
         const isActive = existingTool ? (existingTool.is_active === 1 || existingTool.is_active === true) : false;
         
         const toolCard = document.createElement('div');
-        toolCard.className = 'tech-tool-card';
+        toolCard.className = 'tech-tool-banner-card register-tech-card';
+        if (isActive) {
+            toolCard.classList.add('selected');
+        }
         if (existingTool) {
             toolCard.dataset.id = existingTool.id;
         }
         toolCard.dataset.toolType = toolType;
 
         toolCard.innerHTML = `
-            <input type="checkbox" id="${tool.id}" ${isActive ? 'checked' : ''}>
-            <label for="${tool.id}">
-                <div class="tool-icon">${tool.icon}</div>
-                <h4>${tool.name}</h4>
-                <p>${tool.description}</p>
+            <input type="checkbox" id="${tool.id}" class="tech-tool-checkbox" ${isActive ? 'checked' : ''}>
+            <label for="${tool.id}" class="tech-tool-label">
+                <div class="tool-banner-header" style="background-image: url('${tool.banner_image}'); background-size: contain; background-position: center; background-repeat: no-repeat;"></div>
+                <div class="tool-banner-content">
+                    <div class="tool-description">${tool.description}</div>
+                </div>
             </label>
         `;
 
         techToolsList.appendChild(toolCard);
+        
+        // Add click event to toggle selection styling
+        const checkbox = toolCard.querySelector('.tech-tool-checkbox');
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                toolCard.classList.add('selected');
+            } else {
+                toolCard.classList.remove('selected');
+            }
+        });
     });
 
-    // No event listeners needed - checkboxes will be read when save button is clicked
-    // The visual state is handled by CSS (checked state styling)
     console.log('Tech tools displayed:', techTools);
 }
 
@@ -713,16 +725,18 @@ function displayCommunicationMethods(methods) {
             `${methodNames[method.method_type] || method.method_type} IDまたはURL`;
         
         commItem.innerHTML = `
+        <div class="communication-header" style="display: flex; justify-content: space-between; align-items: center;">
             <label class="communication-checkbox">
                 <input type="checkbox" ${method.is_active ? 'checked' : ''} onchange="toggleCommunicationMethod(${method.id}, this.checked)">
                 <div class="comm-icon">${methodIcons[method.method_type] || '<img src="./assets/images/icons/message.png" alt="+メッセージ" class="comm-icon-img">'}</div>
                 <span>${methodNames[method.method_type] || method.method_type}</span>
             </label>
+            <button type="button" class="btn-delete" onclick="deleteCommunicationMethod(${method.id})">削除</button>
+        </div>
             <div class="comm-details" style="display: ${method.is_active ? 'block' : 'none'};">
                 <input type="${isUrlBased ? 'url' : 'text'}" class="form-control comm-value" value="${escapeHtml(value)}" placeholder="${placeholder}" ${isUrlBased ? 'pattern="https?://.+"' : ''}>
                 ${isUrlBased ? '<small style="color: #666; display: block; margin-top: 4px;">有効なURLを入力してください（https://で始まる必要があります）</small>' : ''}
             </div>
-            <button type="button" class="btn-delete" onclick="deleteCommunicationMethod(${method.id})">削除</button>
         `;
         commList.appendChild(commItem);
     });
@@ -999,8 +1013,8 @@ async function saveTechTools() {
         return;
     }
     
-    // Use .tech-tool-card selector (matches the new card format)
-    const toolCards = techToolsList.querySelectorAll('.tech-tool-card');
+    // Use .tech-tool-banner-card or .tech-tool-card selector (matches the banner format)
+    const toolCards = techToolsList.querySelectorAll('.tech-tool-banner-card, .tech-tool-card');
     const selectedToolTypes = [];
     
     toolCards.forEach(card => {

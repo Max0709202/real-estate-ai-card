@@ -47,6 +47,7 @@ $defaultGreetings = [
     <title>名刺編集 - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/edit.css">
+    <link rel="stylesheet" href="assets/css/register.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/modal.css">
     <style>
@@ -352,7 +353,8 @@ $defaultGreetings = [
                 <div id="tech-tools-section" class="edit-section">
                     <h2>テックツール選択</h2>
                     <p class="step-description">表示させるテックツールを選択してください（最低2つ以上）</p>
-                    <div id="tech-tools-list" class="tech-tools-grid"></div>
+                    <div id="tech-tools-list" class="tech-tools-grid">
+                    </div>
                     <div class="form-actions">
                         <button type="button" class="btn-primary" onclick="saveTechTools()">保存</button>
                     </div>

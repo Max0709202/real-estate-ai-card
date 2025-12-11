@@ -605,6 +605,12 @@
         min-height: 100px;
     }
 
+    .communication-checkbox {
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 100px !important;
+    }
+
     .comm-icon {
         font-size: 1.75rem;
         margin-bottom: 0.5rem;
@@ -613,6 +619,11 @@
     .comm-icon img {
         width: 1.75rem;
         height: 1.75rem;
+    }
+
+    .comm-icon-img {
+        width: 100% !important;
+        height: 100% !important;
     }
 
     .comm-details {

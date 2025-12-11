@@ -957,7 +957,9 @@ input.form-control {
 
 .communication-checkbox {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    justify-content: center;
+    gap: 2rem;
     align-items: center;
     padding: 1rem;
     border: 2px solid #e0e0e0;
@@ -966,6 +968,7 @@ input.form-control {
     cursor: pointer;
     transition: all 0.3s;
     text-align: center;
+    width: 190px;
 }
 
 .communication-checkbox:hover {
@@ -986,7 +989,6 @@ input.form-control {
 
 .comm-icon {
     font-size: 2rem;
-    margin-bottom: 0.5rem;
 }
 
 .comm-icon img {
