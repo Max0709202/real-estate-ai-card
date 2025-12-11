@@ -21,7 +21,7 @@
 }
 
 .register-content {
-    max-width: 800px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 0 20px;
 }
@@ -385,14 +385,107 @@ input.form-control {
     object-fit: cover;
 }
 
-/* Tech Tools Grid */
+/* Tech Tools Grid - Banner Style */
 .tech-tools-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
     margin-bottom: 2rem;
+    align-items: stretch; /* Ensure all items have equal height */
 }
 
+/* Banner Card with Checkbox */
+.register-tech-card {
+    position: relative;
+    background: #fff;
+    overflow: hidden;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.register-tech-card:hover {
+    border-color: #0066cc;
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.1);
+}
+
+.register-tech-card .tech-tool-checkbox {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.register-tech-card .tech-tool-label {
+    display: block;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+/* Selected state - darken border and background */
+.register-tech-card.selected {
+    border-color: #0066cc;
+    background-color: #f0f7ff;
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.15);
+}
+
+.register-tech-card.selected .tool-banner-content {
+    background-color: #f0f7ff;
+}
+
+.register-tech-card .tech-tool-label:hover {
+    opacity: 0.95;
+}
+
+/* Banner Header with Background Image */
+.register-tech-card .tool-banner-header {
+    width: 100%;
+    min-height: 200px;
+    height: 200px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+    display: block;
+}
+
+/* Banner Content - Equal Heights */
+.register-tech-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.register-tech-card .tech-tool-label {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    height: 100%;
+}
+
+.register-tech-card .tool-banner-content {
+    padding: 1.5rem;
+    background: #fff;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+}
+
+.register-tech-card:has(.tech-tool-checkbox:checked) .tool-banner-content {
+    background-color: #f0f7ff;
+}
+
+.register-tech-card .tool-description {
+    color: #333;
+    line-height: 1.8;
+    font-size: 0.95rem;
+    flex: 1;
+}
+
+/* Old styles - keep for backward compatibility */
 .tech-tool-card {
     position: relative;
 }
@@ -418,7 +511,7 @@ input.form-control {
 .tech-tool-card input[type="checkbox"]:checked + label {
     border-color: #0066cc;
     background: #f0f7ff;
-    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    box-shadow: 0 0 0 3px rgba(0, 204, 0.1);
 }
 
 .tech-tool-card label:hover {
@@ -580,16 +673,165 @@ input.form-control {
         grid-template-columns: 1fr;
     }
 
+    /* Tech Tools Banner - Mobile adjustments */
     .tech-tools-grid {
         grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .register-tech-card .tool-banner-header {
+        min-height: 150px;
+        height: 150px;
+    }
+
+    .register-tech-card .tool-banner-content {
+        padding: 1rem;
+        min-height: 180px;
+    }
+
+    .register-tech-card .tool-description {
+        font-size: 0.85rem;
+        line-height: 1.6;
+    }
+
+    /* Mobile form improvements */
+    .register-step {
+        padding: 1rem;
+    }
+
+    .register-step h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .step-description {
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-section h3 {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
     }
 
     .form-actions {
         flex-direction: column;
+        gap: 0.75rem;
+        padding-top: 1.5rem;
+        margin-top: 1.5rem;
     }
 
     .form-actions button {
         width: 100%;
+        min-height: 44px; /* Better touch target */
+        font-size: 1rem;
+    }
+
+    /* Better touch targets for all buttons */
+    .btn-primary,
+    .btn-secondary,
+    .btn-outline,
+    .btn-add {
+        min-height: 44px;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+    }
+
+    /* Input improvements - prevent zoom on iOS */
+    .form-control {
+        font-size: 16px;
+        padding: 0.75rem;
+    }
+
+    /* Better spacing */
+    .register-header {
+        padding: 1rem;
+    }
+
+    .register-content {
+        padding: 0 1rem 2rem;
+    }
+
+    /* Sticky form actions for better UX */
+    .register-step {
+        padding-bottom: 80px; /* Space for sticky buttons */
+    }
+
+    .form-actions {
+        position: sticky;
+        bottom: 0;
+        background: #fff;
+        padding: 1rem;
+        margin: 1.5rem -1rem -1rem;
+        border-top: 1px solid #e0e0e0;
+        box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+        z-index: 10;
+    }
+
+    /* Communication grid mobile */
+    .communication-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .communication-item {
+        margin-bottom: 0.75rem;
+    }
+
+    .communication-checkbox {
+        padding: 0.75rem;
+    }
+
+    .comm-icon {
+        width: 40px;
+        height: 40px;
+    }
+
+    .comm-icon img {
+        width: 100%;
+        height: 100%;
+    }
+
+    /* Upload area mobile */
+    .upload-area {
+        padding: 1rem;
+    }
+
+    .upload-area small {
+        font-size: 0.75rem;
+    }
+
+    /* Greeting items mobile */
+    .greeting-item {
+        margin-bottom: 1rem;
+        padding: 1rem;
+    }
+
+    .greeting-header {
+        margin-bottom: 0.75rem;
+    }
+
+    /* Payment section mobile */
+    .payment-section {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .payment-options {
+        gap: 0.5rem;
+    }
+
+    .payment-option {
+        padding: 0.75rem;
+        font-size: 0.9rem;
     }
 }
 
@@ -618,7 +860,6 @@ input.form-control {
 /* Greeting Items */
 .greeting-item {
     background: #fafafa;
-    border: 1px solid #e0e0e0;
     border-radius: 8px;
     padding: 1.5rem;
     margin-bottom: 1rem;

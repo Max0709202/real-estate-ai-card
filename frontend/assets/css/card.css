@@ -365,7 +365,22 @@ ease;
 }
 
 /* Edit Link */
-/* Info Layout - Two Column */
+/* Info Layout - Responsive Two-Column (PC) / Single-Column (Mobile) */
+.info-responsive-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    margin-bottom: 2rem;
+}
+
+/* Make it single column on mobile */
+@media (max-width: 768px) {
+    .info-responsive-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+}
+
+/* Legacy support for old two-column layout */
 .info-layout {
     display: flex;
     /* display: grid;

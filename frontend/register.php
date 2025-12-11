@@ -56,6 +56,7 @@ $prefectures = [
     <title>アカウント作成 - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/register.css">
+    <link rel="stylesheet" href="assets/css/card.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/modal.css">
 </head>
@@ -372,60 +373,85 @@ $prefectures = [
                 <p class="step-description">表示させるテックツールを選択してください（最低2つ以上）</p>
 
                 <form id="tech-tools-form" class="register-form">
+                    <?php 
+                    // Tool descriptions and banner images (same as card.php)
+                    $toolInfo = [
+                        'slp' => [
+                            'description' => '<div id="cc-m-13442757931" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><strong><span style="color: #000000;">AI評価付き『SelFin（セルフィン）』は消費者自ら</span></strong><span style="color: #ff0000;"><span style="font-weight: 700 !important;">「物件の資産性」を自動判定できる</span></span></span><span style="color: #000000;"><strong><span style="font-size: 14px;">ツールです。「価格の妥当性」「街力」「流動性」「耐震性」「管理費・修繕積立金の妥当性」を自動判定します。また物件提案ロボで配信される物件にはSelFin評価が付随します。&nbsp;</span></strong></span>
+</p></div>',
+                            'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/slp.jpg'
+                        ],
+                        'rlp' => [
+                            'description' => '<div id="cc-m-13442765431" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><span style="color: #000000;"><span style="color: #000000;"><strong>AI評価付き『物件提案ロボ』は</strong><strong>貴社顧客の希望条件に合致する不動産情<span style="color: #000000;">報を「</span></strong></span></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><strong><span style="color: #000000;">」で自動配信します。WEB上に登録になった</span></strong><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span>
+</p></div>',
+                            'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/rlp.jpg'
+                        ],
+                        'llp' => [
+                            'description' => '<div id="cc-m-13442765531" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><span style="color: #000000;"><strong>『土地情報ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><span style="color: #000000;"><strong>」で自動配信します。WEB上に登録になった</strong></span><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span>
+</p></div>',
+                            'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/llp.jpg'
+                        ],
+                        'mdb' => [
+                            'description' => '<div id="cc-m-13442765731" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span>
+</p></div>',
+                            'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/mdb.jpg'
+                        ],
+                        'ai' => [
+                            'description' => '<div id="cc-m-13442765731" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span>
+</p></div>',
+                            'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/ai.jpg'
+                        ],
+                        'olp' => [
+                            'description' => '<div id="cc-m-13442765831" class="j-module n j-text "><p>
+    <span style="font-size: 14px;"><span color="#000000" style="color: #000000;"><span style="color: #000000;"><strong>オーナーコネクトはマンション所有者様向けのサービスで、</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">誰でも簡単に自宅の資産状況を確認できます。</span></span></span><span style="color: #000000;"><strong><span color="#000000">登録されたマンションで新たに売り出し情報が出たらメールでお知らせいたします。</span></strong></span><span color="#000000" style="color: #000000;"><span style="color: #000000;"><strong>また、</strong></span><span style="font-weight: 700 !important;"><span style="color: #ff0000;">毎週自宅の資産状況をまとめたレポートメールも送信</span></span><strong><span style="color: #000000;">いたします。</span></strong></span></span>
+</p></div>',
+                            'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/olp.jpg'
+                        ],
+                        'alp' => [
+                            'description' => '<div id="cc-m-13412853831" class="j-module n j-text" style="clear: both;">
+    <p>
+        <span style="font-size: 14px;"><strong><span style="color: #ff0000;">「SelFin Pro(セルフィンプロ)」</span><span style="color: #000000;">（AI・ロボット・ビッグデータ）はお客様との継続的な</span><span style="color: #ff0000;">コミュニケーションを自動化するWEBシステム</span><span style="color: #000000;">です。</span><span style="color: #ff0000;">全てのサービスが御社名で提供</span><span style="color: #000000;">されます。バックオフィスの自動化という後方支援を貴社の顧客・売上増加にご活用ください。</span></strong></span>
+    </p>
+</div>',
+                            'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/alp.jpg'
+                        ]
+                    ];
+                    
+                    $techToolsList = [
+                        ['type' => 'mdb', 'id' => 'tool-mdb', 'name' => '全国マンションデータベース'],
+                        ['type' => 'rlp', 'id' => 'tool-rlp', 'name' => '物件提案ロボ'],
+                        ['type' => 'llp', 'id' => 'tool-llp', 'name' => '土地情報ロボ'],
+                        ['type' => 'ai', 'id' => 'tool-ai', 'name' => 'AIマンション査定'],
+                        ['type' => 'slp', 'id' => 'tool-slp', 'name' => 'セルフィン'],
+                        ['type' => 'olp', 'id' => 'tool-olp', 'name' => 'オーナーコネクト']
+                    ];
+                    ?>
                     <div class="tech-tools-grid">
-                        <div class="tech-tool-card">
-                            <input type="checkbox" id="tool-mdb" name="tech_tools[]" value="mdb">
-                            <label for="tool-mdb">
-                                <div class="tool-icon">🏢</div>
-                                <h4>全国マンションデータベース</h4>
-                                <p>全国の分譲マンションの95％以上を網羅</p>
-                            </label>
-                        </div>
-
-                        <div class="tech-tool-card">
-                            <input type="checkbox" id="tool-rlp" name="tech_tools[]" value="rlp">
-                            <label for="tool-rlp">
-                                <div class="tool-icon">🤖</div>
-                                <h4>物件提案ロボ</h4>
-                                <p>希望条件に合致した物件情報を自動配信</p>
-                            </label>
-                        </div>
-
-                        <div class="tech-tool-card">
-                            <input type="checkbox" id="tool-llp" name="tech_tools[]" value="llp">
-                            <label for="tool-llp">
-                                <div class="tool-icon">🏞️</div>
-                                <h4>土地情報ロボ</h4>
-                                <p>希望条件に合致した土地情報を自動配信</p>
-                            </label>
-                        </div>
-
-                        <div class="tech-tool-card">
-                            <input type="checkbox" id="tool-ai" name="tech_tools[]" value="ai">
-                            <label for="tool-ai">
-                                <div class="tool-icon">📊</div>
-                                <h4>AIマンション査定</h4>
-                                <p>個人情報不要でマンションの査定を実施</p>
-                            </label>
-                        </div>
-
-                        <div class="tech-tool-card">
-                            <input type="checkbox" id="tool-slp" name="tech_tools[]" value="slp">
-                            <label for="tool-slp">
-                                <div class="tool-icon">🔍</div>
-                                <h4>セルフィン</h4>
-                                <p>物件の良し悪しを自動判定するツール</p>
-                            </label>
-                        </div>
-
-                        <div class="tech-tool-card">
-                            <input type="checkbox" id="tool-olp" name="tech_tools[]" value="olp">
-                            <label for="tool-olp">
-                                <div class="tool-icon">💼</div>
-                                <h4>オーナーコネクト</h4>
-                                <p>マンション所有者向けの資産ウォッチツール</p>
-                            </label>
-                        </div>
+                        <?php foreach ($techToolsList as $tool): 
+                            $info = $toolInfo[$tool['type']] ?? [
+                                'description' => '',
+                                'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/default.jpg'
+                            ];
+                        ?>
+                            <div class="tech-tool-banner-card register-tech-card">
+                                <input type="checkbox" id="<?php echo $tool['id']; ?>" name="tech_tools[]" value="<?php echo $tool['type']; ?>" class="tech-tool-checkbox">
+                                <label for="<?php echo $tool['id']; ?>" class="tech-tool-label">
+                                    <!-- Banner Header with Background Image -->
+                                    <div class="tool-banner-header" style="background-image: url('<?php echo htmlspecialchars($info['banner_image']); ?>'); background-size: contain; background-position: center; background-repeat: no-repeat;">
+                                    </div>
+                                    
+                                    <!-- Description -->
+                                    <div class="tool-banner-content">
+                                        <div class="tool-description"><?php echo $info['description']; ?></div>
+                                    </div>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
 
                     <div class="form-actions">
@@ -834,6 +860,31 @@ $prefectures = [
                         }, 500); // 500ms後に変換を試みる
                     }
                 });
+            }
+        });
+    </script>
+    <script>
+        // Handle tech tool checkbox selection styling
+        document.addEventListener('DOMContentLoaded', function() {
+            const techToolCheckboxes = document.querySelectorAll('.register-tech-card .tech-tool-checkbox');
+            
+            techToolCheckboxes.forEach(checkbox => {
+                // Initial state
+                updateCardSelection(checkbox);
+                
+                // Listen for changes
+                checkbox.addEventListener('change', function() {
+                    updateCardSelection(this);
+                });
+            });
+            
+            function updateCardSelection(checkbox) {
+                const card = checkbox.closest('.register-tech-card');
+                if (checkbox.checked) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
             }
         });
     </script>

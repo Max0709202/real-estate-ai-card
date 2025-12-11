@@ -644,7 +644,7 @@
     /* Preview container */
     .preview-container {
         margin: 1rem 0.5rem;
-        padding: 1.5rem;
+        padding: 0rem;
         border-radius: 12px;
     }
 
@@ -778,7 +778,7 @@
 
     #preview-content {
         min-height: 300px;
-        padding: 1.5rem;
+        padding: 0rem;
         border-radius: 8px;
     }
 

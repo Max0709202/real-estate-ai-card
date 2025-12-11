@@ -1364,7 +1364,7 @@ function collectFormData() {
     return data;
 }
 
-// Generate preview HTML
+// Generate preview HTML - matches card.php layout
 function generatePreview(data) {
     const techToolNames = {
         'mdb': '全国マンションデータベース',
@@ -1375,159 +1375,262 @@ function generatePreview(data) {
         'olp': 'オーナーコネクト'
     };
     
-    const techToolIcons = {
-        'mdb': '🏢',
-        'rlp': '🤖',
-        'llp': '🏞️',
-        'ai': '📊',
-        'slp': '🔍',
-        'olp': '💼'
+    const techToolDescriptions = {
+        'slp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><strong><span style="color: #000000;">AI評価付き『SelFin（セルフィン）』は消費者自ら</span></strong><span style="color: #ff0000;"><span style="font-weight: 700 !important;">「物件の資産性」を自動判定できる</span></span></span><span style="color: #000000;"><strong><span style="font-size: 14px;">ツールです。「価格の妥当性」「街力」「流動性」「耐震性」「管理費・修繕積立金の妥当性」を自動判定します。また物件提案ロボで配信される物件にはSelFin評価が付随します。</span></strong></span></p></div>',
+        'rlp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>AI評価付き『物件提案ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><strong><span style="color: #000000;">」で自動配信します。WEB上に登録になった</span></strong><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span></p></div>',
+        'llp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>『土地情報ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><span style="color: #000000;"><strong>」で自動配信します。WEB上に登録になった</strong></span><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span></p></div>',
+        'mdb': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span></p></div>',
+        'ai': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span></p></div>',
+        'olp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>オーナーコネクトはマンション所有者様向けのサービスで、</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">誰でも簡単に自宅の資産状況を確認できます。</span></span></span><span style="color: #000000;"><strong>登録されたマンションで新たに売り出し情報が出たらメールでお知らせいたします。</strong></span><span style="color: #000000;"><strong>また、</strong></span><span style="font-weight: 700 !important;"><span style="color: #ff0000;">毎週自宅の資産状況をまとめたレポートメールも送信</span></span><strong><span style="color: #000000;">いたします。</span></strong></span></p></div>'
     };
     
-    let html = '<div class="preview-card">';
+    const techToolBanners = {
+        'slp': 'assets/images/tech_banner/slp.jpg',
+        'rlp': 'assets/images/tech_banner/rlp.jpg',
+        'llp': 'assets/images/tech_banner/llp.jpg',
+        'mdb': 'assets/images/tech_banner/mdb.jpg',
+        'ai': 'assets/images/tech_banner/ai.jpg',
+        'olp': 'assets/images/tech_banner/olp.jpg'
+    };
     
-    // Header Section
-    html += '<div class="preview-header-section">';
+    let html = '<div class="card-container">';
+    html += '<section class="card-section">';
+    
+    // Header Section (matching card.php)
+    html += '<div class="card-header">';
     if (data.company_logo) {
-        html += `<div class="preview-logo"><img src="${escapeHtml(data.company_logo)}" alt="ロゴ"></div>`;
+        html += `<img src="${escapeHtml(data.company_logo)}" alt="ロゴ" class="company-logo">`;
     }
     const companyName = data.company_name || data.company_name_profile || '';
     if (companyName) {
-        html += `<h1 class="preview-company-name">${escapeHtml(companyName)}</h1>`;
+        html += `<h1 class="company-name">${escapeHtml(companyName)}</h1>`;
     }
     html += '</div>';
+    html += '<hr>';
     
-    // Profile Section
-    html += '<div class="preview-profile-section">';
+    // Card Body
+    html += '<div class="card-body">';
+    
+    // Profile photo and greeting section (matching card.php)
+    html += '<div class="profile-greeting-section">';
     if (data.profile_photo) {
-        html += `<div class="preview-photo"><img src="${escapeHtml(data.profile_photo)}" alt="プロフィール写真"></div>`;
+        html += '<div class="profile-photo-container">';
+        html += `<img src="${escapeHtml(data.profile_photo)}" alt="プロフィール写真" class="profile-photo">`;
+        html += '</div>';
     }
     
-    html += '<div class="preview-person-info">';
-    if (data.name) {
-        html += `<h2 class="preview-person-name">${escapeHtml(data.name)}</h2>`;
+    // First greeting only
+    html += '<div class="greeting-content">';
+    if (data.greetings && data.greetings.length > 0) {
+        const firstGreeting = data.greetings[0];
+        if (firstGreeting && (firstGreeting.title || firstGreeting.content)) {
+            html += '<div class="greeting-item">';
+            if (firstGreeting.title) {
+                html += `<h3 class="greeting-title">${escapeHtml(firstGreeting.title)}</h3>`;
+            }
+            if (firstGreeting.content) {
+                html += `<p class="greeting-text">${escapeHtml(firstGreeting.content).replace(/\n/g, '<br>')}</p>`;
+            }
+            html += '</div>';
+        }
     }
-    if (data.position) {
-        html += `<p class="preview-position">${escapeHtml(data.position)}</p>`;
-    }
-    if (data.branch_department) {
-        html += `<p class="preview-department">${escapeHtml(data.branch_department)}</p>`;
-    }
-    if (data.qualifications) {
-        html += `<p class="preview-qualifications">${escapeHtml(data.qualifications)}</p>`;
-    }
-    html += '</div>';
-    html += '</div>';
+    html += '</div>'; // greeting-content
+    html += '</div>'; // profile-greeting-section
+    html += '</div>'; // card-body
+    html += '<hr>';
     
-    // Company Information
-    const companyInfoItems = [];
-    if (data.company_postal_code || data.company_address) {
-        let addressText = '';
-        if (data.company_postal_code) addressText += `〒${escapeHtml(data.company_postal_code)} `;
-        if (data.company_address) addressText += escapeHtml(data.company_address);
-        companyInfoItems.push({label: '住所', value: addressText});
+    // Responsive two-column info layout (matching card.php)
+    html += '<div class="card-body">';
+    html += '<div class="info-responsive-grid">';
+    
+    // Company name
+    if (companyName) {
+        html += '<div class="info-section company-info">';
+        html += '<h3>会社名</h3>';
+        html += `<p>${escapeHtml(companyName)}</p>`;
+        html += '</div>';
     }
-    if (data.company_phone) {
-        companyInfoItems.push({label: '連絡先', value: escapeHtml(data.company_phone)});
-    }
-    if (data.mobile_phone) {
-        companyInfoItems.push({label: '携帯番号', value: escapeHtml(data.mobile_phone)});
-    }
-    if (data.company_website) {
-        companyInfoItems.push({label: 'HP', value: `<a href="${escapeHtml(data.company_website)}" target="_blank">${escapeHtml(data.company_website)}</a>`});
-    }
+    
+    // License
     if (data.real_estate_license_registration_number) {
+        html += '<div class="info-section">';
+        html += '<h3>宅建業番号</h3>';
         let licenseText = '';
         if (data.real_estate_license_prefecture) licenseText += escapeHtml(data.real_estate_license_prefecture);
         if (data.real_estate_license_renewal_number) licenseText += `(${escapeHtml(data.real_estate_license_renewal_number)})`;
         licenseText += `第${escapeHtml(data.real_estate_license_registration_number)}号`;
-        companyInfoItems.push({label: '宅建業者番号', value: licenseText});
-    }
-    
-    if (companyInfoItems.length > 0) {
-        html += '<div class="preview-company-info">';
-        companyInfoItems.forEach(item => {
-            html += `<div class="preview-info-item"><strong>${item.label}</strong><span>${item.value}</span></div>`;
-        });
+        html += `<p>${licenseText}</p>`;
         html += '</div>';
     }
     
-    // Personal Information
-    const personalInfoItems = [];
+    // Address
+    if (data.company_postal_code || data.company_address) {
+        html += '<div class="info-section">';
+        html += '<h3>所在地</h3>';
+        if (data.company_postal_code) {
+            html += `<p>〒${escapeHtml(data.company_postal_code)}</p>`;
+        }
+        if (data.company_address) {
+            html += `<p>${escapeHtml(data.company_address)}</p>`;
+        }
+        html += '</div>';
+    }
+    
+    // Company phone
+    if (data.company_phone) {
+        html += '<div class="info-section">';
+        html += '<h3>会社電話番号</h3>';
+        html += `<p>${escapeHtml(data.company_phone)}</p>`;
+        html += '</div>';
+    }
+    
+    // Website
+    if (data.company_website) {
+        html += '<div class="info-section">';
+        html += '<h3>HP</h3>';
+        html += `<p><a href="${escapeHtml(data.company_website)}" target="_blank">${escapeHtml(data.company_website)}</a></p>`;
+        html += '</div>';
+    }
+    
+    // Department / Position
+    if (data.branch_department || data.position) {
+        html += '<div class="info-section">';
+        html += '<h3>部署 / 役職</h3>';
+        let deptPosition = [data.branch_department, data.position].filter(Boolean).join(' / ');
+        html += `<p>${escapeHtml(deptPosition)}</p>`;
+        html += '</div>';
+    }
+    
+    // Name
+    if (data.name) {
+        html += '<div class="info-section person-name-section">';
+        html += '<h3>名前</h3>';
+        html += `<p class="person-name-large">${escapeHtml(data.name)}`;
+        if (data.name_romaji) {
+            html += ` <span class="name-romaji">(${escapeHtml(data.name_romaji)})</span>`;
+        }
+        html += '</p>';
+        html += '</div>';
+    }
+    
+    // Mobile phone
+    if (data.mobile_phone) {
+        html += '<div class="info-section">';
+        html += '<h3>携帯番号</h3>';
+        html += `<p>${escapeHtml(data.mobile_phone)}</p>`;
+        html += '</div>';
+    }
+    
+    // Birthday
     if (data.birth_date) {
-        personalInfoItems.push({label: '誕生日', value: escapeHtml(data.birth_date)});
+        html += '<div class="info-section">';
+        html += '<h3>誕生日</h3>';
+        html += `<p>${escapeHtml(data.birth_date)}</p>`;
+        html += '</div>';
     }
+    
+    // Residence / Hometown
     if (data.current_residence || data.hometown) {
-        let residenceText = '';
-        if (data.current_residence) residenceText += escapeHtml(data.current_residence);
-        if (data.current_residence && data.hometown) residenceText += ' / ';
-        if (data.hometown) residenceText += escapeHtml(data.hometown);
-        personalInfoItems.push({label: '現在の居住地/出身地', value: residenceText});
+        html += '<div class="info-section">';
+        html += '<h3>現在の居住地 / 出身地</h3>';
+        let residenceText = [data.current_residence, data.hometown].filter(Boolean).join(' / ');
+        html += `<p>${escapeHtml(residenceText)}</p>`;
+        html += '</div>';
     }
+    
+    // Alma mater
     if (data.alma_mater) {
-        personalInfoItems.push({label: '出身校', value: escapeHtml(data.alma_mater)});
+        html += '<div class="info-section">';
+        html += '<h3>出身大学</h3>';
+        html += `<p>${escapeHtml(data.alma_mater).replace(/\n/g, '<br>')}</p>`;
+        html += '</div>';
     }
+    
+    // Qualifications
+    if (data.qualifications) {
+        html += '<div class="info-section">';
+        html += '<h3>資格</h3>';
+        html += `<p>${escapeHtml(data.qualifications).replace(/\n/g, '<br>')}</p>`;
+        html += '</div>';
+    }
+    
+    // Hobbies
     if (data.hobbies) {
-        personalInfoItems.push({label: '趣味', value: escapeHtml(data.hobbies)});
-    }
-    
-    if (personalInfoItems.length > 0) {
-        html += '<div class="preview-personal-info">';
-        personalInfoItems.forEach(item => {
-            html += `<div class="preview-info-item"><strong>${item.label}</strong><span>${item.value}</span></div>`;
-        });
+        html += '<div class="info-section">';
+        html += '<h3>趣味</h3>';
+        html += `<p>${escapeHtml(data.hobbies).replace(/\n/g, '<br>')}</p>`;
         html += '</div>';
     }
     
-    // Greetings
-    if (data.greetings && data.greetings.length > 0) {
-        html += '<div class="preview-greetings">';
-        data.greetings.forEach(greeting => {
-            if (greeting.title || greeting.content) {
-                html += '<div class="preview-greeting-item">';
-                if (greeting.title) {
-                    html += `<h3>${escapeHtml(greeting.title)}</h3>`;
-                }
-                if (greeting.content) {
-                    html += `<p>${escapeHtml(greeting.content).replace(/\n/g, '<br>')}</p>`;
-                }
-                html += '</div>';
-            }
-        });
+    // Free input (Other)
+    if (data.free_input !== '{"text":"","image_link":""}' && (data.free_input_text || data.free_image)) {
+        html += '<div class="info-section">';
+        html += '<h3>その他</h3>';
+        html += '<div class="free-input-content" style="overflow-wrap: anywhere;">';
+        
+        if (data.free_input_text) {
+            html += `<p class="free-input-text">${escapeHtml(data.free_input_text).replace(/\n/g, '<br>')}</p>`;
+        }
+        
+        if (data.free_image) {
+            html += '<div class="free-input-image">';
+            html += `<img src="${escapeHtml(data.free_image)}" alt="アップロード画像" style="max-width: 100%; height: auto; border-radius: 4px; margin: 0.5rem 0; display: block;">`;
+            html += '</div>';
+        }
+        
+        if (data.free_image_link) {
+            html += '<p class="free-input-link">';
+            html += `<a href="${escapeHtml(data.free_image_link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(data.free_image_link)}</a>`;
+            html += '</p>';
+        }
+        
+        html += '</div>';
         html += '</div>';
     }
     
-    // Tech Tools
+    html += '</div>'; // info-responsive-grid
+    
+    html += '<hr>';
+    
+    // Tech Tools Section (matching card.php banner style)
     if (data.tech_tools && data.tech_tools.length > 0) {
-        html += '<div class="preview-tech-tools">';
-        html += '<h2>おすすめサービス</h2>';
-        html += '<div class="preview-tech-tools-grid">';
+        html += '<section class="tech-tools-section">';
+        html += '<h2>不動産テックツール</h2>';
+        html += '<p class="section-description">物件の購入・売却に役立つツールをご利用いただけます</p>';
+        html += '<div class="tech-tools-grid">';
+        
         data.tech_tools.forEach(tool => {
-            const toolName = techToolNames[tool] || tool;
-            const toolIcon = techToolIcons[tool] || '📋';
-            html += `<div class="preview-tech-tool-item">`;
-            html += `<div class="preview-tool-icon">${toolIcon}</div>`;
-            html += `<h4>${escapeHtml(toolName)}</h4>`;
-            html += `<button class="preview-tool-btn">詳細はこちら</button>`;
-            html += `</div>`;
+            const bannerImage = techToolBanners[tool] || 'assets/images/tech_banner/default.jpg';
+            const description = techToolDescriptions[tool] || '';
+            
+            html += '<div class="tech-tool-banner-card">';
+            html += `<div class="tool-banner-header" style="background-image: url('${bannerImage}'); background-size: contain; background-position: center; background-repeat: no-repeat; height: 200px;"></div>`;
+            html += '<div class="tool-banner-content">';
+            html += `<div class="tool-description">${description}</div>`;
+            html += '<a href="#" class="tool-details-button" target="_blank">詳細はこちら</a>';
+            html += '</div>';
+            html += '</div>';
         });
+        
         html += '</div>';
-        html += '</div>';
+        html += '</section>';
     }
     
-    // Communication / SNS
+    html += '<hr>';
+    
+    // Communication Section (matching card.php)
     if (data.communication && Object.keys(data.communication).length > 0) {
-        html += '<div class="preview-communication">';
-        html += '<hr>';
-        html += '<h3>コミュニケーション + SNS</h3>';
-        html += '<div class="preview-comm-grid">';
+        html += '<div class="communication-section">';
+        html += '<h3>コミュニケーション方法</h3>';
+        html += '<div class="communication-grid">';
         
-        Object.values(data.communication).forEach(comm => {
+        Object.entries(data.communication).forEach(([key, comm]) => {
             if (comm.url || comm.id) {
-                html += '<div class="preview-comm-item">';
-                html += `<div class="preview-comm-icon">${comm.icon}</div>`;
-                html += `<div class="preview-comm-name">${escapeHtml(comm.name)}</div>`;
-                html += `<button class="preview-comm-btn">詳細はこちら</button>`;
+                html += '<div class="comm-card">';
+                html += '<div class="comm-logo">';
+                html += `<img src="assets/images/sns/${key}.png" alt="${escapeHtml(comm.name)}" onerror="this.style.display='none'; this.parentElement.innerHTML='${escapeHtml(comm.name)}';">`;
+                html += '</div>';
+                html += `<a href="${escapeHtml(comm.url || '#')}" class="comm-details-button" target="_blank">詳細はこちら</a>`;
                 html += '</div>';
             }
         });
@@ -1536,21 +1639,10 @@ function generatePreview(data) {
         html += '</div>';
     }
     
-    // Free Input
-    if (data.free_input_text) {
-        html += '<div class="preview-free-input">';
-        html += `<p>${escapeHtml(data.free_input_text).replace(/\n/g, '<br>')}</p>`;
-        html += '</div>';
-    }
+    html += '</div>'; // card-body
+    html += '</section>';
+    html += '</div>'; // card-container
     
-    if (data.free_image) {
-        html += '<div class="preview-free-image">';
-        const imageLink = data.free_image_link ? `href="${escapeHtml(data.free_image_link)}" target="_blank"` : '';
-        html += `<a ${imageLink}><img src="${escapeHtml(data.free_image)}" alt="フリー画像"></a>`;
-        html += '</div>';
-    }
-    
-    html += '</div>';
     return html;
 }
 

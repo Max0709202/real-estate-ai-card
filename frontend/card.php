@@ -133,195 +133,191 @@ $communicationMethods = $stmt->fetchAll();
             </div>
             <hr>
             <div class="card-body">
-                <!-- 個人情報セクション -->
-                <div class="info-layout">
-                    <div class="info-left" style="width:40%">
-                        <!-- 会社名 -->
-                        <div class="info-section company-info">
-                            <h3>会社名</h3>
-                            <p><?php echo htmlspecialchars($card['company_name'] ?? ''); ?></p>
-                        </div>
+                <!-- 個人情報セクション - Responsive Two-Column Layout -->
+                <div class="info-responsive-grid">
+                    <!-- 会社名 -->
+                    <div class="info-section company-info">
+                        <h3>会社名</h3>
+                        <p><?php echo htmlspecialchars($card['company_name'] ?? ''); ?></p>
+                    </div>
 
-                        <?php if ($card['real_estate_license_prefecture'] || $card['real_estate_license_renewal_number'] || $card['real_estate_license_registration_number']): ?>
-                            <div class="info-section">
-                                <h3>宅建業番号</h3>
-                                <p>
-                                    <?php
-                                    if ($card['real_estate_license_prefecture']) {
-                                        echo htmlspecialchars($card['real_estate_license_prefecture']);
-                                        if ($card['real_estate_license_renewal_number']) {
-                                            echo '(' . htmlspecialchars($card['real_estate_license_renewal_number']) . ')';
-                                        }
-                                        if ($card['real_estate_license_registration_number']) {
-                                            echo '第' . htmlspecialchars($card['real_estate_license_registration_number']) . '号';
-                                        }
+                    <?php if ($card['real_estate_license_prefecture'] || $card['real_estate_license_renewal_number'] || $card['real_estate_license_registration_number']): ?>
+                        <div class="info-section">
+                            <h3>宅建業番号</h3>
+                            <p>
+                                <?php
+                                if ($card['real_estate_license_prefecture']) {
+                                    echo htmlspecialchars($card['real_estate_license_prefecture']);
+                                    if ($card['real_estate_license_renewal_number']) {
+                                        echo '(' . htmlspecialchars($card['real_estate_license_renewal_number']) . ')';
                                     }
-                                    ?>
-                                </p>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if ($card['company_postal_code'] || $card['company_address']): ?>
-                            <div class="info-section">
-                                <h3>所在地</h3>
-                                <?php if ($card['company_postal_code']): ?>
-                                    <p style="margin-right: 10px; float:left">
-                                        〒<?php echo htmlspecialchars($card['company_postal_code']); ?></p>
-                                <?php endif; ?>
-                                <?php if ($card['company_address']): ?>
-                                    <p style="float:left"><?php echo htmlspecialchars($card['company_address']); ?></p>
-                                <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if ($card['company_phone']): ?>
-                            <div class="info-section">
-                                <h3>会社電話番号</h3>
-                                <p><?php echo htmlspecialchars($card['company_phone']); ?></p>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if ($card['company_website']): ?>
-                            <div class="info-section">
-                                <h3>HP</h3>
-                                <p><a href="<?php echo htmlspecialchars($card['company_website']); ?>"
-                                        target="_blank"><?php echo htmlspecialchars($card['company_website']); ?></a></p>
-                            </div>
-                        <?php endif; ?>
-
-                        <!-- 部署 / 役職 -->
-                        <?php if ($card['branch_department'] || $card['position']): ?>
-                            <div class="info-section">
-                                <h3>部署 / 役職</h3>
-                                <p>
-                                    <?php
-                                    $dept_position = array_filter([
-                                        $card['branch_department'] ?? '',
-                                        $card['position'] ?? ''
-                                    ]);
-                                    echo htmlspecialchars(implode(' / ', $dept_position));
-                                    ?>
-                                </p>
-                            </div>
-                        <?php endif; ?>
-
-                        <!-- 名前 -->
-                        <div class="info-section person-name-section">
-                            <h3>名前</h3>
-                            <p class="person-name-large">
-                                <?php echo htmlspecialchars($card['name']); ?>
-                                <?php if ($card['name_romaji']): ?>
-                                    <span class="name-romaji">(<?php echo htmlspecialchars($card['name_romaji']); ?>)</span>
-                                <?php endif; ?>
+                                    if ($card['real_estate_license_registration_number']) {
+                                        echo '第' . htmlspecialchars($card['real_estate_license_registration_number']) . '号';
+                                    }
+                                }
+                                ?>
                             </p>
                         </div>
+                    <?php endif; ?>
 
-                        <!-- 携帯番号 -->
+                    <?php if ($card['company_postal_code'] || $card['company_address']): ?>
                         <div class="info-section">
-                            <h3>携帯番号</h3>
-                            <p><?php echo htmlspecialchars($card['mobile_phone']); ?></p>
+                            <h3>所在地</h3>
+                            <?php if ($card['company_postal_code']): ?>
+                                <p>〒<?php echo htmlspecialchars($card['company_postal_code']); ?></p>
+                            <?php endif; ?>
+                            <?php if ($card['company_address']): ?>
+                                <p><?php echo htmlspecialchars($card['company_address']); ?></p>
+                            <?php endif; ?>
                         </div>
+                    <?php endif; ?>
 
-                        <?php if ($card['birth_date']): ?>
-                            <div class="info-section">
-                                <h3>誕生日</h3>
-                                <p><?php echo date('Y年m月d日', strtotime($card['birth_date'])); ?></p>
-                            </div>
-                        <?php endif; ?>
-                        <?php if ($card['current_residence'] || $card['hometown']): ?>
-                            <div class="info-section">
-                                <h3>現在の居住地 / 出身地</h3>
-                                <p>
-                                    <?php
-                                    $residence_parts = array_filter([
-                                        $card['current_residence'] ?? '',
-                                        $card['hometown'] ?? ''
-                                    ]);
-                                    echo htmlspecialchars(implode(' / ', $residence_parts));
-                                    ?>
-                                </p>
-                            </div>
-                        <?php endif; ?>
+                    <?php if ($card['company_phone']): ?>
+                        <div class="info-section">
+                            <h3>会社電話番号</h3>
+                            <p><?php echo htmlspecialchars($card['company_phone']); ?></p>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($card['company_website']): ?>
+                        <div class="info-section">
+                            <h3>HP</h3>
+                            <p><a href="<?php echo htmlspecialchars($card['company_website']); ?>"
+                                    target="_blank"><?php echo htmlspecialchars($card['company_website']); ?></a></p>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- 部署 / 役職 -->
+                    <?php if ($card['branch_department'] || $card['position']): ?>
+                        <div class="info-section">
+                            <h3>部署 / 役職</h3>
+                            <p>
+                                <?php
+                                $dept_position = array_filter([
+                                    $card['branch_department'] ?? '',
+                                    $card['position'] ?? ''
+                                ]);
+                                echo htmlspecialchars(implode(' / ', $dept_position));
+                                ?>
+                            </p>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- 名前 -->
+                    <div class="info-section person-name-section">
+                        <h3>名前</h3>
+                        <p class="person-name-large">
+                            <?php echo htmlspecialchars($card['name']); ?>
+                            <?php if ($card['name_romaji']): ?>
+                                <span class="name-romaji">(<?php echo htmlspecialchars($card['name_romaji']); ?>)</span>
+                            <?php endif; ?>
+                        </p>
                     </div>
 
-                    <div class="info-right" style="width:50%">
-                        <?php if ($card['alma_mater']): ?>
-                            <div class="info-section">
-                                <h3>出身大学</h3>
-                                <p><?php echo nl2br(htmlspecialchars($card['alma_mater'])); ?></p>
-                            </div>
-                        <?php endif; ?>
+                    <!-- 携帯番号 -->
+                    <div class="info-section">
+                        <h3>携帯番号</h3>
+                        <p><?php echo htmlspecialchars($card['mobile_phone']); ?></p>
+                    </div>
 
-                        <?php if ($card['qualifications']): ?>
-                            <div class="info-section">
-                                <h3>資格</h3>
-                                <p><?php echo nl2br(htmlspecialchars($card['qualifications'])); ?></p>
-                            </div>
-                        <?php endif; ?>
+                    <?php if ($card['birth_date']): ?>
+                        <div class="info-section">
+                            <h3>誕生日</h3>
+                            <p><?php echo date('Y年m月d日', strtotime($card['birth_date'])); ?></p>
+                        </div>
+                    <?php endif; ?>
 
-                        <?php if ($card['hobbies']): ?>
-                            <div class="info-section">
-                                <h3>趣味</h3>
-                                <p><?php echo nl2br(htmlspecialchars($card['hobbies'])); ?></p>
-                            </div>
-                        <?php endif; ?>
+                    <?php if ($card['current_residence'] || $card['hometown']): ?>
+                        <div class="info-section">
+                            <h3>現在の居住地 / 出身地</h3>
+                            <p>
+                                <?php
+                                $residence_parts = array_filter([
+                                    $card['current_residence'] ?? '',
+                                    $card['hometown'] ?? ''
+                                ]);
+                                echo htmlspecialchars(implode(' / ', $residence_parts));
+                                ?>
+                            </p>
+                        </div>
+                    <?php endif; ?>
 
-                        <?php if ($card['free_input']): ?>
-                            <div class="info-section">
-                                <h3>その他</h3>
-                                <div class="free-input-content" style="overflow-wrap: anywhere;">
-                                    <?php
-                                    // Try to decode JSON
-                                    $freeInputData = json_decode($card['free_input'], true);
+                    <?php if ($card['alma_mater']): ?>
+                        <div class="info-section">
+                            <h3>出身大学</h3>
+                            <p><?php echo nl2br(htmlspecialchars($card['alma_mater'])); ?></p>
+                        </div>
+                    <?php endif; ?>
 
-                                    if (json_last_error() === JSON_ERROR_NONE && is_array($freeInputData)) {
-                                        // Valid JSON - display each field line by line
-                                
-                                        // Display text if exists
-                                        if (!empty($freeInputData['text'])) {
-                                            echo '<p class="free-input-text">' . nl2br(htmlspecialchars($freeInputData['text'])) . '</p>';
-                                        }
+                    <?php if ($card['qualifications']): ?>
+                        <div class="info-section">
+                            <h3>資格</h3>
+                            <p><?php echo nl2br(htmlspecialchars($card['qualifications'])); ?></p>
+                        </div>
+                    <?php endif; ?>
 
-                                        // Display embedded image if exists
-                                        if (!empty($freeInputData['image'])) {
-                                            echo '<div class="free-input-image">';
-                                            $imagePath = $freeInputData['image'];
-                                            // Add BASE_URL if the path doesn't start with http
-                                            if (!preg_match('/^https?:\/\//', $imagePath)) {
-                                                $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
-                                            }
-                                            echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" style="max-width: 100%; height: auto; border-radius: 4px; margin: 0.5rem 0; display: block;">';
-                                            echo '</div>';
-                                        }
+                    <?php if ($card['hobbies']): ?>
+                        <div class="info-section">
+                            <h3>趣味</h3>
+                            <p><?php echo nl2br(htmlspecialchars($card['hobbies'])); ?></p>
+                        </div>
+                    <?php endif; ?>
 
-                                        // Display image_link if exists
-                                        if (!empty($freeInputData['image_link'])) {
-                                            echo '<p class="free-input-link">';
-                                            echo '<a href="' . htmlspecialchars($freeInputData['image_link']) . '" target="_blank" rel="noopener noreferrer">';
+                    <?php if ($card['free_input']): ?>
+                        <div class="info-section">
+                            <h3>その他</h3>
+                            <div class="free-input-content" style="overflow-wrap: anywhere;">
+                                <?php
+                                // Try to decode JSON
+                                $freeInputData = json_decode($card['free_input'], true);
 
-                                            // Check if it's an image URL to display thumbnail
-                                            $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-                                            $urlExtension = strtolower(pathinfo(parse_url($freeInputData['image_link'], PHP_URL_PATH), PATHINFO_EXTENSION));
-
-                                            if (in_array($urlExtension, $imageExtensions)) {
-                                                echo $freeInputData['image_link'];
-                                            } else {
-                                                echo htmlspecialchars($freeInputData['image_link']);
-                                            }
-
-                                            echo '</a>';
-                                            echo '</p>';
-                                        }
-
-                                    } else {
-                                        // Not JSON or invalid JSON - display as plain text
-                                        echo '<p>' . nl2br(htmlspecialchars($card['free_input'])) . '</p>';
+                                if (json_last_error() === JSON_ERROR_NONE && is_array($freeInputData)) {
+                                    // Valid JSON - display each field line by line
+                            
+                                    // Display text if exists
+                                    if (!empty($freeInputData['text'])) {
+                                        echo '<p class="free-input-text">' . nl2br(htmlspecialchars($freeInputData['text'])) . '</p>';
                                     }
-                                    ?>
-                                </div>
+
+                                    // Display embedded image if exists
+                                    if (!empty($freeInputData['image'])) {
+                                        echo '<div class="free-input-image">';
+                                        $imagePath = $freeInputData['image'];
+                                        // Add BASE_URL if the path doesn't start with http
+                                        if (!preg_match('/^https?:\/\//', $imagePath)) {
+                                            $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
+                                        }
+                                        echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" style="max-width: 100%; height: auto; border-radius: 4px; margin: 0.5rem 0; display: block;">';
+                                        echo '</div>';
+                                    }
+
+                                    // Display image_link if exists
+                                    if (!empty($freeInputData['image_link'])) {
+                                        echo '<p class="free-input-link">';
+                                        echo '<a href="' . htmlspecialchars($freeInputData['image_link']) . '" target="_blank" rel="noopener noreferrer">';
+
+                                        // Check if it's an image URL to display thumbnail
+                                        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                                        $urlExtension = strtolower(pathinfo(parse_url($freeInputData['image_link'], PHP_URL_PATH), PATHINFO_EXTENSION));
+
+                                        if (in_array($urlExtension, $imageExtensions)) {
+                                            echo $freeInputData['image_link'];
+                                        } else {
+                                            echo htmlspecialchars($freeInputData['image_link']);
+                                        }
+
+                                        echo '</a>';
+                                        echo '</p>';
+                                    }
+
+                                } else {
+                                    // Not JSON or invalid JSON - display as plain text
+                                    echo '<p>' . nl2br(htmlspecialchars($card['free_input'])) . '</p>';
+                                }
+                                ?>
                             </div>
-                        <?php endif; ?>
-                    </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 <hr>
 
