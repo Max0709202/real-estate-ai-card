@@ -337,7 +337,7 @@
         min-height: calc(100vh - 60px);
     }
 
-    .register-content,
+    .register-content, .new_register-content,
     .login-box {
         padding: 0.5rem;
         margin: 0;
