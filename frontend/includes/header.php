@@ -101,7 +101,7 @@ if ($isLoggedIn) {
                 <?php endif; ?>
                 
                 <?php if ($showNavLinks): ?>
-                <a href="register.php?type=new" class="btn-primary">不動産AI名刺を作る</a>
+                <a href="new_register.php?type=new" class="btn-primary">不動産AI名刺を作る</a>
                 <?php endif; ?>
             </nav>
         </div>

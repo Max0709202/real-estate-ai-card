@@ -32,7 +32,7 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
             <!-- Step 1: Account Registration -->
             <div id="step-1" class="register-step active">
                 <h1>アカウント作成</h1>
-                <!-- <p class="step-description">必要な情報を入力して、あなた専用のデジタル名刺を作成しましょう</p> -->
+                <p class="step-description">初めてご利用の方は、アカウント作成から始めましょう</p>
 
                 <form id="register-form" class="register-form">
                     <input type="hidden" name="user_type" value="<?php echo htmlspecialchars($userType); ?>">
@@ -100,6 +100,12 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
                             <input type="checkbox" name="agree_privacy" required>
                             <a href="privacy.php" target="_blank">プライバシーポリシー</a>に同意する
                         </label>
+                    </div>
+
+                    <div class="form-group" style="text-align: center; margin-top: 1rem;">
+                        <p style="color: #666; font-size: 0.9rem;">
+                            既にアカウントをお持ちの方は<a href="login.php" style="color: #0066cc; text-decoration: underline;">こちらからログイン</a>してください
+                        </p>
                     </div>
 
                     <div class="form-actions">
