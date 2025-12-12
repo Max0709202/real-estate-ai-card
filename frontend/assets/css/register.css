@@ -26,6 +26,12 @@
     padding: 0 20px;
 }
 
+.new_register-content {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
 /* Step Indicator */
 .register-steps {
     margin-bottom: 3rem;
@@ -240,14 +246,15 @@
 }
 
 .checkbox-group input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
+    width: 15px;
+    height: 15px;
     cursor: pointer;
 }
 
 .checkbox-group a {
     color: #0066cc;
     text-decoration: none;
+    font-weight: bold;
 }
 
 .checkbox-group a:hover {
@@ -756,7 +763,7 @@ input.form-control {
         padding: 1rem;
     }
 
-    .register-content {
+    .register-content, .new_register-content {
         padding: 0 1rem 2rem;
     }
 

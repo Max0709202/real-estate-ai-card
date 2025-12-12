@@ -27,7 +27,7 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
             </a>
         </div>
 
-        <div class="register-content">
+        <div class="new_register-content">
 
             <!-- Step 1: Account Registration -->
             <div id="step-1" class="register-step active">

@@ -1323,7 +1323,7 @@ function updatePreview(data) {
     console.log('Updating preview with data:', data);
     
     // Simple preview HTML generation
-    let html = '<div class="preview-card" style="padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: #fff;">';
+    let html = '<div class="preview-card" style="background: #fff;">';
     
     // Header
     html += '<div style="text-align: center; margin-bottom: 20px;">';
