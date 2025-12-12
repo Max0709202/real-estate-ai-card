@@ -13,6 +13,29 @@ try {
     $database = new Database();
     $db = $database->getConnection();
 
+    // 検索条件の構築（dashboard.phpと同じロジック）
+    $where = [];
+    $params = [];
+
+    // 入金状況の検索条件
+    if (!empty($_GET['payment_status'])) {
+        if ($_GET['payment_status'] === 'completed') {
+            // 入金済み: completedステータスの支払いが存在する
+            $where[] = "EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed')";
+        } elseif ($_GET['payment_status'] === 'pending') {
+            // 未入金: completedステータスの支払いが存在しない
+            $where[] = "NOT EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed')";
+        }
+    }
+
+    // 公開状況の検索条件（空文字列の場合は条件を追加しない）
+    if (isset($_GET['is_open']) && $_GET['is_open'] !== '') {
+        $where[] = "bc.is_published = ?";
+        $params[] = (int)$_GET['is_open'];
+    }
+
+    $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
     // CSV出力
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="users_' . date('YmdHis') . '.csv"');
@@ -31,7 +54,7 @@ try {
     // データ取得
     $sql = "
         SELECT 
-            CASE WHEN p.payment_status = 'completed' THEN '✓' ELSE '' END as payment_confirmed,
+            CASE WHEN EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed') THEN '✓' ELSE '' END as payment_confirmed,
             CASE WHEN bc.is_published = 1 THEN '✓' ELSE '' END as is_open,
             bc.company_name,
             bc.name,
@@ -44,14 +67,14 @@ try {
             u.last_login_at
         FROM business_cards bc
         JOIN users u ON bc.user_id = u.id
-        LEFT JOIN payments p ON bc.id = p.business_card_id AND p.payment_status = 'completed'
         LEFT JOIN access_logs al ON bc.id = al.business_card_id
+        $whereClause
         GROUP BY bc.id
         ORDER BY bc.created_at DESC
     ";
 
     $stmt = $db->prepare($sql);
-    $stmt->execute();
+    $stmt->execute($params);
     
     while ($row = $stmt->fetch()) {
         fputcsv($output, [

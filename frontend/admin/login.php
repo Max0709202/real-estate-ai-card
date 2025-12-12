@@ -50,6 +50,9 @@ if (!empty($_SESSION['admin_id'])) {
                 <button type="submit" class="btn-primary btn-block">ログイン</button>
             </form>
             <div id="error-message" class="error-message" style="display: none;"></div>
+            <div style="margin-top: 20px; text-align: center;">
+                <a href="../index.php" class="btn-secondary" style="display: inline-block; padding: 10px 20px; text-decoration: none; border-radius: 4px; background-color: #6c757d; color: white; transition: background-color 0.3s;">ホームページへ戻る</a>
+            </div>
         </div>
     </div>
     

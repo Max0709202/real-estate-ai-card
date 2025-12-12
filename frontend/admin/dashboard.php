@@ -36,12 +36,19 @@ $offset = ($page - 1) * $limit;
 $where = [];
 $params = [];
 
+// 入金状況の検索条件
 if (!empty($_GET['payment_status'])) {
-    $where[] = "p.payment_status = ?";
-    $params[] = $_GET['payment_status'];
+    if ($_GET['payment_status'] === 'completed') {
+        // 入金済み: completedステータスの支払いが存在する
+        $where[] = "EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed')";
+    } elseif ($_GET['payment_status'] === 'pending') {
+        // 未入金: completedステータスの支払いが存在しない
+        $where[] = "NOT EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed')";
+    }
 }
 
-if (isset($_GET['is_open'])) {
+// 公開状況の検索条件（空文字列の場合は条件を追加しない）
+if (isset($_GET['is_open']) && $_GET['is_open'] !== '') {
     $where[] = "bc.is_published = ?";
     $params[] = (int)$_GET['is_open'];
 }
@@ -136,7 +143,21 @@ $users = $stmt->fetchAll();
                         <option value="0" <?php echo ($_GET['is_open'] ?? '') === '0' ? 'selected' : ''; ?>>非公開</option>
                     </select>
                     <button type="submit" class="btn-filter">検索</button>
-                    <a href="../../backend/api/admin/export-csv.php" class="btn-export">CSV出力</a>
+                    <?php
+                    // CSV出力リンクに検索条件を追加
+                    $csvParams = [];
+                    if (!empty($_GET['payment_status'])) {
+                        $csvParams['payment_status'] = $_GET['payment_status'];
+                    }
+                    if (isset($_GET['is_open']) && $_GET['is_open'] !== '') {
+                        $csvParams['is_open'] = $_GET['is_open'];
+                    }
+                    $csvUrl = '../../backend/api/admin/export-csv.php';
+                    if (!empty($csvParams)) {
+                        $csvUrl .= '?' . http_build_query($csvParams);
+                    }
+                    ?>
+                    <a href="<?php echo htmlspecialchars($csvUrl); ?>" class="btn-export">CSV出力</a>
                     <button type="button" class="btn-delete-bulk" id="btn-delete-selected" disabled>
                     選択したユーザーを削除
                     </button>
