@@ -59,6 +59,8 @@ $prefectures = [
     <link rel="stylesheet" href="assets/css/card.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/modal.css">
+    <!-- Cropper.js CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
 </head>
 <body>
     <div class="register-container">
@@ -728,7 +730,28 @@ $prefectures = [
     </div>
     <?php endif; ?>
 
+    <!-- Image Cropper Modal -->
+    <div id="image-cropper-modal" class="modal-overlay" style="display: none; z-index: 10000; opacity: 1; visibility: visible;">
+        <div class="modal-content" style="max-width: 90%; max-height: 90vh; overflow: auto;">
+            <div style="padding: 20px;">
+                <h3 style="margin-bottom: 20px;">画像をトリミング</h3>
+                <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                    画像のサイズを調整し、必要な部分を選択してください。指でドラッグしてトリミングエリアを移動・拡大縮小できます。
+                </p>
+                <div style="width: 100%; max-width: 800px; margin: 0 auto;">
+                    <img id="cropper-image" style="max-width: 100%; display: block;">
+                </div>
+                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                    <button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px;">キャンセル</button>
+                    <button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px;">トリミングを適用</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="assets/js/modal.js"></script>
+    <!-- Cropper.js -->
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
     <script src="assets/js/register.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script>

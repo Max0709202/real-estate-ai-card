@@ -835,6 +835,11 @@ function setupFileUploads() {
     }
 }
 
+// Global cropper instance
+let currentCropper = null;
+let currentCropFieldName = null;
+let currentCropFile = null;
+
 // Handle file upload
 async function handleFileUpload(event, fieldName) {
     const file = event.target.files[0];
@@ -845,17 +850,177 @@ async function handleFileUpload(event, fieldName) {
         return;
     }
     
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    // Determine file type
-    let fileType = 'photo';
-    if (fieldName === 'company_logo') {
-        fileType = 'logo';
-    } else if (fieldName === 'free_image') {
-        fileType = 'free';
+    // For logo and profile photo, show cropper modal
+    if (fieldName === 'company_logo' || fieldName === 'profile_photo') {
+        showImageCropper(file, fieldName, event);
+        return;
     }
-    formData.append('file_type', fileType);
+    
+    // For other images, upload directly
+    await uploadFileDirectly(file, fieldName, event);
+}
+
+// Show image cropper modal
+function showImageCropper(file, fieldName, originalEvent) {
+    const modal = document.getElementById('image-cropper-modal');
+    const cropperImage = document.getElementById('cropper-image');
+    
+    if (!modal || !cropperImage) {
+        // Fallback to direct upload if modal doesn't exist
+        uploadFileDirectly(file, fieldName, originalEvent);
+        return;
+    }
+    
+    // Store file and field name for later use
+    currentCropFile = file;
+    currentCropFieldName = fieldName;
+    
+    // Create object URL for the image
+    const imageUrl = URL.createObjectURL(file);
+    cropperImage.src = imageUrl;
+    
+    // Show modal with proper styling
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    
+    // Initialize cropper after image loads
+    cropperImage.onload = function() {
+        // Destroy existing cropper if any
+        if (currentCropper) {
+            currentCropper.destroy();
+        }
+        
+        // Initialize cropper with aspect ratio
+        const aspectRatio = fieldName === 'company_logo' ? 1 : 1; // Square for both
+        currentCropper = new Cropper(cropperImage, {
+            aspectRatio: aspectRatio,
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 0.8,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+            responsive: true,
+            minContainerWidth: 300,
+            minContainerHeight: 300
+        });
+    };
+    
+    // Setup cancel button
+    const cancelBtn = document.getElementById('crop-cancel-btn');
+    if (cancelBtn) {
+        cancelBtn.onclick = function() {
+            closeImageCropper();
+            // Reset file input
+            if (originalEvent && originalEvent.target) {
+                originalEvent.target.value = '';
+            }
+        };
+    }
+    
+    // Setup confirm button
+    const confirmBtn = document.getElementById('crop-confirm-btn');
+    if (confirmBtn) {
+        confirmBtn.onclick = function() {
+            cropAndUpload(originalEvent);
+        };
+    }
+}
+
+// Close image cropper
+function closeImageCropper() {
+    const modal = document.getElementById('image-cropper-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.style.alignItems = '';
+        modal.style.justifyContent = '';
+    }
+    
+    if (currentCropper) {
+        currentCropper.destroy();
+        currentCropper = null;
+    }
+    
+    // Clean up object URL
+    const cropperImage = document.getElementById('cropper-image');
+    if (cropperImage && cropperImage.src) {
+        URL.revokeObjectURL(cropperImage.src);
+        cropperImage.src = '';
+    }
+    
+    currentCropFile = null;
+    currentCropFieldName = null;
+}
+
+// Crop and upload image
+async function cropAndUpload(originalEvent) {
+    if (!currentCropper || !currentCropFile || !currentCropFieldName) {
+        return;
+    }
+    
+    try {
+        // Get cropped canvas
+        const canvas = currentCropper.getCroppedCanvas({
+            width: 800,
+            height: 800,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+        
+        // Convert canvas to blob
+        canvas.toBlob(async function(blob) {
+            if (!blob) {
+                showError('画像のトリミングに失敗しました');
+                return;
+            }
+            
+            // Create FormData with cropped image
+            const formData = new FormData();
+            formData.append('file', blob, currentCropFile.name);
+            
+            // Determine file type
+            let fileType = 'photo';
+            if (currentCropFieldName === 'company_logo') {
+                fileType = 'logo';
+            } else if (currentCropFieldName === 'free_image') {
+                fileType = 'free';
+            }
+            formData.append('file_type', fileType);
+            
+            // Upload cropped image
+            await uploadFileDirectly(blob, currentCropFieldName, originalEvent, formData);
+            
+            // Close cropper
+            closeImageCropper();
+        }, currentCropFile.type, 0.95);
+        
+    } catch (error) {
+        console.error('Crop error:', error);
+        showError('画像のトリミング中にエラーが発生しました');
+    }
+}
+
+// Upload file directly (without cropping or after cropping)
+async function uploadFileDirectly(file, fieldName, originalEvent, existingFormData = null) {
+    const formData = existingFormData || new FormData();
+    
+    if (!existingFormData) {
+        formData.append('file', file);
+        
+        // Determine file type
+        let fileType = 'photo';
+        if (fieldName === 'company_logo') {
+            fileType = 'logo';
+        } else if (fieldName === 'free_image') {
+            fileType = 'free';
+        }
+        formData.append('file_type', fileType);
+    }
     
     try {
         const response = await fetch('../backend/api/business-card/upload.php', {
@@ -868,7 +1033,7 @@ async function handleFileUpload(event, fieldName) {
         
         if (result.success) {
             // Show preview with resize info
-            const preview = event.target.closest('.upload-area').querySelector('.upload-preview');
+            const preview = originalEvent.target.closest('.upload-area').querySelector('.upload-preview');
             if (preview) {
                 const imagePath = result.data.file_path.startsWith('http') ? result.data.file_path : '../' + result.data.file_path;
 
@@ -891,30 +1056,49 @@ async function handleFileUpload(event, fieldName) {
                 `;
             }
             
-            // Update business card data
-            if (businessCardData) {
-                if (fieldName === 'free_image') {
-                    // For free image, update the free_input JSON
-                    let freeInputData = {};
-                    try {
-                        if (businessCardData.free_input) {
-                            freeInputData = JSON.parse(businessCardData.free_input);
+                // Update business card data
+                if (businessCardData) {
+                    if (fieldName === 'free_image') {
+                        // For free image, update the free_input JSON
+                        let freeInputData = {};
+                        try {
+                            if (businessCardData.free_input) {
+                                freeInputData = JSON.parse(businessCardData.free_input);
+                            }
+                        } catch (e) {
+                            console.error('Error parsing free_input:', e);
                         }
-                    } catch (e) {
-                        console.error('Error parsing free_input:', e);
+                        const fullPath = result.data.file_path;
+                        const relativePath = fullPath.split('/php/')[1] || fullPath;
+                        freeInputData.image = relativePath;
+                        businessCardData.free_input = JSON.stringify(freeInputData);
+                    } else {
+                        // Extract relative path from absolute URL for database storage
+                        let relativePath = result.data.file_path;
+                        if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+                            // Remove BASE_URL prefix to get relative path
+                            // URL format: http://domain/backend/uploads/logo/filename.jpg
+                            // We need: backend/uploads/logo/filename.jpg
+                            const urlParts = relativePath.split('/');
+                            const backendIndex = urlParts.indexOf('backend');
+                            if (backendIndex !== -1) {
+                                relativePath = urlParts.slice(backendIndex).join('/');
+                            } else {
+                                // Fallback: try to find 'uploads' directory
+                                const uploadsIndex = urlParts.indexOf('uploads');
+                                if (uploadsIndex !== -1) {
+                                    relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
+                                }
+                            }
+                        }
+                        businessCardData[fieldName] = relativePath;
+                        console.log('Updated businessCardData[' + fieldName + '] =', relativePath);
                     }
-                    const fullPath = result.data.file_path;
-                    const relativePath = fullPath.split('/php/')[1] || fullPath;
-                    freeInputData.image = relativePath;
-                    businessCardData.free_input = JSON.stringify(freeInputData);
-                } else {
-                    businessCardData[fieldName] = result.data.file_path;
+                    window.businessCardData = businessCardData; // Sync with global
                 }
-                window.businessCardData = businessCardData; // Sync with global
-            }
-            
-            // Update preview
-            if (businessCardData) {
+                
+                // Update preview
+                if (businessCardData) {
                 updatePreview(businessCardData);
             }
 
