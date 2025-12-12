@@ -154,12 +154,11 @@ if (!empty($token)) {
             <div class="verification-icon success">✓</div>
             <h1 class="verification-title">認証完了</h1>
             <p class="verification-message success">
-                <?php echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?><br>
-                これで、すべての機能をご利用いただけます。
+                メール認証が完了しました。<br>
+                不動産AI名刺の作成・編集を進めてください。
             </p>
             <div>
-                <a href="../edit.php" class="btn-primary">マイページへ</a>
-                <a href="../index.php" class="btn-secondary">トップページへ</a>
+                <a href="../register.php" class="btn-primary">作成・編集ページへ</a>
             </div>
         <?php else: ?>
             <div class="verification-icon error">✗</div>

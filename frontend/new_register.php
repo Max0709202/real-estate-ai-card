@@ -165,6 +165,24 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
         passwordField.addEventListener('input', validatePasswordMatch);
         passwordConfirmField.addEventListener('input', validatePasswordMatch);
         
+        // Show email verification modal
+        function showEmailVerificationModal() {
+            const message = [
+                '登録されたメールアドレスに認証メールをお送りしました。',
+                'メールに表示されたURLより作成・編集を始めてください。',
+                '',
+                'なお、表示されるURLは15分間の有効期限があります。',
+                '',
+                '迷惑メールに保存されてしまう場合がございますので、',
+                'そちらもあわせてご確認ください。'
+            ].join('\n');
+
+            showSuccess(message, {
+                title: 'アカウント作成完了',
+                autoClose: 0
+            });
+        }
+
         // Step 1: Account Registration
         let isSubmitting = false; // Flag to prevent duplicate submissions
         
@@ -210,10 +228,8 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
                 if (result.success) {
                     // Prevent further submissions
                     submitButton.textContent = '登録完了';
-                    // Redirect after a short delay to ensure email is sent
-                    setTimeout(() => {
-                        window.location.href = 'login.php';
-                    }, 500);
+                    // Show success modal with email verification message
+                    showEmailVerificationModal();
                 } else {
                     // Re-enable button on error
                     isSubmitting = false;
