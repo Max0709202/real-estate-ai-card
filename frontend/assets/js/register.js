@@ -2,6 +2,12 @@
  * Registration Form JavaScript
  */
 
+// Global cropper instance for register page
+let registerCropper = null;
+let registerCropFieldName = null;
+let registerCropFile = null;
+let registerCropOriginalEvent = null;
+
 let currentStep = 1;
 let formData = {};
 let completedSteps = new Set(); // Track which steps have been submitted
@@ -602,11 +608,24 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
     const formDataObj = new FormData(e.target);
     const data = Object.fromEntries(formDataObj);
     
-    // Handle logo upload
+    // Handle logo upload (check for cropped image first)
+    const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
     const logoFile = document.getElementById('company_logo').files[0];
-    if (logoFile) {
+    if (logoFile || (logoUploadArea && logoUploadArea.dataset.croppedBlob)) {
         const uploadData = new FormData();
-        uploadData.append('file', logoFile);
+        
+        // Use cropped image if available, otherwise use original file
+        if (logoUploadArea && logoUploadArea.dataset.croppedBlob) {
+            // Convert data URL to blob
+            const response = await fetch(logoUploadArea.dataset.croppedBlob);
+            const blob = await response.blob();
+            uploadData.append('file', blob, logoUploadArea.dataset.croppedFileName || 'logo.png');
+            // Clear cropped data
+            delete logoUploadArea.dataset.croppedBlob;
+            delete logoUploadArea.dataset.croppedFileName;
+        } else {
+            uploadData.append('file', logoFile);
+        }
         uploadData.append('file_type', 'logo');
         
         try {
@@ -618,7 +637,23 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
             
             const uploadResult = await uploadResponse.json();
             if (uploadResult.success) {
-                data.company_logo = uploadResult.data.file_path;
+                // Extract relative path from absolute URL for database storage
+                let relativePath = uploadResult.data.file_path;
+                if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+                    // Remove BASE_URL prefix to get relative path
+                    const urlParts = relativePath.split('/');
+                    const backendIndex = urlParts.indexOf('backend');
+                    if (backendIndex !== -1) {
+                        relativePath = urlParts.slice(backendIndex).join('/');
+                    } else {
+                        const uploadsIndex = urlParts.indexOf('uploads');
+                        if (uploadsIndex !== -1) {
+                            relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
+                        }
+                    }
+                }
+                data.company_logo = relativePath;
+                console.log('Logo uploaded and saved to database:', relativePath);
                 // Log resize info
                 if (uploadResult.data.was_resized) {
                     console.log('Logo auto-resized:', uploadResult.data);
@@ -632,11 +667,24 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         data.company_logo = businessCardData.company_logo;
     }
     
-    // Handle profile photo upload
+    // Handle profile photo upload (check for cropped image first)
+    const photoUploadArea = document.querySelector('[data-upload-id="profile_photo_header"]');
     const photoFile = document.getElementById('profile_photo_header').files[0];
-    if (photoFile) {
+    if (photoFile || (photoUploadArea && photoUploadArea.dataset.croppedBlob)) {
         const uploadData = new FormData();
-        uploadData.append('file', photoFile);
+        
+        // Use cropped image if available, otherwise use original file
+        if (photoUploadArea && photoUploadArea.dataset.croppedBlob) {
+            // Convert data URL to blob
+            const response = await fetch(photoUploadArea.dataset.croppedBlob);
+            const blob = await response.blob();
+            uploadData.append('file', blob, photoUploadArea.dataset.croppedFileName || 'photo.png');
+            // Clear cropped data
+            delete photoUploadArea.dataset.croppedBlob;
+            delete photoUploadArea.dataset.croppedFileName;
+        } else {
+            uploadData.append('file', photoFile);
+        }
         uploadData.append('file_type', 'photo');
         
         try {
@@ -648,7 +696,23 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
 
             const uploadResult = await uploadResponse.json();
             if (uploadResult.success) {
-                data.profile_photo = uploadResult.data.file_path;
+                // Extract relative path from absolute URL for database storage
+                let relativePath = uploadResult.data.file_path;
+                if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+                    // Remove BASE_URL prefix to get relative path
+                    const urlParts = relativePath.split('/');
+                    const backendIndex = urlParts.indexOf('backend');
+                    if (backendIndex !== -1) {
+                        relativePath = urlParts.slice(backendIndex).join('/');
+                    } else {
+                        const uploadsIndex = urlParts.indexOf('uploads');
+                        if (uploadsIndex !== -1) {
+                            relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
+                        }
+                    }
+                }
+                data.profile_photo = relativePath;
+                console.log('Profile photo uploaded and saved to database:', relativePath);
                 // Log resize info
                 if (uploadResult.data.was_resized) {
                     console.log('Profile photo auto-resized:', uploadResult.data);
@@ -1689,48 +1753,204 @@ function hidePreview() {
 }
 
 
-// Photo upload previews
-document.getElementById('profile_photo_header')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const preview = e.target.closest('.upload-area').querySelector('.upload-preview');
-            if (preview) {
-                // Get image dimensions
-                const img = new Image();
-                img.onload = () => {
-                    const resizeNote = (img.width > 800 || img.height > 800) 
-                        ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大800×800px)</p>` 
-                        : '';
-                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
-                };
-                img.src = event.target.result;
+// Show image cropper modal for register page
+function showRegisterImageCropper(file, fieldName, originalEvent) {
+    const modal = document.getElementById('image-cropper-modal');
+    const cropperImage = document.getElementById('cropper-image');
+    
+    if (!modal || !cropperImage) {
+        // Fallback to preview if modal doesn't exist
+        showRegisterImagePreview(file, fieldName, originalEvent);
+        return;
+    }
+    
+    // Store file and field name for later use
+    registerCropFile = file;
+    registerCropFieldName = fieldName;
+    registerCropOriginalEvent = originalEvent;
+    
+    // Create object URL for the image
+    const imageUrl = URL.createObjectURL(file);
+    cropperImage.src = imageUrl;
+    
+    // Show modal
+    modal.style.display = 'block';
+    
+    // Initialize cropper after image loads
+    cropperImage.onload = function() {
+        // Destroy existing cropper if any
+        if (registerCropper) {
+            registerCropper.destroy();
+        }
+        
+        // Initialize cropper with aspect ratio
+        const aspectRatio = fieldName === 'company_logo' ? 1 : 1; // Square for both
+        registerCropper = new Cropper(cropperImage, {
+            aspectRatio: aspectRatio,
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 0.8,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+            responsive: true,
+            minContainerWidth: 300,
+            minContainerHeight: 300
+        });
+    };
+    
+    // Setup cancel button
+    const cancelBtn = document.getElementById('crop-cancel-btn');
+    if (cancelBtn) {
+        cancelBtn.onclick = function() {
+            closeRegisterImageCropper();
+            // Reset file input
+            if (originalEvent && originalEvent.target) {
+                originalEvent.target.value = '';
             }
         };
-        reader.readAsDataURL(file);
+    }
+    
+    // Setup confirm button
+    const confirmBtn = document.getElementById('crop-confirm-btn');
+    if (confirmBtn) {
+        confirmBtn.onclick = function() {
+            cropAndStoreForRegister();
+        };
+    }
+}
+
+// Close image cropper for register page
+function closeRegisterImageCropper() {
+    const modal = document.getElementById('image-cropper-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.style.alignItems = '';
+        modal.style.justifyContent = '';
+    }
+    
+    if (registerCropper) {
+        registerCropper.destroy();
+        registerCropper = null;
+    }
+    
+    // Clean up object URL
+    const cropperImage = document.getElementById('cropper-image');
+    if (cropperImage && cropperImage.src) {
+        URL.revokeObjectURL(cropperImage.src);
+        cropperImage.src = '';
+    }
+    
+    registerCropFile = null;
+    registerCropFieldName = null;
+    registerCropOriginalEvent = null;
+}
+
+// Crop and store image for register page
+function cropAndStoreForRegister() {
+    if (!registerCropper || !registerCropFile || !registerCropFieldName) {
+        return;
+    }
+    
+    // Find upload area using field name as fallback
+    let uploadArea = null;
+    if (registerCropOriginalEvent && registerCropOriginalEvent.target) {
+        uploadArea = registerCropOriginalEvent.target.closest('.upload-area');
+    }
+    
+    // If we can't find it from the event, try to find it by field name
+    if (!uploadArea && registerCropFieldName) {
+        const fieldId = registerCropFieldName === 'company_logo' ? 'company_logo' : 'profile_photo_header';
+        const fieldElement = document.getElementById(fieldId);
+        if (fieldElement) {
+            uploadArea = fieldElement.closest('.upload-area');
+        }
+    }
+    
+    if (!uploadArea) {
+        showError('アップロードエリアが見つかりません');
+        return;
+    }
+    
+    // Store file info in local variables before async operations
+    const cropFileName = registerCropFile ? registerCropFile.name : 'cropped_image.png';
+    const cropFileType = registerCropFile ? registerCropFile.type : 'image/png';
+    
+    try {
+        // Get cropped canvas
+        const canvas = registerCropper.getCroppedCanvas({
+            width: 800,
+            height: 800,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+        
+        // Convert canvas to blob
+        canvas.toBlob(function(blob) {
+            if (!blob) {
+                showError('画像のトリミングに失敗しました');
+                return;
+            }
+            
+            // Show preview with cropped image
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const preview = uploadArea.querySelector('.upload-preview');
+                if (preview) {
+                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                }
+                
+                // Store cropped blob in a data attribute for later upload
+                uploadArea.dataset.croppedBlob = event.target.result; // Store as data URL
+                uploadArea.dataset.croppedFileName = cropFileName;
+            };
+            reader.readAsDataURL(blob);
+            
+            // Close cropper
+            closeRegisterImageCropper();
+        }, cropFileType, 0.95);
+        
+    } catch (error) {
+        console.error('Crop error:', error);
+        showError('画像のトリミング中にエラーが発生しました');
+    }
+}
+
+// Show image preview (fallback)
+function showRegisterImagePreview(file, fieldName, originalEvent) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const preview = originalEvent.target.closest('.upload-area').querySelector('.upload-preview');
+        if (preview) {
+            const img = new Image();
+            img.onload = () => {
+                const resizeNote = (img.width > 800 || img.height > 800) 
+                    ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大800×800px)</p>` 
+                    : '';
+                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
+            };
+            img.src = event.target.result;
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+// Photo upload previews with cropping
+document.getElementById('profile_photo_header')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        showRegisterImageCropper(file, 'profile_photo_header', e);
     }
 });
 
 document.getElementById('company_logo')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const preview = e.target.closest('.upload-area').querySelector('.upload-preview');
-            if (preview) {
-                // Get image dimensions
-                const img = new Image();
-                img.onload = () => {
-                    const resizeNote = (img.width > 400 || img.height > 400) 
-                        ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大400×400px)</p>` 
-                        : '';
-                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
-                };
-                img.src = event.target.result;
-            }
-        };
-        reader.readAsDataURL(file);
+    if (file && file.type.startsWith('image/')) {
+        showRegisterImageCropper(file, 'company_logo', e);
     }
 });
 

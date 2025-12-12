@@ -128,8 +128,32 @@ try {
 
         $fieldName = ($fileType === 'logo') ? 'company_logo' : 'profile_photo';
 
-        $stmt = $db->prepare("UPDATE business_cards SET $fieldName = ? WHERE user_id = ?");
-        $stmt->execute([$uploadResult['file_path'], $userId]);
+        // Ensure we have a business card record
+        $stmt = $db->prepare("SELECT id FROM business_cards WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $businessCard = $stmt->fetch();
+        
+        if ($businessCard) {
+            // Update existing business card
+            $stmt = $db->prepare("UPDATE business_cards SET $fieldName = ? WHERE user_id = ?");
+            $result = $stmt->execute([$uploadResult['file_path'], $userId]);
+            
+            if (!$result) {
+                error_log("Failed to update business card: " . print_r($stmt->errorInfo(), true));
+            } else {
+                error_log("Successfully updated business card $fieldName for user $userId: " . $uploadResult['file_path']);
+            }
+        } else {
+            // Create new business card if it doesn't exist
+            $stmt = $db->prepare("INSERT INTO business_cards (user_id, $fieldName) VALUES (?, ?)");
+            $result = $stmt->execute([$userId, $uploadResult['file_path']]);
+            
+            if (!$result) {
+                error_log("Failed to create business card: " . print_r($stmt->errorInfo(), true));
+            } else {
+                error_log("Successfully created business card with $fieldName for user $userId: " . $uploadResult['file_path']);
+            }
+        }
     }
 
     // レスポンスデータ
