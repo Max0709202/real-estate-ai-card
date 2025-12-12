@@ -71,8 +71,7 @@ $defaultGreetings = [
     
     <div class="edit-container">
         <header class="edit-header">
-            <h1>デジタル名刺編集</h1>
-            <a href="index.php" class="btn-back">ホームに戻る</a>
+            <h1>デジタル名刺作成・編集</h1>
         </header>
         <div class="edit-content">
             <div class="edit-sidebar">
@@ -108,7 +107,7 @@ $defaultGreetings = [
                                 <input type="file" id="company_logo" accept="image/*" style="display: none;">
                                 <button type="button" class="btn-upload" onclick="document.getElementById('company_logo').click()">アップロード</button>
                                 <div class="upload-preview"></div>
-                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください（自動でリサイズされます）</small>
+                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください（自動でリサイズされます）<br>対応形式：JPEG、PNG、GIF、WebP</small>
                             </div>
                         </div>
 
@@ -118,7 +117,7 @@ $defaultGreetings = [
                                 <input type="file" id="profile_photo" accept="image/*" style="display: none;">
                                 <button type="button" class="btn-upload" onclick="document.getElementById('profile_photo').click()">アップロード</button>
                                 <div class="upload-preview"></div>
-                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください（自動でリサイズされます）</small>
+                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください（自動でリサイズされます）<br>対応形式：JPEG、PNG、GIF、WebP</small>
                             </div>
                         </div>
 
@@ -336,7 +335,7 @@ $defaultGreetings = [
                                     <button type="button" class="btn-outline" onclick="document.getElementById('free_image').click()">
                                         画像をアップロード
                                     </button>
-                                    <small>ファイルを選択するか、ここにドラッグ&ドロップしてください</small>
+                                    <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
                                 </div>
                                 <div class="form-group" style="margin-top: 0.5rem;">
                                     <label>画像のリンク先URL（任意）</label>

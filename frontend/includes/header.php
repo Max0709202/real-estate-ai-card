@@ -18,12 +18,27 @@ $showNavLinks = isset($showNavLinks) ? $showNavLinks : true;
 // Check if user has completed payment and has QR code
 $showMyCard = false;
 $cardSlug = '';
+$isEmailVerified = false;
+$registerPageUrl = 'new_register.php?type=new'; // Default for non-logged-in users
+
 if ($isLoggedIn) {
     try {
         require_once __DIR__ . '/../../backend/config/database.php';
         $database = new Database();
         $db = $database->getConnection();
         
+        // Check email verification status
+        $stmt = $db->prepare("SELECT email_verified FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $userData = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($userData && $userData['email_verified'] == 1) {
+            $isEmailVerified = true;
+            // If email is verified, redirect to register.php
+            $registerPageUrl = 'register.php';
+        }
+        
+        // Check if user has completed payment and has QR code
         $stmt = $db->prepare("
             SELECT bc.url_slug, bc.qr_code_issued, p.payment_status
             FROM business_cards bc
@@ -101,7 +116,7 @@ if ($isLoggedIn) {
                 <?php endif; ?>
                 
                 <?php if ($showNavLinks): ?>
-                <a href="new_register.php?type=new" class="btn-primary">不動産AI名刺を作る</a>
+                <a href="<?php echo htmlspecialchars($registerPageUrl); ?>" class="btn-primary">不動産AI名刺を作る</a>
                 <?php endif; ?>
             </nav>
         </div>

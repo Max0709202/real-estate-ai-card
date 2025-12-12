@@ -127,6 +127,9 @@ startSessionIfNotStarted();
                 </div>
                 <button type="submit" class="btn-primary btn-block">ログイン</button>
             </form>
+            <div class="login-link" style="margin-top: 1rem;">
+                <a href="index.php">ホームページへ戻る</a>
+            </div>
             <div class="login-link">
                 <a href="new_register.php">アカウントをお持ちでない方はこちら</a>
             </div>

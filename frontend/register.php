@@ -126,7 +126,7 @@ $prefectures = [
                             <button type="button" class="btn-outline" onclick="document.getElementById('company_logo').click()">
                                 ロゴをアップロード
                             </button>
-                            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください（自動でリサイズされます）</small>
+                            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください（自動でリサイズされます）<br>対応形式：JPEG、PNG、GIF、WebP</small>
                         </div>
                     </div>
 
@@ -138,7 +138,7 @@ $prefectures = [
                             <button type="button" class="btn-outline" onclick="document.getElementById('profile_photo_header').click()">
                                 写真をアップロード
                             </button>
-                            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください（自動でリサイズされます）</small>
+                            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください（自動でリサイズされます）<br>対応形式：JPEG、PNG、GIF、WebP</small>
                         </div>
                     </div>
 
@@ -351,7 +351,7 @@ $prefectures = [
                                 <button type="button" class="btn-outline" onclick="document.getElementById('free_image').click()">
                                     画像をアップロード
                                 </button>
-                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください</small>
+                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
                             </div>
                             <div class="form-group" style="margin-top: 0.5rem;">
                                 <label>画像のリンク先URL（任意）</label>
