@@ -725,6 +725,11 @@
         scrollbar-color: #0066cc #f0f0f0;
     }
 
+    .edit-nav a {
+        display: flex;
+        flex-direction: column;
+    }
+
     .edit-nav::-webkit-scrollbar {
         display: block;
         height: 8px;

@@ -263,6 +263,30 @@ function populateRegistrationForms(data) {
 function goToStep(step) {
     if (step < 1 || step > 6) return;
     
+    // Update step indicator
+    const stepItems = document.querySelectorAll('.step-indicator .step');
+    stepItems.forEach(item => {
+        item.classList.remove('active');
+        if (parseInt(item.dataset.step) === step) {
+            item.classList.add('active');
+            // Scroll active step to center
+            const stepIndicator = document.querySelector('.step-indicator');
+            if (stepIndicator) {
+                const itemRect = item.getBoundingClientRect();
+                const indicatorRect = stepIndicator.getBoundingClientRect();
+                const itemLeft = itemRect.left - indicatorRect.left;
+                const itemWidth = itemRect.width;
+                const indicatorWidth = indicatorRect.width;
+                
+                const scrollPosition = itemLeft - (indicatorWidth / 2) + (itemWidth / 2);
+                stepIndicator.scrollTo({
+                    left: scrollPosition,
+                    behavior: 'smooth'
+                });
+            }
+        }
+    });
+    
     // Hide all steps
     document.querySelectorAll('.register-step').forEach(el => {
         el.classList.remove('active');

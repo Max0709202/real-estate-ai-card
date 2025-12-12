@@ -72,28 +72,28 @@ $prefectures = [
             <div class="register-steps">
                 <div class="step-indicator">
                     <div class="step active" data-step="1">
-                        <div class="step-circle">1</div>
-                        <div class="step-label">ヘッダー・挨拶</div>
+                        <span class="step-number">1/6</span>
+                        <span class="step-label">ヘッダー・挨拶</span>
                     </div>
                     <div class="step" data-step="2">
-                        <div class="step-circle">2</div>
-                        <div class="step-label">会社プロフィール</div>
+                        <span class="step-number">2/6</span>
+                        <span class="step-label">会社プロフィール</span>
                     </div>
                     <div class="step" data-step="3">
-                        <div class="step-circle">3</div>
-                        <div class="step-label">個人情報</div>
+                        <span class="step-number">3/6</span>
+                        <span class="step-label">個人情報</span>
                     </div>
                     <div class="step" data-step="4">
-                        <div class="step-circle">4</div>
-                        <div class="step-label">テックツール</div>
+                        <span class="step-number">4/6</span>
+                        <span class="step-label">テックツール</span>
                     </div>
                     <div class="step" data-step="5">
-                        <div class="step-circle">5</div>
-                        <div class="step-label">コミュニケーション</div>
+                        <span class="step-number">5/6</span>
+                        <span class="step-label">コミュニケーション</span>
                     </div>
                     <div class="step" data-step="6">
-                        <div class="step-circle">6</div>
-                        <div class="step-label">決済</div>
+                        <span class="step-number">6/6</span>
+                        <span class="step-label">決済</span>
                     </div>
                 </div>
                 <button type="button" id="preview-btn" class="btn-preview">プレビュー</button>

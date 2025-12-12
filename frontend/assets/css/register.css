@@ -44,22 +44,18 @@
 
 .step-indicator {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
+    gap: 0.5rem;
     position: relative;
     margin-bottom: 3rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
 }
 
-.step-indicator::before {
-    content: '';
-    position: absolute;
-    top: 20px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: #e0e0e0;
-    z-index: 0;
-}
 
 .step {
     display: flex;
@@ -67,36 +63,57 @@
     align-items: center;
     position: relative;
     z-index: 1;
-    flex: 1;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    min-width: 120px;
+    white-space: nowrap;
+    background: #fff;
+    color: #666;
+    border: 1px solid #e0e0e0;
 }
 
-.step-circle {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: #e0e0e0;
-    color: #999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-    transition: all 0.3s;
+.step:hover {
+    background: #f0f7ff;
+    border-color: #0066cc;
 }
 
-.step.active .step-circle {
+.step.active {
     background: #0066cc;
+    color: #fff;
+    border-color: #0066cc;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.3);
+    z-index: 2;
+}
+
+.step.active .step-number,
+.step.active .step-label {
     color: #fff;
 }
 
+.step-number {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: #999;
+}
+
 .step-label {
-    font-size: 0.69rem;
+    font-size: 0.9rem;
+    font-weight: 500;
     color: #666;
     text-align: center;
 }
 
+.step.active .step-number {
+    color: #fff;
+    opacity: 0.9;
+}
+
 .step.active .step-label {
-    color: #0066cc;
+    color: #fff;
     font-weight: 600;
 }
 
@@ -669,11 +686,16 @@ input.form-control {
 
     .step {
         flex: 0 0 auto;
-        min-width: 90px;
+        min-width: 100px;
+        padding: 0.5rem 0.75rem;
     }
-
-    .step-label {
+    
+    .step-number {
         font-size: 0.75rem;
+    }
+    
+    .step-label {
+        font-size: 0.8rem;
     }
 
     .form-row {
@@ -849,14 +871,13 @@ input.form-control {
 
     .step {
         flex: 0 0 auto;
-        min-width: 75px;
+        min-width: 90px;
         margin-bottom: 0;
+        padding: 0.5rem 0.75rem;
     }
 
-    .step-circle {
-        width: 36px;
-        height: 36px;
-        font-size: 0.85rem;
+    .step-number {
+        font-size: 0.7rem;
     }
 
     .step-label {

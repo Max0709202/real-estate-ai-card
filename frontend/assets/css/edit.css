@@ -82,6 +82,27 @@ body {
 .edit-nav {
     display: flex;
     flex-direction: column;
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+.edit-nav::-webkit-scrollbar {
+    width: 6px;
+}
+
+.edit-nav::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.edit-nav::-webkit-scrollbar-thumb {
+    background: #0066cc;
+    border-radius: 3px;
+}
+
+.edit-nav a span {
+    color: #0066cc !important;
 }
 
 .nav-item {
@@ -91,6 +112,11 @@ body {
     border-left: 3px solid transparent;
     transition: all 0.3s;
     font-weight: 500;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    position: relative;
 }
 
 .nav-item:hover {
@@ -99,10 +125,37 @@ body {
 }
 
 .nav-item.active {
-    background: #f0f7ff;
-    color: #0066cc;
+    background: #0066cc;
+    color: #fff;
     border-left-color: #0066cc;
     font-weight: 600;
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.2);
+}
+
+.nav-item.active .step-number,
+.nav-item.active .step-label {
+    color: #fff;
+}
+
+.nav-item .step-number {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #999;
+}
+
+.nav-item .step-label {
+    font-size: 1rem;
+    color: #666;
+}
+
+.nav-item.active .step-number {
+    color: #fff;
+    opacity: 0.9;
+}
+
+.nav-item.active .step-label {
+    color: #fff;
 }
 
 /* Edit Main */

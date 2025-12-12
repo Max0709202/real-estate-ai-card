@@ -746,6 +746,26 @@ function displayCommunicationMethods(methods) {
 function setupNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
     const sections = document.querySelectorAll('.edit-section');
+    const editNav = document.querySelector('.edit-nav');
+    
+    // Function to scroll active nav item to center
+    function scrollActiveNavToCenter(activeItem) {
+        if (!editNav || !activeItem) return;
+        
+        const navRect = editNav.getBoundingClientRect();
+        const itemRect = activeItem.getBoundingClientRect();
+        const itemTop = itemRect.top - navRect.top;
+        const itemHeight = itemRect.height;
+        const navHeight = navRect.height;
+        
+        // Calculate scroll position to center the item
+        const scrollPosition = itemTop - (navHeight / 2) + (itemHeight / 2);
+        
+        editNav.scrollTo({
+            top: scrollPosition,
+            behavior: 'smooth'
+        });
+    }
     
     navItems.forEach(item => {
         item.addEventListener('click', function(e) {
@@ -757,6 +777,9 @@ function setupNavigation() {
             navItems.forEach(nav => nav.classList.remove('active'));
             this.classList.add('active');
             
+            // Scroll active item to center
+            scrollActiveNavToCenter(this);
+            
             // Show target section
             sections.forEach(section => {
                 section.classList.remove('active');
@@ -766,6 +789,14 @@ function setupNavigation() {
             });
         });
     });
+    
+    // Scroll active nav item to center on page load
+    const activeNavItem = document.querySelector('.nav-item.active');
+    if (activeNavItem) {
+        setTimeout(() => {
+            scrollActiveNavToCenter(activeNavItem);
+        }, 100);
+    }
     
     // Map navigation IDs to section IDs
     const navMap = {

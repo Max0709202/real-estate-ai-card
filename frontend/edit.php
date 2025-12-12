@@ -76,11 +76,26 @@ $defaultGreetings = [
         <div class="edit-content">
             <div class="edit-sidebar">
                 <nav class="edit-nav">
-                    <a href="#header-greeting" class="nav-item active">ヘッダー・挨拶</a>
-                    <a href="#company-profile" class="nav-item">会社プロフィール</a>
-                    <a href="#personal-info" class="nav-item">個人情報</a>
-                    <a href="#tech-tools" class="nav-item">テックツール</a>
-                    <a href="#communication" class="nav-item">コミュニケーション</a>
+                    <a href="#header-greeting" class="nav-item active" data-step="1">
+                        <span class="step-number">1/5</span>
+                        <span class="step-label">ヘッダー・挨拶</span>
+                    </a>
+                    <a href="#company-profile" class="nav-item" data-step="2">
+                        <span class="step-number">2/5</span>
+                        <span class="step-label">会社プロフィール</span>
+                    </a>
+                    <a href="#personal-info" class="nav-item" data-step="3">
+                        <span class="step-number">3/5</span>
+                        <span class="step-label">個人情報</span>
+                    </a>
+                    <a href="#tech-tools" class="nav-item" data-step="4">
+                        <span class="step-number">4/5</span>
+                        <span class="step-label">テックツール</span>
+                    </a>
+                    <a href="#communication" class="nav-item" data-step="5">
+                        <span class="step-number">5/5</span>
+                        <span class="step-label">コミュニケーション</span>
+                    </a>
                 </nav>
                 <div class="edit-sidebar-actions" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #ddd;">
                     <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column; padding-inline: 10px;">
