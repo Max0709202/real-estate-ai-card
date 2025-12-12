@@ -27,7 +27,7 @@ require_once __DIR__ . '/../backend/config/config.php';
                     </a>
                 </div>
                 <div class="fixed-cta-button">
-                    <a href="new_register.php" class="btn-primary">今すぐ始める</a>
+                    <a href="new_register.php" class="btn-primary">不動産AI名刺を作る</a>
                 </div>
             </div>
         </div>

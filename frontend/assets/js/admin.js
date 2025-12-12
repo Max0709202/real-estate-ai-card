@@ -2,8 +2,246 @@
  * Admin Dashboard JavaScript
  */
 
-// Payment confirmation with modal
+// QR Code generation confirmation modal
+function showQRCodeConfirmation(businessCardId, checkboxElement) {
+    // Check if user has admin role
+    if (window.isAdmin === false) {
+        checkboxElement.checked = false;
+        showError('クライアントロールはこの操作を実行できません');
+        return;
+    }
+    
+    // Store checkbox element for reverting if cancelled
+    window.currentCheckboxElement = checkboxElement;
+    window.currentBusinessCardId = businessCardId;
+    
+    // Remove any existing modal first
+    const existingModal = document.querySelector('.modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>QRコード発行確認</h3>
+            <p>QRコードを発行しますか？</p>
+            <p style="font-size: 14px; color: #666; margin-top: 10px;">入金確認と同時にQRコードが発行され、ユーザーにメールが送信されます。</p>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-yes" id="confirm-qr-yes">はい</button>
+                <button class="modal-btn modal-btn-no" id="confirm-qr-no">いいえ</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Force reflow to ensure DOM is updated
+    void modal.offsetHeight;
+    
+    // Add active class to show modal
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+
+    // Add event listeners after DOM is updated
+    setTimeout(() => {
+        const yesBtn = document.getElementById('confirm-qr-yes');
+        const noBtn = document.getElementById('confirm-qr-no');
+        
+        if (yesBtn) {
+            yesBtn.addEventListener('click', function() {
+                processQRCodeGeneration(businessCardId);
+            });
+        }
+        
+        if (noBtn) {
+            noBtn.addEventListener('click', function() {
+                cancelQRCodeGeneration();
+            });
+        }
+    }, 50);
+}
+
+// Cancel QR code generation
+function cancelQRCodeGeneration() {
+    closeModal();
+    // Uncheck the checkbox
+    if (window.currentCheckboxElement) {
+        window.currentCheckboxElement.checked = false;
+        window.currentCheckboxElement = null;
+    }
+    window.currentBusinessCardId = null;
+}
+
+// Process QR code generation
+async function processQRCodeGeneration(businessCardId) {
+    closeModal();
+    
+    try {
+        const response = await fetch('../../backend/api/admin/users.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                business_card_id: businessCardId,
+                action: 'confirm_payment'
+            }),
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('入金を確認し、QRコードを発行しました。ユーザーにメールを送信しました。', {
+                autoClose: 3000,
+                onClose: () => location.reload()
+            });
+        } else {
+            // Revert checkbox on error
+            if (window.currentCheckboxElement) {
+                window.currentCheckboxElement.checked = false;
+                window.currentCheckboxElement = null;
+            }
+            showError(result.message || '処理に失敗しました');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        // Revert checkbox on error
+        if (window.currentCheckboxElement) {
+            window.currentCheckboxElement.checked = false;
+            window.currentCheckboxElement = null;
+        }
+        showError('エラーが発生しました');
+    }
+}
+
+// Show confirmation modal for stopping business card usage
+function showStopBusinessCardConfirmation(businessCardId, checkboxElement) {
+    // Check if user has admin role
+    if (window.isAdmin === false) {
+        checkboxElement.checked = true; // Revert to checked
+        showError('クライアントロールはこの操作を実行できません');
+        return;
+    }
+    
+    // Store checkbox element for reverting if cancelled
+    window.currentCheckboxElement = checkboxElement;
+    window.currentBusinessCardId = businessCardId;
+    
+    // Remove any existing modal first
+    const existingModal = document.querySelector('.modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>名刺使用停止確認</h3>
+            <p>このユーザーの名刺の使用を停止しますか？</p>
+            <p style="font-size: 14px; color: #666; margin-top: 10px;">入金ステータスが「未入金」に変更され、名刺が非公開になります。</p>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-yes" id="confirm-stop-yes">はい</button>
+                <button class="modal-btn modal-btn-no" id="confirm-stop-no">いいえ</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Force reflow to ensure DOM is updated
+    void modal.offsetHeight;
+    
+    // Add active class to show modal
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+
+    // Add event listeners after DOM is updated
+    setTimeout(() => {
+        const yesBtn = document.getElementById('confirm-stop-yes');
+        const noBtn = document.getElementById('confirm-stop-no');
+        
+        if (yesBtn) {
+            yesBtn.addEventListener('click', function() {
+                processStopBusinessCard(businessCardId);
+            });
+        }
+        
+        if (noBtn) {
+            noBtn.addEventListener('click', function() {
+                cancelStopBusinessCard();
+            });
+        }
+    }, 50);
+}
+
+// Cancel stop business card
+function cancelStopBusinessCard() {
+    closeModal();
+    // Revert checkbox to checked
+    if (window.currentCheckboxElement) {
+        window.currentCheckboxElement.checked = true;
+        window.currentCheckboxElement = null;
+    }
+    window.currentBusinessCardId = null;
+}
+
+// Process stop business card
+async function processStopBusinessCard(businessCardId) {
+    closeModal();
+    
+    try {
+        const response = await fetch('../../backend/api/admin/users.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                business_card_id: businessCardId,
+                action: 'cancel_payment'
+            }),
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('名刺の使用を停止しました。入金ステータスが「未入金」に変更され、名刺が非公開になりました。', {
+                autoClose: 3000,
+                onClose: () => location.reload()
+            });
+        } else {
+            // Revert checkbox on error
+            if (window.currentCheckboxElement) {
+                window.currentCheckboxElement.checked = true;
+                window.currentCheckboxElement = null;
+            }
+            showError(result.message || '処理に失敗しました');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        // Revert checkbox on error
+        if (window.currentCheckboxElement) {
+            window.currentCheckboxElement.checked = true;
+            window.currentCheckboxElement = null;
+        }
+        showError('エラーが発生しました');
+    }
+}
+
+// Payment confirmation with modal (kept for backward compatibility)
 async function confirmPayment(businessCardId) {
+    // Check if user has admin role
+    if (window.isAdmin === false) {
+        showError('クライアントロールはこの操作を実行できません');
+        return;
+    }
+    
     // Create modal
     const modal = document.createElement('div');
     modal.className = 'modal-overlay active';
@@ -26,7 +264,10 @@ async function confirmPayment(businessCardId) {
 function closeModal() {
     const modal = document.querySelector('.modal-overlay');
     if (modal) {
-        modal.remove();
+        modal.classList.remove('active');
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
     }
 }
 
@@ -62,9 +303,33 @@ async function processPayment(businessCardId) {
 // Payment checkbox change
 document.querySelectorAll('.payment-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', function() {
+        // Check if checkbox is disabled
+        if (this.disabled) {
+            this.checked = !this.checked; // Revert change
+            
+            // Check if it's a free user
+            const row = this.closest('tr');
+            const userTypeCell = row.querySelector('td[data-label="ユーザータイプ"]');
+            if (userTypeCell) {
+                const userTypeBadge = userTypeCell.querySelector('.user-type-free');
+                if (userTypeBadge) {
+                    showError('無料ユーザーは入金確認できません');
+                    return;
+                }
+            }
+            
+            showError('この操作を実行できません');
+            return;
+        }
+        
         if (this.checked) {
             const businessCardId = this.dataset.bcId;
-            confirmPayment(businessCardId);
+            // Show confirmation popup for QR code generation
+            showQRCodeConfirmation(businessCardId, this);
+        } else {
+            // If unchecked, show confirmation to stop using business card
+            const businessCardId = this.dataset.bcId;
+            showStopBusinessCardConfirmation(businessCardId, this);
         }
     });
 });
@@ -72,14 +337,55 @@ document.querySelectorAll('.payment-checkbox').forEach(checkbox => {
 // Open checkbox change
 document.querySelectorAll('.open-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', function() {
+        // Check if checkbox is disabled (client role)
+        if (this.disabled) {
+            this.checked = !this.checked; // Revert change
+            showError('クライアントロールはこの操作を実行できません');
+            return;
+        }
+        
         const businessCardId = this.dataset.bcId;
         const isOpen = this.checked ? 1 : 0;
+        const originalState = !this.checked; // Store original state for revert
         
         // Update published status
-        // API呼び出し実装が必要
-        console.log('Update published status:', businessCardId, isOpen);
+        updatePublishedStatus(businessCardId, isOpen, this, originalState);
     });
 });
+
+// Update published status
+async function updatePublishedStatus(businessCardId, isPublished, checkboxElement, originalState) {
+    try {
+        const response = await fetch('../../backend/api/admin/users.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                business_card_id: businessCardId,
+                action: 'update_published',
+                is_published: isPublished
+            }),
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const statusText = isPublished ? '公開' : '非公開';
+            showSuccess(`公開状態を${statusText}に変更しました`, { autoClose: 2000 });
+        } else {
+            // Revert checkbox on error
+            checkboxElement.checked = originalState;
+            showError(result.message || '公開状態の変更に失敗しました');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        // Revert checkbox on error
+        checkboxElement.checked = originalState;
+        showError('エラーが発生しました');
+    }
+}
 
 // Get selected user IDs
 function getSelectedUserIds() {
@@ -96,8 +402,119 @@ function updateDeleteButtonState() {
     }
 }
 
+// Show confirmation modal
+function showConfirm(message, onConfirm) {
+    // Remove any existing modal first
+    const existingModal = document.querySelector('.modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>確認</h3>
+            <p>${message}</p>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-yes" id="confirm-yes">はい</button>
+                <button class="modal-btn modal-btn-no" id="confirm-no">いいえ</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Force reflow to ensure DOM is updated
+    void modal.offsetHeight;
+    
+    // Add active class to show modal
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+
+    // Add event listeners after DOM is updated
+    setTimeout(() => {
+        const yesBtn = document.getElementById('confirm-yes');
+        const noBtn = document.getElementById('confirm-no');
+        
+        if (yesBtn) {
+            yesBtn.addEventListener('click', function() {
+                closeModal();
+                if (onConfirm) {
+                    onConfirm();
+                }
+            });
+        }
+        
+        if (noBtn) {
+            noBtn.addEventListener('click', function() {
+                closeModal();
+            });
+        }
+    }, 50);
+}
+
+// Check overdue payments
+document.addEventListener('DOMContentLoaded', function() {
+    const checkOverdueBtn = document.getElementById('btn-check-overdue');
+    if (checkOverdueBtn) {
+        checkOverdueBtn.addEventListener('click', async function() {
+            if (window.isAdmin === false) {
+                showError('クライアントロールはこの操作を実行できません');
+                return;
+            }
+            
+            const message = '未払い月額料金をチェックして、該当するユーザーの支払いステータスを「未入金」に更新しますか？';
+            showConfirm(message, async () => {
+                checkOverdueBtn.disabled = true;
+                checkOverdueBtn.textContent = 'チェック中...';
+                
+                try {
+                    const response = await fetch('../../backend/api/admin/check-overdue-payments.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include'
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        const count = result.updated_count || 0;
+                        let message = result.message || `${count}件のレコードを更新しました`;
+                        if (count > 0 && result.updated_business_cards) {
+                            message += `\n\n更新されたビジネスカードID: `;
+                            message += result.updated_business_cards.map(bc => bc.business_card_id).join(', ');
+                        }
+                        showSuccess(message, {
+                            autoClose: 5000,
+                            onClose: () => location.reload()
+                        });
+                    } else {
+                        showError(result.message || 'チェックに失敗しました');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showError('エラーが発生しました');
+                } finally {
+                    checkOverdueBtn.disabled = false;
+                    checkOverdueBtn.textContent = '未払いチェック';
+                }
+            });
+        });
+    }
+});
+
 // Delete selected users
 async function deleteSelectedUsers() {
+    // Check if user has admin role
+    if (window.isAdmin === false) {
+        showError('クライアントロールはこの操作を実行できません');
+        return;
+    }
+    
     const selectedIds = getSelectedUserIds();
     
     if (selectedIds.length === 0) {

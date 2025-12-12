@@ -145,7 +145,7 @@ try {
         $action = $input['action'] ?? 'confirm_payment';
 
         if ($action === 'confirm_payment') {
-            // 入金確認
+            // 入金確認（支払いレコードが存在する場合）
             $stmt = $db->prepare("
                 UPDATE payments 
                 SET payment_status = 'completed', paid_at = NOW()
@@ -153,37 +153,143 @@ try {
             ");
             $stmt->execute([$bcId]);
 
-            // QRコード発行処理
+            // 支払いレコードが存在しない場合は作成
             $stmt = $db->prepare("
-                SELECT bc.id, bc.url_slug, bc.user_id
-                FROM business_cards bc
-                WHERE bc.id = ?
+                SELECT id FROM payments WHERE business_card_id = ?
             ");
             $stmt->execute([$bcId]);
-            $bc = $stmt->fetch();
-
-            if ($bc) {
-                // QRコード生成APIを呼び出すか、直接処理
-                $qrUrl = QR_CODE_BASE_URL . $bc['url_slug'];
-                
+            $existingPayment = $stmt->fetch();
+            
+            if (!$existingPayment) {
+                // 支払いレコードを作成
                 $stmt = $db->prepare("
-                    UPDATE business_cards 
-                    SET qr_code_issued = 1, qr_code_issued_at = NOW(), is_published = 1
-                    WHERE id = ?
+                    SELECT user_id FROM business_cards WHERE id = ?
                 ");
                 $stmt->execute([$bcId]);
-
-                // 通知メール送信
-                $stmt = $db->prepare("SELECT email FROM users WHERE id = ?");
-                $stmt->execute([$bc['user_id']]);
-                $user = $stmt->fetch();
+                $bcData = $stmt->fetch();
                 
-                if ($user) {
-                    // sendEmail(...)
+                if ($bcData) {
+                    $stmt = $db->prepare("
+                        INSERT INTO payments (user_id, business_card_id, payment_type, amount, tax_amount, total_amount, payment_method, payment_status, paid_at)
+                        VALUES (?, ?, 'new_user', 0, 0, 0, 'bank_transfer', 'completed', NOW())
+                    ");
+                    $stmt->execute([$bcData['user_id'], $bcId]);
                 }
             }
 
-            sendSuccessResponse(['business_card_id' => $bcId], '入金を確認し、QRコードを発行しました');
+            // QRコード発行処理（qr-helper.phpの関数を使用）
+            require_once __DIR__ . '/../../includes/qr-helper.php';
+            
+            $result = generateBusinessCardQRCode($bcId, $db);
+            
+            if (!$result['success']) {
+                sendErrorResponse($result['message'] ?? 'QRコードの生成に失敗しました', 500);
+            }
+
+            // 変更履歴を記録
+            $adminId = $_SESSION['admin_id'];
+            $adminEmail = $_SESSION['admin_email'] ?? '';
+            
+            // ビジネスカード情報を取得
+            $stmt = $db->prepare("SELECT user_id, url_slug FROM business_cards WHERE id = ?");
+            $stmt->execute([$bcId]);
+            $bcInfo = $stmt->fetch();
+            
+            if ($bcInfo) {
+                $stmt = $db->prepare("SELECT email FROM users WHERE id = ?");
+                $stmt->execute([$bcInfo['user_id']]);
+                $userInfo = $stmt->fetch();
+                $userEmail = $userInfo['email'] ?? 'Unknown';
+                
+                // 入金確認の記録
+                logAdminChange($db, $adminId, $adminEmail, 'payment_confirmed', 'business_card', $bcId, 
+                    "入金確認: ユーザー {$userEmail} (URL: {$bcInfo['url_slug']})");
+                
+                // QRコード発行の記録
+                logAdminChange($db, $adminId, $adminEmail, 'qr_code_issued', 'business_card', $bcId, 
+                    "QRコード発行: ユーザー {$userEmail} (URL: {$bcInfo['url_slug']})");
+            }
+
+            sendSuccessResponse([
+                'business_card_id' => $bcId,
+                'qr_code_url' => $result['qr_code_url'] ?? null
+            ], '入金を確認し、QRコードを発行しました。ユーザーにメールを送信しました。');
+        } elseif ($action === 'cancel_payment') {
+            // 入金取消（名刺使用停止）
+            $adminId = $_SESSION['admin_id'];
+            $adminEmail = $_SESSION['admin_email'] ?? '';
+            
+            // ビジネスカード情報を取得
+            $stmt = $db->prepare("SELECT user_id, url_slug FROM business_cards WHERE id = ?");
+            $stmt->execute([$bcId]);
+            $bcInfo = $stmt->fetch();
+            
+            if (!$bcInfo) {
+                sendErrorResponse('ビジネスカードが見つかりません', 404);
+            }
+            
+            // 支払いステータスをpendingに変更
+            $stmt = $db->prepare("
+                UPDATE payments 
+                SET payment_status = 'pending', paid_at = NULL
+                WHERE business_card_id = ? AND payment_status = 'completed'
+            ");
+            $stmt->execute([$bcId]);
+            
+            // 名刺を非公開にする
+            $stmt = $db->prepare("UPDATE business_cards SET is_published = 0 WHERE id = ?");
+            $stmt->execute([$bcId]);
+            
+            // 変更履歴を記録
+            $stmt = $db->prepare("SELECT email FROM users WHERE id = ?");
+            $stmt->execute([$bcInfo['user_id']]);
+            $userInfo = $stmt->fetch();
+            $userEmail = $userInfo['email'] ?? 'Unknown';
+            
+            logAdminChange($db, $adminId, $adminEmail, 'payment_cancelled', 'business_card', $bcId, 
+                "入金取消（名刺使用停止）: ユーザー {$userEmail} (URL: {$bcInfo['url_slug']})");
+            
+            sendSuccessResponse([
+                'business_card_id' => $bcId
+            ], '名刺の使用を停止しました。入金ステータスが「未入金」に変更され、名刺が非公開になりました。');
+        } elseif ($action === 'update_published') {
+            // 公開状態の変更
+            if (!isset($input['is_published'])) {
+                sendErrorResponse('公開状態が必要です', 400);
+            }
+            
+            $isPublished = (int)$input['is_published'];
+            
+            // ビジネスカード情報を取得
+            $stmt = $db->prepare("SELECT user_id, url_slug, is_published FROM business_cards WHERE id = ?");
+            $stmt->execute([$bcId]);
+            $bcInfo = $stmt->fetch();
+            
+            if (!$bcInfo) {
+                sendErrorResponse('ビジネスカードが見つかりません', 404);
+            }
+            
+            // 公開状態を更新
+            $stmt = $db->prepare("UPDATE business_cards SET is_published = ? WHERE id = ?");
+            $stmt->execute([$isPublished, $bcId]);
+            
+            // 変更履歴を記録
+            $adminId = $_SESSION['admin_id'];
+            $adminEmail = $_SESSION['admin_email'] ?? '';
+            
+            $stmt = $db->prepare("SELECT email FROM users WHERE id = ?");
+            $stmt->execute([$bcInfo['user_id']]);
+            $userInfo = $stmt->fetch();
+            $userEmail = $userInfo['email'] ?? 'Unknown';
+            
+            $statusText = $isPublished ? '公開' : '非公開';
+            logAdminChange($db, $adminId, $adminEmail, 'published_changed', 'business_card', $bcId, 
+                "公開状態変更: {$statusText} - ユーザー {$userEmail} (URL: {$bcInfo['url_slug']})");
+            
+            sendSuccessResponse([
+                'business_card_id' => $bcId,
+                'is_published' => $isPublished
+            ], "公開状態を{$statusText}に変更しました");
         }
 
     } elseif ($method === 'DELETE') {
@@ -227,8 +333,23 @@ try {
 
             $db->commit();
 
+            // 変更履歴を記録
+            $adminId = $_SESSION['admin_id'];
+            $adminEmail = $_SESSION['admin_email'] ?? '';
+            
+            foreach ($usersToDelete as $user) {
+                $description = "ユーザー削除: {$user['email']}";
+                if (!empty($user['company_name'])) {
+                    $description .= " ({$user['company_name']})";
+                }
+                if (!empty($user['name'])) {
+                    $description .= " - {$user['name']}";
+                }
+                logAdminChange($db, $adminId, $adminEmail, 'user_deleted', 'user', $user['id'], $description);
+            }
+
             // ログに記録
-            error_log("Admin deleted users: " . json_encode($usersToDelete) . " by admin_id: " . $_SESSION['admin_id']);
+            error_log("Admin deleted users: " . json_encode($usersToDelete) . " by admin_id: " . $adminId);
 
             sendSuccessResponse([
                 'deleted_count' => $deletedCount,

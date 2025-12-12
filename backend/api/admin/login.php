@@ -37,6 +37,11 @@ try {
         sendErrorResponse('メールアドレスまたはパスワードが正しくありません', 401);
     }
 
+    // Check if email is verified (skip for admin@rchukai.jp)
+    if ($admin['email'] !== 'admin@rchukai.jp' && isset($admin['email_verified']) && !$admin['email_verified']) {
+        sendErrorResponse('メール認証が完了していません。登録時に送信されたメールから認証を完了してください。', 403);
+    }
+
     // パスワード検証
     $storedHash = trim($admin['password_hash']);
     $inputPassword = trim($input['password']);

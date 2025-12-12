@@ -47,29 +47,44 @@ try {
     
     // ヘッダー
     fputcsv($output, [
-        '入金', 'OPEN', '社名', '名前', '携帯電話番号', 'メールアドレス',
+        'ユーザータイプ', '入金', 'OPEN', '社名', '名前', '携帯電話番号', 'メールアドレス',
         '表示回数（過去1か月）', '表示回数（累積）', '名刺URL', '登録日', '最終ログイン日'
     ]);
 
     // データ取得
     $sql = "
         SELECT 
+            CASE 
+                WHEN u.user_type = 'new' THEN '新規'
+                WHEN u.user_type = 'existing' THEN '既存'
+                WHEN u.user_type = 'free' THEN '無料'
+                ELSE '新規'
+            END as user_type,
             CASE WHEN EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed') THEN '✓' ELSE '' END as payment_confirmed,
             CASE WHEN bc.is_published = 1 THEN '✓' ELSE '' END as is_open,
             bc.company_name,
             bc.name,
             bc.mobile_phone,
             u.email,
-            SUM(CASE WHEN al.accessed_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH) THEN 1 ELSE 0 END) as monthly_views,
-            COUNT(al.id) as total_views,
+            COALESCE((
+                SELECT COUNT(*) 
+                FROM access_logs al 
+                WHERE al.business_card_id = bc.id 
+                AND al.accessed_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH)
+            ), 0) as monthly_views,
+            COALESCE((
+                SELECT COUNT(*) 
+                FROM access_logs al 
+                WHERE al.business_card_id = bc.id
+            ), 0) as total_views,
             CONCAT('" . QR_CODE_BASE_URL . "', bc.url_slug) as card_url,
             bc.created_at as registered_at,
             u.last_login_at
         FROM business_cards bc
         JOIN users u ON bc.user_id = u.id
-        LEFT JOIN access_logs al ON bc.id = al.business_card_id
         $whereClause
-        GROUP BY bc.id
+        GROUP BY bc.id, u.id, u.email, u.user_type, bc.company_name, bc.name, bc.mobile_phone, bc.url_slug, 
+                 bc.is_published, bc.created_at, u.last_login_at
         ORDER BY bc.created_at DESC
     ";
 
@@ -78,6 +93,7 @@ try {
     
     while ($row = $stmt->fetch()) {
         fputcsv($output, [
+            $row['user_type'],
             $row['payment_confirmed'],
             $row['is_open'],
             $row['company_name'],

@@ -117,6 +117,39 @@ function generateToken($length = 32) {
 }
 
 /**
+ * 管理者変更履歴を記録
+ * 
+ * @param PDO $db Database connection
+ * @param int $adminId Admin ID who made the change
+ * @param string $adminEmail Admin email who made the change
+ * @param string $changeType Type of change (payment_confirmed, qr_code_issued, published_changed, user_deleted, other)
+ * @param string $targetType Type of target (user, business_card, payment, other)
+ * @param int|null $targetId Target ID
+ * @param string|null $description Description of the change
+ * @return bool Success status
+ */
+function logAdminChange($db, $adminId, $adminEmail, $changeType, $targetType, $targetId = null, $description = null) {
+    try {
+        $stmt = $db->prepare("
+            INSERT INTO admin_change_logs (admin_id, admin_email, change_type, target_type, target_id, description)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $adminId,
+            $adminEmail,
+            $changeType,
+            $targetType,
+            $targetId,
+            $description
+        ]);
+        return true;
+    } catch (Exception $e) {
+        error_log("Failed to log admin change: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * 画像リサイズ
  * 
  * @param string $filePath 画像ファイルパス
