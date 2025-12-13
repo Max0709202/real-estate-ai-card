@@ -104,13 +104,23 @@ function populateForms(data) {
             }
         }
         
-        // Greetings
-        if (data.greetings && Array.isArray(data.greetings) && data.greetings.length > 0) {
-            console.log('Displaying greetings:', data.greetings);
-            displayGreetings(data.greetings);
-        } else {
-            console.log('No greetings - displaying defaults');
-            displayDefaultGreetings();
+        // Greetings - ALWAYS clear first, then populate based on data
+        const greetingsList = document.getElementById('greetings-list');
+        if (greetingsList) {
+            greetingsList.innerHTML = '';
+            
+            if (data.greetings && Array.isArray(data.greetings) && data.greetings.length > 0) {
+                console.log('Displaying greetings:', data.greetings);
+                displayGreetings(data.greetings);
+            } else if (data.greetings && Array.isArray(data.greetings) && data.greetings.length === 0) {
+                // Empty array - user has deleted all greetings, keep it empty
+                console.log('Greetings array is empty - keeping it empty');
+                // Already cleared above
+            } else {
+                // No greetings data or greetings is null/undefined - first time, display defaults
+                console.log('No greetings data - displaying defaults');
+                displayDefaultGreetings();
+            }
         }
     }
     
@@ -327,14 +337,15 @@ function displayDefaultGreetings() {
                     <button type="button" class="btn-move-up" onclick="moveGreeting(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
                     <button type="button" class="btn-move-down" onclick="moveGreeting(${index}, 'down')" ${index === defaultGreetings.length - 1 ? 'disabled' : ''}>↓</button>
                 </div>
+                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
             </div>
             <div class="form-group">
                 <label>タイトル</label>
-                <input type="text" class="form-control greeting-title" value="${escapeHtml(greeting.title)}" placeholder="タイトル">
+                <input type="text" name="greeting_title[]" class="form-control greeting-title" value="${escapeHtml(greeting.title)}" placeholder="タイトル">
             </div>
             <div class="form-group">
                 <label>本文</label>
-                <textarea class="form-control greeting-content" rows="4" placeholder="本文">${escapeHtml(greeting.content)}</textarea>
+                <textarea name="greeting_content[]" class="form-control greeting-content" rows="4" placeholder="本文">${escapeHtml(greeting.content)}</textarea>
             </div>
         `;
         greetingsList.appendChild(greetingItem);
@@ -345,6 +356,74 @@ function displayDefaultGreetings() {
         initializeGreetingDragAndDrop();
         updateGreetingButtons();
     }, 100);
+}
+
+// Restore default greetings (button click handler)
+function restoreDefaultGreetings() {
+    // Remove any existing modal first
+    const existingModal = document.querySelector('.modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content restore-greetings-modal" style="display:flex !important; flex-direction: column !important; margin :auto !important; margin-top:30% !important;">
+            <div class="modal-header-restore">
+                <h3>デフォルトの挨拶文を再表示</h3>
+            </div>
+            <div class="modal-body-restore">
+                <p class="modal-message-main">デフォルトの挨拶文を再表示しますか？</p>
+                <p class="modal-message-sub">現在の挨拶文は上書きされます。</p>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-yes" id="confirm-restore-yes">はい</button>
+                <button class="modal-btn modal-btn-no" id="confirm-restore-no">いいえ</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Force reflow to ensure DOM is updated
+    void modal.offsetHeight;
+    
+    // Add active class to show modal
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+
+    // Add event listeners after DOM is updated
+    setTimeout(() => {
+        const yesBtn = document.getElementById('confirm-restore-yes');
+        const noBtn = document.getElementById('confirm-restore-no');
+        
+        if (yesBtn) {
+            yesBtn.addEventListener('click', function() {
+                closeRestoreModal();
+                displayDefaultGreetings();
+            });
+        }
+        
+        if (noBtn) {
+            noBtn.addEventListener('click', function() {
+                closeRestoreModal();
+            });
+        }
+    }, 50);
+}
+
+// Close restore modal
+function closeRestoreModal() {
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    }
 }
 
 // Display greetings
@@ -366,7 +445,7 @@ function displayGreetings(greetings) {
                     <button type="button" class="btn-move-up" onclick="moveGreeting(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
                     <button type="button" class="btn-move-down" onclick="moveGreeting(${index}, 'down')" ${index === greetings.length - 1 ? 'disabled' : ''}>↓</button>
                 </div>
-                <button type="button" class="btn-delete" onclick="deleteGreeting(${greeting.id})">削除</button>
+                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
             </div>
             <div class="form-group">
                 <label>タイトル</label>
@@ -1130,19 +1209,20 @@ function addGreeting() {
             <div class="greeting-actions">
                 <button type="button" class="btn-move-up" onclick="moveGreeting(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
                 <button type="button" class="btn-move-down" onclick="moveGreeting(${index}, 'down')">↓</button>
+                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
             </div>
-            <button type="button" class="btn-delete" onclick="this.closest('.greeting-item').remove(); updateGreetingNumbers(); updateGreetingButtons(); initializeGreetingDragAndDrop();">削除</button>
         </div>
         <div class="form-group">
             <label>タイトル</label>
-            <input type="text" class="form-control greeting-title" placeholder="タイトル">
+            <input type="text" name="greeting_title[]" class="form-control greeting-title" placeholder="タイトル">
         </div>
         <div class="form-group">
             <label>本文</label>
-            <textarea class="form-control greeting-content" rows="4" placeholder="本文"></textarea>
+            <textarea name="greeting_content[]" class="form-control greeting-content" rows="4" placeholder="本文"></textarea>
         </div>
     `;
     greetingsList.appendChild(greetingItem);
+    updateGreetingNumbers();
     updateGreetingButtons();
     initializeGreetingDragAndDrop();
 }
@@ -1153,10 +1233,17 @@ async function saveGreetings() {
     const greetings = [];
     
     greetingItems.forEach((item, index) => {
-        const title = item.querySelector('.greeting-title').value.trim();
-        const content = item.querySelector('.greeting-content').value.trim();
+        // Try multiple selectors for title and content
+        const titleInput = item.querySelector('input[name="greeting_title[]"]') || 
+                           item.querySelector('.greeting-title');
+        const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]') || 
+                                item.querySelector('.greeting-content');
         
-        if (title || content) {
+        const title = titleInput ? titleInput.value.trim() : '';
+        const content = contentTextarea ? contentTextarea.value.trim() : '';
+        
+        // Only add if both title and content have values
+        if (title && content) {
             greetings.push({
                 title: title,
                 content: content,
@@ -1165,13 +1252,16 @@ async function saveGreetings() {
         }
     });
     
+    // ALWAYS send greetings array, even if empty - this ensures database is updated
+    console.log('Saving greetings:', greetings.length === 0 ? 'EMPTY ARRAY' : greetings);
+    
     try {
         const response = await fetch('../backend/api/business-card/update.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ greetings: greetings }),
+            body: JSON.stringify({ greetings: greetings }), // Send empty array if all deleted
             credentials: 'include'
         });
         
@@ -1179,7 +1269,8 @@ async function saveGreetings() {
         
         if (result.success) {
             showSuccess('保存しました');
-            loadBusinessCardData(); // Reload data
+            // Reload data to reflect changes
+            await loadBusinessCardData();
         } else {
             showError('保存に失敗しました: ' + result.message);
         }
@@ -1189,7 +1280,7 @@ async function saveGreetings() {
     }
 }
 
-// Delete greeting
+// Delete greeting (for existing greetings with ID)
 function deleteGreeting(id) {
     showConfirm('この挨拶文を削除しますか？', () => {
         // Remove from DOM
@@ -1210,6 +1301,31 @@ function deleteGreeting(id) {
     
     // Save changes
     saveGreetings();
+}
+
+// Delete greeting (removes the entire greeting-item div and updates database)
+function clearGreeting(button) {
+    const greetingItem = button.closest('.greeting-item');
+    if (!greetingItem) return;
+    
+    // Check if this is an existing greeting with ID (from database)
+    const greetingId = greetingItem.dataset.id;
+    
+    if (greetingId) {
+        // Existing greeting - use deleteGreeting function
+        deleteGreeting(greetingId);
+    } else {
+        // Template greeting - remove from DOM
+        greetingItem.remove();
+        
+        // Update greeting numbers and buttons
+        updateGreetingNumbers();
+        updateGreetingButtons();
+        initializeGreetingDragAndDrop();
+        
+        // Save changes to database
+        saveGreetings();
+    }
 }
 
 // Toggle tech tool (deprecated - no longer auto-saves)

@@ -59,6 +59,7 @@ $prefectures = [
     <link rel="stylesheet" href="assets/css/card.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/modal.css">
+    <link rel="stylesheet" href="assets/css/admin.css">
     <!-- Cropper.js CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
 </head>
@@ -146,33 +147,20 @@ $prefectures = [
 
                     <div class="form-section">
                         <h3>ご挨拶 <span class="required">*</span></h3>
-                        <p class="section-note">挨拶文の順序を上下のボタンで変更できます。デフォルトの文章もそのまま使用できます。</p>
+                        <p class="section-note">
+                            ・挨拶文は１つは必ずご入力ください。<br>
+                            ・挨拶文を５つデフォルトでご用意しています。デフォルトの文章をそのまま使用できます。<br>
+                            ・挨拶文の順序を上下のボタン・ドラッグで変更できます。
+                        </p>
+                        <button type="button" class="btn-restore-defaults" onclick="restoreDefaultGreetingsForRegister()">デフォルトの挨拶文を再表示する</button>
                         <div id="greetings-container">
-                            <?php foreach ($defaultGreetings as $index => $greeting): ?>
-                            <div class="greeting-item" data-order="<?php echo $index; ?>">
-                                <div class="greeting-header">
-                                    <span class="greeting-number"><?php echo $index + 1; ?></span>
-                                    <div class="greeting-actions">
-                                        <button type="button" class="btn-move-up" onclick="moveGreeting(<?php echo $index; ?>, 'up')" <?php echo $index === 0 ? 'disabled' : ''; ?>>↑</button>
-                                        <button type="button" class="btn-move-down" onclick="moveGreeting(<?php echo $index; ?>, 'down')">↓</button>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>タイトル</label>
-                                    <input type="text" name="greeting_title[]" class="form-control" value="<?php echo htmlspecialchars($greeting['title']); ?>" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>本文</label>
-                                    <textarea name="greeting_content[]" class="form-control" rows="4" required><?php echo htmlspecialchars($greeting['content']); ?></textarea>
-                                </div>
-                            </div>
-                            <?php endforeach; ?>
+                            <!-- Greetings will be populated by JavaScript from database -->
                         </div>
                         <button type="button" class="btn-add" onclick="addGreeting()">挨拶文を追加</button>
                     </div>
 
                     <div class="form-actions">
-                        <button type="submit" class="btn-primary">次へ</button>
+                        <button type="submit" class="btn-primary">保存して次へ</button>
                     </div>
                 </form>
             </div>
@@ -240,7 +228,7 @@ $prefectures = [
 
                     <div class="form-actions">
                         <button type="button" class="btn-secondary" onclick="goToStep(1)">戻る</button>
-                        <button type="submit" class="btn-primary">次へ</button>
+                        <button type="submit" class="btn-primary">保存して次へ</button>
                     </div>
                 </form>
             </div>
@@ -364,7 +352,7 @@ $prefectures = [
 
                     <div class="form-actions">
                         <button type="button" class="btn-secondary" onclick="goToStep(2)">戻る</button>
-                        <button type="submit" class="btn-primary">次へ</button>
+                        <button type="submit" class="btn-primary">保存して次へ</button>
                     </div>
                 </form>
             </div>
@@ -458,7 +446,7 @@ $prefectures = [
 
                     <div class="form-actions">
                         <button type="button" class="btn-secondary" onclick="goToStep(3)">戻る</button>
-                        <button type="submit" class="btn-primary">次へ</button>
+                        <button type="submit" class="btn-primary">保存して次へ</button>
                     </div>
                 </form>
             </div>
@@ -667,7 +655,7 @@ $prefectures = [
 
                     <div class="form-actions">
                         <button type="button" class="btn-secondary" onclick="goToStep(4)">戻る</button>
-                        <button type="submit" class="btn-primary">次へ</button>
+                        <button type="submit" class="btn-primary">保存して次へ</button>
                     </div>
                 </form>
             </div>

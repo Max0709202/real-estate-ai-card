@@ -50,6 +50,8 @@ $defaultGreetings = [
     <link rel="stylesheet" href="assets/css/register.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/modal.css">
+    <link rel="stylesheet" href="assets/css/admin.css">
+
     <!-- Cropper.js CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
     <style>
@@ -140,7 +142,12 @@ $defaultGreetings = [
 
                         <div class="form-section">
                             <h3>ご挨拶 <span class="required">*</span></h3>
-                            <p class="section-note">挨拶文の順序を上下のボタンで変更できます。デフォルトの文章もそのまま使用できます。</p>
+                            <p class="section-note">
+                                ・挨拶文は１つは必ずご入力ください。<br>
+                                ・挨拶文を５つデフォルトでご用意しています。デフォルトの文章をそのまま使用できます。<br>
+                                ・挨拶文の順序を上下のボタン・ドラッグで変更できます。
+                            </p>
+                            <button type="button" class="btn-restore-defaults" onclick="restoreDefaultGreetings()">デフォルトの挨拶文を再表示する</button>
                             <div id="greetings-list">
                                 <?php foreach ($defaultGreetings as $index => $greeting): ?>
                                 <div class="greeting-item" data-order="<?php echo $index; ?>">
@@ -149,6 +156,7 @@ $defaultGreetings = [
                                         <div class="greeting-actions">
                                             <button type="button" class="btn-move-up" onclick="moveGreeting(<?php echo $index; ?>, 'up')" <?php echo $index === 0 ? 'disabled' : ''; ?>>↑</button>
                                             <button type="button" class="btn-move-down" onclick="moveGreeting(<?php echo $index; ?>, 'down')" <?php echo $index === 4 ? 'disabled' : ''; ?>>↓</button>
+                                            <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
                                         </div>
                                     </div>
                                     <div class="form-group">
@@ -439,9 +447,20 @@ $defaultGreetings = [
                     const greetingItems = document.querySelectorAll('#greetings-list .greeting-item');
                     const greetings = [];
                     greetingItems.forEach((item, index) => {
-                        const title = item.querySelector('.greeting-title')?.value || '';
-                        const content = item.querySelector('.greeting-content')?.value || '';
-                        if (title || content) {
+                        // Skip cleared items (items that were deleted/cleared)
+                        if (item.dataset.cleared === 'true') {
+                            return;
+                        }
+                        
+                        // Try to get values from different possible selectors
+                        const titleInput = item.querySelector('input[name="greeting_title[]"]') || item.querySelector('.greeting-title');
+                        const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]') || item.querySelector('.greeting-content');
+                        
+                        const title = titleInput ? (titleInput.value || '').trim() : '';
+                        const content = contentTextarea ? (contentTextarea.value || '').trim() : '';
+                        
+                        // Only add if both title and content have values
+                        if (title && content) {
                             greetings.push({
                                 title: title,
                                 content: content,

@@ -71,17 +71,23 @@ function populateRegistrationForms(data) {
         }
     }
     
-    // Greetings - update existing greeting items
-    if (data.greetings && Array.isArray(data.greetings) && data.greetings.length > 0) {
-        const greetingItems = document.querySelectorAll('#greetings-container .greeting-item');
-        data.greetings.forEach((greeting, index) => {
-            if (greetingItems[index]) {
-                const titleInput = greetingItems[index].querySelector('input[name="greeting_title[]"]');
-                const contentTextarea = greetingItems[index].querySelector('textarea[name="greeting_content[]"]');
-                if (titleInput) titleInput.value = greeting.title || '';
-                if (contentTextarea) contentTextarea.value = greeting.content || '';
-            }
-        });
+    // Greetings - ALWAYS clear first, then populate based on data
+    const greetingsContainer = document.getElementById('greetings-container');
+    if (greetingsContainer) {
+        greetingsContainer.innerHTML = '';
+        
+        if (data.greetings && Array.isArray(data.greetings) && data.greetings.length > 0) {
+            console.log('Displaying greetings from database:', data.greetings);
+            displayGreetingsForRegister(data.greetings);
+        } else if (data.greetings && Array.isArray(data.greetings) && data.greetings.length === 0) {
+            // Empty array - user has deleted all greetings, keep it empty
+            console.log('Greetings array is empty - keeping it empty');
+            // Already cleared above
+        } else {
+            // No greetings data - first time, display defaults
+            console.log('No greetings data - displaying defaults');
+            displayDefaultGreetingsForRegister();
+        }
     }
     
     // Step 2: Company Profile
@@ -530,6 +536,7 @@ function addGreeting() {
             <div class="greeting-actions">
                 <button type="button" class="btn-move-up" onclick="moveGreeting(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
                 <button type="button" class="btn-move-down" onclick="moveGreeting(${index}, 'down')">↓</button>
+                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
             </div>
         </div>
         <div class="form-group">
@@ -545,6 +552,198 @@ function addGreeting() {
     updateGreetingNumbers();
     updateGreetingButtons();
     initializeGreetingDragAndDrop();
+}
+
+// Delete greeting (removes the entire greeting-item div)
+function clearGreeting(button) {
+    const greetingItem = button.closest('.greeting-item');
+    if (!greetingItem) return;
+    
+    // Remove the entire greeting-item div
+    greetingItem.remove();
+    
+    // Update greeting numbers and buttons
+    updateGreetingNumbers();
+    updateGreetingButtons();
+    initializeGreetingDragAndDrop();
+}
+
+// Default greetings (same as edit.php)
+const defaultGreetings = [
+    {
+        title: '笑顔が増える「住み替え」を叶えます',
+        content: '初めての売買で感じる不安や疑問。「あなたに頼んでよかった」と言っていただけるよう、理想の住まい探しと売却を全力で伴走いたします。私は、お客様が描く「10年後の幸せな日常」を第一に考えます。'
+    },
+    {
+        title: '自宅は大きな貯金箱',
+        content: '「不動産売買は人生最大の投資」という視点に立ち、物件のメリットだけでなく、将来のリスクやデメリットも隠さずお伝えするのが信条です。感情に流されない、確実な資産形成と納得のいく取引をサポートします。'
+    },
+    {
+        title: 'お客様に「情報武装」をご提案',
+        content: '「この価格は妥当なのだろうか？」「もっとよい物件情報は無いのだろうか？」私は全ての情報をお客様に開示いたしますが、お客様に「情報武装」していただく事で、それをさらに担保いたします。他のエージェントにはない、私独自のサービスをご活用ください。'
+    },
+    {
+        title: 'お客様を「3つの疲労」から解放いたします',
+        content: '一つ目は、ポータルサイト巡りの「情報収集疲労」。二つ目は、不動産会社への「問い合わせ疲労」、専門知識不足による「判断疲労」です。私がご提供するテックツールで、情報収集は自動化、私が全ての情報を公開しますので多くの不動産会社に問い合わせることも不要、物件情報にAI評価がついているので客観的判断も自動化されます。'
+    },
+    {
+        title: '忙しい子育て世代へ。手間を省くスマート売買',
+        content: '「売り」と「買い」を同時に進める住み替えは手続きが煩雑になりがちです。忙しいご夫婦に代わり、書類作成から金融機関との折衝、内覧の調整まで私が窓口となってスムーズに進めます。お子様連れでの内覧や打ち合わせも大歓迎です。ご家族の貴重な時間を奪わないよう、迅速かつ丁寧な段取りをお約束します。'
+    }
+];
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Display default greetings when no saved greetings exist
+function displayDefaultGreetingsForRegister() {
+    const greetingsContainer = document.getElementById('greetings-container');
+    if (!greetingsContainer) return;
+    
+    greetingsContainer.innerHTML = '';
+    
+    defaultGreetings.forEach((greeting, index) => {
+        const greetingItem = document.createElement('div');
+        greetingItem.className = 'greeting-item';
+        greetingItem.dataset.order = index;
+        greetingItem.innerHTML = `
+            <div class="greeting-header">
+                <span class="greeting-number">${index + 1}</span>
+                <div class="greeting-actions">
+                    <button type="button" class="btn-move-up" onclick="moveGreeting(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
+                    <button type="button" class="btn-move-down" onclick="moveGreeting(${index}, 'down')" ${index === defaultGreetings.length - 1 ? 'disabled' : ''}>↓</button>
+                </div>
+                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
+            </div>
+            <div class="form-group">
+                <label>タイトル</label>
+                <input type="text" name="greeting_title[]" class="form-control" value="${escapeHtml(greeting.title)}" placeholder="タイトル">
+            </div>
+            <div class="form-group">
+                <label>本文</label>
+                <textarea name="greeting_content[]" class="form-control" rows="4" placeholder="本文">${escapeHtml(greeting.content)}</textarea>
+            </div>
+        `;
+        greetingsContainer.appendChild(greetingItem);
+    });
+    
+    // Re-initialize drag and drop after displaying
+    setTimeout(function() {
+        initializeGreetingDragAndDrop();
+        updateGreetingButtons();
+    }, 100);
+}
+
+// Restore default greetings (button click handler)
+function restoreDefaultGreetingsForRegister() {
+    // Remove any existing modal first
+    const existingModal = document.querySelector('.modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content restore-greetings-modal" style="display:flex !important; flex-direction: column !important; margin :auto !important; margin-top:30% !important;">
+            <div class="modal-header-restore">
+                <h3>デフォルトの挨拶文を再表示</h3>
+            </div>
+            <div class="modal-body-restore">
+                <p class="modal-message-main">デフォルトの挨拶文を再表示しますか？</p>
+                <p class="modal-message-sub">現在の挨拶文は上書きされます。</p>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-yes" id="confirm-restore-register-yes">はい</button>
+                <button class="modal-btn modal-btn-no" id="confirm-restore-register-no">いいえ</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Force reflow to ensure DOM is updated
+    void modal.offsetHeight;
+    
+    // Add active class to show modal
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+
+    // Add event listeners after DOM is updated
+    setTimeout(() => {
+        const yesBtn = document.getElementById('confirm-restore-register-yes');
+        const noBtn = document.getElementById('confirm-restore-register-no');
+        
+        if (yesBtn) {
+            yesBtn.addEventListener('click', function() {
+                closeRestoreModalForRegister();
+                displayDefaultGreetingsForRegister();
+            });
+        }
+        
+        if (noBtn) {
+            noBtn.addEventListener('click', function() {
+                closeRestoreModalForRegister();
+            });
+        }
+    }, 50);
+}
+
+// Close restore modal for register
+function closeRestoreModalForRegister() {
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    }
+}
+
+// Display greetings from database
+function displayGreetingsForRegister(greetings) {
+    const greetingsContainer = document.getElementById('greetings-container');
+    if (!greetingsContainer) return;
+    
+    greetingsContainer.innerHTML = '';
+    
+    greetings.forEach((greeting, index) => {
+        const greetingItem = document.createElement('div');
+        greetingItem.className = 'greeting-item';
+        greetingItem.dataset.id = greeting.id || '';
+        greetingItem.dataset.order = index;
+        greetingItem.innerHTML = `
+            <div class="greeting-header">
+                <span class="greeting-number">${index + 1}</span>
+                <div class="greeting-actions">
+                    <button type="button" class="btn-move-up" onclick="moveGreeting(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
+                    <button type="button" class="btn-move-down" onclick="moveGreeting(${index}, 'down')" ${index === greetings.length - 1 ? 'disabled' : ''}>↓</button>
+                </div>
+                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
+            </div>
+            <div class="form-group">
+                <label>タイトル</label>
+                <input type="text" name="greeting_title[]" class="form-control" value="${escapeHtml(greeting.title || '')}" placeholder="タイトル">
+            </div>
+            <div class="form-group">
+                <label>本文</label>
+                <textarea name="greeting_content[]" class="form-control" rows="4" placeholder="本文">${escapeHtml(greeting.content || '')}</textarea>
+            </div>
+        `;
+        greetingsContainer.appendChild(greetingItem);
+    });
+    
+    // Re-initialize drag and drop after displaying
+    setTimeout(function() {
+        initializeGreetingDragAndDrop();
+        updateGreetingButtons();
+    }, 100);
 }
 
 // Postal code lookup
@@ -751,12 +950,22 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
     }
     
     // Handle greetings - get order from DOM
-    const greetingItems = document.querySelectorAll('.greeting-item');
+    const greetingItems = document.querySelectorAll('#greetings-container .greeting-item');
     const greetings = [];
     greetingItems.forEach((item, index) => {
-        const title = item.querySelector('input[name="greeting_title[]"]').value;
-        const content = item.querySelector('textarea[name="greeting_content[]"]').value;
-        if (title || content) {
+        // Skip cleared items (items that were deleted/cleared)
+        if (item.dataset.cleared === 'true') {
+            return;
+        }
+        
+        const titleInput = item.querySelector('input[name="greeting_title[]"]');
+        const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]');
+        
+        const title = titleInput ? (titleInput.value || '').trim() : '';
+        const content = contentTextarea ? (contentTextarea.value || '').trim() : '';
+        
+        // Only add if both title and content have values
+        if (title && content) {
             greetings.push({
                 title: title,
                 content: content,

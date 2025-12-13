@@ -579,6 +579,146 @@ body {
     background: #5a6268;
 }
 
+/* Restore Greetings Modal Styles */
+.restore-greetings-modal {
+    max-width: 480px;
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-header-restore {
+    padding: 1.5rem 2rem 1rem;
+    border-bottom: 2px solid #f0f0f0;
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+    border-radius: 8px 8px 0 0;
+    margin: -2rem -2rem 0 -2rem;
+}
+
+.modal-header-restore h3 {
+    margin: 0;
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.modal-body-restore {
+    padding: 1.5rem 2rem;
+    text-align: center;
+}
+
+.modal-message-main {
+    font-size: 1.1rem;
+    color: #333;
+    margin: 0 0 1rem 0;
+    font-weight: 500;
+    line-height: 1.6;
+}
+
+.modal-message-sub {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.restore-greetings-modal .modal-buttons {
+    padding: 1rem 2rem 1.5rem;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.restore-greetings-modal .modal-btn {
+    min-width: 120px;
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    font-weight: 500;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.restore-greetings-modal .modal-btn-yes {
+    background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+    color: #fff;
+    border: none;
+}
+
+.restore-greetings-modal .modal-btn-yes:hover {
+    background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.restore-greetings-modal .modal-btn-yes:active {
+    transform: translateY(0);
+}
+
+.restore-greetings-modal .modal-btn-no {
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+    color: #fff;
+    border: none;
+}
+
+.restore-greetings-modal .modal-btn-no:hover {
+    background: linear-gradient(135deg, #5a6268 0%, #495057 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+}
+
+.restore-greetings-modal .modal-btn-no:active {
+    transform: translateY(0);
+}
+
+/* Mobile Responsive for Restore Modal */
+@media (max-width: 768px) {
+    .restore-greetings-modal {
+        max-width: 90%;
+        margin: 1rem;
+    }
+    
+    .modal-header-restore {
+        padding: 1.25rem 1.5rem 0.75rem;
+        margin: -1rem -1rem 0 -1rem;
+    }
+    
+    .modal-header-restore h3 {
+        font-size: 1.1rem;
+    }
+    
+    .modal-body-restore {
+        padding: 1.25rem 1.5rem;
+    }
+    
+    .modal-message-main {
+        font-size: 1rem;
+    }
+    
+    .modal-message-sub {
+        font-size: 0.85rem;
+    }
+    
+    .restore-greetings-modal .modal-buttons {
+        padding: 1rem 1.5rem 1.25rem;
+        flex-direction: column;
+    }
+    
+    .restore-greetings-modal .modal-btn {
+        width: 100%;
+        min-width: auto;
+    }
+}
+
 /* Responsive Design (PC Optimized - minimal mobile support) */
 @media (max-width: 1200px) {
     .admin-content {
