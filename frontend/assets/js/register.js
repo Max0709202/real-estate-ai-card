@@ -16,7 +16,40 @@ let businessCardData = null; // Store loaded business card data
 // Load existing business card data on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadExistingBusinessCardData();
+    
+    // Auto-capitalize first letter of romaji input fields
+    setupRomajiAutoCapitalize();
 });
+
+// Auto-capitalize first letter of romaji input fields
+function setupRomajiAutoCapitalize() {
+    const romajiFields = [
+        document.getElementById('last_name_romaji'),
+        document.getElementById('first_name_romaji')
+    ];
+    
+    romajiFields.forEach(field => {
+        if (field) {
+            // Use input event to capitalize first letter
+            field.addEventListener('input', function(e) {
+                const input = e.target;
+                let value = input.value;
+                
+                if (value.length > 0) {
+                    // 最初の文字が小文字（a-z）の場合は大文字に変換
+                    const firstChar = value.charAt(0);
+                    if (firstChar >= 'a' && firstChar <= 'z') {
+                        const cursorPosition = input.selectionStart;
+                        value = firstChar.toUpperCase() + value.slice(1);
+                        input.value = value;
+                        // カーソル位置を復元
+                        input.setSelectionRange(cursorPosition, cursorPosition);
+                    }
+                }
+            });
+        }
+    });
+}
 
 // Load existing business card data from API and populate forms
 async function loadExistingBusinessCardData() {
@@ -103,10 +136,7 @@ function populateRegistrationForms(data) {
         const regInput = document.getElementById('license_registration');
         if (regInput) regInput.value = data.real_estate_license_registration_number;
     }
-    if (data.company_name) {
-        const companyProfileInput = document.querySelector('input[name="company_name_profile"]');
-        if (companyProfileInput) companyProfileInput.value = data.company_name;
-    }
+    // Step 2: Company Profile - Company name will be loaded when step 2 becomes active (not on initial page load)
     if (data.company_postal_code) {
         const postalInput = document.getElementById('company_postal_code');
         if (postalInput) postalInput.value = data.company_postal_code;
@@ -212,20 +242,86 @@ function populateRegistrationForms(data) {
     if (data.free_input) {
         try {
             const freeInputData = JSON.parse(data.free_input);
-            if (freeInputData.text) {
-                const freeTextInput = document.querySelector('textarea[name="free_input_text"]');
-                if (freeTextInput) freeTextInput.value = freeInputData.text;
+            const container = document.getElementById('free-input-texts-container');
+            
+            // Handle both old format (text) and new format (texts)
+            let texts = [];
+            if (freeInputData.texts && Array.isArray(freeInputData.texts)) {
+                texts = freeInputData.texts;
+            } else if (freeInputData.text) {
+                texts = [freeInputData.text];
             }
-            if (freeInputData.image_link) {
-                const freeLinkInput = document.querySelector('input[name="free_image_link"]');
-                if (freeLinkInput) freeLinkInput.value = freeInputData.image_link;
-            }
-            if (freeInputData.image) {
-                const freeImagePreview = document.querySelector('#free-image-upload .upload-preview');
-                if (freeImagePreview) {
-                    const imagePath = freeInputData.image.startsWith('http') ? freeInputData.image : '../' + freeInputData.image;
-                    freeImagePreview.innerHTML = `<img src="${imagePath}" alt="フリー画像" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+            
+            // Clear existing textareas
+            if (container) {
+                container.innerHTML = '';
+                
+                // Create textareas for each text
+                if (texts.length === 0) {
+                    // If no texts, create one empty textarea
+                    texts = [''];
                 }
+                
+                texts.forEach((text, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'free-input-text-item';
+                    item.innerHTML = `
+                        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx">${escapeHtml(text)}</textarea>
+                        <button type="button" class="btn-delete-small" onclick="removeFreeInputTextForRegister(this)" ${texts.length <= 1 ? 'style="display: none;"' : ''}>削除</button>
+                    `;
+                    container.appendChild(item);
+                });
+            }
+            
+            // Handle images - support both old format (single image) and new format (array)
+            const imagesContainer = document.getElementById('free-images-container');
+            if (imagesContainer) {
+                imagesContainer.innerHTML = '';
+                
+                let images = [];
+                if (freeInputData.images && Array.isArray(freeInputData.images)) {
+                    images = freeInputData.images;
+                } else if (freeInputData.image || freeInputData.image_link) {
+                    // Old format: single image
+                    images = [{
+                        image: freeInputData.image || '',
+                        link: freeInputData.image_link || ''
+                    }];
+                }
+                
+                // If no images, create one empty item
+                if (images.length === 0) {
+                    images = [{ image: '', link: '' }];
+                }
+                
+                images.forEach((imgData, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'free-image-item';
+                    item.innerHTML = `
+                        <div class="upload-area" data-upload-id="free_image_${index}">
+                            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                            <div class="upload-preview">${imgData.image ? `<img src="${imgData.image.startsWith('http') ? imgData.image : '../' + imgData.image}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">` : ''}</div>
+                            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
+                                画像をアップロード
+                            </button>
+                            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                        </div>
+                        <div class="form-group" style="margin-top: 0.5rem;">
+                            <label>画像のリンク先URL（任意）</label>
+                            <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com" value="${escapeHtml(imgData.link || '')}">
+                        </div>
+                        <button type="button" class="btn-delete-small" onclick="removeFreeImageItemForRegister(this)" ${images.length <= 1 ? 'style="display: none;"' : ''}>削除</button>
+                    `;
+                    imagesContainer.appendChild(item);
+                    
+                    // Store existing image path in data attribute for later use
+                    if (imgData.image) {
+                        item.querySelector('.upload-area').dataset.existingImage = imgData.image;
+                    }
+                    
+                    // Initialize file upload handler
+                    initializeFreeImageUploadForRegister(item);
+                });
             }
         } catch (e) {
             console.error('Error parsing free_input:', e);
@@ -321,6 +417,19 @@ function goToStep(step) {
     });
     
     currentStep = step;
+    
+    // Load company name from database when step 2 becomes active
+    if (step === 2) {
+        // Wait a bit for DOM to be ready, then load company name
+        setTimeout(() => {
+            if (businessCardData && businessCardData.company_name) {
+                const companyProfileInput = document.querySelector('input[name="company_name_profile"]');
+                if (companyProfileInput) {
+                    companyProfileInput.value = businessCardData.company_name;
+                }
+            }
+        }, 100);
+    }
     
     // Generate and display QR code when reaching step 6 (payment step)
     // if (step === 6) {
@@ -994,6 +1103,8 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
+            // Reload business card data to get updated company name
+            await loadExistingBusinessCardData();
             goToStep(2);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -1007,6 +1118,16 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
 // Step 2: Company Profile
 document.getElementById('company-profile-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    
+    // Validate required fields for real estate license
+    const prefecture = document.getElementById('license_prefecture').value;
+    const renewal = document.getElementById('license_renewal').value;
+    const registration = document.getElementById('license_registration').value.trim();
+    
+    if (!prefecture || !renewal || !registration) {
+        showError('宅建業者番号（都道府県、更新番号、登録番号）は必須項目です。');
+        return;
+    }
     
     const formDataObj = new FormData(e.target);
     const data = Object.fromEntries(formDataObj);
@@ -1080,54 +1201,68 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
     delete data.qualification_kenchikushi;
     delete data.qualifications_other;
     
-    // Combine free input fields
-    let freeInputData = {
-        text: data.free_input_text || '',
-        image_link: data.free_image_link || ''
-    };
+    // Combine free input fields - collect all textarea values
+    const freeInputTexts = formDataObj.getAll('free_input_text[]').filter(text => text.trim() !== '');
     
-    // Handle free image upload
-    const freeImageFile = document.getElementById('free_image').files[0];
-    if (freeImageFile) {
-        const uploadData = new FormData();
-        uploadData.append('file', freeImageFile);
-        uploadData.append('file_type', 'free');
+    // Handle free images - collect all image+link pairs
+    const freeImageLinks = formDataObj.getAll('free_image_link[]');
+    const freeImageItems = document.querySelectorAll('#free-images-container .free-image-item');
+    const images = [];
+    
+    for (let i = 0; i < freeImageItems.length; i++) {
+        const item = freeImageItems[i];
+        const fileInput = item.querySelector('input[type="file"]');
+        const linkInput = item.querySelector('input[type="url"]');
+        const existingImage = item.querySelector('.upload-area').dataset.existingImage;
         
-        try {
-            const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
-                method: 'POST',
-                body: uploadData,
-                credentials: 'include'
-            });
+        let imagePath = existingImage || '';
+        
+        // If new file is selected, upload it
+        if (fileInput && fileInput.files && fileInput.files[0]) {
+            const uploadData = new FormData();
+            uploadData.append('file', fileInput.files[0]);
+            uploadData.append('file_type', 'free');
             
-            const uploadResult = await uploadResponse.json();
-            if (uploadResult.success) {
-                const fullPath = uploadResult.data.file_path;
-                const relativePath = fullPath.split('/php/')[1] || fullPath;
-                freeInputData.image = relativePath;
-                // Log resize info
-                if (uploadResult.data.was_resized) {
-                    console.log('Free image auto-resized:', uploadResult.data);
+            try {
+                const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
+                    method: 'POST',
+                    body: uploadData,
+                    credentials: 'include'
+                });
+                
+                const uploadResult = await uploadResponse.json();
+                if (uploadResult.success) {
+                    const fullPath = uploadResult.data.file_path;
+                    imagePath = fullPath.split('/php/')[1] || fullPath;
+                    // Log resize info
+                    if (uploadResult.data.was_resized) {
+                        console.log('Free image auto-resized:', uploadResult.data);
+                    }
                 }
+            } catch (error) {
+                console.error('Upload error:', error);
             }
-        } catch (error) {
-            console.error('Upload error:', error);
         }
-    } else if (businessCardData && businessCardData.free_input) {
-        // Preserve existing free image
-        try {
-            const existingFreeInput = JSON.parse(businessCardData.free_input);
-            if (existingFreeInput.image) {
-                freeInputData.image = existingFreeInput.image;
-            }
-        } catch (e) {
-            console.error('Error parsing free_input:', e);
-        }
+        
+        images.push({
+            image: imagePath,
+            link: linkInput ? linkInput.value.trim() : ''
+        });
     }
+    
+    let freeInputData = {
+        texts: freeInputTexts.length > 0 ? freeInputTexts : [''],
+        images: images.length > 0 ? images : [{ image: '', link: '' }]
+    };
     
     // Store free input as JSON
     data.free_input = JSON.stringify(freeInputData);
-    delete data.free_input_text;
+    // Remove all free_input_text entries from data
+    Object.keys(data).forEach(key => {
+        if (key.startsWith('free_input_text')) {
+            delete data[key];
+        }
+    });
     delete data.free_image_link;
     
     formData = { ...formData, ...data };
@@ -1162,8 +1297,17 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
 document.getElementById('tech-tools-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const selectedTools = Array.from(document.querySelectorAll('input[name="tech_tools[]"]:checked'))
-        .map(cb => cb.value);
+    // Get selected tools in DOM order (respecting user's reordering)
+    const grid = document.getElementById('tech-tools-grid');
+    const toolCards = Array.from(grid.querySelectorAll('.tech-tool-banner-card'));
+    const selectedTools = [];
+    
+    toolCards.forEach(card => {
+        const checkbox = card.querySelector('input[type="checkbox"]');
+        if (checkbox && checkbox.checked) {
+            selectedTools.push(card.dataset.toolType);
+        }
+    });
     
     if (selectedTools.length < 2) {
         showWarning('最低2つ以上のテックツールを選択してください');
@@ -1200,10 +1344,17 @@ async function generateTechToolUrls(selectedTools) {
             return;
         }
         
-        // Step 2: Format tech tools for database
-        const techToolsForDB = urlResult.data.tech_tools.map((tool, index) => ({
-            tool_type: tool.tool_type,
-            tool_url: tool.tool_url,
+        // Step 2: Format tech tools for database - preserve DOM order
+        // Create a map of tool_type to tool_url for quick lookup
+        const toolUrlMap = {};
+        urlResult.data.tech_tools.forEach(tool => {
+            toolUrlMap[tool.tool_type] = tool.tool_url;
+        });
+        
+        // Build tech tools array in DOM order
+        const techToolsForDB = selectedTools.map((toolType, index) => ({
+            tool_type: toolType,
+            tool_url: toolUrlMap[toolType],
             display_order: index,
             is_active: 1
         }));
@@ -2209,6 +2360,150 @@ document.getElementById('free_image')?.addEventListener('change', (e) => {
     }
 });
 
+// Add free input text textarea for register
+function addFreeInputTextForRegister() {
+    const container = document.getElementById('free-input-texts-container');
+    if (!container) return;
+    
+    const newItem = document.createElement('div');
+    newItem.className = 'free-input-text-item';
+    newItem.innerHTML = `
+        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+        <button type="button" class="btn-delete-small" onclick="removeFreeInputTextForRegister(this)">削除</button>
+    `;
+    
+    container.appendChild(newItem);
+    
+    // Show delete buttons if there are multiple items
+    updateFreeInputDeleteButtonsForRegister();
+}
+
+// Remove free input text textarea for register
+function removeFreeInputTextForRegister(button) {
+    const container = document.getElementById('free-input-texts-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-input-text-item');
+    if (items.length <= 1) {
+        showWarning('最低1つのテキストエリアが必要です。');
+        return;
+    }
+    
+    const item = button.closest('.free-input-text-item');
+    if (item) {
+        item.remove();
+        updateFreeInputDeleteButtonsForRegister();
+    }
+}
+
+// Update delete button visibility for register
+function updateFreeInputDeleteButtonsForRegister() {
+    const container = document.getElementById('free-input-texts-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-input-text-item');
+    const deleteButtons = container.querySelectorAll('#free-input-texts-container .btn-delete-small');
+    
+    if (items.length > 1) {
+        deleteButtons.forEach(btn => btn.style.display = 'inline-block');
+    } else {
+        deleteButtons.forEach(btn => btn.style.display = 'none');
+    }
+}
+
+// Add free image item for register
+function addFreeImageItemForRegister() {
+    const container = document.getElementById('free-images-container');
+    if (!container) return;
+    
+    const itemCount = container.querySelectorAll('.free-image-item').length;
+    const newItem = document.createElement('div');
+    newItem.className = 'free-image-item';
+    newItem.innerHTML = `
+        <div class="upload-area" data-upload-id="free_image_${itemCount}">
+            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+            <div class="upload-preview"></div>
+            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
+                画像をアップロード
+            </button>
+            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+        </div>
+        <div class="form-group" style="margin-top: 0.5rem;">
+            <label>画像のリンク先URL（任意）</label>
+            <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+        </div>
+        <button type="button" class="btn-delete-small" onclick="removeFreeImageItemForRegister(this)">削除</button>
+    `;
+    
+    container.appendChild(newItem);
+    
+    // Initialize file input handler for the new item
+    initializeFreeImageUploadForRegister(newItem);
+    
+    // Show delete buttons if there are multiple items
+    updateFreeImageDeleteButtonsForRegister();
+}
+
+// Remove free image item for register
+function removeFreeImageItemForRegister(button) {
+    const container = document.getElementById('free-images-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-image-item');
+    if (items.length <= 1) {
+        showWarning('最低1つの画像項目が必要です。');
+        return;
+    }
+    
+    const item = button.closest('.free-image-item');
+    if (item) {
+        item.remove();
+        updateFreeImageDeleteButtonsForRegister();
+    }
+}
+
+// Update delete button visibility for free images in register
+function updateFreeImageDeleteButtonsForRegister() {
+    const container = document.getElementById('free-images-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-image-item');
+    const deleteButtons = container.querySelectorAll('#free-images-container .btn-delete-small');
+    
+    if (items.length > 1) {
+        deleteButtons.forEach(btn => btn.style.display = 'inline-block');
+    } else {
+        deleteButtons.forEach(btn => btn.style.display = 'none');
+    }
+}
+
+// Initialize file upload handler for free image items in register
+function initializeFreeImageUploadForRegister(item) {
+    const fileInput = item.querySelector('input[type="file"]');
+    if (!fileInput) return;
+    
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const preview = item.querySelector('.upload-preview');
+                if (preview) {
+                    const img = new Image();
+                    img.onload = () => {
+                        const resizeNote = (img.width > 1200 || img.height > 1200) 
+                            ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
+                            : '';
+                        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
+                    };
+                    img.src = event.target.result;
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
 // Initialize from session storage
 window.addEventListener('DOMContentLoaded', () => {
     const savedData = sessionStorage.getItem('registerData');
@@ -2227,6 +2522,12 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // Initialize drag and drop for greeting items
     initializeGreetingDragAndDrop();
+    
+    // Initialize tech tool drag and drop
+    setTimeout(() => {
+        initializeTechToolDragAndDropForRegister();
+        updateTechToolButtonsForRegister();
+    }, 100);
 
     // Initialize preview button
     const previewBtn = document.getElementById('preview-btn');
@@ -2240,3 +2541,167 @@ window.addEventListener('DOMContentLoaded', () => {
         closePreviewBtn.addEventListener('click', hidePreview);
     }
 });
+
+// Move tech tool up or down for register
+function moveTechToolForRegister(index, direction) {
+    const container = document.getElementById('tech-tools-grid');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateTechToolButtonsForRegister();
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateTechToolButtonsForRegister();
+    }
+}
+
+// Update tech tool move buttons for register
+function updateTechToolButtonsForRegister() {
+    const container = document.getElementById('tech-tools-grid');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveTechToolForRegister(${index}, 'up')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveTechToolForRegister(${index}, 'down')`);
+        }
+    });
+}
+
+// Initialize drag and drop for tech tools in register
+function initializeTechToolDragAndDropForRegister() {
+    const container = document.getElementById('tech-tools-grid');
+    if (!container) return;
+    
+    let draggedElement = null;
+    let isInitializing = false;
+    
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+        
+        const items = container.querySelectorAll('.tech-tool-banner-card');
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+        
+        attachDragListeners();
+        isInitializing = false;
+    }
+    
+    function attachDragListeners() {
+        const items = container.querySelectorAll('.tech-tool-banner-card');
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+            
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+            
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll('.tech-tool-banner-card').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+            
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+                return false;
+            });
+            
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+            
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (draggedElement !== this && draggedElement !== null) {
+                    if (observer) observer.disconnect();
+                    
+                    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
+                    const targetIndex = items.indexOf(this);
+                    const draggedIndexCurrent = items.indexOf(draggedElement);
+                    
+                    if (draggedIndexCurrent < targetIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+                    
+                    draggedElement.dataset.dragInitialized = 'false';
+                    this.dataset.dragInitialized = 'false';
+                    
+                    updateTechToolButtonsForRegister();
+                    attachDragListeners();
+                    
+                    if (observer) {
+                        observer.observe(container, {
+                            childList: true,
+                            subtree: false
+                        });
+                    }
+                }
+                
+                this.classList.remove('drag-over');
+                draggedElement = null;
+                return false;
+            });
+        });
+    }
+    
+    makeItemsDraggable();
+    
+    const observer = new MutationObserver(function(mutations) {
+        if (isInitializing) return;
+        
+        let shouldReinit = false;
+        mutations.forEach(function(mutation) {
+            if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
+                for (let node of mutation.addedNodes) {
+                    if (node.nodeType === 1 && node.classList && node.classList.contains('tech-tool-banner-card')) {
+                        if (!node.dataset.dragInitialized) {
+                            shouldReinit = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        
+        if (shouldReinit) {
+            makeItemsDraggable();
+        }
+    });
+    
+    observer.observe(container, {
+        childList: true,
+        subtree: false
+    });
+}

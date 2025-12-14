@@ -195,11 +195,11 @@ $defaultGreetings = [
                         ];
                         ?>
                         <div class="form-section">
-                            <h3>宅建業者番号</h3>
+                            <h3>宅建業者番号<span class="required-asterisk">※</span></h3>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>都道府県</label>
-                                    <select name="real_estate_license_prefecture" id="license_prefecture" class="form-control">
+                                    <select name="real_estate_license_prefecture" id="license_prefecture" class="form-control" required>
                                         <option value="">選択してください</option>
                                         <?php foreach ($prefectures as $pref): ?>
                                         <option value="<?php echo htmlspecialchars($pref); ?>"><?php echo htmlspecialchars($pref); ?></option>
@@ -208,7 +208,7 @@ $defaultGreetings = [
                                 </div>
                                 <div class="form-group">
                                     <label>更新番号</label>
-                                    <select name="real_estate_license_renewal_number" id="license_renewal" class="form-control">
+                                    <select name="real_estate_license_renewal_number" id="license_renewal" class="form-control" required>
                                         <option value="">選択してください</option>
                                         <?php for ($i = 1; $i <= 20; $i++): ?>
                                         <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
@@ -217,7 +217,7 @@ $defaultGreetings = [
                                 </div>
                                 <div class="form-group">
                                     <label>登録番号</label>
-                                    <input type="text" name="real_estate_license_registration_number" id="license_registration" class="form-control" placeholder="例：12345">
+                                    <input type="text" name="real_estate_license_registration_number" id="license_registration" class="form-control" placeholder="例：12345" required>
                                     <!-- <button type="button" class="btn-outline" id="lookup-license" style="margin-top: 0.5rem;">住所を自動入力</button> -->
                                 </div>
                             </div>
@@ -283,10 +283,12 @@ $defaultGreetings = [
                         <div class="form-row">
                             <div class="form-group">
                                 <label>ローマ字姓</label>
+                                <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                                 <input type="text" name="last_name_romaji" id="edit_last_name_romaji" class="form-control" placeholder="例：Yamada">
                             </div>
                             <div class="form-group">
                                 <label>ローマ字名</label>
+                                <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                                 <input type="text" name="first_name_romaji" id="edit_first_name_romaji" class="form-control" placeholder="例：Taro">
                             </div>
                         </div>
@@ -349,22 +351,32 @@ $defaultGreetings = [
                             <h3>フリー入力欄</h3>
                             <p class="section-note">自由にアピールポイントや追加情報を入力できます。YouTubeのリンクなども貼り付けられます。</p>
                             <div class="form-group">
-                                <label>テキスト</label>
-                                <textarea name="free_input_text" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+                                <label>テキスト <button type="button" class="btn-add-small" onclick="addFreeInputText()">追加</button></label>
+                                <div id="free-input-texts-container">
+                                    <div class="free-input-text-item">
+                                        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+                                        <button type="button" class="btn-delete-small" onclick="removeFreeInputText(this)" style="display: none;">削除</button>
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
-                                <label>画像・バナー（リンク付き画像）</label>
-                                <div class="upload-area" id="free-image-upload" data-upload-id="free_image">
-                                    <input type="file" id="free_image" name="free_image" accept="image/*" style="display: none;">
-                                    <div class="upload-preview"></div>
-                                    <button type="button" class="btn-outline" onclick="document.getElementById('free_image').click()">
-                                        画像をアップロード
-                                    </button>
-                                    <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
-                                </div>
-                                <div class="form-group" style="margin-top: 0.5rem;">
-                                    <label>画像のリンク先URL（任意）</label>
-                                    <input type="url" name="free_image_link" class="form-control" placeholder="https://example.com">
+                                <label>画像・バナー（リンク付き画像） <button type="button" class="btn-add-small" onclick="addFreeImageItem()">追加</button></label>
+                                <div id="free-images-container">
+                                    <div class="free-image-item">
+                                        <div class="upload-area" data-upload-id="free_image_0">
+                                            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                                            <div class="upload-preview"></div>
+                                            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\"file\"]').click()">
+                                                画像をアップロード
+                                            </button>
+                                            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                                        </div>
+                                        <div class="form-group" style="margin-top: 0.5rem;">
+                                            <label>画像のリンク先URL（任意）</label>
+                                            <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+                                        </div>
+                                        <button type="button" class="btn-delete-small" onclick="removeFreeImageItem(this)" style="display: none;">削除</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -388,8 +400,203 @@ $defaultGreetings = [
                 <div id="communication-section" class="edit-section">
                     <h2>コミュニケーション機能部</h2>
                     <p class="step-description">メッセージアプリやSNSの連携を設定してください</p>
-                    <div id="communication-list"></div>
-                    <button type="button" class="btn-add" onclick="addCommunicationMethod()">追加</button>
+                    
+                    <div class="form-section">
+                        <h3>メッセージアプリ部</h3>
+                        <p class="section-note">一番簡単につながる方法を教えてください。ここが重要になります。</p>
+                        
+                        <div class="communication-grid">
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_line" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/line.png" alt="LINE">
+                                    </div>
+                                    <span>LINE</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="text" name="comm_line_id" class="form-control" placeholder="LINE IDまたはURL">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_messenger" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/messenger.png" alt="Messenger">
+                                    </div>
+                                    <span>Messenger</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="text" name="comm_messenger_id" class="form-control" placeholder="Messenger IDまたはURL">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_whatsapp" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/whatsapp.png" alt="WhatsApp">
+                                    </div>
+                                    <span>WhatsApp</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="text" name="comm_whatsapp_id" class="form-control" placeholder="WhatsApp IDまたはURL">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_plus_message" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/message.png" alt="+メッセージ">
+                                    </div>
+                                    <span>+メッセージ</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="text" name="comm_plus_message_id" class="form-control" placeholder="+メッセージ IDまたはURL">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_chatwork" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/chatwork.png" alt="Chatwork">
+                                    </div>
+                                    <span>Chatwork</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="text" name="comm_chatwork_id" class="form-control" placeholder="Chatwork IDまたはURL">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_andpad" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/andpad.png" alt="Andpad">
+                                    </div>
+                                    <span>Andpad</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="text" name="comm_andpad_id" class="form-control" placeholder="Andpad IDまたはURL">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>SNS部</h3>
+                        <p class="section-note">SNSのリンク先を入力できます。</p>
+                        
+                        <div class="communication-grid">
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_instagram" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/instagram.png" alt="Instagram">
+                                    </div>
+                                    <span>Instagram</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="url" name="comm_instagram_url" class="form-control" placeholder="https://instagram.com/...">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_facebook" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/facebook.png" alt="Facebook">
+                                    </div>
+                                    <span>Facebook</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="url" name="comm_facebook_url" class="form-control" placeholder="https://facebook.com/...">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_twitter" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/twitter.png" alt="X (Twitter)">
+                                    </div>
+                                    <span>X (Twitter)</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="url" name="comm_twitter_url" class="form-control" placeholder="https://x.com/...">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_youtube" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/youtube.png" alt="YouTube">
+                                    </div>
+                                    <span>YouTube</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="url" name="comm_youtube_url" class="form-control" placeholder="https://youtube.com/...">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_tiktok" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/tiktok.png" alt="TikTok">
+                                    </div>
+                                    <span>TikTok</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="url" name="comm_tiktok_url" class="form-control" placeholder="https://tiktok.com/...">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_note" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/note.png" alt="note">
+                                    </div>
+                                    <span>note</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="url" name="comm_note_url" class="form-control" placeholder="https://note.com/...">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_pinterest" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/pinterest.png" alt="Pinterest">
+                                    </div>
+                                    <span>Pinterest</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="url" name="comm_pinterest_url" class="form-control" placeholder="https://pinterest.com/...">
+                                </div>
+                            </div>
+
+                            <div class="communication-item">
+                                <label class="communication-checkbox">
+                                    <input type="checkbox" name="comm_threads" value="1">
+                                    <div class="comm-icon">
+                                        <img src="assets/images/icons/threads.png" alt="Threads">
+                                    </div>
+                                    <span>Threads</span>
+                                </label>
+                                <div class="comm-details" style="display: none;">
+                                    <input type="url" name="comm_threads_url" class="form-control" placeholder="https://threads.net/...">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存</button>
                 </div>
             </div>
@@ -512,6 +719,16 @@ $defaultGreetings = [
                 companyProfileForm.addEventListener('submit', async function(e) {
                     e.preventDefault();
                     
+                    // Validate required fields for real estate license
+                    const prefecture = document.getElementById('license_prefecture').value;
+                    const renewal = document.getElementById('license_renewal').value;
+                    const registration = document.getElementById('license_registration').value.trim();
+                    
+                    if (!prefecture || !renewal || !registration) {
+                        showError('宅建業者番号（都道府県、更新番号、登録番号）は必須項目です。');
+                        return;
+                    }
+                    
                     const formData = new FormData(companyProfileForm);
                     const data = {};
                     
@@ -589,48 +806,63 @@ $defaultGreetings = [
                     delete data.qualification_kenchikushi;
                     delete data.qualifications_other;
                     
-                    // Handle free input
-                    let freeInputData = {
-                        text: data.free_input_text || '',
-                        image_link: data.free_image_link || ''
-                    };
+                    // Handle free input - collect all textarea values
+                    const freeInputTexts = formData.getAll('free_input_text[]').filter(text => text.trim() !== '');
                     
-                    // Handle free image upload
-                    const freeImageFile = document.getElementById('free_image').files[0];
-                    if (freeImageFile) {
-                        const uploadData = new FormData();
-                        uploadData.append('file', freeImageFile);
-                        uploadData.append('file_type', 'free');
+                    // Handle free images - collect all image+link pairs
+                    const freeImageLinks = formData.getAll('free_image_link[]');
+                    const freeImageItems = document.querySelectorAll('#free-images-container .free-image-item');
+                    const images = [];
+                    
+                    for (let i = 0; i < freeImageItems.length; i++) {
+                        const item = freeImageItems[i];
+                        const fileInput = item.querySelector('input[type="file"]');
+                        const linkInput = item.querySelector('input[type="url"]');
+                        const existingImage = item.querySelector('.upload-area').dataset.existingImage;
                         
-                        try {
-                            const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
-                                method: 'POST',
-                                body: uploadData,
-                                credentials: 'include'
-                            });
+                        let imagePath = existingImage || '';
+                        
+                        // If new file is selected, upload it
+                        if (fileInput && fileInput.files && fileInput.files[0]) {
+                            const uploadData = new FormData();
+                            uploadData.append('file', fileInput.files[0]);
+                            uploadData.append('file_type', 'free');
                             
-                            const uploadResult = await uploadResponse.json();
-                            if (uploadResult.success) {
-                                const fullPath = uploadResult.data.file_path;
-                                const relativePath = fullPath.split('/php/')[1];
-                                freeInputData.image = relativePath;
+                            try {
+                                const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
+                                    method: 'POST',
+                                    body: uploadData,
+                                    credentials: 'include'
+                                });
+                                
+                                const uploadResult = await uploadResponse.json();
+                                if (uploadResult.success) {
+                                    const fullPath = uploadResult.data.file_path;
+                                    imagePath = fullPath.split('/php/')[1] || fullPath;
+                                }
+                            } catch (error) {
+                                console.error('Upload error:', error);
                             }
-                        } catch (error) {
-                            console.error('Upload error:', error);
                         }
-                    } else if (window.businessCardData && window.businessCardData.free_input) {
-                        try {
-                            const existingFreeInput = JSON.parse(window.businessCardData.free_input);
-                            if (existingFreeInput.image) {
-                                freeInputData.image = existingFreeInput.image;
-                            }
-                        } catch (e) {
-                            console.error('Error parsing free_input:', e);
-                        }
+                        
+                        images.push({
+                            image: imagePath,
+                            link: linkInput ? linkInput.value.trim() : ''
+                        });
                     }
                     
+                    let freeInputData = {
+                        texts: freeInputTexts.length > 0 ? freeInputTexts : [''],
+                        images: images.length > 0 ? images : [{ image: '', link: '' }]
+                    };
+                    
                     data.free_input = JSON.stringify(freeInputData);
-                    delete data.free_input_text;
+                    // Remove all free_input_text entries from data
+                    Object.keys(data).forEach(key => {
+                        if (key.startsWith('free_input_text')) {
+                            delete data[key];
+                        }
+                    });
                     delete data.free_image_link;
                     delete data.last_name;
                     delete data.first_name;

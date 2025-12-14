@@ -20,7 +20,62 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         initializeGreetingDragAndDrop();
     }, 500); // Wait for greetings to be loaded
+    
+    // Auto-capitalize first letter of romaji input fields
+    setupRomajiAutoCapitalize();
+    
+    // Initialize free image upload handlers for existing items
+    const freeImageItems = document.querySelectorAll('#free-images-container .free-image-item');
+    freeImageItems.forEach(item => {
+        initializeFreeImageUpload(item);
+    });
+    
+    // Initialize communication checkbox handlers
+    setupCommunicationCheckboxes();
 });
+
+// Setup communication checkbox handlers
+function setupCommunicationCheckboxes() {
+    document.querySelectorAll('.communication-checkbox input[type="checkbox"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const item = this.closest('.communication-item');
+            const details = item.querySelector('.comm-details');
+            if (details) {
+                details.style.display = this.checked ? 'block' : 'none';
+            }
+        });
+    });
+}
+
+// Auto-capitalize first letter of romaji input fields
+function setupRomajiAutoCapitalize() {
+    const romajiFields = [
+        document.getElementById('edit_last_name_romaji'),
+        document.getElementById('edit_first_name_romaji')
+    ];
+    
+    romajiFields.forEach(field => {
+        if (field) {
+            // Use input event to capitalize first letter
+            field.addEventListener('input', function(e) {
+                const input = e.target;
+                let value = input.value;
+                
+                if (value.length > 0) {
+                    // 最初の文字が小文字（a-z）の場合は大文字に変換
+                    const firstChar = value.charAt(0);
+                    if (firstChar >= 'a' && firstChar <= 'z') {
+                        const cursorPosition = input.selectionStart;
+                        value = firstChar.toUpperCase() + value.slice(1);
+                        input.value = value;
+                        // カーソル位置を復元
+                        input.setSelectionRange(cursorPosition, cursorPosition);
+                    }
+                }
+            });
+        }
+    });
+}
 
 // Load business card data from API
 async function loadBusinessCardData() {
@@ -258,20 +313,86 @@ function populateForms(data) {
         if (data.free_input) {
             try {
                 const freeInputData = JSON.parse(data.free_input);
-                if (freeInputData.text) {
-                    const freeTextTextarea = personalInfoForm.querySelector('textarea[name="free_input_text"]');
-                    if (freeTextTextarea) freeTextTextarea.value = freeInputData.text;
+                const container = document.getElementById('free-input-texts-container');
+                
+                // Handle both old format (text) and new format (texts)
+                let texts = [];
+                if (freeInputData.texts && Array.isArray(freeInputData.texts)) {
+                    texts = freeInputData.texts;
+                } else if (freeInputData.text) {
+                    texts = [freeInputData.text];
                 }
-                if (freeInputData.image_link) {
-                    const freeImageLinkInput = personalInfoForm.querySelector('input[name="free_image_link"]');
-                    if (freeImageLinkInput) freeImageLinkInput.value = freeInputData.image_link;
-                }
-                if (freeInputData.image) {
-                    const freeImagePreview = document.querySelector('#free-image-upload .upload-preview');
-                    if (freeImagePreview) {
-                        const imagePath = freeInputData.image.startsWith('http') ? freeInputData.image : '../' + freeInputData.image;
-                        freeImagePreview.innerHTML = `<img src="${imagePath}" alt="フリー画像" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                
+                // Clear existing textareas
+                if (container) {
+                    container.innerHTML = '';
+                    
+                    // Create textareas for each text
+                    if (texts.length === 0) {
+                        // If no texts, create one empty textarea
+                        texts = [''];
                     }
+                    
+                    texts.forEach((text, index) => {
+                        const item = document.createElement('div');
+                        item.className = 'free-input-text-item';
+                        item.innerHTML = `
+                            <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx">${escapeHtml(text)}</textarea>
+                            <button type="button" class="btn-delete-small" onclick="removeFreeInputText(this)" ${texts.length <= 1 ? 'style="display: none;"' : ''}>削除</button>
+                        `;
+                        container.appendChild(item);
+                    });
+                }
+                
+                // Handle images - support both old format (single image) and new format (array)
+                const imagesContainer = document.getElementById('free-images-container');
+                if (imagesContainer) {
+                    imagesContainer.innerHTML = '';
+                    
+                    let images = [];
+                    if (freeInputData.images && Array.isArray(freeInputData.images)) {
+                        images = freeInputData.images;
+                    } else if (freeInputData.image || freeInputData.image_link) {
+                        // Old format: single image
+                        images = [{
+                            image: freeInputData.image || '',
+                            link: freeInputData.image_link || ''
+                        }];
+                    }
+                    
+                    // If no images, create one empty item
+                    if (images.length === 0) {
+                        images = [{ image: '', link: '' }];
+                    }
+                    
+                    images.forEach((imgData, index) => {
+                        const item = document.createElement('div');
+                        item.className = 'free-image-item';
+                        item.innerHTML = `
+                            <div class="upload-area" data-upload-id="free_image_${index}">
+                                <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                                <div class="upload-preview">${imgData.image ? `<img src="${imgData.image.startsWith('http') ? imgData.image : '../' + imgData.image}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">` : ''}</div>
+                                <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
+                                    画像をアップロード
+                                </button>
+                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                            </div>
+                            <div class="form-group" style="margin-top: 0.5rem;">
+                                <label>画像のリンク先URL（任意）</label>
+                                <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com" value="${escapeHtml(imgData.link || '')}">
+                            </div>
+                            <button type="button" class="btn-delete-small" onclick="removeFreeImageItem(this)" ${images.length <= 1 ? 'style="display: none;"' : ''}>削除</button>
+                        `;
+                        imagesContainer.appendChild(item);
+                        
+                        // Store existing image path in data attribute for later use
+                        if (imgData.image) {
+                            item.querySelector('.upload-area').dataset.existingImage = imgData.image;
+                        }
+                        
+                        // Initialize file upload handler
+                        initializeFreeImageUpload(item);
+                    });
                 }
             } catch (e) {
                 console.error('Error parsing free_input:', e);
@@ -725,6 +846,10 @@ function displayTechTools(techTools) {
         toolCard.dataset.toolType = toolType;
 
         toolCard.innerHTML = `
+            <div class="tech-tool-actions">
+                <button type="button" class="btn-move-up" onclick="moveTechTool(${allTools.indexOf(toolType)}, 'up')" ${allTools.indexOf(toolType) === 0 ? 'disabled' : ''}>↑</button>
+                <button type="button" class="btn-move-down" onclick="moveTechTool(${allTools.indexOf(toolType)}, 'down')" ${allTools.indexOf(toolType) === allTools.length - 1 ? 'disabled' : ''}>↓</button>
+            </div>
             <input type="checkbox" id="${tool.id}" class="tech-tool-checkbox" ${isActive ? 'checked' : ''}>
             <label for="${tool.id}" class="tech-tool-label">
                 <div class="tool-banner-header" style="background-image: url('${tool.banner_image}'); background-size: contain; background-position: center; background-repeat: no-repeat;"></div>
@@ -747,78 +872,87 @@ function displayTechTools(techTools) {
         });
     });
 
+    // Initialize drag and drop for tech tools
+    setTimeout(() => {
+        initializeTechToolDragAndDrop();
+        updateTechToolButtons();
+    }, 100);
+
     console.log('Tech tools displayed:', techTools);
 }
 
 // Display communication methods
 function displayCommunicationMethods(methods) {
-    const commList = document.getElementById('communication-list');
-    if (!commList) return;
+    if (!methods || !Array.isArray(methods)) return;
     
-    const methodNames = {
-        'line': 'LINE',
-        'messenger': 'Messenger',
-        'whatsapp': 'WhatsApp',
-        'plus_message': '+メッセージ',
-        'chatwork': 'Chatwork',
-        'andpad': 'Andpad',
-        'instagram': 'Instagram',
-        'facebook': 'Facebook',
-        'twitter': 'X (Twitter)',
-        'youtube': 'YouTube',
-        'tiktok': 'TikTok',
-        'note': 'note',
-        'pinterest': 'Pinterest',
-        'threads': 'Threads'
-    };
-    
-    const methodIcons = {
-        'line': '<img src="./assets/images/icons/line.png" alt="LINE" class="comm-icon-img">',
-        'messenger': '<img src="./assets/images/icons/messenger.png" alt="Messenger" class="comm-icon-img">',
-        'whatsapp': '<img src="./assets/images/icons/whatsapp.png" alt="WhatsApp" class="comm-icon-img">',
-        'plus_message': '<img src="./assets/images/icons/message.png" alt="+メッセージ" class="comm-icon-img">',
-        'chatwork': '<img src="./assets/images/icons/chatwork.png" alt="Chatwork" class="comm-icon-img">',
-        'andpad': '<img src="./assets/images/icons/andpad.png" alt="Andpad" class="comm-icon-img">',
-        'instagram': '<img src="./assets/images/icons/instagram.png" alt="Instagram" class="comm-icon-img">',
-        'facebook': '<img src="./assets/images/icons/facebook.png" alt="Facebook" class="comm-icon-img">',
-        'twitter': '<img src="./assets/images/icons/twitter.png" alt="X (Twitter)" class="comm-icon-img">',
-        'youtube': '<img src="./assets/images/icons/youtube.png" alt="YouTube" class="comm-icon-img">',
-        'tiktok': '<img src="./assets/images/icons/tiktok.png" alt="TikTok" class="comm-icon-img">',
-        'note': '<img src="./assets/images/icons/note.png" alt="note" class="comm-icon-img">',
-        'pinterest': '<img src="./assets/images/icons/pinterest.png" alt="Pinterest" class="comm-icon-img">',
-        'threads': '<img src="./assets/images/icons/threads.png" alt="Threads" class="comm-icon-img">'
-    };
-    
-    commList.innerHTML = '';
-    
+    // Create a map of method_type to method data for quick lookup
+    const methodMap = {};
     methods.forEach(method => {
-        const commItem = document.createElement('div');
-        commItem.className = 'communication-item';
-        commItem.dataset.id = method.id;
-        commItem.dataset.methodType = method.method_type;
-        
-        const isUrlBased = ['instagram', 'facebook', 'twitter', 'youtube', 'tiktok', 'note', 'pinterest', 'threads'].includes(method.method_type);
-        const value = isUrlBased ? (method.method_url || '') : (method.method_id || '');
-        const placeholder = isUrlBased ? 
-            `https://${method.method_type === 'twitter' ? 'x.com' : method.method_type === 'note' ? 'note.com' : method.method_type === 'threads' ? 'threads.net' : method.method_type + '.com'}/...` : 
-            `${methodNames[method.method_type] || method.method_type} IDまたはURL`;
-        
-        commItem.innerHTML = `
-        <div class="communication-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <label class="communication-checkbox">
-                <input type="checkbox" ${method.is_active ? 'checked' : ''} onchange="toggleCommunicationMethod(${method.id}, this.checked)">
-                <div class="comm-icon">${methodIcons[method.method_type] || '<img src="./assets/images/icons/message.png" alt="+メッセージ" class="comm-icon-img">'}</div>
-                <span>${methodNames[method.method_type] || method.method_type}</span>
-            </label>
-            <button type="button" class="btn-delete" onclick="deleteCommunicationMethod(${method.id})">削除</button>
-        </div>
-            <div class="comm-details" style="display: ${method.is_active ? 'block' : 'none'};">
-                <input type="${isUrlBased ? 'url' : 'text'}" class="form-control comm-value" value="${escapeHtml(value)}" placeholder="${placeholder}" ${isUrlBased ? 'pattern="https?://.+"' : ''}>
-                ${isUrlBased ? '<small style="color: #666; display: block; margin-top: 4px;">有効なURLを入力してください（https://で始まる必要があります）</small>' : ''}
-            </div>
-        `;
-        commList.appendChild(commItem);
+        methodMap[method.method_type] = method;
     });
+    
+    // Message apps
+    const messageApps = [
+        { type: 'line', checkboxName: 'comm_line', inputName: 'comm_line_id' },
+        { type: 'messenger', checkboxName: 'comm_messenger', inputName: 'comm_messenger_id' },
+        { type: 'whatsapp', checkboxName: 'comm_whatsapp', inputName: 'comm_whatsapp_id' },
+        { type: 'plus_message', checkboxName: 'comm_plus_message', inputName: 'comm_plus_message_id' },
+        { type: 'chatwork', checkboxName: 'comm_chatwork', inputName: 'comm_chatwork_id' },
+        { type: 'andpad', checkboxName: 'comm_andpad', inputName: 'comm_andpad_id' }
+    ];
+    
+    messageApps.forEach(app => {
+        const method = methodMap[app.type];
+        if (method) {
+            const checkbox = document.querySelector(`input[name="${app.checkboxName}"]`);
+            const input = document.querySelector(`input[name="${app.inputName}"]`);
+            const details = checkbox?.closest('.communication-item')?.querySelector('.comm-details');
+            
+            if (checkbox) {
+                checkbox.checked = method.is_active === 1 || method.is_active === true;
+            }
+            if (input && (method.method_id || method.method_url)) {
+                input.value = method.method_id || method.method_url || '';
+            }
+            if (details && checkbox && checkbox.checked) {
+                details.style.display = 'block';
+            }
+        }
+    });
+    
+    // SNS apps
+    const snsApps = [
+        { type: 'instagram', checkboxName: 'comm_instagram', inputName: 'comm_instagram_url' },
+        { type: 'facebook', checkboxName: 'comm_facebook', inputName: 'comm_facebook_url' },
+        { type: 'twitter', checkboxName: 'comm_twitter', inputName: 'comm_twitter_url' },
+        { type: 'youtube', checkboxName: 'comm_youtube', inputName: 'comm_youtube_url' },
+        { type: 'tiktok', checkboxName: 'comm_tiktok', inputName: 'comm_tiktok_url' },
+        { type: 'note', checkboxName: 'comm_note', inputName: 'comm_note_url' },
+        { type: 'pinterest', checkboxName: 'comm_pinterest', inputName: 'comm_pinterest_url' },
+        { type: 'threads', checkboxName: 'comm_threads', inputName: 'comm_threads_url' }
+    ];
+    
+    snsApps.forEach(app => {
+        const method = methodMap[app.type];
+        if (method) {
+            const checkbox = document.querySelector(`input[name="${app.checkboxName}"]`);
+            const input = document.querySelector(`input[name="${app.inputName}"]`);
+            const details = checkbox?.closest('.communication-item')?.querySelector('.comm-details');
+            
+            if (checkbox) {
+                checkbox.checked = method.is_active === 1 || method.is_active === true;
+            }
+            if (input && method.method_url) {
+                input.value = method.method_url || '';
+            }
+            if (details && checkbox && checkbox.checked) {
+                details.style.display = 'block';
+            }
+        }
+    });
+    
+    // Re-initialize communication checkbox handlers after data is loaded
+    setupCommunicationCheckboxes();
 }
 
 // Setup navigation
@@ -1345,7 +1479,8 @@ async function saveTechTools() {
     }
     
     // Use .tech-tool-banner-card or .tech-tool-card selector (matches the banner format)
-    const toolCards = techToolsList.querySelectorAll('.tech-tool-banner-card, .tech-tool-card');
+    // Get tools in DOM order (respecting user's reordering)
+    const toolCards = Array.from(techToolsList.querySelectorAll('.tech-tool-banner-card, .tech-tool-card'));
     const selectedToolTypes = [];
     
     toolCards.forEach(card => {
@@ -1377,10 +1512,17 @@ async function saveTechTools() {
             return;
         }
         
-        // Step 2: Format tech tools for database
-        const techTools = urlResult.data.tech_tools.map((tool, index) => ({
-            tool_type: tool.tool_type,
-            tool_url: tool.tool_url,
+        // Step 2: Format tech tools for database - preserve DOM order
+        // Create a map of tool_type to tool_url for quick lookup
+        const toolUrlMap = {};
+        urlResult.data.tech_tools.forEach(tool => {
+            toolUrlMap[tool.tool_type] = tool.tool_url;
+        });
+        
+        // Build tech tools array in DOM order
+        const techTools = selectedToolTypes.map((toolType, index) => ({
+            tool_type: toolType,
+            tool_url: toolUrlMap[toolType],
             display_order: index,
             is_active: 1
         }));
@@ -1411,113 +1553,34 @@ async function saveTechTools() {
     }
 }
 
-// Toggle communication method
+// Toggle communication method (kept for backward compatibility, but now handled by setupCommunicationCheckboxes)
 function toggleCommunicationMethod(id, isActive) {
-    const item = document.querySelector(`.communication-item[data-id="${id}"]`);
-    if (item) {
-        const details = item.querySelector('.comm-details');
-        details.style.display = isActive ? 'block' : 'none';
+    // This function is now handled by setupCommunicationCheckboxes
+    // But we keep it for any existing calls
+    if (id === null) {
+        // Handle inline checkbox changes - already handled by setupCommunicationCheckboxes
+        return;
+    } else {
+        const item = document.querySelector(`.communication-item[data-id="${id}"]`);
+        if (item) {
+            const details = item.querySelector('.comm-details');
+            details.style.display = isActive ? 'block' : 'none';
+        }
     }
 }
 
-// Delete communication method
+// Delete communication method (no longer needed since all methods are always visible)
 async function deleteCommunicationMethod(id) {
-    showConfirm('このコミュニケーション方法を削除しますか？', async () => {
-        // Remove from DOM
-        const item = document.querySelector(`.communication-item[data-id="${id}"]`);
-        if (item) {
-            item.remove();
-        }
-        // Save changes
-        await saveCommunicationMethods();
-    });
+    // This function is kept for backward compatibility but is no longer used
+    // All communication methods are now always visible
     return;
 }
 
-// Add communication method
+// Add communication method (no longer needed since all methods are always visible)
 function addCommunicationMethod() {
-    const commList = document.getElementById('communication-list');
-    if (!commList) return;
-    
-    const methodTypes = [
-        { type: 'line', name: 'LINE' },
-        { type: 'messenger', name: 'Messenger' },
-        { type: 'whatsapp', name: 'WhatsApp' },
-        { type: 'plus_message', name: '+メッセージ' },
-        { type: 'chatwork', name: 'Chatwork' },
-        { type: 'andpad', name: 'Andpad' },
-        { type: 'instagram', name: 'Instagram' },
-        { type: 'facebook', name: 'Facebook' },
-        { type: 'twitter', name: 'X (Twitter)' },
-        { type: 'youtube', name: 'YouTube' },
-        { type: 'tiktok', name: 'TikTok' },
-        { type: 'note', name: 'note' },
-        { type: 'pinterest', name: 'Pinterest' },
-        { type: 'threads', name: 'Threads' }
-    ];
-    
-    // Icon mapping (same as displayCommunicationMethods)
-    const methodIcons = {
-        'line': '<img src="./assets/images/icons/line.png" alt="LINE" class="comm-icon-img">',
-        'messenger': '<img src="./assets/images/icons/messenger.png" alt="Messenger" class="comm-icon-img">',
-        'whatsapp': '<img src="./assets/images/icons/whatsapp.png" alt="WhatsApp" class="comm-icon-img">',
-        'plus_message': '<img src="./assets/images/icons/message.png" alt="+メッセージ" class="comm-icon-img">',
-        'chatwork': '<img src="./assets/images/icons/chatwork.png" alt="Chatwork" class="comm-icon-img">',
-        'andpad': '<img src="./assets/images/icons/andpad.png" alt="Andpad" class="comm-icon-img">',
-        'instagram': '<img src="./assets/images/icons/instagram.png" alt="Instagram" class="comm-icon-img">',
-        'facebook': '<img src="./assets/images/icons/facebook.png" alt="Facebook" class="comm-icon-img">',
-        'twitter': '<img src="./assets/images/icons/twitter.png" alt="X (Twitter)" class="comm-icon-img">',
-        'youtube': '<img src="./assets/images/icons/youtube.png" alt="YouTube" class="comm-icon-img">',
-        'tiktok': '<img src="./assets/images/icons/tiktok.png" alt="TikTok" class="comm-icon-img">',
-        'note': '<img src="./assets/images/icons/note.png" alt="note" class="comm-icon-img">',
-        'pinterest': '<img src="./assets/images/icons/pinterest.png" alt="Pinterest" class="comm-icon-img">',
-        'threads': '<img src="./assets/images/icons/threads.png" alt="Threads" class="comm-icon-img">'
-    };
-    
-    // Get already added method types
-    const existingItems = commList.querySelectorAll('.communication-item');
-    const existingTypes = Array.from(existingItems).map(item => item.dataset.methodType);
-    
-    // Find the next method type that hasn't been added yet
-    let nextMethod = null;
-    for (const method of methodTypes) {
-        if (!existingTypes.includes(method.type)) {
-            nextMethod = method;
-            break;
-        }
-    }
-    
-    // If all methods are already added, show message
-    if (!nextMethod) {
-        showInfo('すべてのコミュニケーション方法が追加済みです');
-        return;
-    }
-    
-    // Determine if URL-based
-    const isUrlBased = ['instagram', 'facebook', 'twitter', 'youtube', 'tiktok', 'note', 'pinterest', 'threads'].includes(nextMethod.type);
-    const inputType = isUrlBased ? 'url' : 'text';
-    const placeholder = isUrlBased ? `https://${nextMethod.type === 'twitter' ? 'x.com' : nextMethod.type === 'note' ? 'note.com' : nextMethod.type === 'threads' ? 'threads.net' : nextMethod.type + '.com'}/...` : `${nextMethod.name} IDまたはURL`;
-    
-    // Get icon for this method
-    const icon = methodIcons[nextMethod.type] || '<img src="./assets/images/icons/message.png" alt="+メッセージ" class="comm-icon-img">';
-    
-    // Create communication item
-    const commItem = document.createElement('div');
-    commItem.className = 'communication-item';
-    commItem.dataset.methodType = nextMethod.type;
-    commItem.innerHTML = `
-        <label class="communication-checkbox">
-            <input type="checkbox" checked onchange="toggleCommunicationMethod(null, this.checked)">
-            <div class="comm-icon">${icon}</div>
-            <span>${nextMethod.name}</span>
-        </label>
-        <div class="comm-details" style="display: block;">
-            <input type="${inputType}" class="form-control comm-value" placeholder="${placeholder}" ${isUrlBased ? 'pattern="https?://.+"' : ''}>
-            ${isUrlBased ? '<small style="color: #666; display: block; margin-top: 4px;">有効なURLを入力してください（https://で始まる必要があります）</small>' : ''}
-        </div>
-        <button type="button" class="btn-delete" onclick="this.closest('.communication-item').remove()">削除</button>
-    `;
-    commList.appendChild(commItem);
+    // This function is kept for backward compatibility but is no longer used
+    // All communication methods are now always visible
+    showInfo('すべてのコミュニケーション方法が表示されています。チェックボックスで選択してください。');
 }
 
 // Validate URL
@@ -1533,49 +1596,27 @@ function isValidUrl(url) {
 
 // Save communication methods
 async function saveCommunicationMethods() {
-    const commItems = document.querySelectorAll('#communication-list .communication-item');
     const methods = [];
     const errors = [];
+    let displayOrder = 0;
     
-    commItems.forEach((item, index) => {
-        const checkbox = item.querySelector('input[type="checkbox"]');
+    // Message apps
+    const messageApps = [
+        { key: 'comm_line', type: 'line', idField: 'comm_line_id' },
+        { key: 'comm_messenger', type: 'messenger', idField: 'comm_messenger_id' },
+        { key: 'comm_whatsapp', type: 'whatsapp', idField: 'comm_whatsapp_id' },
+        { key: 'comm_plus_message', type: 'plus_message', idField: 'comm_plus_message_id' },
+        { key: 'comm_chatwork', type: 'chatwork', idField: 'comm_chatwork_id' },
+        { key: 'comm_andpad', type: 'andpad', idField: 'comm_andpad_id' }
+    ];
+    
+    messageApps.forEach(app => {
+        const checkbox = document.querySelector(`input[name="${app.key}"]`);
         if (checkbox && checkbox.checked) {
-            const methodType = item.dataset.methodType;
-            const valueInput = item.querySelector('.comm-value');
-            const value = valueInput ? valueInput.value.trim() : '';
+            const input = document.querySelector(`input[name="${app.idField}"]`);
+            const value = input ? input.value.trim() : '';
             
-            const isUrlBased = ['instagram', 'facebook', 'twitter', 'youtube', 'tiktok', 'note', 'pinterest', 'threads'].includes(methodType);
-            
-            // Validation for URL-based methods
-            if (isUrlBased && value) {
-                if (!isValidUrl(value)) {
-                    const methodNames = {
-                        'instagram': 'Instagram',
-                        'facebook': 'Facebook',
-                        'twitter': 'X (Twitter)',
-                        'youtube': 'YouTube',
-                        'tiktok': 'TikTok',
-                        'note': 'note',
-                        'pinterest': 'Pinterest',
-                        'threads': 'Threads'
-                    };
-                    errors.push(`${methodNames[methodType] || methodType}のURLが無効です。https://で始まる有効なURLを入力してください。`);
-                    // Highlight the invalid input
-                    valueInput.style.borderColor = '#dc3545';
-                    valueInput.addEventListener('input', function() {
-                        if (isValidUrl(this.value.trim())) {
-                            this.style.borderColor = '';
-                        }
-                    });
-                    return; // Skip this item if validation fails
-                } else {
-                    // Reset border color if valid
-                    valueInput.style.borderColor = '';
-                }
-            }
-            
-            // Validation for non-URL methods (should have a value if checked)
-            if (!isUrlBased && !value) {
+            if (!value) {
                 const methodNames = {
                     'line': 'LINE',
                     'messenger': 'Messenger',
@@ -1584,25 +1625,86 @@ async function saveCommunicationMethods() {
                     'chatwork': 'Chatwork',
                     'andpad': 'Andpad'
                 };
-                errors.push(`${methodNames[methodType] || methodType}のIDまたはURLを入力してください。`);
-                valueInput.style.borderColor = '#dc3545';
-                valueInput.addEventListener('input', function() {
-                    if (this.value.trim()) {
-                        this.style.borderColor = '';
-                    }
-                });
-                return; // Skip this item if validation fails
-            } else if (!isUrlBased && value) {
-                valueInput.style.borderColor = '';
+                errors.push(`${methodNames[app.type] || app.type}のIDまたはURLを入力してください。`);
+                if (input) {
+                    input.style.borderColor = '#dc3545';
+                    input.addEventListener('input', function() {
+                        if (this.value.trim()) {
+                            this.style.borderColor = '';
+                        }
+                    });
+                }
+                return;
+            }
+            
+            if (input) {
+                input.style.borderColor = '';
             }
             
             methods.push({
-                method_type: methodType,
-                method_name: methodType,
-                method_url: isUrlBased ? value : '',
-                method_id: isUrlBased ? '' : value,
+                method_type: app.type,
+                method_name: app.type,
+                method_url: value.startsWith('http') ? value : '',
+                method_id: value.startsWith('http') ? '' : value,
                 is_active: 1,
-                display_order: index
+                display_order: displayOrder++
+            });
+        }
+    });
+    
+    // SNS apps
+    const snsApps = [
+        { key: 'comm_instagram', type: 'instagram', urlField: 'comm_instagram_url' },
+        { key: 'comm_facebook', type: 'facebook', urlField: 'comm_facebook_url' },
+        { key: 'comm_twitter', type: 'twitter', urlField: 'comm_twitter_url' },
+        { key: 'comm_youtube', type: 'youtube', urlField: 'comm_youtube_url' },
+        { key: 'comm_tiktok', type: 'tiktok', urlField: 'comm_tiktok_url' },
+        { key: 'comm_note', type: 'note', urlField: 'comm_note_url' },
+        { key: 'comm_pinterest', type: 'pinterest', urlField: 'comm_pinterest_url' },
+        { key: 'comm_threads', type: 'threads', urlField: 'comm_threads_url' }
+    ];
+    
+    snsApps.forEach(app => {
+        const checkbox = document.querySelector(`input[name="${app.key}"]`);
+        if (checkbox && checkbox.checked) {
+            const input = document.querySelector(`input[name="${app.urlField}"]`);
+            const value = input ? input.value.trim() : '';
+            
+            // Validation for URL-based methods
+            if (value && !isValidUrl(value)) {
+                const methodNames = {
+                    'instagram': 'Instagram',
+                    'facebook': 'Facebook',
+                    'twitter': 'X (Twitter)',
+                    'youtube': 'YouTube',
+                    'tiktok': 'TikTok',
+                    'note': 'note',
+                    'pinterest': 'Pinterest',
+                    'threads': 'Threads'
+                };
+                errors.push(`${methodNames[app.type] || app.type}のURLが無効です。https://で始まる有効なURLを入力してください。`);
+                if (input) {
+                    input.style.borderColor = '#dc3545';
+                    input.addEventListener('input', function() {
+                        if (isValidUrl(this.value.trim())) {
+                            this.style.borderColor = '';
+                        }
+                    });
+                }
+                return;
+            }
+            
+            if (input) {
+                input.style.borderColor = '';
+            }
+            
+            methods.push({
+                method_type: app.type,
+                method_name: app.type,
+                method_url: value,
+                method_id: '',
+                is_active: 1,
+                display_order: displayOrder++
             });
         }
     });
@@ -1713,5 +1815,313 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Add free input text textarea
+function addFreeInputText() {
+    const container = document.getElementById('free-input-texts-container');
+    if (!container) return;
+    
+    const newItem = document.createElement('div');
+    newItem.className = 'free-input-text-item';
+    newItem.innerHTML = `
+        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+        <button type="button" class="btn-delete-small" onclick="removeFreeInputText(this)">削除</button>
+    `;
+    
+    container.appendChild(newItem);
+    
+    // Show delete buttons if there are multiple items
+    updateFreeInputDeleteButtons();
+}
+
+// Remove free input text textarea
+function removeFreeInputText(button) {
+    const container = document.getElementById('free-input-texts-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-input-text-item');
+    if (items.length <= 1) {
+        showWarning('最低1つのテキストエリアが必要です。');
+        return;
+    }
+    
+    const item = button.closest('.free-input-text-item');
+    if (item) {
+        item.remove();
+        updateFreeInputDeleteButtons();
+    }
+}
+
+// Update delete button visibility
+function updateFreeInputDeleteButtons() {
+    const container = document.getElementById('free-input-texts-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-input-text-item');
+    const deleteButtons = container.querySelectorAll('.btn-delete-small');
+    
+    if (items.length > 1) {
+        deleteButtons.forEach(btn => btn.style.display = 'inline-block');
+    } else {
+        deleteButtons.forEach(btn => btn.style.display = 'none');
+    }
+}
+
+// Add free image item
+function addFreeImageItem() {
+    const container = document.getElementById('free-images-container');
+    if (!container) return;
+    
+    const itemCount = container.querySelectorAll('.free-image-item').length;
+    const newItem = document.createElement('div');
+    newItem.className = 'free-image-item';
+    newItem.innerHTML = `
+        <div class="upload-area" data-upload-id="free_image_${itemCount}">
+            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+            <div class="upload-preview"></div>
+            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
+                画像をアップロード
+            </button>
+            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+        </div>
+        <div class="form-group" style="margin-top: 0.5rem;">
+            <label>画像のリンク先URL（任意）</label>
+            <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+        </div>
+        <button type="button" class="btn-delete-small" onclick="removeFreeImageItem(this)">削除</button>
+    `;
+    
+    container.appendChild(newItem);
+    
+    // Initialize file input handler for the new item
+    initializeFreeImageUpload(newItem);
+    
+    // Show delete buttons if there are multiple items
+    updateFreeImageDeleteButtons();
+}
+
+// Remove free image item
+function removeFreeImageItem(button) {
+    const container = document.getElementById('free-images-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-image-item');
+    if (items.length <= 1) {
+        showWarning('最低1つの画像項目が必要です。');
+        return;
+    }
+    
+    const item = button.closest('.free-image-item');
+    if (item) {
+        item.remove();
+        updateFreeImageDeleteButtons();
+    }
+}
+
+// Update delete button visibility for free images
+function updateFreeImageDeleteButtons() {
+    const container = document.getElementById('free-images-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-image-item');
+    const deleteButtons = container.querySelectorAll('#free-images-container .btn-delete-small');
+    
+    if (items.length > 1) {
+        deleteButtons.forEach(btn => btn.style.display = 'inline-block');
+    } else {
+        deleteButtons.forEach(btn => btn.style.display = 'none');
+    }
+}
+
+// Initialize file upload handler for free image items
+function initializeFreeImageUpload(item) {
+    const fileInput = item.querySelector('input[type="file"]');
+    if (!fileInput) return;
+    
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const preview = item.querySelector('.upload-preview');
+                if (preview) {
+                    const img = new Image();
+                    img.onload = () => {
+                        const resizeNote = (img.width > 1200 || img.height > 1200) 
+                            ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
+                            : '';
+                        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
+                    };
+                    img.src = event.target.result;
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+// Move tech tool up or down
+function moveTechTool(index, direction) {
+    const container = document.getElementById('tech-tools-list');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card'));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateTechToolButtons();
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateTechToolButtons();
+    }
+}
+
+// Update tech tool move buttons
+function updateTechToolButtons() {
+    const container = document.getElementById('tech-tools-list');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card'));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveTechTool(${index}, 'up')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveTechTool(${index}, 'down')`);
+        }
+    });
+}
+
+// Initialize drag and drop for tech tools
+function initializeTechToolDragAndDrop() {
+    const container = document.getElementById('tech-tools-list');
+    if (!container) return;
+    
+    let draggedElement = null;
+    let isInitializing = false;
+    
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+        
+        const items = container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card');
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+        
+        attachDragListeners();
+        isInitializing = false;
+    }
+    
+    function attachDragListeners() {
+        const items = container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card');
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+            
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+            
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+            
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+                return false;
+            });
+            
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+            
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (draggedElement !== this && draggedElement !== null) {
+                    if (observer) observer.disconnect();
+                    
+                    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card'));
+                    const targetIndex = items.indexOf(this);
+                    const draggedIndexCurrent = items.indexOf(draggedElement);
+                    
+                    if (draggedIndexCurrent < targetIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+                    
+                    draggedElement.dataset.dragInitialized = 'false';
+                    this.dataset.dragInitialized = 'false';
+                    
+                    updateTechToolButtons();
+                    attachDragListeners();
+                    
+                    if (observer) {
+                        observer.observe(container, {
+                            childList: true,
+                            subtree: false
+                        });
+                    }
+                }
+                
+                this.classList.remove('drag-over');
+                draggedElement = null;
+                return false;
+            });
+        });
+    }
+    
+    makeItemsDraggable();
+    
+    const observer = new MutationObserver(function(mutations) {
+        if (isInitializing) return;
+        
+        let shouldReinit = false;
+        mutations.forEach(function(mutation) {
+            if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
+                for (let node of mutation.addedNodes) {
+                    if (node.nodeType === 1 && node.classList && (node.classList.contains('tech-tool-banner-card') || node.classList.contains('tech-tool-card'))) {
+                        if (!node.dataset.dragInitialized) {
+                            shouldReinit = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        
+        if (shouldReinit) {
+            makeItemsDraggable();
+        }
+    });
+    
+    observer.observe(container, {
+        childList: true,
+        subtree: false
+    });
 }
 

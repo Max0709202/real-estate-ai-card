@@ -32,7 +32,7 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
             <!-- Step 1: Account Registration -->
             <div id="step-1" class="register-step active">
                 <h1>アカウント作成</h1>
-                <p class="step-description">初めてご利用の方は、アカウント作成から始めましょう</p>
+                <p class="step-description">初めてご利用の方はアカウント作成から始めてください。</p>
 
                 <form id="register-form" class="register-form">
                     <input type="hidden" name="user_type" value="<?php echo htmlspecialchars($userType); ?>">
@@ -167,19 +167,19 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
         
         // Show email verification modal
         function showEmailVerificationModal() {
-            const message = [
-                '登録されたメールアドレスに認証メールをお送りしました。',
-                'メールに表示されたURLより作成・編集を始めてください。',
-                '',
-                'なお、表示されるURLは15分間の有効期限があります。',
-                '',
-                '迷惑メールに保存されてしまう場合がございますので、',
-                'そちらもあわせてご確認ください。'
-            ].join('\n');
+            // Create HTML message with proper structure to prevent line breaks in mobile/tablet
+            const message = '<div style="line-height: 35px;">' + [
+                '・登録されたメールアドレスに認証メールをお送りしました。',
+                '・メールに表示されたURLより作成・編集を始めてください。',
+                '・なお、表示されるURLは15分間の有効期限があります。',
+                '・迷惑メールに保存されてしまう場合がございますので、そちらもあわせてご確認ください。'
+            ].join('<br>') + '</div>';
 
-            showSuccess(message, {
-                title: 'アカウント作成完了',
-                autoClose: 0
+            // Use innerHTML to set the message directly
+            showSuccess('', {
+                title: '認証メール送信完了',
+                autoClose: 0,
+                customMessage: message
             });
         }
 

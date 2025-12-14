@@ -126,6 +126,15 @@
     margin: 0;
     white-space: pre-wrap;
     word-wrap: break-word;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
+.modal-message p {
+    margin: 0.5rem 0;
+    line-height: 1.6;
+    word-break: keep-all;
+    overflow-wrap: break-word;
 }
 
 .modal-message ul {

@@ -210,6 +210,12 @@ body {
     margin-left: 0.25rem;
 }
 
+.required-asterisk {
+    color: #e74c3c;
+    margin-left: 0.25rem;
+    font-weight: bold;
+}
+
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -534,12 +540,88 @@ body {
     margin-bottom: 1.5rem;
 }
 
-.communication-item {
-    background: #fafafa;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 1.5rem;
+.communication-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
     margin-bottom: 1rem;
+}
+
+.communication-item {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+}
+
+.communication-checkbox {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.communication-checkbox:hover {
+    border-color: #0066cc;
+    background: #f0f7ff;
+}
+
+.communication-checkbox input[type="checkbox"] {
+    display: none;
+}
+
+.communication-checkbox input[type="checkbox"]:checked + .comm-icon,
+.communication-checkbox:has(input[type="checkbox"]:checked) {
+    border-color: #0066cc;
+    background: #f0f7ff;
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.comm-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.comm-icon img {
+    width: 2rem;
+    height: 2rem;
+    object-fit: contain;
+}
+
+.communication-checkbox span {
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.comm-details {
+    margin-top: 0.75rem;
+    width: 100%;
+}
+
+.communication-item input[type="text"],
+.communication-item input[type="url"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    box-sizing: border-box;
 }
 
 .communication-header {
@@ -552,16 +634,6 @@ body {
 .communication-type {
     font-weight: 600;
     color: #0066cc;
-}
-
-.communication-item input[type="text"],
-.communication-item input[type="url"] {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 1rem;
-    margin-bottom: 0.75rem;
 }
 
 .communication-item .btn-delete {
@@ -744,6 +816,86 @@ body {
         min-height: 300px;
         padding: 1rem;
     }
+}
+
+/* Free input text item styles */
+.free-input-text-item {
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.free-input-text-item textarea {
+    margin-bottom: 0.5rem;
+}
+
+.btn-add-small {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+    transition: background 0.3s;
+}
+
+.btn-add-small:hover {
+    background: #0056b3;
+}
+
+.btn-delete-small {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 0.5rem;
+    transition: background 0.3s;
+}
+
+.btn-delete-small:hover {
+    background: #c82333;
+}
+
+/* Tech tool actions */
+.tech-tool-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    display: flex;
+    gap: 5px;
+}
+
+.tech-tool-banner-card {
+    position: relative;
+}
+
+.tech-tool-banner-card.dragging {
+    opacity: 0.5;
+}
+
+.tech-tool-banner-card.drag-over {
+    border: 2px dashed #0066cc;
+}
+
+/* Free image item styles */
+.free-image-item {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: #f9f9f9;
+}
+
+.free-image-item:last-child {
+    margin-bottom: 0;
 }
 
 

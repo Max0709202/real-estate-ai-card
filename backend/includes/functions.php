@@ -642,8 +642,9 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
         <meta charset='UTF-8'>
         <style>
             body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #0066cc; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .container { border: 3px solid #a3a3a3; border-radius: 1%; max-width: 600px; margin: 0 auto;}
+            .header { color: #fff; padding: 30px 20px; text-align: center; }
+            .header .logo-container { background: #ffffff; padding: 15px; display: inline-block; margin: 0 auto; }
             .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
             .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; }
             .info-table th { background: #e9ecef; padding: 12px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; width: 30%; }
@@ -654,7 +655,9 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
     <body>
         <div class='container'>
             <div class='header'>
-                <h1>不動産AI名刺</h1>
+                <div class='logo-container'>
+                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                </div>
             </div>
             <div class='content'>
                 <p>新規ユーザーが登録されました。</p>
@@ -726,6 +729,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
             body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
             .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .header .logo-container { background: #ffffff; padding: 15px; border: 3px solid #0066cc; border-radius: 8px; display: inline-block; margin: 0 auto; }
             .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
             .success-icon { font-size: 48px; margin-bottom: 10px; }
             .info-box { background: #fff; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #667eea; }
@@ -741,6 +745,9 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
     <body>
         <div class='container'>
             <div class='header'>
+                <div class='logo-container'>
+                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                </div>
                 <div class='success-icon'>✅</div>
                 <h1>QRコード発行完了</h1>
                 <p>不動産AI名刺へようこそ</p>
@@ -844,6 +851,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
             body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
             .header { background: #0066cc; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .header .logo-container { background: #ffffff; padding: 15px; border: 3px solid #0066cc; border-radius: 8px; display: inline-block; margin: 0 auto; }
             .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
             .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; }
             .info-table th { background: #e9ecef; padding: 12px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; width: 35%; }
@@ -855,6 +863,9 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
     <body>
         <div class='container'>
             <div class='header'>
+                <div class='logo-container'>
+                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                </div>
                 <h1>🔲 QRコード発行通知</h1>
                 <p>不動産AI名刺 - 管理者通知</p>
             </div>

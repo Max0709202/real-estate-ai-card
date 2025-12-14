@@ -172,11 +172,11 @@ $prefectures = [
 
                 <form id="company-profile-form" class="register-form">
                     <div class="form-section">
-                        <h3>宅建業者番号</h3>
+                        <h3>宅建業者番号<span class="required-asterisk">※</span></h3>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>都道府県</label>
-                                <select name="real_estate_license_prefecture" id="license_prefecture" class="form-control">
+                                <select name="real_estate_license_prefecture" id="license_prefecture" class="form-control" required>
                                     <option value="">選択してください</option>
                                     <?php foreach ($prefectures as $pref): ?>
                                     <option value="<?php echo htmlspecialchars($pref); ?>"><?php echo htmlspecialchars($pref); ?></option>
@@ -185,7 +185,7 @@ $prefectures = [
                             </div>
                             <div class="form-group">
                                 <label>更新番号</label>
-                                <select name="real_estate_license_renewal_number" id="license_renewal" class="form-control">
+                                <select name="real_estate_license_renewal_number" id="license_renewal" class="form-control" required>
                                     <option value="">選択してください</option>
                                     <?php for ($i = 1; $i <= 20; $i++): ?>
                                     <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
@@ -194,7 +194,7 @@ $prefectures = [
                             </div>
                             <div class="form-group">
                                 <label>登録番号</label>
-                                <input type="text" name="real_estate_license_registration_number" id="license_registration" class="form-control" placeholder="例：12345">
+                                <input type="text" name="real_estate_license_registration_number" id="license_registration" class="form-control" placeholder="例：12345" required>
                                 <!-- <button type="button" class="btn-outline" id="lookup-license" style="margin-top: 0.5rem;">住所を自動入力</button> -->
                             </div>
                         </div>
@@ -264,10 +264,12 @@ $prefectures = [
                     <div class="form-row">
                         <div class="form-group">
                             <label>ローマ字姓</label>
+                            <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                             <input type="text" name="last_name_romaji" id="last_name_romaji" class="form-control" placeholder="例：Yamada">
                         </div>
                         <div class="form-group">
                             <label>ローマ字名</label>
+                            <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                             <input type="text" name="first_name_romaji" id="first_name_romaji" class="form-control" placeholder="例：Taro">
                         </div>
                     </div>
@@ -330,22 +332,32 @@ $prefectures = [
                         <h3>フリー入力欄</h3>
                         <p class="section-note">自由にアピールポイントや追加情報を入力できます。YouTubeのリンクなども貼り付けられます。</p>
                         <div class="form-group">
-                            <label>テキスト</label>
-                            <textarea name="free_input_text" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+                            <label>テキスト <button type="button" class="btn-add-small" onclick="addFreeInputTextForRegister()">追加</button></label>
+                            <div id="free-input-texts-container">
+                                <div class="free-input-text-item">
+                                    <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+                                    <button type="button" class="btn-delete-small" onclick="removeFreeInputTextForRegister(this)" style="display: none;">削除</button>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label>画像・バナー（リンク付き画像）</label>
-                            <div class="upload-area" id="free-image-upload" data-upload-id="free_image">
-                                <input type="file" id="free_image" name="free_image" accept="image/*" style="display: none;">
-                                <div class="upload-preview"></div>
-                                <button type="button" class="btn-outline" onclick="document.getElementById('free_image').click()">
-                                    画像をアップロード
-                                </button>
-                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
-                            </div>
-                            <div class="form-group" style="margin-top: 0.5rem;">
-                                <label>画像のリンク先URL（任意）</label>
-                                <input type="url" name="free_image_link" class="form-control" placeholder="https://example.com">
+                            <label>画像・バナー（リンク付き画像） <button type="button" class="btn-add-small" onclick="addFreeImageItemForRegister()">追加</button></label>
+                            <div id="free-images-container">
+                                <div class="free-image-item">
+                                    <div class="upload-area" data-upload-id="free_image_0">
+                                        <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                                        <div class="upload-preview"></div>
+                                        <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\"file\"]').click()">
+                                            画像をアップロード
+                                        </button>
+                                        <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                                    </div>
+                                    <div class="form-group" style="margin-top: 0.5rem;">
+                                        <label>画像のリンク先URL（任意）</label>
+                                        <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+                                    </div>
+                                    <button type="button" class="btn-delete-small" onclick="removeFreeImageItemForRegister(this)" style="display: none;">削除</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -421,14 +433,18 @@ $prefectures = [
                         ['type' => 'olp', 'id' => 'tool-olp', 'name' => 'オーナーコネクト']
                     ];
                     ?>
-                    <div class="tech-tools-grid">
-                        <?php foreach ($techToolsList as $tool): 
+                    <div class="tech-tools-grid" id="tech-tools-grid">
+                        <?php foreach ($techToolsList as $loopIndex => $tool):
                             $info = $toolInfo[$tool['type']] ?? [
                                 'description' => '',
                                 'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/default.jpg'
                             ];
                         ?>
-                            <div class="tech-tool-banner-card register-tech-card">
+                            <div class="tech-tool-banner-card register-tech-card" data-tool-type="<?php echo $tool['type']; ?>">
+                                <div class="tech-tool-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveTechToolForRegister(<?php echo $loopIndex; ?>, 'up')" <?php echo $loopIndex === 0 ? 'disabled' : ''; ?>>↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveTechToolForRegister(<?php echo $loopIndex; ?>, 'down')" <?php echo $loopIndex === count($techToolsList) - 1 ? 'disabled' : ''; ?>>↓</button>
+                                </div>
                                 <input type="checkbox" id="<?php echo $tool['id']; ?>" name="tech_tools[]" value="<?php echo $tool['type']; ?>" class="tech-tool-checkbox">
                                 <label for="<?php echo $tool['id']; ?>" class="tech-tool-label">
                                     <!-- Banner Header with Background Image -->

@@ -43,15 +43,23 @@ function showModal(message, type = 'info', options = {}) {
         autoClose = 0,
         onClose = null,
         showCancel = false,
-        onConfirm = null
+        onConfirm = null,
+        customMessage = null
     } = options;
 
     // Format message
-    let messageText = '';
-    if (Array.isArray(message)) {
-        messageText = message.join('\n');
+    let messageHTML = '';
+    if (customMessage) {
+        // Use custom HTML message directly
+        messageHTML = customMessage;
     } else {
-        messageText = String(message);
+        let messageText = '';
+        if (Array.isArray(message)) {
+            messageText = message.join('\n');
+        } else {
+            messageText = String(message);
+        }
+        messageHTML = formatMessage(messageText);
     }
 
     // Create modal HTML
@@ -65,7 +73,7 @@ function showModal(message, type = 'info', options = {}) {
                     <h3 class="modal-title">${escapeHtml(title)}</h3>
                 </div>
                 <div class="modal-body">
-                    <p class="modal-message">${formatMessage(messageText)}</p>
+                    <div class="modal-message">${messageHTML}</div>
                 </div>
                 <div class="modal-footer">
                     ${showCancel ? `<button class="modal-btn modal-btn-secondary" id="modal-cancel">キャンセル</button>` : ''}
