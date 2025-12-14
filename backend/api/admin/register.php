@@ -159,7 +159,7 @@ try {
             <style>
                 body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.8; color: #333; background-color: #f5f5f5; }
                 .container { border: 3px solid #a3a3a3; border-radius: 1%; max-width: 650px; margin: 30px auto; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                .header { color: #fff; padding: 30px 20px; text-align: center; }
+                .header { color: #000000; padding: 30px 20px; text-align: center; }
                 .header .logo-container {padding: 15px;  border-radius: 8px; display: inline-block; margin: 0 auto; }
                 .header img { max-width: 200px; height: auto; display: block; margin: 0 auto; }
                 .content { padding: 40px 30px; }

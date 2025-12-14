@@ -632,6 +632,7 @@ $defaultGreetings = [
     <script src="assets/js/modal.js"></script>
     <!-- Cropper.js -->
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
+    <script src="assets/js/auto-save.js"></script>
     <script src="assets/js/edit.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script>

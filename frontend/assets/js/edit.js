@@ -1402,10 +1402,17 @@ async function saveGreetings() {
         const result = await response.json();
         
         if (result.success) {
+            // Clear drafts on successful save
+            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                await window.autoSave.clearDraftsOnSuccess();
+            }
             showSuccess('保存しました');
             // Reload data to reflect changes
             await loadBusinessCardData();
         } else {
+            if (window.autoSave && window.autoSave.markSubmissionFailed) {
+                window.autoSave.markSubmissionFailed();
+            }
             showError('保存に失敗しました: ' + result.message);
         }
     } catch (error) {
@@ -1542,6 +1549,10 @@ async function saveTechTools() {
         const saveResult = await saveResponse.json();
         
         if (saveResult.success) {
+            // Clear drafts on successful save
+            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                await window.autoSave.clearDraftsOnSuccess();
+            }
             showSuccess('保存しました');
             loadBusinessCardData(); // Reload data
         } else {
@@ -1734,6 +1745,10 @@ async function saveCommunicationMethods() {
         const result = await response.json();
         
         if (result.success) {
+            // Clear drafts on successful save
+            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                await window.autoSave.clearDraftsOnSuccess();
+            }
             showSuccess('保存しました');
             loadBusinessCardData(); // Reload data
         } else {

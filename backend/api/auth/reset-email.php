@@ -82,7 +82,7 @@ try {
         <style>
             body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.6; color: #333; }
             .container { border: 3px solid #a3a3a3; border-radius: 1%; max-width: 600px; margin: 0 auto;}
-            .header { color: #fff; padding: 30px 20px; text-align: center; }
+            .header { color: #000000; padding: 30px 20px; text-align: center; }
             .header .logo-container { background: #ffffff; padding: 15px; display: inline-block; margin: 0 auto; }
             .header img { max-width: 200px; height: auto; display: block; margin: 0 auto; }
             .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }

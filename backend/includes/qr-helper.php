@@ -144,11 +144,19 @@ function generateBusinessCardQRCode($businessCardId, $db) {
             
             // Send email to admin
             $userId = null;
-            $stmt = $db->prepare("SELECT user_id FROM business_cards WHERE id = ?");
+            $companyName = null;
+            $name = null;
+            $nameRomaji = null;
+            $phoneNumber = $card['phone_number'] ?? null;
+            
+            $stmt = $db->prepare("SELECT user_id, company_name, name, name_romaji FROM business_cards WHERE id = ?");
             $stmt->execute([$businessCardId]);
-            $bcUser = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($bcUser) {
-                $userId = $bcUser['user_id'];
+            $bcData = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($bcData) {
+                $userId = $bcData['user_id'];
+                $companyName = $bcData['company_name'] ?? null;
+                $name = $bcData['name'] ?? null;
+                $nameRomaji = $bcData['name_romaji'] ?? null;
             }
             
             $adminEmailSent = sendQRCodeIssuedEmailToAdmin(
@@ -156,7 +164,11 @@ function generateBusinessCardQRCode($businessCardId, $db) {
                 $userName,
                 $userId ?? 0,
                 $card['url_slug'],
-                $paymentAmount
+                $paymentAmount,
+                $companyName,
+                $name,
+                $nameRomaji,
+                $phoneNumber
             );
             
             if ($adminEmailSent) {

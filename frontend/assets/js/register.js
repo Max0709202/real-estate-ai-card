@@ -940,10 +940,22 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
     const formDataObj = new FormData(e.target);
     const data = Object.fromEntries(formDataObj);
     
-    // Handle logo upload (check for cropped image first)
+    // Handle logo upload (check for cropped image first, then restored file)
     const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
     const logoFile = document.getElementById('company_logo').files[0];
-    if (logoFile || (logoUploadArea && logoUploadArea.dataset.croppedBlob)) {
+    // Check for restored file from auto-save
+    let restoredLogoFile = null;
+    if (window.autoSave) {
+        const restoredFiles = window.autoSave.getRestoredFiles();
+        const restoredLogo = restoredFiles.get('company_logo');
+        if (restoredLogo && !logoFile && !(logoUploadArea && logoUploadArea.dataset.croppedBlob)) {
+            restoredLogoFile = new File([restoredLogo.blob], restoredLogo.name, {
+                type: restoredLogo.type,
+                lastModified: restoredLogo.lastModified
+            });
+        }
+    }
+    if (logoFile || (logoUploadArea && logoUploadArea.dataset.croppedBlob) || restoredLogoFile) {
         const uploadData = new FormData();
         
         // Use cropped image if available, otherwise use original file
@@ -955,6 +967,8 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
             // Clear cropped data
             delete logoUploadArea.dataset.croppedBlob;
             delete logoUploadArea.dataset.croppedFileName;
+        } else if (restoredLogoFile) {
+            uploadData.append('file', restoredLogoFile);
         } else {
             uploadData.append('file', logoFile);
         }
@@ -999,10 +1013,22 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         data.company_logo = businessCardData.company_logo;
     }
     
-    // Handle profile photo upload (check for cropped image first)
+    // Handle profile photo upload (check for cropped image first, then restored file)
     const photoUploadArea = document.querySelector('[data-upload-id="profile_photo_header"]');
     const photoFile = document.getElementById('profile_photo_header').files[0];
-    if (photoFile || (photoUploadArea && photoUploadArea.dataset.croppedBlob)) {
+    // Check for restored file from auto-save
+    let restoredPhotoFile = null;
+    if (window.autoSave) {
+        const restoredFiles = window.autoSave.getRestoredFiles();
+        const restoredPhoto = restoredFiles.get('profile_photo');
+        if (restoredPhoto && !photoFile && !(photoUploadArea && photoUploadArea.dataset.croppedBlob)) {
+            restoredPhotoFile = new File([restoredPhoto.blob], restoredPhoto.name, {
+                type: restoredPhoto.type,
+                lastModified: restoredPhoto.lastModified
+            });
+        }
+    }
+    if (photoFile || (photoUploadArea && photoUploadArea.dataset.croppedBlob) || restoredPhotoFile) {
         const uploadData = new FormData();
         
         // Use cropped image if available, otherwise use original file
@@ -1014,6 +1040,8 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
             // Clear cropped data
             delete photoUploadArea.dataset.croppedBlob;
             delete photoUploadArea.dataset.croppedFileName;
+        } else if (restoredPhotoFile) {
+            uploadData.append('file', restoredPhotoFile);
         } else {
             uploadData.append('file', photoFile);
         }
@@ -1103,10 +1131,17 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
+            // Clear drafts on successful step completion
+            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                await window.autoSave.clearDraftsOnSuccess();
+            }
             // Reload business card data to get updated company name
             await loadExistingBusinessCardData();
             goToStep(2);
         } else {
+            if (window.autoSave && window.autoSave.markSubmissionFailed) {
+                window.autoSave.markSubmissionFailed();
+            }
             showError('更新に失敗しました: ' + result.message);
         }
     } catch (error) {
