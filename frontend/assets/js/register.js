@@ -24,10 +24,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const stepItems = document.querySelectorAll('.step-indicator .step');
     stepItems.forEach(stepItem => {
         stepItem.style.cursor = 'pointer';
-        stepItem.addEventListener('click', function() {
+            stepItem.addEventListener('click', async function() {
             const stepNumber = parseInt(this.dataset.step);
             if (stepNumber && stepNumber >= 1 && stepNumber <= 6) {
-                goToStep(stepNumber);
+                // Save data for all steps before the target step (only if navigating forward)
+                if (stepNumber > currentStep && stepNumber > 1) {
+                    await saveStepsBeforeTarget(stepNumber);
+                }
+                goToStep(stepNumber, true);
             }
         });
     });
@@ -379,8 +383,161 @@ function populateRegistrationForms(data) {
     console.log('Registration forms populated');
 }
 
+/**
+ * Save data for a specific step to the database
+ * Returns a promise that resolves when the save is complete
+ */
+async function saveStepData(stepNumber) {
+    let form;
+    let saveData = {};
+    
+    try {
+        switch(stepNumber) {
+            case 1:
+                form = document.getElementById('header-greeting-form');
+                if (!form) return true;
+                
+                // Collect form data (simplified version - just basic fields, files handled separately)
+                const formData1 = new FormData(form);
+                saveData = Object.fromEntries(formData1);
+                
+                // Handle greetings
+                const greetingItems = document.querySelectorAll('#greetings-container .greeting-item');
+                const greetings = [];
+                greetingItems.forEach((item, index) => {
+                    if (item.dataset.cleared === 'true') return;
+                    const titleInput = item.querySelector('input[name="greeting_title[]"]');
+                    const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]');
+                    const title = titleInput ? (titleInput.value || '').trim() : '';
+                    const content = contentTextarea ? (contentTextarea.value || '').trim() : '';
+                    if (title && content) {
+                        greetings.push({
+                            title: title,
+                            content: content,
+                            display_order: index
+                        });
+                    }
+                });
+                saveData.greetings = greetings;
+                
+                // Note: File uploads for step 1 are handled separately and are complex
+                // For now, we'll save the text data. Files should be uploaded via form submit.
+                break;
+                
+            case 2:
+                form = document.getElementById('company-profile-form');
+                if (!form) return true;
+                
+                const formData2 = new FormData(form);
+                saveData = Object.fromEntries(formData2);
+                if (saveData.company_name_profile) {
+                    saveData.company_name = saveData.company_name_profile;
+                    delete saveData.company_name_profile;
+                }
+                break;
+                
+            case 3:
+                form = document.getElementById('personal-info-form');
+                if (!form) return true;
+                
+                const formData3 = new FormData(form);
+                saveData = Object.fromEntries(formData3);
+                
+                // Combine names
+                const lastName = saveData.last_name || '';
+                const firstName = saveData.first_name || '';
+                saveData.name = (lastName + ' ' + firstName).trim();
+                
+                const lastNameRomaji = saveData.last_name_romaji || '';
+                const firstNameRomaji = saveData.first_name_romaji || '';
+                saveData.name_romaji = (lastNameRomaji + ' ' + firstNameRomaji).trim();
+                
+                // Handle qualifications
+                const qualifications = [];
+                if (formData3.get('qualification_takken')) {
+                    qualifications.push('宅地建物取引士');
+                }
+                if (formData3.get('qualification_kenchikushi')) {
+                    qualifications.push('建築士');
+                }
+                if (saveData.qualifications_other) {
+                    qualifications.push(saveData.qualifications_other);
+                }
+                saveData.qualifications = qualifications.join('、');
+                delete saveData.qualification_takken;
+                delete saveData.qualification_kenchikushi;
+                delete saveData.qualifications_other;
+                
+                // Handle free input (simplified - just preserve existing structure)
+                const freeInputTexts = formData3.getAll('free_input_text[]').filter(text => text.trim() !== '');
+                const freeImageLinks = formData3.getAll('free_image_link[]');
+                // Note: Free image file uploads are complex and should be handled via form submit
+                // For navigation, we'll preserve text data only
+                let freeInputData = {
+                    texts: freeInputTexts.length > 0 ? freeInputTexts : [''],
+                    images: [] // Will be preserved from existing data
+                };
+                saveData.free_input = JSON.stringify(freeInputData);
+                break;
+                
+            case 4:
+                // Step 4 (tech tools) doesn't need to save before navigation
+                return true;
+                
+            case 5:
+                // Step 5 (communication) doesn't need to save before navigation
+                return true;
+                
+            default:
+                return true;
+        }
+        
+        // Save to database
+        if (Object.keys(saveData).length > 0) {
+            const response = await fetch('../backend/api/business-card/update.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(saveData),
+                credentials: 'include'
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                return true;
+            } else {
+                console.warn(`Failed to save step ${stepNumber}:`, result.message);
+                return false;
+            }
+        }
+        
+        return true;
+    } catch (error) {
+        console.error(`Error saving step ${stepNumber}:`, error);
+        return false;
+    }
+}
+
+/**
+ * Save all steps up to (but not including) the target step
+ */
+async function saveStepsBeforeTarget(targetStep) {
+    // Save steps 1 through (targetStep - 1)
+    for (let step = 1; step < targetStep; step++) {
+        // Skip steps 4 and 5 as they don't need pre-save (they're selection-based)
+        if (step === 4 || step === 5) continue;
+        
+        const saved = await saveStepData(step);
+        if (!saved) {
+            console.warn(`Failed to save step ${step} before navigating to step ${targetStep}`);
+            // Continue anyway - don't block navigation
+        }
+    }
+}
+
 // Step navigation
-function goToStep(step) {
+async function goToStep(step, skipSave = false) {
     if (step < 1 || step > 6) return;
     
     // Update step indicator
@@ -1889,7 +2046,7 @@ function generatePreview(data) {
     };
     
     let html = '<div class="card-container">';
-    html += '<section class="card-section">';
+    html += '<div class="card-section">';
     
     // Header Section (matching card.php)
     html += '<div class="card-header">';
@@ -2108,7 +2265,7 @@ function generatePreview(data) {
         });
         
         html += '</div>';
-        html += '</section>';
+        html += '</div>';
     }
     
     html += '<hr>';

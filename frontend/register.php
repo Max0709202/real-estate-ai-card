@@ -101,7 +101,6 @@ $prefectures = [
                         <span class="step-label">決済</span>
                     </div>
                 </div>
-                <button type="button" id="preview-btn" class="btn-preview">プレビュー</button>
             </div>
 
             <!-- Preview Container -->
@@ -720,6 +719,9 @@ $prefectures = [
                     <button type="button" class="btn-secondary" onclick="goToStep(5)">戻る</button>
                     <button type="button" id="submit-payment" class="btn-primary">この内容で進める</button>
                 </div>
+            </div>
+            <div style="text-align: center; width: 100%;" class="preview-btn-container">
+                <button type="button" id="preview-btn" class="btn-preview" style="width: 90%; border-radius: 5px;">プレビュー</button>
             </div>
         </div>
     </div>

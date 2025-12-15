@@ -824,7 +824,7 @@ input.form-control {
     }
 
     .form-actions {
-        position: sticky;
+        /* position: sticky; */
         bottom: 0;
         background: #fff;
         padding: 1rem;
@@ -1122,7 +1122,7 @@ input.form-control {
 
 /* Preview Button */
 .btn-preview {
-    background: #0066cc;
+    background: #019b23;
     color: #fff;
     padding: 0.75rem 1.5rem;
     border: none;
@@ -1135,7 +1135,7 @@ input.form-control {
 }
 
 .btn-preview:hover {
-    background: #0052a3;
+    background: #0a6d01;
 }
 
 
