@@ -19,6 +19,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Auto-capitalize first letter of romaji input fields
     setupRomajiAutoCapitalize();
+    
+    // Make step indicators clickable
+    const stepItems = document.querySelectorAll('.step-indicator .step');
+    stepItems.forEach(stepItem => {
+        stepItem.style.cursor = 'pointer';
+        stepItem.addEventListener('click', function() {
+            const stepNumber = parseInt(this.dataset.step);
+            if (stepNumber && stepNumber >= 1 && stepNumber <= 6) {
+                goToStep(stepNumber);
+            }
+        });
+    });
 });
 
 // Auto-capitalize first letter of romaji input fields

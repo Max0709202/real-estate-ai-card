@@ -144,10 +144,13 @@ $defaultGreetings = [
                             <h3>ご挨拶 <span class="required">*</span></h3>
                             <p class="section-note">
                                 ・挨拶文は１つは必ずご入力ください。<br>
-                                ・挨拶文を５つデフォルトでご用意しています。デフォルトの文章をそのまま使用できます。<br>
+                                ・５つの挨拶文例をそのまま使用できます。<br>
                                 ・挨拶文の順序を上下のボタン・ドラッグで変更できます。
                             </p>
-                            <button type="button" class="btn-restore-defaults" onclick="restoreDefaultGreetings()">デフォルトの挨拶文を再表示する</button>
+                            <div style="text-align: center; margin: 1rem 0;">
+                                <button type="button" class="btn-add" onclick="addGreeting()">挨拶文を追加</button>
+                                <button type="button" class="btn-restore-defaults" onclick="restoreDefaultGreetings()">５つの挨拶文例を再表示する</button>
+                            </div>
                             <div id="greetings-list">
                                 <?php foreach ($defaultGreetings as $index => $greeting): ?>
                                 <div class="greeting-item" data-order="<?php echo $index; ?>">
@@ -170,7 +173,6 @@ $defaultGreetings = [
                                 </div>
                                 <?php endforeach; ?>
                             </div>
-                            <button type="button" class="btn-add" onclick="addGreeting()">挨拶文を追加</button>
                         </div>
 
                         <button type="submit" class="btn-primary">保存</button>

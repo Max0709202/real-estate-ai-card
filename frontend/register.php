@@ -70,7 +70,9 @@ $prefectures = [
                 <img src="assets/images/logo.png" alt="不動産AI名刺">
             </a>
         </div>
-
+        <header class="register-header">
+            <h1>デジタル名刺作成・編集</h1>
+        </header>
         <div class="register-content" <?php if (!$isLoggedIn): ?>style="display: none;"<?php endif; ?>>
             <div class="register-steps">
                 <div class="step-indicator">
@@ -149,14 +151,16 @@ $prefectures = [
                         <h3>ご挨拶 <span class="required">*</span></h3>
                         <p class="section-note">
                             ・挨拶文は１つは必ずご入力ください。<br>
-                            ・挨拶文を５つデフォルトでご用意しています。デフォルトの文章をそのまま使用できます。<br>
+                            ・５つの挨拶文例をそのまま使用できます。<br>
                             ・挨拶文の順序を上下のボタン・ドラッグで変更できます。
                         </p>
-                        <button type="button" class="btn-restore-defaults" onclick="restoreDefaultGreetingsForRegister()">デフォルトの挨拶文を再表示する</button>
+                        <div style="text-align: center; margin: 1rem 0;">
+                            <button type="button" class="btn-add" onclick="addGreeting()">挨拶文を追加</button>
+                            <button type="button" class="btn-restore-defaults" onclick="restoreDefaultGreetingsForRegister()">５つの挨拶文例を再表示する</button>
+                        </div>
                         <div id="greetings-container">
                             <!-- Greetings will be populated by JavaScript from database -->
                         </div>
-                        <button type="button" class="btn-add" onclick="addGreeting()">挨拶文を追加</button>
                     </div>
 
                     <div class="form-actions">

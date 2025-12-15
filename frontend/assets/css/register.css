@@ -32,6 +32,24 @@
     padding: 0 20px;
 }
 
+.register-header {
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.register-header h1 {
+    font-size: 1.5rem;
+    color: #333;
+    font-weight: 600;
+}
+
 /* Step Indicator */
 .register-steps {
     margin-bottom: 3rem;
