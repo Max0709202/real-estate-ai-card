@@ -64,12 +64,11 @@ $prefectures = [
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
 </head>
 <body>
+    <?php
+    $showNavLinks = false; // Hide nav links on edit page
+    include __DIR__ . '/includes/header.php';
+    ?>
     <div class="register-container">
-        <div class="register-header">
-            <a href="index.php" class="logo-link">
-                <img src="assets/images/logo.png" alt="不動産AI名刺">
-            </a>
-        </div>
         <header class="register-header">
             <h1>デジタル名刺作成・編集</h1>
         </header>

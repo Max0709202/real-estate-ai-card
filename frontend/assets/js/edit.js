@@ -441,22 +441,27 @@ const defaultGreetings = [
 ];
 
 // Display default greetings when no saved greetings exist
+// This function now appends default greetings to existing ones instead of replacing them
 function displayDefaultGreetings() {
     const greetingsList = document.getElementById('greetings-list');
     if (!greetingsList) return;
     
-    greetingsList.innerHTML = '';
+    // Get current greeting items count
+    const existingItems = greetingsList.querySelectorAll('.greeting-item');
+    const currentCount = existingItems.length;
     
+    // Append default greetings to existing ones
     defaultGreetings.forEach((greeting, index) => {
         const greetingItem = document.createElement('div');
         greetingItem.className = 'greeting-item';
-        greetingItem.dataset.order = index;
+        // Temporary order, will be updated by updateGreetingNumbers()
+        greetingItem.dataset.order = currentCount + index;
         greetingItem.innerHTML = `
             <div class="greeting-header">
-                <span class="greeting-number">${index + 1}</span>
+                <span class="greeting-number">${currentCount + index + 1}</span>
                 <div class="greeting-actions">
-                    <button type="button" class="btn-move-up" onclick="moveGreeting(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
-                    <button type="button" class="btn-move-down" onclick="moveGreeting(${index}, 'down')" ${index === defaultGreetings.length - 1 ? 'disabled' : ''}>↓</button>
+                    <button type="button" class="btn-move-up" onclick="moveGreeting(${currentCount + index}, 'up')">↑</button>
+                    <button type="button" class="btn-move-down" onclick="moveGreeting(${currentCount + index}, 'down')">↓</button>
                 </div>
                 <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
             </div>
@@ -472,9 +477,10 @@ function displayDefaultGreetings() {
         greetingsList.appendChild(greetingItem);
     });
 
-    // Re-initialize drag and drop after displaying
+    // Re-initialize drag and drop and update numbering/buttons after displaying
     setTimeout(function() {
         initializeGreetingDragAndDrop();
+        updateGreetingNumbers();
         updateGreetingButtons();
     }, 100);
 }
@@ -492,13 +498,13 @@ function restoreDefaultGreetings() {
     modal.className = 'modal-overlay';
     modal.style.display = 'block';
     modal.innerHTML = `
-        <div class="modal-content restore-greetings-modal" style="display:flex !important; flex-direction: column !important; margin :auto !important; margin-top:30% !important;">
+        <div class="modal-content restore-greetings-modal" style="display:flex !important; flex-direction: column !important; margin :auto !important; margin-top:20rem !important;">
             <div class="modal-header-restore">
-                <h3>デフォルトの挨拶文を再表示</h3>
+                <h3>5つの挨拶文例を再表示</h3>
             </div>
             <div class="modal-body-restore">
                 <p class="modal-message-main">デフォルトの挨拶文を再表示しますか？</p>
-                <p class="modal-message-sub">現在の挨拶文は上書きされます。</p>
+                <p class="modal-message-sub">現在の挨拶文に5つの挨拶文例が追加されます。</p>
             </div>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-yes" id="confirm-restore-yes">はい</button>
