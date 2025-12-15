@@ -1133,7 +1133,11 @@ function showImageCropper(file, fieldName, originalEvent) {
     // Setup cancel button
     const cancelBtn = document.getElementById('crop-cancel-btn');
     if (cancelBtn) {
-        cancelBtn.onclick = function() {
+        cancelBtn.onclick = async function() {
+            // Upload original image without cropping
+            if (currentCropFile && currentCropFieldName) {
+                await uploadFileDirectly(currentCropFile, currentCropFieldName, originalEvent);
+            }
             closeImageCropper();
             // Reset file input
             if (originalEvent && originalEvent.target) {

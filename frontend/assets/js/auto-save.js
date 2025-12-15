@@ -299,6 +299,29 @@
         `;
         preview.appendChild(info);
 
+        // Button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.gap = '10px';
+        buttonContainer.style.marginTop = '10px';
+
+        // Restore button (upload to database)
+        const restoreBtn = document.createElement('button');
+        restoreBtn.type = 'button';
+        restoreBtn.className = 'btn-restore-file';
+        restoreBtn.textContent = 'ファイルを復元';
+        restoreBtn.style.padding = '8px 16px';
+        restoreBtn.style.backgroundColor = '#4CAF50';
+        restoreBtn.style.color = 'white';
+        restoreBtn.style.border = 'none';
+        restoreBtn.style.borderRadius = '4px';
+        restoreBtn.style.cursor = 'pointer';
+        restoreBtn.style.fontSize = '14px';
+        restoreBtn.onclick = async () => {
+            await restoreFileToDatabase(fieldName, fileData);
+        };
+        buttonContainer.appendChild(restoreBtn);
+
         // Remove button
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
@@ -310,9 +333,146 @@
             previewContainer.innerHTML = '';
             isDirty = true;
         };
-        preview.appendChild(removeBtn);
+        buttonContainer.appendChild(removeBtn);
+
+        preview.appendChild(buttonContainer);
 
         previewContainer.appendChild(preview);
+    }
+
+    /**
+     * Restore file to database (upload and display)
+     */
+    async function restoreFileToDatabase(fieldName, fileData) {
+        if (!fileData || !fileData.blob) {
+            showStatus('ファイルデータが見つかりません', 'error');
+            return;
+        }
+
+        try {
+            // Determine file type based on field name
+            let fileType = 'photo';
+            if (fieldName === 'company_logo' || fieldName === 'logo') {
+                fileType = 'logo';
+            } else if (fieldName === 'free_image' || fieldName === 'free') {
+                fileType = 'free';
+            } else if (fieldName === 'profile_photo' || fieldName === 'profile_photo_header') {
+                fileType = 'photo';
+            }
+
+            // Create FormData
+            const formData = new FormData();
+            const file = new File([fileData.blob], fileData.name, {
+                type: fileData.type,
+                lastModified: fileData.lastModified || Date.now()
+            });
+            formData.append('file', file);
+            formData.append('file_type', fileType);
+
+            // Show loading status
+            showStatus('ファイルをアップロード中...', 'saving');
+
+            // Upload to backend
+            const response = await fetch('../backend/api/business-card/upload.php', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Get the preview container
+                const previewContainer = document.querySelector(`[data-file-preview="${fieldName}"]`);
+
+                // Find the upload area (for edit.js and register.js compatibility)
+                const fileInput = document.querySelector(`input[type="file"][name="${fieldName}"], input[type="file"]#${fieldName}`);
+                let uploadArea = null;
+                let previewElement = null;
+
+                if (fileInput) {
+                    uploadArea = fileInput.closest('.upload-area');
+                    if (uploadArea) {
+                        previewElement = uploadArea.querySelector('.upload-preview');
+                    }
+                }
+
+                // Update preview with uploaded image
+                const imagePath = result.data.file_path.startsWith('http')
+                    ? result.data.file_path
+                    : '../' + result.data.file_path;
+
+                // Build resize info message
+                let resizeInfo = '';
+                if (result.data.was_resized) {
+                    const orig = result.data.original_dimensions;
+                    const final = result.data.final_dimensions;
+                    const origSize = result.data.original_size_kb;
+                    const finalSize = result.data.final_size_kb;
+                    resizeInfo = `<p style="font-size: 0.8rem; color: #666; margin-top: 0.5rem;">
+                        自動リサイズ: ${orig.width}×${orig.height} → ${final.width}×${final.height}px
+                        <br>(${origSize}KB → ${finalSize}KB)
+                    </p>`;
+                }
+
+                // Update preview in upload area (if exists)
+                if (previewElement) {
+                    previewElement.innerHTML = `
+                        <img src="${imagePath}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
+                        ${resizeInfo}
+                    `;
+                }
+
+                // Update preview container (auto-save preview)
+                if (previewContainer) {
+                    previewContainer.innerHTML = `
+                        <div class="file-preview" style="padding: 10px; background: #d4edda; border-radius: 4px; border: 1px solid #c3e6cb;">
+                            <img src="${imagePath}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; margin-bottom: 10px;">
+                            <div style="color: #155724; font-size: 14px;">
+                                <div><strong>ファイル名:</strong> ${fileData.name}</div>
+                                <div><strong>ステータス:</strong> データベースに保存済み</div>
+                                ${resizeInfo}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Clear restored file from IndexedDB since it's now in database
+                await deleteFileFromDB(fieldName);
+                restoredFiles.delete(fieldName);
+
+                // Update business card data if available (for edit.js)
+                if (typeof window.businessCardData !== 'undefined' && window.businessCardData) {
+                    let relativePath = result.data.file_path;
+                    if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+                        const urlParts = relativePath.split('/');
+                        const backendIndex = urlParts.indexOf('backend');
+                        if (backendIndex !== -1) {
+                            relativePath = urlParts.slice(backendIndex).join('/');
+                        } else {
+                            const uploadsIndex = urlParts.indexOf('uploads');
+                            if (uploadsIndex !== -1) {
+                                relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
+                            }
+                        }
+                    }
+                    window.businessCardData[fieldName] = relativePath;
+                }
+
+                // Update preview if updatePreview function exists (for edit.js)
+                if (typeof window.updatePreview === 'function' && window.businessCardData) {
+                    window.updatePreview(window.businessCardData);
+                }
+
+                showStatus('ファイルをデータベースに保存しました', 'success');
+                isDirty = true;
+            } else {
+                showStatus('ファイルのアップロードに失敗しました: ' + (result.message || '不明なエラー'), 'error');
+            }
+        } catch (error) {
+            console.error('Error restoring file to database:', error);
+            showStatus('ファイルの復元中にエラーが発生しました', 'error');
+        }
     }
 
     /**
@@ -522,6 +682,16 @@
                     background: #fff3cd;
                     color: #856404;
                     border: 1px solid #ffeaa7;
+                }
+                .auto-save-status-error {
+                    background: #f8d7da;
+                    color: #721c24;
+                    border: 1px solid #f5c6cb;
+                }
+                .auto-save-status-success {
+                    background: #d4edda;
+                    color: #155724;
+                    border: 1px solid #c3e6cb;
                 }
                 .auto-save-status-success {
                     background: #d4edda;

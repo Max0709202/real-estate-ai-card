@@ -2418,6 +2418,49 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
     const cancelBtn = document.getElementById('crop-cancel-btn');
     if (cancelBtn) {
         cancelBtn.onclick = function() {
+            // Store original file (without cropping) for later upload
+            if (registerCropFile && registerCropFieldName && registerCropOriginalEvent) {
+                // Find upload area
+                let uploadArea = null;
+                if (registerCropOriginalEvent.target) {
+                    uploadArea = registerCropOriginalEvent.target.closest('.upload-area');
+                }
+
+                // If we can't find it from the event, try to find it by field name
+                if (!uploadArea && registerCropFieldName) {
+                    const fieldId = registerCropFieldName === 'company_logo' ? 'company_logo' : 'profile_photo_header';
+                    const fieldElement = document.getElementById(fieldId);
+                    if (fieldElement) {
+                        uploadArea = fieldElement.closest('.upload-area');
+                    }
+                }
+
+                if (uploadArea) {
+                    // Show preview with original image
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const preview = uploadArea.querySelector('.upload-preview');
+                        if (preview) {
+                            const img = new Image();
+                            img.onload = () => {
+                                const resizeNote = (img.width > 800 || img.height > 800)
+                                    ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大800×800px)</p>`
+                                    : '';
+                                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
+                            };
+                            img.src = event.target.result;
+                        }
+
+                        // Store original file as data URL for later upload (same format as cropped blob)
+                        uploadArea.dataset.croppedBlob = event.target.result; // Store as data URL
+                        uploadArea.dataset.croppedFileName = registerCropFile.name;
+                        // Clear cropped flag to indicate this is original, not cropped
+                        uploadArea.dataset.isCropped = 'false';
+                    };
+                    reader.readAsDataURL(registerCropFile);
+                }
+            }
+
             closeRegisterImageCropper();
             // Reset file input
             if (originalEvent && originalEvent.target) {
