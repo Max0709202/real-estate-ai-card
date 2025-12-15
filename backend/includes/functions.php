@@ -908,10 +908,6 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
                     <tr>
                         <th>名刺URL</th>
                         <td><a href='{$cardFullUrl}' target='_blank'>{$cardFullUrl}</a></td>
-                    </tr>
-                    <tr>
-                        <th>QRコードスキャン先</th>
-                        <td>{$cardFullUrl}</td>
                     </tr>";
     
     if ($paymentAmount) {
@@ -950,7 +946,6 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
         ($phoneNumber ? "電話番号: {$phoneNumber}\n" : "") .
         "URLスラッグ: {$urlSlug}\n" .
         "名刺URL: {$cardFullUrl}\n" .
-        "QRコードスキャン先: {$cardFullUrl}\n" .
         ($paymentAmount ? "支払い金額: ¥" . number_format($paymentAmount) . "\n" : "") .
         "発行日時: {$issuedDate}\n";
     

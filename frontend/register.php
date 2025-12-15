@@ -111,6 +111,10 @@ $prefectures = [
                 <div id="preview-content" class="preview-content"></div>
             </div>
 
+            <div class="preview-btn-container preview-btn-desktop">
+                <button type="button" id="preview-btn" class="btn-preview">プレビュー</button>
+            </div>
+
             <!-- Step 1: Header & Greeting -->
             <div id="step-1" class="register-step active">
                 <h1>ヘッダー・挨拶部</h1>
@@ -153,7 +157,7 @@ $prefectures = [
                             ・５つの挨拶文例をそのまま使用できます。<br>
                             ・挨拶文の順序を上下のボタン・ドラッグで変更できます。
                         </p>
-                        <div style="text-align: center; margin: 1rem 0;">
+                        <div style="text-align: center; margin: 1rem 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 1rem;">
                             <button type="button" class="btn-add" onclick="addGreeting()">挨拶文を追加</button>
                             <button type="button" class="btn-restore-defaults" onclick="restoreDefaultGreetingsForRegister()">５つの挨拶文例を再表示する</button>
                         </div>
@@ -720,8 +724,8 @@ $prefectures = [
                     <button type="button" id="submit-payment" class="btn-primary">この内容で進める</button>
                 </div>
             </div>
-            <div style="text-align: center; width: 100%;" class="preview-btn-container">
-                <button type="button" id="preview-btn" class="btn-preview" style="width: 90%; border-radius: 5px;">プレビュー</button>
+            <div class="preview-btn-container preview-btn-mobile">
+                <button type="button" id="preview-btn" class="btn-preview">プレビュー</button>
             </div>
         </div>
     </div>
