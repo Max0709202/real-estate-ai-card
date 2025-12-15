@@ -150,6 +150,237 @@ function logAdminChange($db, $adminId, $adminEmail, $changeType, $targetType, $t
 }
 
 /**
+ * 画像のEXIF向き情報を正規化
+ * 
+ * スマートフォンで撮影した画像のEXIF向き情報を読み取り、
+ * 画像を物理的に回転させて正しい向きにし、EXIFメタデータを削除します。
+ * 
+ * @param string $filePath 画像ファイルパス（上書きされます）
+ * @param string $mimeType MIMEタイプ（'image/jpeg', 'image/png'など）
+ * @return bool 成功時true、失敗時false
+ */
+function normalizeImageOrientation($filePath, $mimeType) {
+    if (!file_exists($filePath)) {
+        error_log("normalizeImageOrientation: File not found - $filePath");
+        return false;
+    }
+
+    // JPEG以外はEXIF向き情報がないためスキップ（PNG/GIF/WebPは通常向き情報なし）
+    if ($mimeType !== 'image/jpeg') {
+        error_log("normalizeImageOrientation: Skipping non-JPEG file - $mimeType");
+        return true; // エラーではなく、処理不要として成功を返す
+    }
+
+    // EXIF拡張機能の確認
+    if (!function_exists('exif_read_data')) {
+        error_log("normalizeImageOrientation: EXIF extension not available, skipping normalization");
+        return true; // EXIF拡張がない場合はスキップ（エラーではない）
+    }
+
+    // EXIF向き情報の読み取り
+    $exif = @exif_read_data($filePath);
+    if ($exif === false || !isset($exif['Orientation'])) {
+        error_log("normalizeImageOrientation: No EXIF orientation data found or already normalized");
+        return true; // 向き情報がない場合は既に正規化済みとみなす
+    }
+
+    $orientation = (int)$exif['Orientation'];
+    
+    // 向き1（TopLeft）の場合は処理不要
+    if ($orientation === 1) {
+        error_log("normalizeImageOrientation: Orientation is already TopLeft (1), no rotation needed");
+        return true;
+    }
+
+    error_log("normalizeImageOrientation: Detected orientation $orientation, normalizing...");
+
+    // Imagickが利用可能な場合はImagickを使用
+    if (class_exists('Imagick')) {
+        return normalizeImageOrientationImagick($filePath, $orientation);
+    }
+    
+    // GDフォールバック
+    return normalizeImageOrientationGD($filePath, $orientation);
+}
+
+/**
+ * Imagickを使用した画像向き正規化
+ * 
+ * @param string $filePath 画像ファイルパス
+ * @param int $orientation EXIF向き値（1-8）
+ * @return bool 成功時true、失敗時false
+ */
+function normalizeImageOrientationImagick($filePath, $orientation) {
+    try {
+        $img = new Imagick($filePath);
+        
+        // 向きに応じて回転・反転
+        switch ($orientation) {
+            case 2: // TopRight - 水平反転
+                $img->flopImage();
+                break;
+            case 3: // BottomRight - 180度回転
+                $img->rotateImage(new ImagickPixel('#00000000'), 180);
+                break;
+            case 4: // BottomLeft - 垂直反転
+                $img->flipImage();
+                break;
+            case 5: // LeftTop - 90度CCW回転 + 水平反転
+                $img->rotateImage(new ImagickPixel('#00000000'), 90);
+                $img->flopImage();
+                break;
+            case 6: // RightTop - 90度CW回転
+                $img->rotateImage(new ImagickPixel('#00000000'), -90);
+                break;
+            case 7: // RightBottom - 90度CW回転 + 水平反転
+                $img->rotateImage(new ImagickPixel('#00000000'), -90);
+                $img->flopImage();
+                break;
+            case 8: // LeftBottom - 90度CCW回転
+                $img->rotateImage(new ImagickPixel('#00000000'), 90);
+                break;
+        }
+        
+        // 向きをTopLeftに設定
+        $img->setImageOrientation(Imagick::ORIENTATION_TOPLEFT);
+        
+        // EXIFメタデータを削除
+        $img->stripImage();
+        
+        // ファイルを上書き保存
+        $img->writeImage($filePath);
+        $img->clear();
+        $img->destroy();
+        
+        error_log("normalizeImageOrientationImagick: Successfully normalized orientation $orientation");
+        return true;
+        
+    } catch (Exception $e) {
+        error_log("normalizeImageOrientationImagick: Failed - " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * GDを使用した画像向き正規化
+ * 
+ * @param string $filePath 画像ファイルパス
+ * @param int $orientation EXIF向き値（1-8）
+ * @return bool 成功時true、失敗時false
+ */
+function normalizeImageOrientationGD($filePath, $orientation) {
+    // 画像を読み込み
+    $source = @imagecreatefromjpeg($filePath);
+    if ($source === false) {
+        error_log("normalizeImageOrientationGD: Failed to create image from JPEG");
+        return false;
+    }
+
+    $width = imagesx($source);
+    $height = imagesy($source);
+    $destination = null;
+    $rotated = false;
+    $flipped = false;
+
+    // 向きに応じて回転・反転
+    switch ($orientation) {
+        case 2: // TopRight - 水平反転
+            $destination = imagecreatetruecolor($width, $height);
+            imagealphablending($destination, false);
+            imagesavealpha($destination, true);
+            for ($x = 0; $x < $width; $x++) {
+                imagecopy($destination, $source, $width - $x - 1, 0, $x, 0, 1, $height);
+            }
+            $flipped = true;
+            break;
+            
+        case 3: // BottomRight - 180度回転
+            $destination = imagerotate($source, 180, 0);
+            $rotated = true;
+            break;
+            
+        case 4: // BottomLeft - 垂直反転
+            $destination = imagecreatetruecolor($width, $height);
+            imagealphablending($destination, false);
+            imagesavealpha($destination, true);
+            for ($y = 0; $y < $height; $y++) {
+                imagecopy($destination, $source, 0, $height - $y - 1, 0, $y, $width, 1);
+            }
+            $flipped = true;
+            break;
+            
+        case 5: // LeftTop - 90度CCW回転 + 水平反転
+            $destination = imagerotate($source, 90, 0);
+            $tempWidth = imagesx($destination);
+            $tempHeight = imagesy($destination);
+            $flippedDest = imagecreatetruecolor($tempWidth, $tempHeight);
+            imagealphablending($flippedDest, false);
+            imagesavealpha($flippedDest, true);
+            for ($x = 0; $x < $tempWidth; $x++) {
+                imagecopy($flippedDest, $destination, $tempWidth - $x - 1, 0, $x, 0, 1, $tempHeight);
+            }
+            imagedestroy($destination);
+            $destination = $flippedDest;
+            $rotated = true;
+            $flipped = true;
+            break;
+            
+        case 6: // RightTop - 90度CW回転
+            $destination = imagerotate($source, -90, 0);
+            $rotated = true;
+            break;
+            
+        case 7: // RightBottom - 90度CW回転 + 水平反転
+            $destination = imagerotate($source, -90, 0);
+            $tempWidth = imagesx($destination);
+            $tempHeight = imagesy($destination);
+            $flippedDest = imagecreatetruecolor($tempWidth, $tempHeight);
+            imagealphablending($flippedDest, false);
+            imagesavealpha($flippedDest, true);
+            for ($x = 0; $x < $tempWidth; $x++) {
+                imagecopy($flippedDest, $destination, $tempWidth - $x - 1, 0, $x, 0, 1, $tempHeight);
+            }
+            imagedestroy($destination);
+            $destination = $flippedDest;
+            $rotated = true;
+            $flipped = true;
+            break;
+            
+        case 8: // LeftBottom - 90度CCW回転
+            $destination = imagerotate($source, 90, 0);
+            $rotated = true;
+            break;
+            
+        default:
+            imagedestroy($source);
+            error_log("normalizeImageOrientationGD: Unknown orientation $orientation");
+            return false;
+    }
+
+    if ($destination === null) {
+        imagedestroy($source);
+        error_log("normalizeImageOrientationGD: Failed to create destination image");
+        return false;
+    }
+
+    // 元の画像を破棄
+    imagedestroy($source);
+
+    // JPEGとして保存（品質85、EXIFメタデータは自動的に削除される）
+    $result = imagejpeg($destination, $filePath, 85);
+    
+    imagedestroy($destination);
+
+    if (!$result) {
+        error_log("normalizeImageOrientationGD: Failed to save normalized image");
+        return false;
+    }
+
+    error_log("normalizeImageOrientationGD: Successfully normalized orientation $orientation");
+    return true;
+}
+
+/**
  * 画像リサイズ
  * 
  * @param string $filePath 画像ファイルパス
@@ -353,7 +584,29 @@ function uploadFile($file, $subDirectory = '') {
         return ['success' => false, 'message' => 'ファイルの移動に失敗しました'];
     }
 
-    // 画像リサイズ（有効な場合）
+    // EXIF向き情報の正規化（リサイズ前に実行）
+    // これにより、スマートフォンで撮影した画像が正しい向きで保存されます
+    $orientationNormalized = false;
+    try {
+        $orientationNormalized = normalizeImageOrientation($filePath, $mimeType);
+        if ($orientationNormalized) {
+            error_log("uploadFile: Image orientation normalized successfully");
+            // 正規化後の画像情報を再取得（向きが変わった可能性があるため）
+            $normalizedInfo = @getimagesize($filePath);
+            if ($normalizedInfo) {
+                $originalWidth = $normalizedInfo[0];
+                $originalHeight = $normalizedInfo[1];
+                error_log("uploadFile: After normalization - {$originalWidth}x{$originalHeight}");
+            }
+        } else {
+            error_log("uploadFile: Image orientation normalization failed or skipped (non-JPEG or no EXIF)");
+        }
+    } catch (Exception $e) {
+        error_log("uploadFile: Orientation normalization error - " . $e->getMessage());
+        // 正規化エラーは致命的ではないため、処理を続行
+    }
+
+    // 画像リサイズ（有効な場合、正規化後に実行）
     $resizeInfo = null;
     if (defined('IMAGE_RESIZE_ENABLED') && IMAGE_RESIZE_ENABLED) {
         try {

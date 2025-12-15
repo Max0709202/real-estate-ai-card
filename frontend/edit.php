@@ -624,8 +624,8 @@ $defaultGreetings = [
                     <img id="cropper-image" style="max-width: 100%; display: block; max-height: 60vh;">
                 </div>
                 <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                    <button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; min-width: 120px;">キャンセル</button>
-                    <button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px; min-width: 120px;">トリミングを適用</button>
+                    <button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; width: auto;">キャンセル</button>
+                    <button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px; width: auto;">トリミングを適用</button>
                 </div>
             </div>
         </div>

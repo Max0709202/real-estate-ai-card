@@ -755,8 +755,8 @@ $prefectures = [
                     <img id="cropper-image" style="max-width: 100%; display: block;">
                 </div>
                 <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
-                    <button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px;">キャンセル</button>
-                    <button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px;">トリミングを適用</button>
+                    <button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; width: auto;">キャンセル</button>
+                    <button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px; width: auto;">トリミングを適用</button>
                 </div>
             </div>
         </div>
