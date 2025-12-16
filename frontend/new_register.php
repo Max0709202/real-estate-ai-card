@@ -243,7 +243,9 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
                     isSubmitting = false;
                     submitButton.disabled = false;
                     submitButton.textContent = originalButtonText;
-                    showError(result.message || '登録に失敗しました');
+                    
+                    // Display all validation errors using the error handler
+                    showApiError(result, '登録に失敗しました');
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -261,6 +263,7 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
     </script>
     <script src="assets/js/auto-save.js"></script>
     <script src="assets/js/modal.js"></script>
+    <script src="assets/js/error-handler.js"></script>
 </body>
 </html>
 

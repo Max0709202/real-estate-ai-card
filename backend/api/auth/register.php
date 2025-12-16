@@ -25,23 +25,23 @@ try {
     $errors = [];
 
     if (empty($input['email']) || !validateEmail($input['email'])) {
-        $errors['email'] = '有効なメールアドレスを入力してください';
+        $errors['email'] = '有効なメールアドレスを入力してください。';
     }
 
     if (empty($input['password']) || strlen($input['password']) < 8) {
-        $errors['password'] = 'パスワードは8文字以上で入力してください';
+        $errors['password'] = 'パスワードは8文字以上で入力してください。';
     }
 
     if (empty($input['phone_number']) || !validatePhoneNumber($input['phone_number'])) {
-        $errors['phone_number'] = '有効な電話番号を入力してください';
+        $errors['phone_number'] = '携帯電話番号の入力内容にエラーがあります。';
     }
 
     if (empty($input['user_type']) || !in_array($input['user_type'], ['new', 'existing', 'free'])) {
-        $errors['user_type'] = 'ユーザータイプを選択してください';
+        $errors['user_type'] = 'ユーザータイプを選択してください。';
     }
 
     if (!empty($errors)) {
-        sendErrorResponse('入力内容に誤りがあります', 400, $errors);
+        sendErrorResponse('入力内容に誤りがあります。', 400, $errors);
     }
 
     $database = new Database();

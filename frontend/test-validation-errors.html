@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validation Error Test - Multiple Errors Display</title>
+    <link rel="stylesheet" href="assets/css/modal.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #0066cc;
+            margin-top: 30px;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 10px 10px 0;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #0052a3;
+        }
+        .test-description {
+            background: #f9f9f9;
+            padding: 15px;
+            border-left: 4px solid #0066cc;
+            margin: 15px 0;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-section">
+        <h1>Validation Error Display Test</h1>
+        <p>This page demonstrates the improved error handling that displays all validation errors from the API response.</p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 1: Single Error</h2>
+        <div class="test-description">
+            <p><strong>Scenario:</strong> Only one field has a validation error</p>
+            <p><strong>Expected Result:</strong> Display the general message and the single field error</p>
+        </div>
+        <button onclick="testSingleError()">Show Single Error</button>
+        
+        <pre><code>{
+  "success": false,
+  "message": "入力内容に誤りがあります",
+  "errors": {
+    "email": "有効なメールアドレスを入力してください"
+  }
+}</code></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Multiple Errors</h2>
+        <div class="test-description">
+            <p><strong>Scenario:</strong> Multiple fields have validation errors (email, password, phone)</p>
+            <p><strong>Expected Result:</strong> Display all field errors in a list</p>
+        </div>
+        <button onclick="testMultipleErrors()">Show Multiple Errors</button>
+        
+        <pre><code>{
+  "success": false,
+  "message": "入力内容に誤りがあります",
+  "errors": {
+    "email": "有効なメールアドレスを入力してください",
+    "password": "パスワードは8文字以上で入力してください",
+    "phone_number": "有効な電話番号を入力してください"
+  }
+}</code></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: All Field Errors</h2>
+        <div class="test-description">
+            <p><strong>Scenario:</strong> All fields have validation errors</p>
+            <p><strong>Expected Result:</strong> Display all four field errors</p>
+        </div>
+        <button onclick="testAllErrors()">Show All Errors</button>
+        
+        <pre><code>{
+  "success": false,
+  "message": "入力内容に誤りがあります",
+  "errors": {
+    "email": "有効なメールアドレスを入力してください",
+    "password": "パスワードは8文字以上で入力してください",
+    "phone_number": "有効な電話番号を入力してください",
+    "user_type": "ユーザータイプを選択してください"
+  }
+}</code></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: No Field Errors (General Error Only)</h2>
+        <div class="test-description">
+            <p><strong>Scenario:</strong> General error without specific field errors</p>
+            <p><strong>Expected Result:</strong> Display only the general message</p>
+        </div>
+        <button onclick="testGeneralError()">Show General Error</button>
+        
+        <pre><code>{
+  "success": false,
+  "message": "このメールアドレスは既に登録されています"
+}</code></pre>
+    </div>
+
+    <script src="assets/js/modal.js"></script>
+    <script src="assets/js/error-handler.js"></script>
+    <script>
+        function testSingleError() {
+            const result = {
+                success: false,
+                message: '入力内容に誤りがあります',
+                errors: {
+                    email: '有効なメールアドレスを入力してください'
+                }
+            };
+            showApiError(result);
+        }
+
+        function testMultipleErrors() {
+            const result = {
+                success: false,
+                message: '入力内容に誤りがあります',
+                errors: {
+                    email: '有効なメールアドレスを入力してください',
+                    password: 'パスワードは8文字以上で入力してください',
+                    phone_number: '有効な電話番号を入力してください'
+                }
+            };
+            showApiError(result);
+        }
+
+        function testAllErrors() {
+            const result = {
+                success: false,
+                message: '入力内容に誤りがあります',
+                errors: {
+                    email: '有効なメールアドレスを入力してください',
+                    password: 'パスワードは8文字以上で入力してください',
+                    phone_number: '有効な電話番号を入力してください',
+                    user_type: 'ユーザータイプを選択してください'
+                }
+            };
+            showApiError(result);
+        }
+
+        function testGeneralError() {
+            const result = {
+                success: false,
+                message: 'このメールアドレスは既に登録されています'
+            };
+            showApiError(result);
+        }
+    </script>
+</body>
+</html>
+
