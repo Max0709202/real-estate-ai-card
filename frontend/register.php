@@ -338,31 +338,31 @@ $prefectures = [
                         <h3>フリー入力欄</h3>
                         <p class="section-note">自由にアピールポイントや追加情報を入力できます。YouTubeのリンクなども貼り付けられます。</p>
                         <div class="form-group">
-                            <label>テキスト <button type="button" class="btn-add-small" onclick="addFreeInputTextForRegister()">追加</button></label>
-                            <div id="free-input-texts-container">
-                                <div class="free-input-text-item">
-                                    <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
-                                    <button type="button" class="btn-delete-small" onclick="removeFreeInputTextForRegister(this)" style="display: none;">削除</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>画像・バナー（リンク付き画像） <button type="button" class="btn-add-small" onclick="addFreeImageItemForRegister()">追加</button></label>
-                            <div id="free-images-container">
-                                <div class="free-image-item">
-                                    <div class="upload-area" data-upload-id="free_image_0">
-                                        <input type="file" name="free_image[]" accept="image/*" style="display: none;">
-                                        <div class="upload-preview"></div>
-                                        <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\"file\"]').click()">
-                                            画像をアップロード
-                                        </button>
-                                        <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                            <label>テキスト・画像セット <button type="button" class="btn-add-small" onclick="addFreeInputPairForRegister()">追加</button></label>
+                            <div id="free-input-pairs-container">
+                                <div class="free-input-pair-item">
+                                    <!-- Text Input -->
+                                    <div class="form-group">
+                                        <label>テキスト</label>
+                                        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
                                     </div>
-                                    <div class="form-group" style="margin-top: 0.5rem;">
-                                        <label>画像のリンク先URL（任意）</label>
-                                        <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+                                    <!-- Image/Banner Input -->
+                                    <div class="form-group">
+                                        <label>画像・バナー（リンク付き画像）</label>
+                                        <div class="upload-area" data-upload-id="free_image_0">
+                                            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                                            <div class="upload-preview"></div>
+                                            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\"file\"]').click()">
+                                                画像をアップロード
+                                            </button>
+                                            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                                        </div>
+                                        <div class="form-group" style="margin-top: 0.5rem;">
+                                            <label>画像のリンク先URL（任意）</label>
+                                            <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+                                        </div>
                                     </div>
-                                    <button type="button" class="btn-delete-small" onclick="removeFreeImageItemForRegister(this)" style="display: none;">削除</button>
+                                    <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)" style="display: none;">削除</button>
                                 </div>
                             </div>
                         </div>

@@ -267,67 +267,62 @@ function populateRegistrationForms(data) {
         if (hobbiesInput) hobbiesInput.value = data.hobbies;
     }
     
-    // Free input
+    // Free input - Populate paired items (text + image)
     if (data.free_input) {
         try {
             const freeInputData = JSON.parse(data.free_input);
-            const container = document.getElementById('free-input-texts-container');
-            
-            // Handle both old format (text) and new format (texts)
+            const container = document.getElementById('free-input-pairs-container');
+
+            if (!container) return;
+
+            // Handle both old format and new format
             let texts = [];
+            let images = [];
+
             if (freeInputData.texts && Array.isArray(freeInputData.texts)) {
                 texts = freeInputData.texts;
             } else if (freeInputData.text) {
                 texts = [freeInputData.text];
             }
-            
-            // Clear existing textareas
-            if (container) {
-                container.innerHTML = '';
-                
-                // Create textareas for each text
-                if (texts.length === 0) {
-                    // If no texts, create one empty textarea
-                    texts = [''];
-                }
-                
-                texts.forEach((text, index) => {
-                    const item = document.createElement('div');
-                    item.className = 'free-input-text-item';
-                    item.innerHTML = `
-                        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx">${escapeHtml(text)}</textarea>
-                        <button type="button" class="btn-delete-small" onclick="removeFreeInputTextForRegister(this)" ${texts.length <= 1 ? 'style="display: none;"' : ''}>削除</button>
-                    `;
-                    container.appendChild(item);
-                });
+
+            if (freeInputData.images && Array.isArray(freeInputData.images)) {
+                images = freeInputData.images;
+            } else if (freeInputData.image || freeInputData.image_link) {
+                images = [{
+                    image: freeInputData.image || '',
+                    link: freeInputData.image_link || ''
+                }];
             }
-            
-            // Handle images - support both old format (single image) and new format (array)
-            const imagesContainer = document.getElementById('free-images-container');
-            if (imagesContainer) {
-                imagesContainer.innerHTML = '';
-                
-                let images = [];
-                if (freeInputData.images && Array.isArray(freeInputData.images)) {
-                    images = freeInputData.images;
-                } else if (freeInputData.image || freeInputData.image_link) {
-                    // Old format: single image
-                    images = [{
-                        image: freeInputData.image || '',
-                        link: freeInputData.image_link || ''
-                    }];
+
+            // Ensure we have at least one pair
+            const pairCount = Math.max(texts.length, images.length, 1);
+
+            // Clear existing items
+            container.innerHTML = '';
+
+            // Create paired items
+            for (let i = 0; i < pairCount; i++) {
+                const text = texts[i] || '';
+                const imgData = images[i] || { image: '', link: '' };
+
+                const pairItem = document.createElement('div');
+                pairItem.className = 'free-input-pair-item';
+                if (i > 0) {
+                    pairItem.style.marginTop = '2rem';
+                    pairItem.style.paddingTop = '2rem';
+                    pairItem.style.borderTop = '1px solid #e0e0e0';
                 }
-                
-                // If no images, create one empty item
-                if (images.length === 0) {
-                    images = [{ image: '', link: '' }];
-                }
-                
-                images.forEach((imgData, index) => {
-                    const item = document.createElement('div');
-                    item.className = 'free-image-item';
-                    item.innerHTML = `
-                        <div class="upload-area" data-upload-id="free_image_${index}">
+
+                pairItem.innerHTML = `
+                    <!-- Text Input -->
+                    <div class="form-group">
+                        <label>テキスト</label>
+                        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx">${escapeHtml(text)}</textarea>
+                    </div>
+                    <!-- Image/Banner Input -->
+                    <div class="form-group">
+                        <label>画像・バナー（リンク付き画像）</label>
+                        <div class="upload-area" data-upload-id="free_image_${i}">
                             <input type="file" name="free_image[]" accept="image/*" style="display: none;">
                             <div class="upload-preview">${imgData.image ? `<img src="${imgData.image.startsWith('http') ? imgData.image : '../' + imgData.image}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">` : ''}</div>
                             <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
@@ -339,18 +334,19 @@ function populateRegistrationForms(data) {
                             <label>画像のリンク先URL（任意）</label>
                             <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com" value="${escapeHtml(imgData.link || '')}">
                         </div>
-                        <button type="button" class="btn-delete-small" onclick="removeFreeImageItemForRegister(this)" ${images.length <= 1 ? 'style="display: none;"' : ''}>削除</button>
-                    `;
-                    imagesContainer.appendChild(item);
-                    
-                    // Store existing image path in data attribute for later use
-                    if (imgData.image) {
-                        item.querySelector('.upload-area').dataset.existingImage = imgData.image;
-                    }
-                    
-                    // Initialize file upload handler
-                    initializeFreeImageUploadForRegister(item);
-                });
+                    </div>
+                    <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
+                `;
+
+                container.appendChild(pairItem);
+
+                // Store existing image path in data attribute for later use
+                if (imgData.image) {
+                    pairItem.querySelector('.upload-area').dataset.existingImage = imgData.image;
+                }
+
+                // Initialize file upload handler
+                initializeFreeImageUploadForRegister(pairItem);
             }
         } catch (e) {
             console.error('Error parsing free_input:', e);
@@ -1424,19 +1420,27 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
     delete data.qualification_kenchikushi;
     delete data.qualifications_other;
     
-    // Combine free input fields - collect all textarea values
-    const freeInputTexts = formDataObj.getAll('free_input_text[]').filter(text => text.trim() !== '');
-    
-    // Handle free images - collect all image+link pairs
-    const freeImageLinks = formDataObj.getAll('free_image_link[]');
-    const freeImageItems = document.querySelectorAll('#free-images-container .free-image-item');
+    // Combine free input fields from paired items - collect all textarea values and images
+    const freeInputTexts = [];
     const images = [];
     
-    for (let i = 0; i < freeImageItems.length; i++) {
-        const item = freeImageItems[i];
-        const fileInput = item.querySelector('input[type="file"]');
-        const linkInput = item.querySelector('input[type="url"]');
-        const existingImage = item.querySelector('.upload-area').dataset.existingImage;
+    // Get all paired items
+    const pairedItems = document.querySelectorAll('#free-input-pairs-container .free-input-pair-item');
+    
+    for (let i = 0; i < pairedItems.length; i++) {
+        const pairItem = pairedItems[i];
+        
+        // Get text from this pair
+        const textarea = pairItem.querySelector('textarea[name="free_input_text[]"]');
+        if (textarea && textarea.value.trim() !== '') {
+            freeInputTexts.push(textarea.value.trim());
+        }
+        
+        // Get image and link from this pair
+        const fileInput = pairItem.querySelector('input[type="file"]');
+        const linkInput = pairItem.querySelector('input[type="url"]');
+        const uploadArea = pairItem.querySelector('.upload-area');
+        const existingImage = uploadArea ? uploadArea.dataset.existingImage : '';
         
         let imagePath = existingImage || '';
         
@@ -1467,6 +1471,7 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
             }
         }
         
+        // Add image data (even if empty, to maintain pairing)
         images.push({
             image: imagePath,
             link: linkInput ? linkInput.value.trim() : ''
@@ -2631,49 +2636,78 @@ document.getElementById('free_image')?.addEventListener('change', (e) => {
 });
 
 // Add free input text textarea for register
-function addFreeInputTextForRegister() {
-    const container = document.getElementById('free-input-texts-container');
+// Add a paired item (text + image) for register
+function addFreeInputPairForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-    
-    const newItem = document.createElement('div');
-    newItem.className = 'free-input-text-item';
-    newItem.innerHTML = `
-        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
-        <button type="button" class="btn-delete-small" onclick="removeFreeInputTextForRegister(this)">削除</button>
+
+    const itemCount = container.querySelectorAll('.free-input-pair-item').length;
+    const newPairItem = document.createElement('div');
+    newPairItem.className = 'free-input-pair-item';
+    newPairItem.style.marginTop = '2rem';
+    newPairItem.style.paddingTop = '2rem';
+    newPairItem.style.borderTop = '1px solid #e0e0e0';
+
+    newPairItem.innerHTML = `
+        <!-- Text Input -->
+        <div class="form-group">
+            <label>テキスト</label>
+            <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+        </div>
+        <!-- Image/Banner Input -->
+        <div class="form-group">
+            <label>画像・バナー（リンク付き画像）</label>
+            <div class="upload-area" data-upload-id="free_image_${itemCount}">
+                <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                <div class="upload-preview"></div>
+                <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
+                    画像をアップロード
+                </button>
+                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+            </div>
+            <div class="form-group" style="margin-top: 0.5rem;">
+                <label>画像のリンク先URL（任意）</label>
+                <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+            </div>
+        </div>
+        <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)">削除</button>
     `;
-    
-    container.appendChild(newItem);
-    
+
+    container.appendChild(newPairItem);
+
+    // Initialize file input handler for the new item
+    initializeFreeImageUploadForRegister(newPairItem);
+
     // Show delete buttons if there are multiple items
-    updateFreeInputDeleteButtonsForRegister();
+    updateFreeInputPairDeleteButtonsForRegister();
 }
 
-// Remove free input text textarea for register
-function removeFreeInputTextForRegister(button) {
-    const container = document.getElementById('free-input-texts-container');
+// Remove a paired item (text + image) for register
+function removeFreeInputPairForRegister(button) {
+    const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-    
-    const items = container.querySelectorAll('.free-input-text-item');
+
+    const items = container.querySelectorAll('.free-input-pair-item');
     if (items.length <= 1) {
-        showWarning('最低1つのテキストエリアが必要です。');
+        showWarning('最低1つのセットが必要です。');
         return;
     }
-    
-    const item = button.closest('.free-input-text-item');
+
+    const item = button.closest('.free-input-pair-item');
     if (item) {
         item.remove();
-        updateFreeInputDeleteButtonsForRegister();
+        updateFreeInputPairDeleteButtonsForRegister();
     }
 }
 
-// Update delete button visibility for register
-function updateFreeInputDeleteButtonsForRegister() {
-    const container = document.getElementById('free-input-texts-container');
+// Update delete button visibility for paired items in register
+function updateFreeInputPairDeleteButtonsForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-    
-    const items = container.querySelectorAll('.free-input-text-item');
-    const deleteButtons = container.querySelectorAll('#free-input-texts-container .btn-delete-small');
-    
+
+    const items = container.querySelectorAll('.free-input-pair-item');
+    const deleteButtons = container.querySelectorAll('.free-input-pair-item .btn-delete-small');
+
     if (items.length > 1) {
         deleteButtons.forEach(btn => btn.style.display = 'inline-block');
     } else {
@@ -2681,38 +2715,49 @@ function updateFreeInputDeleteButtonsForRegister() {
     }
 }
 
-// Add free image item for register
-function addFreeImageItemForRegister() {
-    const container = document.getElementById('free-images-container');
-    if (!container) return;
-    
-    const itemCount = container.querySelectorAll('.free-image-item').length;
-    const newItem = document.createElement('div');
-    newItem.className = 'free-image-item';
-    newItem.innerHTML = `
-        <div class="upload-area" data-upload-id="free_image_${itemCount}">
-            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
-            <div class="upload-preview"></div>
-            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
-                画像をアップロード
-            </button>
-            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
-        </div>
-        <div class="form-group" style="margin-top: 0.5rem;">
-            <label>画像のリンク先URL（任意）</label>
-            <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
-        </div>
-        <button type="button" class="btn-delete-small" onclick="removeFreeImageItemForRegister(this)">削除</button>
-    `;
-    
-    container.appendChild(newItem);
-    
-    // Initialize file input handler for the new item
-    initializeFreeImageUploadForRegister(newItem);
-    
-    // Show delete buttons if there are multiple items
-    updateFreeImageDeleteButtonsForRegister();
+// Legacy function kept for backwards compatibility
+function removeFreeInputTextForRegister(button) {
+    removeFreeInputPairForRegister(button);
 }
+
+// Legacy function kept for backwards compatibility
+function updateFreeInputDeleteButtonsForRegister() {
+    updateFreeInputPairDeleteButtonsForRegister();
+}
+
+// Add free image item for register
+// Function removed - adding new image items is no longer supported
+// function addFreeImageItemForRegister() {
+//     const container = document.getElementById('free-images-container');
+//     if (!container) return;
+//
+//     const itemCount = container.querySelectorAll('.free-image-item').length;
+//     const newItem = document.createElement('div');
+//     newItem.className = 'free-image-item';
+//     newItem.innerHTML = `
+//         <div class="upload-area" data-upload-id="free_image_${itemCount}">
+//             <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+//             <div class="upload-preview"></div>
+//             <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
+//                 画像をアップロード
+//             </button>
+//             <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+//         </div>
+//         <div class="form-group" style="margin-top: 0.5rem;">
+//             <label>画像のリンク先URL（任意）</label>
+//             <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+//         </div>
+//         <button type="button" class="btn-delete-small" onclick="removeFreeImageItemForRegister(this)">削除</button>
+//     `;
+//
+//     container.appendChild(newItem);
+//
+//     // Initialize file input handler for the new item
+//     initializeFreeImageUploadForRegister(newItem);
+//
+//     // Show delete buttons if there are multiple items
+//     updateFreeImageDeleteButtonsForRegister();
+// }
 
 // Remove free image item for register
 function removeFreeImageItemForRegister(button) {
