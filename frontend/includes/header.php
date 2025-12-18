@@ -2,8 +2,8 @@
 /**
  * Common Header Component
  * Include this file in all pages that need the header navigation
- * 
- * Usage: 
+ *
+ * Usage:
  *   $showNavLinks = true; // Set to false to hide navigation links (default: true)
  *   include __DIR__ . '/includes/header.php';
  */
@@ -21,23 +21,68 @@ $cardSlug = '';
 $isEmailVerified = false;
 $registerPageUrl = 'new_register.php?type=new'; // Default for non-logged-in users
 
+// Check for token-based access (existing/free users from email invitation)
+// Get token and type from current URL to preserve them in the registration link
+$invitationToken = $_GET['token'] ?? '';
+$urlUserType = $_GET['type'] ?? null;
+$isTokenBased = !empty($invitationToken);
+$tokenValid = false;
+$tokenUserType = null;
+
+if ($isTokenBased && !$isLoggedIn) {
+    // Validate token for non-logged-in users
+    try {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, BASE_URL . '/backend/api/auth/validate-invitation-token.php?token=' . urlencode($invitationToken));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200) {
+            $result = json_decode($response, true);
+            if ($result && $result['success']) {
+                $tokenValid = true;
+                $tokenUserType = $result['data']['role_type'] ?? null;
+
+                // Set registration URL based on token type (use token's role_type, fallback to URL type)
+                if (in_array($tokenUserType, ['existing', 'free'])) {
+                    $registerPageUrl = 'new_register.php?type=' . $tokenUserType . '&token=' . urlencode($invitationToken);
+                } elseif (in_array($urlUserType, ['existing', 'free'])) {
+                    // If token validation didn't return type but URL has it, use URL type
+                    $registerPageUrl = 'new_register.php?type=' . $urlUserType . '&token=' . urlencode($invitationToken);
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Header token validation error: " . $e->getMessage());
+    }
+} elseif ($urlUserType && in_array($urlUserType, ['existing', 'free']) && !$isLoggedIn) {
+    // If type is in URL but no token, still set the URL (though token should be present)
+    $registerPageUrl = 'new_register.php?type=' . $urlUserType;
+    if ($invitationToken) {
+        $registerPageUrl .= '&token=' . urlencode($invitationToken);
+    }
+}
+
 if ($isLoggedIn) {
     try {
         require_once __DIR__ . '/../../backend/config/database.php';
         $database = new Database();
         $db = $database->getConnection();
-        
+
         // Check email verification status
         $stmt = $db->prepare("SELECT email_verified FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $userData = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if ($userData && $userData['email_verified'] == 1) {
             $isEmailVerified = true;
             // If email is verified, redirect to register.php
             $registerPageUrl = 'register.php';
         }
-        
+
         // Check if user has completed payment and has QR code
         $stmt = $db->prepare("
             SELECT bc.url_slug, bc.qr_code_issued, p.payment_status
@@ -49,7 +94,7 @@ if ($isLoggedIn) {
         ");
         $stmt->execute([$_SESSION['user_id']]);
         $cardData = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if ($cardData && $cardData['qr_code_issued'] && $cardData['payment_status'] === 'completed') {
             $showMyCard = true;
             $cardSlug = $cardData['url_slug'];
@@ -80,7 +125,7 @@ if ($isLoggedIn) {
                 <a href="index.php#howto">使い方</a>
                 <a href="index.php#tools">ツール</a>
                 <?php endif; ?>
-                
+
                 <?php if ($isLoggedIn): ?>
                 <!-- User Menu (Person Icon with Dropdown) -->
                 <div class="user-menu">
@@ -114,7 +159,7 @@ if ($isLoggedIn) {
                 <!-- Login Button (when not logged in) -->
                 <a href="login.php" class="btn-secondary">ログイン</a>
                 <?php endif; ?>
-                
+
                 <?php if ($showNavLinks): ?>
                 <a href="<?php echo htmlspecialchars($registerPageUrl); ?>" class="btn-primary">不動産AI名刺を作る</a>
                 <?php endif; ?>
@@ -129,14 +174,14 @@ if ($isLoggedIn) {
     const userIcon = document.getElementById('user-icon');
     const userMenu = document.querySelector('.user-menu');
     const logoutLink = document.getElementById('logout-link');
-    
+
     // Toggle dropdown on click (for mobile/touch devices)
     if (userIcon && userMenu) {
         userIcon.addEventListener('click', function(e) {
             e.stopPropagation();
             userMenu.classList.toggle('active');
         });
-        
+
         // Close dropdown when clicking outside
         document.addEventListener('click', function(e) {
             if (!userMenu.contains(e.target)) {
@@ -144,7 +189,7 @@ if ($isLoggedIn) {
             }
         });
     }
-    
+
     // Logout functionality
     if (logoutLink) {
         logoutLink.addEventListener('click', async (e) => {

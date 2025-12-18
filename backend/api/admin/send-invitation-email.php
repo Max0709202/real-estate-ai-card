@@ -11,37 +11,52 @@ header('Content-Type: application/json; charset=UTF-8');
 
 try {
     requireAdmin();
-    
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendErrorResponse('Method not allowed', 405);
     }
-    
+
     $input = json_decode(file_get_contents('php://input'), true);
     $ids = $input['ids'] ?? [];
-    
+
     if (empty($ids) || !is_array($ids)) {
         sendErrorResponse('送信するIDを選択してください', 400);
     }
-    
+
     $database = new Database();
     $db = $database->getConnection();
-    
+
     $success = 0;
     $failed = 0;
     $errors = [];
-    
+
     foreach ($ids as $id) {
         // Get invitation details
-        $stmt = $db->prepare("SELECT username, email, role_type FROM email_invitations WHERE id = ?");
+        $stmt = $db->prepare("SELECT username, email, role_type, invitation_token FROM email_invitations WHERE id = ?");
         $stmt->execute([$id]);
         $invitation = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if (!$invitation) {
             $errors[] = "ID {$id}: 招待情報が見つかりません";
             $failed++;
             continue;
         }
-        
+
+        // Generate token for existing/free users if not exists
+        $token = $invitation['invitation_token'];
+        if (in_array($invitation['role_type'], ['existing', 'free']) && empty($token)) {
+            // Generate unique token (64 characters)
+            do {
+                $token = bin2hex(random_bytes(32)); // 64 character hex string
+                $checkStmt = $db->prepare("SELECT id FROM email_invitations WHERE invitation_token = ?");
+                $checkStmt->execute([$token]);
+            } while ($checkStmt->fetch());
+
+            // Store token in database
+            $updateStmt = $db->prepare("UPDATE email_invitations SET invitation_token = ? WHERE id = ?");
+            $updateStmt->execute([$token, $id]);
+        }
+
         // Determine landing page URL based on role type
         $baseUrl = BASE_URL;
         switch ($invitation['role_type']) {
@@ -49,15 +64,17 @@ try {
                 $landingPage = "{$baseUrl}/frontend/register.php";
                 break;
             case 'existing':
-                $landingPage = "{$baseUrl}/frontend/login.php";
+                // Use token-based URL format for existing users with type parameter
+                $landingPage = "http://103.179.45.108/php/frontend/index.php?type=existing&token=" . urlencode($token);
                 break;
             case 'free':
-                $landingPage = "{$baseUrl}/frontend/register.php?type=free";
+                // Use token-based URL format for free users with type parameter
+                $landingPage = "http://103.179.45.108/php/frontend/index.php?type=free&token=" . urlencode($token);
                 break;
             default:
                 $landingPage = "{$baseUrl}/frontend/register.php";
         }
-        
+
         // Prepare email content
         $username = $invitation['username'] ?: 'ご担当者様';
         $roleTypeJa = [
@@ -66,9 +83,9 @@ try {
             'free' => '無料ユーザー'
         ];
         $roleLabel = $roleTypeJa[$invitation['role_type']] ?? '新規ユーザー';
-        
+
         $subject = "【不動産AI名刺】サービスへのご招待";
-        
+
         $htmlBody = "
         <html>
         <head>
@@ -106,7 +123,7 @@ try {
         </body>
         </html>
         ";
-        
+
         $plainBody = "{$username} 様\n\n";
         $plainBody .= "不動産AI名刺サービスへのご招待です。\n\n";
         $plainBody .= "下記のリンクからアクセスして、サービスをご利用ください。\n\n";
@@ -115,16 +132,16 @@ try {
         $plainBody .= "ご不明な点がございましたら、お気軽にお問い合わせください。\n\n";
         $plainBody .= "---\n";
         $plainBody .= "このメールは不動産AI名刺から自動送信されています。";
-        
+
         // Send email
         $emailSent = sendEmail($invitation['email'], $subject, $htmlBody, $plainBody);
-        
+
         if ($emailSent) {
             // Update database
             $stmt = $db->prepare("UPDATE email_invitations SET email_sent = 1, sent_at = NOW(), updated_at = NOW() WHERE id = ?");
             $stmt->execute([$id]);
             $success++;
-            
+
             // Log admin change
             logAdminChange($db, $_SESSION['admin_id'], $_SESSION['admin_email'] ?? '', 'other', 'email_invitations', $id, "招待メール送信: {$invitation['email']}");
         } else {
@@ -132,18 +149,18 @@ try {
             $failed++;
         }
     }
-    
+
     $message = "{$success}件のメールを送信しました";
     if ($failed > 0) {
         $message .= "、{$failed}件が失敗しました";
     }
-    
+
     sendSuccessResponse([
         'success' => $success,
         'failed' => $failed,
         'errors' => $errors
     ], $message);
-    
+
 } catch (Exception $e) {
     error_log("Send Invitation Email Error: " . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);

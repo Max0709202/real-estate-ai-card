@@ -21,6 +21,37 @@ try {
         $input = $_POST;
     }
 
+    // Validate invitation token if provided
+    $invitationToken = $input['invitation_token'] ?? '';
+    $tokenData = null;
+    if (!empty($invitationToken)) {
+        $database = new Database();
+        $db = $database->getConnection();
+
+        $stmt = $db->prepare("
+            SELECT id, email, role_type
+            FROM email_invitations
+            WHERE invitation_token = ?
+        ");
+        $stmt->execute([$invitationToken]);
+        $tokenData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$tokenData) {
+            sendErrorResponse('無効な招待トークンです', 400);
+        }
+
+        // For token-based registration, always use the token's role_type (existing or free)
+        // This ensures the database user_type matches the invitation type
+        if (in_array($tokenData['role_type'], ['existing', 'free'])) {
+            $input['user_type'] = $tokenData['role_type'];
+        }
+
+        // Verify email matches token email
+        if (!empty($input['email']) && $input['email'] !== $tokenData['email']) {
+            sendErrorResponse('メールアドレスが招待トークンと一致しません', 400);
+        }
+    }
+
     // バリデーション
     $errors = [];
 
@@ -61,7 +92,7 @@ try {
 
         // トークン生成
         $verificationToken = generateToken(32);
-        
+
         // トークンの有効期限を15分後に設定
         $tokenExpiresAt = date('Y-m-d H:i:s', strtotime('+15 minutes'));
 
@@ -69,22 +100,24 @@ try {
         $passwordHash = hashPassword($input['password']);
 
         // ユーザー登録
+        // Include invitation_token if provided
         $stmt = $db->prepare("
-        INSERT INTO users (email, password_hash, phone_number, user_type, verification_token, verification_token_expires_at, status)
-        VALUES (?, ?, ?, ?, ?, ?, 'pending')
+        INSERT INTO users (email, password_hash, phone_number, user_type, verification_token, verification_token_expires_at, invitation_token, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
         ");
-        
+
         $stmt->execute([
             $input['email'],
             $passwordHash,
             $input['phone_number'],
             $input['user_type'],
             $verificationToken,
-            $tokenExpiresAt
+            $tokenExpiresAt,
+            !empty($invitationToken) ? $invitationToken : null
         ]);
 
         $userId = $db->lastInsertId();
-        
+
         // Commit transaction before sending email
         $db->commit();
     } catch (PDOException $e) {
@@ -99,7 +132,9 @@ try {
     }
 
     // 🔹 URLは必ずドメイン + HTTPS（IP NG）
-    $verificationLink = "http://103.179.45.108/php/frontend/auth/verify.php?token=" . urlencode($verificationToken);
+    // Include user_type in verification link to distinguish user type during verification
+    $userTypeParam = !empty($input['user_type']) ? '&type=' . urlencode($input['user_type']) : '';
+    $verificationLink = "http://103.179.45.108/php/frontend/auth/verify.php?token=" . urlencode($verificationToken) . $userTypeParam;
 
     // 件名
     $emailSubject = '【不動産AI名刺】メール認証のお願い';

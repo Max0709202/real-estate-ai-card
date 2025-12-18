@@ -9,9 +9,13 @@ require_once __DIR__ . '/../../backend/includes/functions.php';
 startSessionIfNotStarted();
 
 $token = $_GET['token'] ?? '';
+$typeParam = $_GET['type'] ?? null; // Capture user_type from verification link
 $message = '';
 $success = false;
 $error = '';
+$redirectUrl = null;
+$invitationToken = null;
+$userTypeForRedirect = null;
 
 if (!empty($token)) {
     try {
@@ -19,30 +23,49 @@ if (!empty($token)) {
         $db = $database->getConnection();
 
         // トークン検証（有効期限もチェック）
-        $stmt = $db->prepare("SELECT id, email, status, verification_token_expires_at FROM users WHERE verification_token = ? AND email_verified = 0");
+        // Fetch user_type and invitation_token for redirect
+        $stmt = $db->prepare("SELECT id, email, user_type, invitation_token, status, verification_token_expires_at FROM users WHERE verification_token = ? AND email_verified = 0");
         $stmt->execute([$token]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($user) {
-            // トークンの有効期限チェック
-            $now = date('Y-m-d H:i:s');
-            if ($user['verification_token_expires_at'] && $user['verification_token_expires_at'] < $now) {
-                // トークンが期限切れの場合、認証を無効化
-                $stmt = $db->prepare("UPDATE users SET verification_token = NULL, verification_token_expires_at = NULL WHERE id = ?");
-                $stmt->execute([$user['id']]);
-                $error = '認証トークンの有効期限が切れています。メール認証を再度リクエストしてください。';
+            // Security: Verify user_type matches type parameter if provided
+            if ($typeParam && $user['user_type'] !== $typeParam) {
+                error_log("Security Warning: Verification link type parameter ({$typeParam}) doesn't match user type ({$user['user_type']}) for user ID: {$user['id']}");
+                $error = '無効な認証リンクです。';
             } else {
-                // メール認証完了
-                $stmt = $db->prepare("UPDATE users SET email_verified = 1, verification_token = NULL, verification_token_expires_at = NULL, status = 'active' WHERE id = ?");
-                $stmt->execute([$user['id']]);
+                // トークンの有効期限チェック
+                $now = date('Y-m-d H:i:s');
+                if ($user['verification_token_expires_at'] && $user['verification_token_expires_at'] < $now) {
+                    // トークンが期限切れの場合、認証を無効化
+                    $stmt = $db->prepare("UPDATE users SET verification_token = NULL, verification_token_expires_at = NULL WHERE id = ?");
+                    $stmt->execute([$user['id']]);
+                    $error = '認証トークンの有効期限が切れています。メール認証を再度リクエストしてください。';
+                } else {
+                    // メール認証完了
+                    $stmt = $db->prepare("UPDATE users SET email_verified = 1, verification_token = NULL, verification_token_expires_at = NULL, status = 'active' WHERE id = ?");
+                    $stmt->execute([$user['id']]);
 
-                // セッションを更新（ログインしている場合）
-                if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $user['id']) {
-                    $_SESSION['email_verified'] = true;
+                    // セッションを更新（ログインしている場合）
+                    if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $user['id']) {
+                        $_SESSION['email_verified'] = true;
+                    }
+
+                    // Prepare redirect URL with invitation_token and user_type if available
+                    $userTypeForRedirect = $user['user_type'];
+                    $invitationToken = $user['invitation_token'];
+                    
+                    // Only redirect with token for existing/free users who have an invitation_token
+                    if (in_array($userTypeForRedirect, ['existing', 'free']) && !empty($invitationToken)) {
+                        $redirectUrl = "../register.php?type=" . urlencode($userTypeForRedirect) . "&token=" . urlencode($invitationToken);
+                    } else {
+                        // For new users or users without invitation_token, redirect normally
+                        $redirectUrl = "../register.php";
+                    }
+
+                    $success = true;
+                    $message = 'メール認証が完了しました。';
                 }
-
-                $success = true;
-                $message = 'メール認証が完了しました。';
             }
         } else {
             // 既に認証済みか、無効なトークン
@@ -158,7 +181,17 @@ if (!empty($token)) {
                 不動産AI名刺の作成・編集を進めてください。
             </p>
             <div>
-                <a href="../register.php" class="btn-primary">作成・編集ページへ</a>
+                <?php if ($redirectUrl): ?>
+                    <a href="<?php echo htmlspecialchars($redirectUrl); ?>" class="btn-primary">作成・編集ページへ</a>
+                    <script>
+                        // Auto-redirect after 2 seconds
+                        setTimeout(function() {
+                            window.location.href = <?php echo json_encode($redirectUrl); ?>;
+                        }, 2000);
+                    </script>
+                <?php else: ?>
+                    <a href="../register.php" class="btn-primary">作成・編集ページへ</a>
+                <?php endif; ?>
             </div>
         <?php else: ?>
             <div class="verification-icon error">✗</div>

@@ -25,12 +25,20 @@ try {
     $db = $database->getConnection();
 
     // トークン検証（有効期限もチェック）
-    $stmt = $db->prepare("SELECT id, email, verification_token_expires_at FROM users WHERE verification_token = ? AND email_verified = 0");
+    // Include user_type in query to distinguish user type during verification
+    $stmt = $db->prepare("SELECT id, email, user_type, verification_token_expires_at FROM users WHERE verification_token = ? AND email_verified = 0");
     $stmt->execute([$token]);
     $user = $stmt->fetch();
 
     if (!$user) {
         sendErrorResponse('無効な認証トークンです', 400);
+    }
+    
+    // Optional: Verify user_type matches type parameter if provided in URL
+    $typeParam = $_GET['type'] ?? null;
+    if ($typeParam && $user['user_type'] !== $typeParam) {
+        error_log("Warning: Verification link type parameter ({$typeParam}) doesn't match user type ({$user['user_type']}) for user ID: {$user['id']}");
+        // Still proceed with verification, but log the mismatch for security tracking
     }
 
     // トークンの有効期限チェック
@@ -48,7 +56,8 @@ try {
 
     sendSuccessResponse([
         'user_id' => $user['id'],
-        'email' => $user['email']
+        'email' => $user['email'],
+        'user_type' => $user['user_type']
     ], 'メール認証が完了しました');
 
 } catch (Exception $e) {

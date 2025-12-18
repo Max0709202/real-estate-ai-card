@@ -1,14 +1,59 @@
 <?php
 /**
  * Landing Page - New Users
+ * Handles token-based redirects for existing/free users
  */
 require_once __DIR__ . '/../backend/config/config.php';
+require_once __DIR__ . '/../backend/includes/functions.php';
+
+startSessionIfNotStarted();
+
+// Handle token-based access for existing/free users
+$invitationToken = $_GET['token'] ?? '';
+$isTokenBased = !empty($invitationToken);
+$tokenValid = false;
+$tokenData = null;
+// Get userType from URL parameter first, default to 'new'
+$userType = $_GET['type'] ?? 'new';
+
+if ($isTokenBased) {
+    // Validate token (but don't redirect - stay on index.php)
+    try {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, BASE_URL . '/backend/api/auth/validate-invitation-token.php?token=' . urlencode($invitationToken));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode === 200) {
+            $result = json_decode($response, true);
+            if ($result && $result['success']) {
+                $tokenValid = true;
+                $tokenData = $result['data'];
+                // Use token's role_type if available, otherwise use URL parameter
+                if (in_array($tokenData['role_type'], ['existing', 'free'])) {
+                    $userType = $tokenData['role_type'];
+                }
+            }
+        }
+        
+    } catch (Exception $e) {
+        error_log("Token validation error in index.php: " . $e->getMessage());
+    }
+}
 ?> 
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <?php if ($isTokenBased): ?>
+    <!-- Prevent search engine indexing for token-based pages -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+    <meta name="googlebot" content="noindex, nofollow">
+    <?php endif; ?>
     <title>不動産AI名刺 - 商談機会を逃さない</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
@@ -29,7 +74,15 @@ require_once __DIR__ . '/../backend/config/config.php';
                         <p>QRコード付きデジタル名刺で、お客様とのLINE連携を簡単に。<br>
                         全国マンションデータベース、AI査定など、不動産テックツールを統合。</p>
                         <div class="hero-buttons">
-                            <a href="register.php?type=new" class="btn-primary btn-large">無料で始める →</a>
+                            <?php if ($isTokenBased && $tokenValid && in_array($userType, ['existing', 'free'])): ?>
+                                <?php if ($userType === 'existing'): ?>
+                                    <a href="new_register.php?type=existing&token=<?php echo urlencode($invitationToken); ?>" class="btn-primary btn-large">既存ユーザー登録 →</a>
+                                <?php elseif ($userType === 'free'): ?>
+                                    <a href="new_register.php?type=free&token=<?php echo urlencode($invitationToken); ?>" class="btn-primary btn-large">無料ユーザー登録 →</a>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <a href="register.php?type=new" class="btn-primary btn-large">無料で始める →</a>
+                            <?php endif; ?>
                             <a href="#howto" class="btn-outline btn-large">使い方を見る</a>
                         </div>
                     </div>
@@ -355,6 +408,15 @@ require_once __DIR__ . '/../backend/config/config.php';
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script src="assets/js/main.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
+    <?php if ($isTokenBased && !$tokenValid): ?>
+    <script>
+        // Show error if token is invalid
+        alert('無効な招待リンクです。管理者にお問い合わせください。');
+        setTimeout(function() {
+            window.location.href = 'login.php';
+        }, 2000);
+    </script>
+    <?php endif; ?>
 </body>
 </html>
 

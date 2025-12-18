@@ -13,6 +13,14 @@ let formData = {};
 let completedSteps = new Set(); // Track which steps have been submitted
 let businessCardData = null; // Store loaded business card data
 
+// Helper function to build URLs with token and type parameters (security: preserve token)
+function buildUrlWithToken(baseUrl) {
+    if (typeof window !== 'undefined' && window.invitationToken && (window.userType === 'existing' || window.userType === 'free')) {
+        return baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=' + encodeURIComponent(window.userType) + '&token=' + encodeURIComponent(window.invitationToken);
+    }
+    return baseUrl;
+}
+
 // Load existing business card data on page load
 document.addEventListener('DOMContentLoaded', async function() {
     await loadExistingBusinessCardData();
@@ -1731,14 +1739,17 @@ document.getElementById('submit-payment')?.addEventListener('click', async () =>
                     payment_id: result.data.payment_id,
                     client_secret: result.data.client_secret || ''
                 });
-                window.location.href = 'payment.php?' + params.toString();
+                // Preserve token and type in URL for security
+                const paymentUrl = 'payment.php?' + params.toString();
+                window.location.href = buildUrlWithToken(paymentUrl);
             } else {
                 // Bank transfer - redirect to bank transfer info page
                 const params = new URLSearchParams({
                     payment_id: result.data.payment_id,
                     pi: result.data.stripe_payment_intent_id || ''
                 });
-                window.location.href = 'bank-transfer-info.php?' + params.toString();
+                const bankTransferUrl = buildUrlWithToken('bank-transfer-info.php?' + params.toString());
+                window.location.href = bankTransferUrl;
             }
         } else {
             showError(result.message || '決済処理に失敗しました');

@@ -7,13 +7,61 @@ require_once __DIR__ . '/../backend/includes/functions.php';
 
 startSessionIfNotStarted();
 
+// Get initial userType and token from URL
 $userType = $_GET['type'] ?? 'new'; // new, existing, free
+$invitationToken = $_GET['token'] ?? '';
+$isTokenBased = !empty($invitationToken);
+$tokenValid = false;
+$tokenData = null;
+
+// Validate token if provided and ensure type matches token's role_type
+if ($isTokenBased) {
+    try {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, BASE_URL . '/backend/api/auth/validate-invitation-token.php?token=' . urlencode($invitationToken));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200) {
+            $result = json_decode($response, true);
+            if ($result && $result['success']) {
+                $tokenValid = true;
+                $tokenData = $result['data'];
+                $tokenRoleType = $tokenData['role_type'] ?? null;
+
+                // Use token's role_type for existing/free users (validates and sets correct type)
+                if (in_array($tokenRoleType, ['existing', 'free'])) {
+                    $userType = $tokenRoleType;
+                } elseif (in_array($userType, ['existing', 'free'])) {
+                    // If URL has type=existing/free but token doesn't match, still use URL type
+                    // This allows the registration to proceed with the URL type
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Token validation error: " . $e->getMessage());
+    }
+}
+
+// Ensure that if type is existing/free, token is also present (security check)
+// If type is existing/free but no token, log warning but allow registration to proceed
+if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
+    error_log("Warning: Registration with type={$userType} but no token provided");
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php if ($isTokenBased): ?>
+    <!-- Prevent search engine indexing for token-based pages -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+    <meta name="googlebot" content="noindex, nofollow">
+    <?php endif; ?>
     <title>アカウント作成 - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/register.css">
@@ -21,8 +69,8 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
 </head>
 <body>
     <div class="register-container">
-        <div class="register-header">
-            <a href="index.php" class="logo-link">
+            <div class="register-header">
+            <a href="index.php<?php echo ($isTokenBased && !empty($invitationToken)) ? '?token=' . urlencode($invitationToken) . (in_array($userType, ['existing', 'free']) ? '&type=' . $userType : '') : ''; ?>" class="logo-link">
                 <img src="assets/images/logo.png" alt="不動産AI名刺">
             </a>
         </div>
@@ -36,6 +84,9 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
 
                 <form id="register-form" class="register-form">
                     <input type="hidden" name="user_type" value="<?php echo htmlspecialchars($userType); ?>">
+                    <?php if ($isTokenBased && !empty($invitationToken)): ?>
+                    <input type="hidden" name="invitation_token" id="invitation_token" value="<?php echo htmlspecialchars($invitationToken); ?>">
+                    <?php endif; ?>
 
                     <?php if ($userType === 'existing'): ?>
                     <div class="form-group">
@@ -104,7 +155,7 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
 
                     <div class="form-group" style="text-align: center; margin-top: 1rem;">
                         <p style="color: #666; font-size: 0.9rem;">
-                            既にアカウントをお持ちの方は<a href="login.php" style="color: #0066cc; text-decoration: underline;">こちらからログイン</a>してください
+                            既にアカウントをお持ちの方は<a href="login.php<?php echo ($isTokenBased && !empty($invitationToken)) ? '?token=' . urlencode($invitationToken) . (in_array($userType, ['existing', 'free']) ? '&type=' . $userType : '') : ''; ?>" style="color: #0066cc; text-decoration: underline;">こちらからログイン</a>してください
                         </p>
                     </div>
 
@@ -123,11 +174,11 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
             const input = document.getElementById(inputId);
             const eyeOpen = toggle.querySelector('.eye-open');
             const eyeClosed = toggle.querySelector('.eye-closed');
-            
+
             toggle.addEventListener('click', function() {
                 const isPassword = input.type === 'password';
                 input.type = isPassword ? 'text' : 'password';
-                
+
                 if (isPassword) {
                     eyeOpen.style.display = 'none';
                     eyeClosed.style.display = 'block';
@@ -137,20 +188,20 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
                 }
             });
         }
-        
+
         // Setup password toggles
         setupPasswordToggle('toggle-password', 'password');
         setupPasswordToggle('toggle-password-confirm', 'password_confirm');
-        
+
         // Password confirmation validation
         const passwordField = document.getElementById('password');
         const passwordConfirmField = document.getElementById('password_confirm');
         const passwordError = document.getElementById('password-error');
-        
+
         function validatePasswordMatch() {
             const password = passwordField.value;
             const passwordConfirm = passwordConfirmField.value;
-            
+
             if (passwordConfirm && password !== passwordConfirm) {
                 passwordError.style.display = 'block';
                 passwordConfirmField.setCustomValidity('パスワードが一致しません');
@@ -161,10 +212,10 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
                 return true;
             }
         }
-        
+
         passwordField.addEventListener('input', validatePasswordMatch);
         passwordConfirmField.addEventListener('input', validatePasswordMatch);
-        
+
         // Show email verification modal
         function showEmailVerificationModal() {
             // Create HTML message with proper structure to prevent line breaks in mobile/tablet
@@ -185,35 +236,35 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
 
         // Step 1: Account Registration
         let isSubmitting = false; // Flag to prevent duplicate submissions
-        
+
         document.getElementById('register-form')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             // Prevent duplicate submissions
             if (isSubmitting) {
                 console.log('Registration already in progress, ignoring duplicate submission');
                 return;
             }
-            
+
             // Validate password match
             if (!validatePasswordMatch()) {
                 passwordConfirmField.focus();
                 return;
             }
-            
+
             // Disable submit button and set flag
             const submitButton = e.target.querySelector('button[type="submit"]');
             const originalButtonText = submitButton.textContent;
             isSubmitting = true;
             submitButton.disabled = true;
             submitButton.textContent = '登録中...';
-            
+
             const formDataObj = new FormData(e.target);
             const data = Object.fromEntries(formDataObj);
-            
+
             // Remove password_confirm from data before sending
             delete data.password_confirm;
-            
+
             try {
                 const response = await fetch('../backend/api/auth/register.php', {
                     method: 'POST',
@@ -222,9 +273,9 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
                     },
                     body: JSON.stringify(data)
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
                     // Clear auto-save drafts on success
                     if (window.autoSave) {
@@ -243,7 +294,7 @@ $userType = $_GET['type'] ?? 'new'; // new, existing, free
                     isSubmitting = false;
                     submitButton.disabled = false;
                     submitButton.textContent = originalButtonText;
-                    
+
                     // Display all validation errors using the error handler
                     showApiError(result, '登録に失敗しました');
                 }

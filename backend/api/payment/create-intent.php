@@ -39,26 +39,33 @@ try {
     $stmt = $db->prepare("
         SELECT u.user_type, u.email, u.phone_number, bc.id as business_card_id
         FROM users u
-        JOIN business_cards bc ON u.id = bc.user_id
+        LEFT JOIN business_cards bc ON u.id = bc.user_id
         WHERE u.id = ?
     ");
     $stmt->execute([$userId]);
-    $userInfo = $stmt->fetch();
+    $userInfo = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$userInfo) {
         sendErrorResponse('ユーザー情報が見つかりません', 404);
+    }
+
+    // Business card must exist for payment
+    if (empty($userInfo['business_card_id'])) {
+        sendErrorResponse('ビジネスカードが作成されていません。先にビジネスカード情報を登録してください。', 400);
     }
 
     // 価格計算
     $userType = $userInfo['user_type'];
     $paymentTypeInput = $input['payment_type'] ?? $userType;
 
-    // データベーススキーマに合わせて変換（'new' -> 'new_user', 'existing' -> 'existing_user'）
+    // データベーススキーマに合わせて変換（'new' -> 'new_user', 'existing' -> 'existing_user', 'free' -> 'free_user'）
     $paymentType = $paymentTypeInput;
     if ($paymentTypeInput === 'new') {
         $paymentType = 'new_user';
     } elseif ($paymentTypeInput === 'existing') {
         $paymentType = 'existing_user';
+    } elseif ($paymentTypeInput === 'free') {
+        $paymentType = 'free_user';
     }
 
     $paymentMethod = $input['payment_method'] ?? 'credit_card';
@@ -79,12 +86,31 @@ try {
         $amount = PRICING_EXISTING_USER_INITIAL;
         $taxAmount = $amount * TAX_RATE;
         $totalAmount = $amount + $taxAmount;
+    } elseif ($paymentType === 'free_user' || $userType === 'free') {
+        // Free users have no initial payment, but may have monthly fee
+        $amount = 0;
+        $taxAmount = 0;
+        $totalAmount = 0;
+        $monthlyAmount = 0;
+    }
+
+    // Validate that amount is greater than 0
+    if ($totalAmount <= 0) {
+        sendErrorResponse('決済金額が0円です。無料ユーザーの場合は決済は不要です。', 400);
     }
 
     // Stripe APIキー設定
     if (empty(STRIPE_SECRET_KEY)) {
+        error_log("Stripe Secret Key is not configured");
         sendErrorResponse('Stripe設定が完了していません', 500);
     }
+    
+    // Check if Stripe SDK is loaded
+    if (!class_exists('Stripe\Stripe')) {
+        error_log("Stripe SDK not loaded. Check vendor/autoload.php");
+        sendErrorResponse('決済システムの初期化に失敗しました', 500);
+    }
+    
     Stripe::setApiKey(STRIPE_SECRET_KEY);
 
     // 決済レコードを作成
@@ -349,6 +375,11 @@ try {
 
 } catch (Exception $e) {
     error_log("Create Payment Intent Error: " . $e->getMessage());
-    sendErrorResponse('サーバーエラーが発生しました', 500);
+    error_log("Stack trace: " . $e->getTraceAsString());
+    $errorMessage = 'サーバーエラーが発生しました';
+    if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
+        $errorMessage .= ': ' . $e->getMessage();
+    }
+    sendErrorResponse($errorMessage, 500);
 }
 

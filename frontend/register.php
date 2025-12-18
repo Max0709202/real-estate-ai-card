@@ -12,6 +12,58 @@ startSessionIfNotStarted();
 $isLoggedIn = !empty($_SESSION['user_id']);
 
 $userType = $_GET['type'] ?? 'new'; // new, existing, free
+$invitationToken = $_GET['token'] ?? '';
+$isTokenBased = !empty($invitationToken);
+$tokenValid = false;
+$tokenData = null;
+
+// Validate token if provided with enhanced security
+if ($isTokenBased) {
+    try {
+        // Use enhanced validation that checks if token belongs to logged-in user
+        $validationUrl = BASE_URL . '/backend/api/auth/validate-user-invitation-token.php?token=' . urlencode($invitationToken);
+        if (!empty($userType) && in_array($userType, ['existing', 'free'])) {
+            $validationUrl .= '&type=' . urlencode($userType);
+        }
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $validationUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200) {
+            $result = json_decode($response, true);
+            if ($result && $result['success']) {
+                $tokenValid = true;
+                $tokenData = $result['data'];
+                // Override userType from token/response if it's existing or free
+                $responseUserType = $tokenData['user_type'] ?? $tokenData['role_type'] ?? null;
+                if (in_array($responseUserType, ['existing', 'free'])) {
+                    $userType = $responseUserType;
+                }
+            }
+        } elseif ($httpCode === 403) {
+            // Token doesn't belong to user - security violation
+            error_log("Security: Token validation failed - token doesn't belong to user. User ID: " . ($_SESSION['user_id'] ?? 'not logged in'));
+            $tokenValid = false;
+        }
+    } catch (Exception $e) {
+        error_log("Token validation error: " . $e->getMessage());
+        $tokenValid = false;
+    }
+}
+
+// Helper function to build URLs with token and type parameters
+function buildUrlWithToken($baseUrl, $userType, $invitationToken) {
+    if (!empty($invitationToken) && in_array($userType, ['existing', 'free'])) {
+        return $baseUrl . '?type=' . urlencode($userType) . '&token=' . urlencode($invitationToken);
+    }
+    return $baseUrl;
+}
 
 // Default greeting messages
 $defaultGreetings = [
@@ -53,6 +105,11 @@ $prefectures = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <?php if ($isTokenBased): ?>
+    <!-- Prevent search engine indexing for token-based pages -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+    <meta name="googlebot" content="noindex, nofollow">
+    <?php endif; ?>
     <title>アカウント作成 - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/register.css">
@@ -198,11 +255,19 @@ $prefectures = [
                                     <?php endfor; ?>
                                 </select>
                             </div>
-                            <div class="form-group">
-                                <label>登録番号</label>
-                                <input type="text" name="real_estate_license_registration_number" id="license_registration" class="form-control" placeholder="例：12345" required>
-                                <!-- <button type="button" class="btn-outline" id="lookup-license" style="margin-top: 0.5rem;">住所を自動入力</button> -->
-                            </div>
+                    <div class="form-group">
+                        <label>登録番号</label>
+                        <?php if ($isTokenBased && in_array($userType, ['existing', 'free'])): ?>
+                            <!-- Existing/Free users must enter registration number manually -->
+                            <input type="text" name="real_estate_license_registration_number" id="license_registration" class="form-control" placeholder="登録番号を入力してください（例：12345）" required>
+                            <small style="color: #718096; font-size: 12px; display: block; margin-top: 5px;">
+                                登録番号を手動で入力してください
+                            </small>
+                        <?php else: ?>
+                            <input type="text" name="real_estate_license_registration_number" id="license_registration" class="form-control" placeholder="例：12345" required>
+                        <?php endif; ?>
+                        <!-- <button type="button" class="btn-outline" id="lookup-license" style="margin-top: 0.5rem;">住所を自動入力</button> -->
+                    </div>
                         </div>
                     </div>
 
@@ -282,7 +347,16 @@ $prefectures = [
 
                     <div class="form-group">
                         <label>電話番号 <span class="required">*</span></label>
-                        <input type="tel" name="mobile_phone" class="form-control" required value="090-1234-5678">
+                        <?php if ($isTokenBased && in_array($userType, ['existing', 'free'])): ?>
+                            <!-- Existing/Free users must enter phone number manually -->
+                            <input type="tel" name="mobile_phone" id="mobile_phone" class="form-control" required placeholder="例：090-1234-5678" autocomplete="tel">
+                            <small style="color: #718096; font-size: 12px; display: block; margin-top: 5px;">
+                                電話番号を手動で入力してください
+                            </small>
+                        <?php else: ?>
+                            <!-- New users get auto-filled number -->
+                            <input type="tel" name="mobile_phone" id="mobile_phone" class="form-control" required value="090-1234-5678">
+                        <?php endif; ?>
                     </div>
 
                     <div class="form-group">
@@ -381,7 +455,7 @@ $prefectures = [
                 <p class="step-description">表示させるテックツールを選択してください（最低2つ以上）</p>
 
                 <form id="tech-tools-form" class="register-form">
-                    <?php 
+                    <?php
                     // Tool descriptions and banner images (same as card.php)
                     $toolInfo = [
                         'slp' => [
@@ -429,7 +503,7 @@ $prefectures = [
                             'banner_image' => BASE_URL . '/frontend/assets/images/tech_banner/alp.jpg'
                         ]
                     ];
-                    
+
                     $techToolsList = [
                         ['type' => 'mdb', 'id' => 'tool-mdb', 'name' => '全国マンションデータベース'],
                         ['type' => 'rlp', 'id' => 'tool-rlp', 'name' => '物件提案ロボ'],
@@ -456,7 +530,7 @@ $prefectures = [
                                     <!-- Banner Header with Background Image -->
                                     <div class="tool-banner-header" style="background-image: url('<?php echo htmlspecialchars($info['banner_image']); ?>'); background-size: contain; background-position: center; background-repeat: no-repeat;">
                                     </div>
-                                    
+
                                     <!-- Description -->
                                     <div class="tool-banner-content">
                                         <div class="tool-description"><?php echo $info['description']; ?></div>
@@ -482,7 +556,7 @@ $prefectures = [
                     <div class="form-section">
                         <h3>メッセージアプリ部</h3>
                         <p class="section-note">一番簡単につながる方法を教えてください。ここが重要になります。</p>
-                        
+
                         <div class="communication-grid">
                             <div class="communication-item">
                                 <label class="communication-checkbox">
@@ -567,7 +641,7 @@ $prefectures = [
                     <div class="form-section">
                         <h3>SNS部</h3>
                         <p class="section-note">SNSのリンク先を入力できます。</p>
-                        
+
                         <div class="communication-grid">
                             <div class="communication-item">
                                 <label class="communication-checkbox">
@@ -769,38 +843,80 @@ $prefectures = [
     <script src="assets/js/register.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script>
+        // Token and user type configuration
+        window.invitationToken = <?php echo json_encode($invitationToken); ?>;
+        window.userType = <?php echo json_encode($userType); ?>;
+        window.isTokenBased = <?php echo json_encode($isTokenBased); ?>;
+        window.tokenValid = <?php echo json_encode($tokenValid); ?>;
+        window.tokenData = <?php echo json_encode($tokenData); ?>;
+
+        // Helper function to build URLs with token and type parameters
+        function buildUrlWithToken(baseUrl) {
+            if (window.invitationToken && (window.userType === 'existing' || window.userType === 'free')) {
+                return baseUrl + '?type=' + encodeURIComponent(window.userType) + '&token=' + encodeURIComponent(window.invitationToken);
+            }
+            return baseUrl;
+        }
+
+        // Validate token on page load if present
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.isTokenBased && !window.tokenValid) {
+                showError('無効な招待リンクです。管理者にお問い合わせください。');
+                // Optionally redirect after 3 seconds
+                setTimeout(function() {
+                    window.location.href = buildUrlWithToken('login.php');
+                }, 3000);
+            }
+
+            // For existing/free users, ensure phone number field is empty and required
+            if (window.isTokenBased && (window.userType === 'existing' || window.userType === 'free')) {
+                const phoneInput = document.getElementById('mobile_phone');
+                if (phoneInput && phoneInput.value === '090-1234-5678') {
+                    phoneInput.value = '';
+                    phoneInput.placeholder = '電話番号を入力してください（例：090-1234-5678）';
+                }
+
+                // Ensure license registration number is also manual entry
+                const licenseRegInput = document.getElementById('license_registration');
+                if (licenseRegInput) {
+                    licenseRegInput.placeholder = '登録番号を入力してください（例：12345）';
+                }
+            }
+        });
+    </script>
+    <script>
         // Modal functionality
         document.getElementById('modal-confirm-btn')?.addEventListener('click', function() {
-            window.location.href = 'login.php';
+            window.location.href = buildUrlWithToken('login.php');
         });
-        
+
         // ドラッグ&ドロップ機能の初期化
         document.addEventListener('DOMContentLoaded', function() {
-            // すべてのアップロードエリアにドラッグ&ドロップ機能を追加
+            // すべてのアップロードエリアにドラッグ&ドロップ機能を追�
             document.querySelectorAll('.upload-area').forEach(uploadArea => {
                 const fileInput = uploadArea.querySelector('input[type="file"]');
                 if (!fileInput) return;
-                
+
                 // ドラッグオーバー時の処理
                 uploadArea.addEventListener('dragover', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     uploadArea.classList.add('drag-over');
                 });
-                
+
                 // ドラッグリーブ時の処理
                 uploadArea.addEventListener('dragleave', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     uploadArea.classList.remove('drag-over');
                 });
-                
+
                 // ドロップ時の処理
                 uploadArea.addEventListener('drop', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     uploadArea.classList.remove('drag-over');
-                    
+
                     const files = e.dataTransfer.files;
                     if (files.length > 0) {
                         const file = files[0];
@@ -815,7 +931,7 @@ $prefectures = [
                         }
                     }
                 });
-                
+
                 // クリックでファイル選択も可能
                 uploadArea.addEventListener('click', function(e) {
                     // ボタンやプレビュー画像をクリックした場合は除外
@@ -825,7 +941,7 @@ $prefectures = [
                 });
             });
         });
-        
+
         // 漢字からローマ字への自動変換機能
         // 簡易版：よく使われる名前の変換テーブルを使用
         document.addEventListener('DOMContentLoaded', function() {
@@ -833,7 +949,7 @@ $prefectures = [
             const firstNameInput = document.getElementById('first_name');
             const lastNameRomajiInput = document.getElementById('last_name_romaji');
             const firstNameRomajiInput = document.getElementById('first_name_romaji');
-            
+
             // 簡易的な変換テーブル（よく使われる名前の例）
             const nameConversionMap = {
                 '山田': 'Yamada', '田中': 'Tanaka', '佐藤': 'Sato', '鈴木': 'Suzuki',
@@ -846,28 +962,28 @@ $prefectures = [
                 '一郎': 'Ichiro', '二郎': 'Jiro', '三郎': 'Saburo', '美咲': 'Misaki',
                 'さくら': 'Sakura', 'あかり': 'Akari', 'ひなた': 'Hinata', 'みお': 'Mio'
             };
-            
+
             // 漢字からローマ字への簡易変換関数
             function convertToRomaji(japanese) {
                 if (!japanese) return '';
-                
+
                 // 変換テーブルに存在する場合はそれを使用
                 if (nameConversionMap[japanese]) {
                     return nameConversionMap[japanese];
                 }
-                
+
                 // ひらがな・カタカナの場合はそのまま返す（後で変換可能）
                 // 漢字の場合は空文字を返す（ユーザーが手動で入力する必要がある）
                 return '';
             }
-            
+
             // 姓の入力時にローマ字姓を自動入力
             if (lastNameInput && lastNameRomajiInput) {
                 let lastNameTimeout;
                 lastNameInput.addEventListener('input', function() {
                     clearTimeout(lastNameTimeout);
                     const value = this.value.trim();
-                    
+
                     // ローマ字姓が空の場合のみ自動入力
                     if (!lastNameRomajiInput.value.trim() && value) {
                         lastNameTimeout = setTimeout(function() {
@@ -879,14 +995,14 @@ $prefectures = [
                     }
                 });
             }
-            
+
             // 名の入力時にローマ字名を自動入力
             if (firstNameInput && firstNameRomajiInput) {
                 let firstNameTimeout;
                 firstNameInput.addEventListener('input', function() {
                     clearTimeout(firstNameTimeout);
                     const value = this.value.trim();
-                    
+
                     // ローマ字名が空の場合のみ自動入力
                     if (!firstNameRomajiInput.value.trim() && value) {
                         firstNameTimeout = setTimeout(function() {
@@ -904,17 +1020,17 @@ $prefectures = [
         // Handle tech tool checkbox selection styling
         document.addEventListener('DOMContentLoaded', function() {
             const techToolCheckboxes = document.querySelectorAll('.register-tech-card .tech-tool-checkbox');
-            
+
             techToolCheckboxes.forEach(checkbox => {
                 // Initial state
                 updateCardSelection(checkbox);
-                
+
                 // Listen for changes
                 checkbox.addEventListener('change', function() {
                     updateCardSelection(this);
                 });
             });
-            
+
             function updateCardSelection(checkbox) {
                 const card = checkbox.closest('.register-tech-card');
                 if (checkbox.checked) {
