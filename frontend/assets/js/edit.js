@@ -1005,6 +1005,41 @@ function setupNavigation() {
         });
     });
     
+    // Function to go to next step
+    window.goToNextStep = function(currentStep) {
+        const nextStep = currentStep + 1;
+        const maxStep = 5;
+
+        if (nextStep > maxStep) {
+            // Already at last step
+            return;
+        }
+
+        // Find the next nav item
+        const nextNavItem = document.querySelector(`.nav-item[data-step="${nextStep}"]`);
+        if (nextNavItem) {
+            // Trigger click on next nav item
+            nextNavItem.click();
+
+            // Scroll to the top of the screen
+            setTimeout(() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 100);
+        }
+    };
+
+    // Helper function to get section ID by step number
+    function getSectionIdByStep(step) {
+        const stepMap = {
+            1: 'header-greeting-section',
+            2: 'company-profile-section',
+            3: 'personal-info-section',
+            4: 'tech-tools-section',
+            5: 'communication-section'
+        };
+        return stepMap[step] || '';
+    }
+
     // Scroll active nav item to center on page load
     const activeNavItem = document.querySelector('.nav-item.active');
     if (activeNavItem) {
@@ -1417,7 +1452,6 @@ async function saveGreetings() {
             if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
                 await window.autoSave.clearDraftsOnSuccess();
             }
-            showSuccess('保存しました');
             // Reload data to reflect changes
             await loadBusinessCardData();
         } else {
@@ -1564,8 +1598,13 @@ async function saveTechTools() {
             if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
                 await window.autoSave.clearDraftsOnSuccess();
             }
-            showSuccess('保存しました');
             loadBusinessCardData(); // Reload data
+            // Move to next step (Step 5)
+            setTimeout(() => {
+                if (window.goToNextStep) {
+                    window.goToNextStep(4);
+                }
+            }, 500);
         } else {
             showError('保存に失敗しました: ' + saveResult.message);
         }
@@ -1760,8 +1799,9 @@ async function saveCommunicationMethods() {
             if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
                 await window.autoSave.clearDraftsOnSuccess();
             }
-            showSuccess('保存しました');
             loadBusinessCardData(); // Reload data
+            // Last step (Step 5), no next step to move to
+            // Optionally, could scroll to top or show completion message
         } else {
             showError('保存に失敗しました: ' + result.message);
         }

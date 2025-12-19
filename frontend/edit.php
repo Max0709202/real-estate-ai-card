@@ -175,7 +175,7 @@ $defaultGreetings = [
                             </div>
                         </div>
 
-                        <button type="submit" class="btn-primary">保存</button>
+                        <button type="submit" class="btn-primary">保存して次へ</button>
                     </form>
                 </div>
 
@@ -251,7 +251,7 @@ $defaultGreetings = [
                             <input type="url" name="company_website" class="form-control" placeholder="https://example.com">
                         </div>
 
-                        <button type="submit" class="btn-primary">保存</button>
+                        <button type="submit" class="btn-primary">保存して次へ</button>
                     </form>
                 </div>
 
@@ -383,7 +383,7 @@ $defaultGreetings = [
                             </div>
                         </div>
 
-                        <button type="submit" class="btn-primary">保存</button>
+                        <button type="submit" class="btn-primary">保存して次へ</button>
                     </form>
                 </div>
 
@@ -394,7 +394,7 @@ $defaultGreetings = [
                     <div id="tech-tools-list" class="tech-tools-grid">
                     </div>
                     <div class="form-actions">
-                        <button type="button" class="btn-primary" onclick="saveTechTools()">保存</button>
+                        <button type="button" class="btn-primary" onclick="saveTechTools()">保存して次へ</button>
                     </div>
                 </div>
 
@@ -599,7 +599,7 @@ $defaultGreetings = [
                         </div>
                     </div>
 
-                    <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存</button>
+                    <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存して次へ</button>
                 </div>
             </div>
 
@@ -704,8 +704,13 @@ $defaultGreetings = [
                         const result = await response.json();
 
                         if (result.success) {
-                            showSuccess('保存しました');
                             loadBusinessCardData();
+                            // Move to next step (Step 2)
+                            setTimeout(() => {
+                                if (window.goToNextStep) {
+                                    window.goToNextStep(1);
+                                }
+                            }, 500);
                         } else {
                             showError('保存に失敗しました: ' + result.message);
                         }
@@ -758,8 +763,13 @@ $defaultGreetings = [
                         const result = await response.json();
 
                         if (result.success) {
-                            showSuccess('保存しました');
                             loadBusinessCardData();
+                            // Move to next step (Step 3)
+                            setTimeout(() => {
+                                if (window.goToNextStep) {
+                                    window.goToNextStep(2);
+                                }
+                            }, 500);
                         } else {
                             showError('保存に失敗しました: ' + result.message);
                         }
@@ -894,8 +904,13 @@ $defaultGreetings = [
                         const result = await response.json();
 
                         if (result.success) {
-                            showSuccess('保存しました');
                             loadBusinessCardData();
+                            // Move to next step (Step 4)
+                            setTimeout(() => {
+                                if (window.goToNextStep) {
+                                    window.goToNextStep(3);
+                                }
+                            }, 500);
                         } else {
                             showError('保存に失敗しました: ' + result.message);
                         }
