@@ -171,7 +171,7 @@ $users = $stmt->fetchAll();
                 ?>
                 <a href="admin-list.php" class="btn-logout" style="background: #17a2b8; margin-right: 10px;">管理者一覧</a>
                 <a href="email-logs.php" class="btn-logout" style="background: #28a745; margin-right: 10px;">メール送信ログ</a>
-                <a href="send-email.php" class="btn-logout" style="background: #6366f1; margin-right: 10px;">📧 メール招待</a>
+                <a href="send-email.php" class="btn-logout" style="background: #6366f1; margin-right: 10px;">メール招待</a>
                 <a href="overdue-payments.php" class="btn-logout" style="background: #ff9800; margin-right: 10px;">未払い管理</a>
                 <a href="logout.php" class="btn-logout">ログアウト</a>
             </div>

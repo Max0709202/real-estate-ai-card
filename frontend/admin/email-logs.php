@@ -191,7 +191,7 @@ $stats = $stmt->fetch();
                         <th>件名</th>
                         <th class="sortable" data-sort="email_type">メールタイプ</th>
                         <th class="sortable" data-sort="status">ステータス</th>
-                        <th class="sortable" data-sort="delivery_time_ms">送信時間(ms)</th>
+                        <th class="sortable" data-sort="delivery_time_ms">送信時間</th>
                         <th>エラー</th>
                     </tr>
                 </thead>

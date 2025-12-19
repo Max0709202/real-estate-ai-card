@@ -5,7 +5,7 @@
 
 ## 現在の設定状況
 - SMTPサーバー: Gmail (smtp.gmail.com)
-- 送信元メールアドレス: ctha43843@gmail.com
+- 送信元メールアドレス: maxlucky0709@gmail.com
 - 認証状態: 基本的なSMTP認証のみ
 
 ## 推奨される改善方法

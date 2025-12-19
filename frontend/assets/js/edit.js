@@ -1339,7 +1339,7 @@ function addGreeting() {
     const greetingsList = document.getElementById('greetings-list');
     if (!greetingsList) return;
     
-    const index = greetingsList.children.length;
+    const index = 0; // New items are added at the top, so index is always 0
     const greetingItem = document.createElement('div');
     greetingItem.className = 'greeting-item';
     greetingItem.dataset.order = index;
@@ -1361,7 +1361,12 @@ function addGreeting() {
             <textarea name="greeting_content[]" class="form-control greeting-content" rows="4" placeholder="本文"></textarea>
         </div>
     `;
-    greetingsList.appendChild(greetingItem);
+    // Insert at the top of the container (before the first child, or append if no children exist)
+    if (greetingsList.firstChild) {
+        greetingsList.insertBefore(greetingItem, greetingsList.firstChild);
+    } else {
+        greetingsList.appendChild(greetingItem);
+    }
     updateGreetingNumbers();
     updateGreetingButtons();
     initializeGreetingDragAndDrop();

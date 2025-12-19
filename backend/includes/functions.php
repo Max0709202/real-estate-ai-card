@@ -20,16 +20,16 @@ function sendJsonResponse($data, $statusCode = 200) {
     if (ob_get_level() > 0) {
         ob_clean();
     }
-    
+
     http_response_code($statusCode);
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    
+
     // End output buffering if active
     if (ob_get_level() > 0) {
         ob_end_flush();
     }
-    
+
     exit();
 }
 
@@ -41,11 +41,11 @@ function sendErrorResponse($message, $statusCode = 400, $errors = []) {
         'success' => false,
         'message' => $message
     ];
-    
+
     if (!empty($errors)) {
         $response['errors'] = $errors;
     }
-    
+
     sendJsonResponse($response, $statusCode);
 }
 
@@ -58,7 +58,7 @@ function sendSuccessResponse($data = [], $message = 'Success') {
         'message' => $message,
         'data' => $data
     ];
-    
+
     sendJsonResponse($response, 200);
 }
 
@@ -69,13 +69,13 @@ function hashPassword($password) {
     if (empty($password)) {
         throw new InvalidArgumentException('Password cannot be empty');
     }
-    
+
     $hash = password_hash($password, PASSWORD_DEFAULT);
-    
+
     if ($hash === false) {
         throw new RuntimeException('Failed to hash password');
     }
-    
+
     return $hash;
 }
 
@@ -87,10 +87,10 @@ function verifyPassword($password, $hash) {
     if (empty($password) || empty($hash)) {
         return false;
     }
-    
+
     // Trim whitespace that might have been accidentally added
     $hash = trim($hash);
-    
+
     // プレーンテキストのパスワードが保存されている場合を検出
     // bcryptハッシュは常に$2[ayb]$で始まり、60文字の長さです
     // より柔軟なチェック: $2[ayb]$の後に数字と$が続き、その後53文字
@@ -105,7 +105,7 @@ function verifyPassword($password, $hash) {
         // ハッシュ形式が無効でも、password_verifyを試してみる（互換性のため）
         // password_verifyは自分で形式をチェックするので、これで十分
     }
-    
+
     return password_verify($password, $hash);
 }
 
@@ -118,7 +118,7 @@ function generateToken($length = 32) {
 
 /**
  * 管理者変更履歴を記録
- * 
+ *
  * @param PDO $db Database connection
  * @param int $adminId Admin ID who made the change
  * @param string $adminEmail Admin email who made the change
@@ -151,10 +151,10 @@ function logAdminChange($db, $adminId, $adminEmail, $changeType, $targetType, $t
 
 /**
  * 画像のEXIF向き情報を正規化
- * 
+ *
  * スマートフォンで撮影した画像のEXIF向き情報を読み取り、
  * 画像を物理的に回転させて正しい向きにし、EXIFメタデータを削除します。
- * 
+ *
  * @param string $filePath 画像ファイルパス（上書きされます）
  * @param string $mimeType MIMEタイプ（'image/jpeg', 'image/png'など）
  * @return bool 成功時true、失敗時false
@@ -185,7 +185,7 @@ function normalizeImageOrientation($filePath, $mimeType) {
     }
 
     $orientation = (int)$exif['Orientation'];
-    
+
     // 向き1（TopLeft）の場合は処理不要
     if ($orientation === 1) {
         error_log("normalizeImageOrientation: Orientation is already TopLeft (1), no rotation needed");
@@ -198,14 +198,14 @@ function normalizeImageOrientation($filePath, $mimeType) {
     if (class_exists('Imagick')) {
         return normalizeImageOrientationImagick($filePath, $orientation);
     }
-    
+
     // GDフォールバック
     return normalizeImageOrientationGD($filePath, $orientation);
 }
 
 /**
  * Imagickを使用した画像向き正規化
- * 
+ *
  * @param string $filePath 画像ファイルパス
  * @param int $orientation EXIF向き値（1-8）
  * @return bool 成功時true、失敗時false
@@ -213,7 +213,7 @@ function normalizeImageOrientation($filePath, $mimeType) {
 function normalizeImageOrientationImagick($filePath, $orientation) {
     try {
         $img = new Imagick($filePath);
-        
+
         // 向きに応じて回転・反転
         switch ($orientation) {
             case 2: // TopRight - 水平反転
@@ -240,21 +240,21 @@ function normalizeImageOrientationImagick($filePath, $orientation) {
                 $img->rotateImage(new ImagickPixel('#00000000'), 90);
                 break;
         }
-        
+
         // 向きをTopLeftに設定
         $img->setImageOrientation(Imagick::ORIENTATION_TOPLEFT);
-        
+
         // EXIFメタデータを削除
         $img->stripImage();
-        
+
         // ファイルを上書き保存
         $img->writeImage($filePath);
         $img->clear();
         $img->destroy();
-        
+
         error_log("normalizeImageOrientationImagick: Successfully normalized orientation $orientation");
         return true;
-        
+
     } catch (Exception $e) {
         error_log("normalizeImageOrientationImagick: Failed - " . $e->getMessage());
         return false;
@@ -263,7 +263,7 @@ function normalizeImageOrientationImagick($filePath, $orientation) {
 
 /**
  * GDを使用した画像向き正規化
- * 
+ *
  * @param string $filePath 画像ファイルパス
  * @param int $orientation EXIF向き値（1-8）
  * @return bool 成功時true、失敗時false
@@ -293,12 +293,12 @@ function normalizeImageOrientationGD($filePath, $orientation) {
             }
             $flipped = true;
             break;
-            
+
         case 3: // BottomRight - 180度回転
             $destination = imagerotate($source, 180, 0);
             $rotated = true;
             break;
-            
+
         case 4: // BottomLeft - 垂直反転
             $destination = imagecreatetruecolor($width, $height);
             imagealphablending($destination, false);
@@ -308,7 +308,7 @@ function normalizeImageOrientationGD($filePath, $orientation) {
             }
             $flipped = true;
             break;
-            
+
         case 5: // LeftTop - 90度CCW回転 + 水平反転
             $destination = imagerotate($source, 90, 0);
             $tempWidth = imagesx($destination);
@@ -324,12 +324,12 @@ function normalizeImageOrientationGD($filePath, $orientation) {
             $rotated = true;
             $flipped = true;
             break;
-            
+
         case 6: // RightTop - 90度CW回転
             $destination = imagerotate($source, -90, 0);
             $rotated = true;
             break;
-            
+
         case 7: // RightBottom - 90度CW回転 + 水平反転
             $destination = imagerotate($source, -90, 0);
             $tempWidth = imagesx($destination);
@@ -345,12 +345,12 @@ function normalizeImageOrientationGD($filePath, $orientation) {
             $rotated = true;
             $flipped = true;
             break;
-            
+
         case 8: // LeftBottom - 90度CCW回転
             $destination = imagerotate($source, 90, 0);
             $rotated = true;
             break;
-            
+
         default:
             imagedestroy($source);
             error_log("normalizeImageOrientationGD: Unknown orientation $orientation");
@@ -368,7 +368,7 @@ function normalizeImageOrientationGD($filePath, $orientation) {
 
     // JPEGとして保存（品質85、EXIFメタデータは自動的に削除される）
     $result = imagejpeg($destination, $filePath, 85);
-    
+
     imagedestroy($destination);
 
     if (!$result) {
@@ -382,7 +382,7 @@ function normalizeImageOrientationGD($filePath, $orientation) {
 
 /**
  * 画像リサイズ
- * 
+ *
  * @param string $filePath 画像ファイルパス
  * @param int $maxWidth 最大幅
  * @param int $maxHeight 最大高さ
@@ -410,7 +410,7 @@ function resizeImage($filePath, $maxWidth = 800, $maxHeight = 800, $quality = 85
     // GD needs roughly: width * height * 4 bytes per pixel * 2 (source + dest)
     $estimatedMemory = $originalWidth * $originalHeight * 4 * 2;
     $memoryLimit = (int)ini_get('memory_limit') * 1024 * 1024;
-    
+
     // If estimated memory is more than 50% of limit, increase memory limit
     if ($estimatedMemory > $memoryLimit * 0.5) {
         $neededMemory = $estimatedMemory * 2.5; // Add buffer
@@ -515,7 +515,7 @@ function resizeImage($filePath, $maxWidth = 800, $maxHeight = 800, $quality = 85
     $finalSize = filesize($filePath);
     $compression = $originalSize > 0 ? round((1 - $finalSize / $originalSize) * 100, 1) : 0;
 
-    error_log("resizeImage: Success - {$originalWidth}x{$originalHeight} -> {$newWidth}x{$newHeight}, " . 
+    error_log("resizeImage: Success - {$originalWidth}x{$originalHeight} -> {$newWidth}x{$newHeight}, " .
               round($originalSize/1024, 2) . "KB -> " . round($finalSize/1024, 2) . "KB ({$compression}% reduced)");
 
     return [
@@ -528,7 +528,7 @@ function resizeImage($filePath, $maxWidth = 800, $maxHeight = 800, $quality = 85
 
 /**
  * ファイルアップロード
- * 
+ *
  * @param array $file $_FILES array element
  * @param string $subDirectory Subdirectory (e.g., 'logo/', 'photo/', 'free/')
  * @return array Success/failure with file info
@@ -626,7 +626,7 @@ function uploadFile($file, $subDirectory = '') {
     $relativePath = 'backend/uploads/' . $subDirectory . $fileName;
 
     error_log("uploadFile: Success - Final: {$finalWidth}x{$finalHeight}, " . round($finalSize / 1024, 2) . "KB");
-    
+
     return [
         'success' => true,
         'file_path' => $relativePath,
@@ -642,7 +642,7 @@ function uploadFile($file, $subDirectory = '') {
 
 /**
  * アップロードタイプに応じて画像をリサイズ
- * 
+ *
  * @param string $filePath File path
  * @param string $subDirectory Upload type directory (e.g., 'logo/', 'photo/')
  * @return bool|array Resize result
@@ -651,7 +651,7 @@ function resizeImageWithType($filePath, $subDirectory = '') {
     try {
         // サブディレクトリからタイプを判定
         $type = trim($subDirectory, '/');
-        
+
         // 設定から適切なサイズを取得
         $defaultSizes = [
             'logo' => ['maxWidth' => 400, 'maxHeight' => 400],
@@ -659,17 +659,17 @@ function resizeImageWithType($filePath, $subDirectory = '') {
             'free' => ['maxWidth' => 1200, 'maxHeight' => 1200],
             'default' => ['maxWidth' => 1024, 'maxHeight' => 1024]
         ];
-        
+
         $sizes = defined('IMAGE_SIZES') ? IMAGE_SIZES : $defaultSizes;
-        
+
         $sizeConfig = isset($sizes[$type]) ? $sizes[$type] : (isset($sizes['default']) ? $sizes['default'] : $defaultSizes['default']);
         $quality = defined('IMAGE_QUALITY') ? IMAGE_QUALITY : 85;
-        
+
         $maxWidth = isset($sizeConfig['maxWidth']) ? $sizeConfig['maxWidth'] : 1024;
         $maxHeight = isset($sizeConfig['maxHeight']) ? $sizeConfig['maxHeight'] : 1024;
-        
+
         error_log("resizeImageWithType: Type=$type, MaxSize={$maxWidth}x{$maxHeight}, Quality=$quality");
-        
+
         return resizeImage($filePath, $maxWidth, $maxHeight, $quality);
     } catch (Exception $e) {
         error_log("resizeImageWithType Error: " . $e->getMessage());
@@ -683,7 +683,7 @@ function resizeImageWithType($filePath, $subDirectory = '') {
 function getAddressFromPostalCode($postalCode) {
     // ハイフン除去
     $postalCode = str_replace('-', '', $postalCode);
-    
+
     // ここで郵便番号APIを呼び出すか、データベースから取得
     // 例: Yahoo APIや郵便番号データベースを使用
     // 簡易版として、今後実装が必要
@@ -696,11 +696,11 @@ function getAddressFromPostalCode($postalCode) {
 function generateUrlSlug($length = 6) {
     $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
     $slug = '';
-    
+
     for ($i = 0; $i < $length; $i++) {
         $slug .= $characters[random_int(0, strlen($characters) - 1)];
     }
-    
+
     return $slug;
 }
 
@@ -725,18 +725,18 @@ function sanitizeInput($data) {
  */
 function detectEmailType($email) {
     $domain = strtolower(substr(strrchr($email, "@"), 1));
-    
+
     // Common personal email providers
     $personalDomains = [
         'gmail.com', 'yahoo.co.jp', 'yahoo.com', 'hotmail.com', 'outlook.com',
         'live.com', 'msn.com', 'aol.com', 'icloud.com', 'me.com', 'mac.com',
         'ymail.com', 'rocketmail.com', 'mail.com', 'protonmail.com', 'zoho.com'
     ];
-    
+
     if (in_array($domain, $personalDomains)) {
         return 'personal';
     }
-    
+
     // Business emails are typically custom domains
     return 'business';
 }
@@ -749,19 +749,19 @@ function logEmail($recipientEmail, $subject, $emailType, $status, $deliveryTimeM
         require_once __DIR__ . '/../config/database.php';
         $database = new Database();
         $db = $database->getConnection();
-        
+
         $recipientType = detectEmailType($recipientEmail);
         $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
         $sentAt = ($status === 'sent') ? date('Y-m-d H:i:s') : null;
         $completedAt = date('Y-m-d H:i:s');
-        
+
         $stmt = $db->prepare("
-            INSERT INTO email_logs 
-            (recipient_email, recipient_type, subject, email_type, status, sent_at, started_at, completed_at, 
+            INSERT INTO email_logs
+            (recipient_email, recipient_type, subject, email_type, status, sent_at, started_at, completed_at,
              delivery_time_ms, smtp_response, error_message, user_id, related_id, ip_address)
             VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?)
         ");
-        
+
         $stmt->execute([
             $recipientEmail,
             $recipientType,
@@ -777,7 +777,7 @@ function logEmail($recipientEmail, $subject, $emailType, $status, $deliveryTimeM
             $relatedId,
             $ipAddress
         ]);
-        
+
         return true;
     } catch (Exception $e) {
         error_log("[Email Log Error] Failed to log email: " . $e->getMessage());
@@ -801,11 +801,11 @@ function sendEmail($to, $subject, $htmlMessage, $textMessage = '', $emailType = 
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'ctha43843@gmail.com'; // あなたのGmail
-        $mail->Password = 'lsdimxhugzdlhxla'; // Gmailアプリパスワード
+        $mail->Username = 'maxlucky0709@gmail.com'; // あなたのGmail
+        $mail->Password = 'jtbqdrigrrysyfqy'; // Gmailアプリパスワード
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
-        
+
         // Enable verbose debug output (only for logging, not for user)
         $mail->SMTPDebug = 0; // 0 = off, 2 = client and server messages
         $mail->Debugoutput = function($str, $level) use (&$smtpResponse) {
@@ -816,8 +816,8 @@ function sendEmail($to, $subject, $htmlMessage, $textMessage = '', $emailType = 
         };
 
         // 送信者情報
-        $mail->setFrom('ctha43843@gmail.com', '不動産AI名刺');
-        $mail->addReplyTo('ctha43843@gmail.com');
+        $mail->setFrom('maxlucky0709@gmail.com', '不動産AI名刺');
+        $mail->addReplyTo('maxlucky0709@gmail.com');
 
         // 宛先
         $mail->addAddress($to);
@@ -832,17 +832,18 @@ function sendEmail($to, $subject, $htmlMessage, $textMessage = '', $emailType = 
 
         // Send email
         $result = $mail->send();
-        
+
         // Calculate delivery time
         $endTime = microtime(true);
         $deliveryTimeMs = round(($endTime - $startTime) * 1000, 2);
-        
+
         $status = $result ? 'sent' : 'failed';
-        
+
         // Log success
-        logEmail($to, $subject, $emailType, $status, $deliveryTimeMs, 
-                 substr($smtpResponse, 0, 500), null, $userId, $relatedId);
-        
+        $smtpResponseSafe = ($smtpResponse !== null) ? substr($smtpResponse, 0, 500) : null;
+        logEmail($to, $subject, $emailType, $status, $deliveryTimeMs,
+                 $smtpResponseSafe, null, $userId, $relatedId);
+
         if ($result) {
             error_log("[Email Success] Sent to {$to} in {$deliveryTimeMs}ms - Type: " . detectEmailType($to));
         }
@@ -854,12 +855,62 @@ function sendEmail($to, $subject, $htmlMessage, $textMessage = '', $emailType = 
         $deliveryTimeMs = round(($endTime - $startTime) * 1000, 2);
         $errorMessage = $mail->ErrorInfo ?: $e->getMessage();
         $status = 'failed';
-        
+
+        // Check for Gmail daily sending limit error
+        $isGmailLimitError = false;
+        if (strpos($errorMessage, 'Daily user sending limit exceeded') !== false ||
+            strpos($errorMessage, '550') !== false && strpos($errorMessage, '5.4.5') !== false ||
+            strpos($errorMessage, 'DATA command failed') !== false) {
+            $isGmailLimitError = true;
+            $errorMessage .= ' [GMAIL_DAILY_LIMIT_EXCEEDED]';
+            error_log("[Email Error] Gmail daily sending limit exceeded. Consider using email queue or alternative SMTP service.");
+        }
+
         // Log failure
-        logEmail($to, $subject, $emailType, $status, $deliveryTimeMs, 
-                 substr($smtpResponse, 0, 500), $errorMessage, $userId, $relatedId);
-        
+        $smtpResponseSafe = ($smtpResponse !== null) ? substr($smtpResponse, 0, 500) : null;
+        logEmail($to, $subject, $emailType, $status, $deliveryTimeMs,
+                 $smtpResponseSafe, $errorMessage, $userId, $relatedId);
+
+        // If it's a Gmail limit error, try to queue the email for later
+        if ($isGmailLimitError) {
+            queueEmailForLater($to, $subject, $htmlMessage, $textMessage, $emailType, $userId, $relatedId);
+        }
+
         error_log("[Email Error] Failed to send to {$to}: {$errorMessage} - Time: {$deliveryTimeMs}ms");
+        return false;
+    }
+}
+
+/**
+ * Queue email for later sending (when Gmail limit is exceeded)
+ */
+function queueEmailForLater($to, $subject, $htmlMessage, $textMessage, $emailType, $userId = null, $relatedId = null) {
+    try {
+        require_once __DIR__ . '/../config/database.php';
+        $database = new Database();
+        $db = $database->getConnection();
+
+        // Check if email_queue table exists, if not, just log the attempt
+        $stmt = $db->prepare("
+            INSERT INTO email_queue (recipient_email, subject, html_body, text_body, email_type, user_id, related_id, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
+        ");
+
+        $stmt->execute([
+            $to,
+            $subject,
+            $htmlMessage,
+            $textMessage,
+            $emailType,
+            $userId,
+            $relatedId
+        ]);
+
+        error_log("[Email Queue] Email queued for later sending to {$to}");
+        return true;
+    } catch (Exception $e) {
+        // If table doesn't exist, just log the error
+        error_log("[Email Queue Error] Failed to queue email: " . $e->getMessage());
         return false;
     }
 }
@@ -874,7 +925,7 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
     }
 
     $adminEmail = 'nishio@rchukai.jp';
-    
+
     // ユーザータイプの日本語表示
     $userTypeLabels = [
         'new' => '新規ユーザー',
@@ -882,12 +933,12 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
         'free' => '無料ユーザー'
     ];
     $userTypeLabel = $userTypeLabels[$userType] ?? $userType;
-    
+
     $registrationDate = date('Y年m月d日 H:i:s');
-    
-    // メール件名
-    $emailSubject = '【不動産AI名刺】新規ユーザー登録通知';
-    
+
+    // メール件名（ユーザータイプに応じて変更）
+    $emailSubject = '【不動産AI名刺】ユーザー登録通知（' . $userTypeLabel . '）';
+
     // HTML本文
     $emailBody = "
     <html>
@@ -913,7 +964,7 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
                 </div>
             </div>
             <div class='content'>
-                <p>新規ユーザーが登録されました。</p>
+                <p>{$userTypeLabel}が登録されました。</p>
                 <table class='info-table'>
                     <tr>
                         <th>ユーザーID</th>
@@ -945,16 +996,16 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
     </body>
     </html>
     ";
-    
+
     // プレーンテキスト版
-    $emailBodyText = 
-        "新規ユーザーが登録されました。\n\n" .
+    $emailBodyText =
+        "{$userTypeLabel}が登録されました。\n\n" .
         "ユーザーID: {$userId}\n" .
         "メールアドレス: {$userEmail}\n" .
         "ユーザータイプ: {$userTypeLabel}\n" .
         "URLスラッグ: {$urlSlug}\n" .
         "登録日時: {$registrationDate}\n";
-    
+
     return sendEmail($adminEmail, $emailSubject, $emailBody, $emailBodyText, 'admin_notification', null, $userId);
 }
 
@@ -969,10 +1020,10 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
 
     $issuedDate = date('Y年m月d日 H:i:s');
     $cardFullUrl = QR_CODE_BASE_URL . $urlSlug;
-    
+
     // メール件名
     $emailSubject = '【不動産AI名刺】デジタル名刺のQRコード発行完了';
-    
+
     // HTML本文
     $emailBody = "
     <html>
@@ -1007,7 +1058,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
                 <p>{$userName} 様</p>
                 <p>お支払いいただき、ありがとうございます。<br>
                 デジタル名刺のQRコードが正常に発行されました。</p>
-                
+
                 <div class='info-box'>
                     <h3>📱 あなたのデジタル名刺</h3>
                     <p><strong>名刺URL:</strong><br>
@@ -1016,7 +1067,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
                         <a href='{$cardFullUrl}' class='button' target='_blank'>名刺を表示する</a>
                     </p>
                 </div>
-                
+
                 <div class='qr-info'>
                     <h3>🔲 QRコードについて</h3>
                     <p>QRコードは名刺ページに表示されています。このQRコードをスキャンすると、上記の名刺URLに直接アクセスできます。</p>
@@ -1026,7 +1077,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
                         <li>スマートフォンでスキャンするだけでアクセス可能</li>
                     </ul>
                 </div>
-                
+
                 <div class='info-box'>
                     <h3>📝 次のステップ</h3>
                     <ul>
@@ -1038,7 +1089,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
                         <a href='" . BASE_URL . "/frontend/edit.php' class='button'>マイページで編集する</a>
                     </p>
                 </div>";
-    
+
     if ($paymentAmount) {
         $emailBody .= "
                 <div class='info-box'>
@@ -1047,7 +1098,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
                     <p><strong>発行日時:</strong> {$issuedDate}</p>
                 </div>";
     }
-    
+
     $emailBody .= "
                 <div class='footer'>
                     <p>ご不明な点がございましたら、お気軽にお問い合わせください。</p>
@@ -1059,9 +1110,9 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
     </body>
     </html>
     ";
-    
+
     // プレーンテキスト版
-    $emailBodyText = 
+    $emailBodyText =
         "{$userName} 様\n\n" .
         "お支払いいただき、ありがとうございます。\n" .
         "デジタル名刺のQRコードが正常に発行されました。\n\n" .
@@ -1077,7 +1128,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
         "マイページ: " . BASE_URL . "/frontend/edit.php\n\n" .
         ($paymentAmount ? "【お支払い情報】\nお支払い金額: ¥" . number_format($paymentAmount) . "\n発行日時: {$issuedDate}\n\n" : "") .
         "発行日時: {$issuedDate}\n";
-    
+
     return sendEmail($userEmail, $emailSubject, $emailBody, $emailBodyText, 'qr_code_issued', null, null);
 }
 
@@ -1086,13 +1137,13 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
  */
 function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, $paymentAmount = null, $companyName = null, $name = null, $nameRomaji = null, $phoneNumber = null) {
     $adminEmail = 'nishio@rchukai.jp';
-    
+
     $issuedDate = date('Y年m月d日 H:i:s');
     $cardFullUrl = QR_CODE_BASE_URL . $urlSlug;
-    
+
     // メール件名
     $emailSubject = '【不動産AI名刺】QRコード発行通知';
-    
+
     // HTML本文
     $emailBody = "
     <html>
@@ -1162,7 +1213,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
                         <th>名刺URL</th>
                         <td><a href='{$cardFullUrl}' target='_blank'>{$cardFullUrl}</a></td>
                     </tr>";
-    
+
     if ($paymentAmount) {
         $emailBody .= "
                     <tr>
@@ -1170,7 +1221,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
                         <td>¥" . number_format($paymentAmount) . "</td>
                     </tr>";
     }
-    
+
     $emailBody .= "
                     <tr>
                         <th>発行日時</th>
@@ -1186,9 +1237,9 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
     </body>
     </html>
     ";
-    
+
     // プレーンテキスト版
-    $emailBodyText = 
+    $emailBodyText =
         "新しいQRコードが発行されました。\n\n" .
         "ユーザーID: {$userId}\n" .
         "ユーザー名: {$userName}\n" .
@@ -1201,7 +1252,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
         "名刺URL: {$cardFullUrl}\n" .
         ($paymentAmount ? "支払い金額: ¥" . number_format($paymentAmount) . "\n" : "") .
         "発行日時: {$issuedDate}\n";
-    
+
     return sendEmail($adminEmail, $emailSubject, $emailBody, $emailBodyText, 'admin_qr_notification', null, $userId);
 }
 

@@ -420,7 +420,7 @@ body {
 
 .users-table th:last-child {
     text-align: center;
-    width: 40px;
+    min-width: 150px;
     cursor: default;
 }
 
