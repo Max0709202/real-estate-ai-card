@@ -604,6 +604,11 @@ async function goToStep(step, skipSave = false) {
     
     currentStep = step;
     
+    // Scroll to the top of the screen (not just the section)
+    setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
+    
     // Load company name from database when step 2 becomes active
     if (step === 2) {
         // Wait a bit for DOM to be ready, then load company name

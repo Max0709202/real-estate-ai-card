@@ -110,7 +110,7 @@ $stats = $stmt->fetch();
         <header class="admin-header">
             <h1>メール送信ログ</h1>
             <div class="admin-info">
-                <a href="dashboard.php" class="btn-logout" style="background: #0066cc; margin-right: 10px;">ダッシュボードに戻る</a>
+                <a href="dashboard.php" class="btn-logout" style="background: #6c757d; margin-right: 10px;">ダッシュボードに戻る</a>
                 <a href="logout.php" class="btn-logout">ログアウト</a>
             </div>
         </header>

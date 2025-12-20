@@ -143,35 +143,35 @@ $users = $stmt->fetchAll();
     <div class="admin-container">
         <header class="admin-header">
             <h1>不動産AI名刺 管理画面</h1>
-            <div class="admin-info">
-                <?php if ($latestChange): ?>
-                    <p>最終変更操作: <?php
-                        $changeTypeText = [
-                            'payment_confirmed' => '入金確認',
-                            'qr_code_issued' => 'QRコード発行',
-                            'published_changed' => '公開状態変更',
-                            'user_deleted' => 'ユーザー削除',
-                            'other' => 'その他'
-                        ];
-                        echo htmlspecialchars($changeTypeText[$latestChange['change_type']] ?? $latestChange['change_type']);
-                    ?></p>
-                    <p>変更日時: <?php echo htmlspecialchars($latestChange['changed_at']); ?></p>
-                    <p>変更者: <?php echo htmlspecialchars($latestChange['admin_email']); ?></p>
-                    <?php if (!empty($latestChange['description'])): ?>
-                        <p style="font-size: 12px; color: #666;"><?php echo htmlspecialchars($latestChange['description']); ?></p>
-                    <?php endif; ?>
-                <?php else: ?>
-                    <p>変更履歴: なし</p>
-                <?php endif; ?>
-                <?php
-                // Get current admin role
-                $stmt = $db->prepare("SELECT role FROM admins WHERE id = ?");
-                $stmt->execute([$_SESSION['admin_id']]);
-                $currentAdminRole = $stmt->fetchColumn();
-                $isAdmin = ($currentAdminRole === 'admin' || $_SESSION['admin_id'] == 1);
-                ?>
-            </div>
             <div class="admin-header-actions">
+                <div class="admin-info">
+                    <?php if ($latestChange): ?>
+                        <p>最終変更操作: <?php
+                            $changeTypeText = [
+                                'payment_confirmed' => '入金確認',
+                                'qr_code_issued' => 'QRコード発行',
+                                'published_changed' => '公開状態変更',
+                                'user_deleted' => 'ユーザー削除',
+                                'other' => 'その他'
+                            ];
+                            echo htmlspecialchars($changeTypeText[$latestChange['change_type']] ?? $latestChange['change_type']);
+                        ?></p>
+                        <p>変更日時: <?php echo htmlspecialchars($latestChange['changed_at']); ?></p>
+                        <p>変更者: <?php echo htmlspecialchars($latestChange['admin_email']); ?></p>
+                        <?php if (!empty($latestChange['description'])): ?>
+                            <p style="font-size: 12px; color: #666;"><?php echo htmlspecialchars($latestChange['description']); ?></p>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <p>変更履歴: なし</p>
+                    <?php endif; ?>
+                    <?php
+                    // Get current admin role
+                    $stmt = $db->prepare("SELECT role FROM admins WHERE id = ?");
+                    $stmt->execute([$_SESSION['admin_id']]);
+                    $currentAdminRole = $stmt->fetchColumn();
+                    $isAdmin = ($currentAdminRole === 'admin' || $_SESSION['admin_id'] == 1);
+                    ?>
+                </div>
                 <div class="admin-theme-toggle" id="theme-toggle" title="テーマを切り替え">
                     <svg class="theme-icon sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="5"></circle>
@@ -428,26 +428,44 @@ $users = $stmt->fetchAll();
                 const statusIndicator = document.querySelector(`.notes-save-status[data-bc-id="${bcId}"]`);
                 let saveTimeout;
 
+                // Store initial value to track changes
+                const initialValue = (input.value || '').trim();
+
                 // Show save button when input changes
                 input.addEventListener('input', function() {
-                    if (saveBtn) saveBtn.style.display = 'inline-block';
+                    const currentValue = (input.value || '').trim();
+                    const hasChanged = currentValue !== initialValue;
+                    if (hasChanged && saveBtn) {
+                        saveBtn.style.display = 'inline-block';
+                    } else if (!hasChanged && saveBtn) {
+                        saveBtn.style.display = 'none';
+                    }
                     if (statusIndicator) {
                         statusIndicator.style.display = 'none';
                     }
                 });
 
-                // Auto-save on blur (when user clicks away)
+                // Auto-save on blur (when user clicks away) - only if value changed
                 input.addEventListener('blur', function() {
                     clearTimeout(saveTimeout);
-                    saveTimeout = setTimeout(function() {
-                        saveNotes(bcId, input.value, saveBtn, statusIndicator);
-                    }, 300);
+                    const currentValue = (input.value || '').trim();
+                    const hasChanged = currentValue !== initialValue;
+
+                    if (hasChanged) {
+                        saveTimeout = setTimeout(function() {
+                            saveNotes(bcId, currentValue, saveBtn, statusIndicator);
+                        }, 300);
+                    }
                 });
 
                 // Manual save button click
                 if (saveBtn) {
                     saveBtn.addEventListener('click', function() {
-                        saveNotes(bcId, input.value, saveBtn, statusIndicator);
+                        const currentValue = (input.value || '').trim();
+                        const hasChanged = currentValue !== initialValue;
+                        if (hasChanged) {
+                            saveNotes(bcId, currentValue, saveBtn, statusIndicator);
+                        }
                     });
                 }
             });

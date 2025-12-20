@@ -728,7 +728,7 @@
 
     /* Form actions - Mobile (SP) */
     .register-step {
-        padding-bottom: 100px; /* Extra space for sticky buttons */
+        padding-bottom: 2rem; /* Normal padding at bottom of form */
     }
 
     .form-actions {
@@ -737,16 +737,10 @@
         margin-top: 2rem;
         padding-top: 1.5rem;
         padding-bottom: 1.25rem;
-        position: sticky;
-        bottom: 0;
+        position: relative; /* Changed from sticky to relative */
         background: #fff;
-        z-index: 10;
         border-top: 1px solid #e0e0e0;
-        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
-        margin-left: -1.25rem;
-        margin-right: -1.25rem;
-        padding-left: 1.25rem;
-        padding-right: 1.25rem;
+        box-shadow: none; /* Removed shadow since it's not sticky */
     }
 
     .form-actions button {

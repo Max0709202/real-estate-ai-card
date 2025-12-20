@@ -820,20 +820,17 @@ input.form-control {
         padding: 0 1rem 2rem;
     }
 
-    /* Sticky form actions for better UX */
+    /* Form actions at bottom of form */
     .register-step {
-        padding-bottom: 80px; /* Space for sticky buttons */
+        padding-bottom: 2rem; /* Normal padding at bottom of form */
     }
 
     .form-actions {
-        /* position: sticky; */
-        bottom: 0;
+        position: relative; /* Ensure buttons are at bottom of form content */
         background: #fff;
         padding: 1rem;
         margin: 1.5rem -1rem -1rem;
         border-top: 1px solid #e0e0e0;
-        box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
-        z-index: 10;
     }
 
     /* Communication grid mobile */
@@ -1154,10 +1151,11 @@ input.form-control {
     }
     .preview-btn-mobile {
         display: block;
+        margin-top: 2rem; /* Add spacing above preview button */
     }
     .preview-btn-container {
         width: 100%;
-        margin: 1rem 0;
+        margin: 2rem 0 1rem 0; /* Add spacing above and below */
     }
     .preview-btn-container .btn-preview {
         width: 90%;
