@@ -430,7 +430,8 @@ if (empty($_SESSION['admin_id'])) {
         <div class="email-header">
             <h1>メール招待管理</h1>
             <div class="header-actions">
-                <a href="dashboard.php" class="btn btn-secondary">← ダッシュボードに戻る</a>
+                <a href="dashboard.php" class="btn-logout" style="background: #6c757d; margin-right: 10px;">ダッシュボードに戻る</a>
+                <a href="logout.php" class="btn-logout">ログアウト</a>
             </div>
             <p class="header-description">CSVファイルをインポートして、ユーザーに招待メールを送信します</p>
         </div>
@@ -532,6 +533,29 @@ if (empty($_SESSION['admin_id'])) {
         let invitationsData = [];
 
         // Load data on page load
+        // Suppress browser extension errors (content.js, etc.)
+        window.addEventListener('unhandledrejection', function(event) {
+            const errorMessage = event.reason?.message || event.reason?.toString() || '';
+            if (errorMessage.includes('message port closed') ||
+                errorMessage.includes('content.js') ||
+                errorMessage.includes('Extension context invalidated')) {
+                event.preventDefault(); // Suppress the error
+                return;
+            }
+        });
+
+        // Suppress console errors from extensions
+        const originalError = console.error;
+        console.error = function(...args) {
+            const errorString = args.join(' ');
+            if (errorString.includes('content.js') ||
+                errorString.includes('message port closed') ||
+                errorString.includes('Extension context')) {
+                return; // Don't log extension errors
+            }
+            originalError.apply(console, args);
+        };
+
         document.addEventListener('DOMContentLoaded', function() {
             loadInvitations();
             setupUploadHandlers();
