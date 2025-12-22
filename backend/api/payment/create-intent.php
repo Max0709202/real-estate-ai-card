@@ -135,6 +135,21 @@ try {
     $stripePaymentIntentId = null;
     $stripeSubscriptionId = null;
 
+    // Update business_cards payment_status based on payment method
+    // Credit card will be updated to 'CR' via webhook on success
+    // Bank transfer sets to 'BANK_PENDING' immediately
+    if ($paymentMethod === 'bank_transfer') {
+        $stmt = $db->prepare("
+            UPDATE business_cards 
+            SET payment_status = 'BANK_PENDING'
+            WHERE id = ?
+        ");
+        $stmt->execute([$userInfo['business_card_id']]);
+        
+        // Enforce open rule: force close if currently open (BANK_PENDING doesn't allow OPEN)
+        enforceOpenPaymentStatusRule($db, $userInfo['business_card_id'], 'BANK_PENDING');
+    }
+
     // Stripe Customer作成または取得
     try {
         $stmt = $db->prepare("SELECT stripe_customer_id FROM users WHERE id = ?");

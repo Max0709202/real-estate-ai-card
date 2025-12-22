@@ -260,8 +260,8 @@ try {
             
             $isPublished = (int)$input['is_published'];
             
-            // ビジネスカード情報を取得
-            $stmt = $db->prepare("SELECT user_id, url_slug, is_published FROM business_cards WHERE id = ?");
+            // ビジネスカード情報を取得（payment_statusを含む）
+            $stmt = $db->prepare("SELECT user_id, url_slug, is_published, payment_status FROM business_cards WHERE id = ?");
             $stmt->execute([$bcId]);
             $bcInfo = $stmt->fetch();
             
@@ -269,11 +269,10 @@ try {
                 sendErrorResponse('ビジネスカードが見つかりません', 404);
             }
             
-            // 公開状態を更新
-            $stmt = $db->prepare("UPDATE business_cards SET is_published = ? WHERE id = ?");
-            $stmt->execute([$isPublished, $bcId]);
+            $beforeOpen = (int)$bcInfo['is_published'];
+            $paymentStatus = $bcInfo['payment_status'] ?? 'UNUSED';
             
-            // 変更履歴を記録
+            // 変更履歴を記録（ブロック時も記録）
             $adminId = $_SESSION['admin_id'];
             $adminEmail = $_SESSION['admin_email'] ?? '';
             
@@ -282,9 +281,30 @@ try {
             $userInfo = $stmt->fetch();
             $userEmail = $userInfo['email'] ?? 'Unknown';
             
+            // Backend validation: OPEN can only be enabled if payment_status is CR or BANK_PAID
+            $canOpen = in_array($paymentStatus, ['CR', 'BANK_PAID']);
+            
+            if ($isPublished == 1 && !$canOpen) {
+                // Block attempt to open without valid payment
+                $paymentStatusLabel = [
+                    'BANK_PENDING' => '振込予定',
+                    'UNUSED' => '未利用'
+                ];
+                $statusLabel = $paymentStatusLabel[$paymentStatus] ?? $paymentStatus;
+                
+                logAdminChange($db, $adminId, $adminEmail, 'published_change_blocked', 'business_card', $bcId, 
+                    "OPEN変更ブロック: 未入金のためOPEN不可（現在の入金状況: {$statusLabel}）- ユーザー {$userEmail} (URL: {$bcInfo['url_slug']})");
+                
+                sendErrorResponse('未入金のためOPENできません（CR/振込済のみ）', 403);
+            }
+            
+            // 公開状態を更新
+            $stmt = $db->prepare("UPDATE business_cards SET is_published = ? WHERE id = ?");
+            $stmt->execute([$isPublished, $bcId]);
+            
             $statusText = $isPublished ? '公開' : '非公開';
             logAdminChange($db, $adminId, $adminEmail, 'published_changed', 'business_card', $bcId, 
-                "公開状態変更: {$statusText} - ユーザー {$userEmail} (URL: {$bcInfo['url_slug']})");
+                "公開状態変更: {$statusText} (変更前: " . ($beforeOpen ? '公開' : '非公開') . ") - ユーザー {$userEmail} (URL: {$bcInfo['url_slug']}, 入金状況: {$paymentStatus})");
             
             sendSuccessResponse([
                 'business_card_id' => $bcId,

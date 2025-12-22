@@ -17,10 +17,10 @@ $db = $database->getConnection();
 
 // ビジネスカード情報取得
 $stmt = $db->prepare("
-    SELECT bc.*, u.status as user_status
+    SELECT bc.*, u.status as user_status, bc.payment_status
     FROM business_cards bc
     JOIN users u ON bc.user_id = u.id
-    WHERE bc.url_slug = ? AND u.status = 'active' AND bc.is_published = 1
+    WHERE bc.url_slug = ? AND u.status = 'active'
 ");
 $stmt->execute([$slug]);
 $card = $stmt->fetch();
@@ -28,6 +28,72 @@ $card = $stmt->fetch();
 if (!$card) {
     header('HTTP/1.0 404 Not Found');
     exit('Not Found');
+}
+
+// Check payment status and publication status
+// Card can only be viewed if payment_status is CR or BANK_PAID, and is_published is 1
+if ($card['payment_status'] !== 'CR' && $card['payment_status'] !== 'BANK_PAID' || $card['is_published'] == 0) {
+    // Display custom message instead of 404
+    ?>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>名刺を表示できません</title>
+    <style>
+        body {
+            font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .message-container {
+            background: #fff;
+            border-radius: 12px;
+            padding: 3rem;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .message-icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+        }
+        .message-title {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 1rem;
+            font-weight: bold;
+        }
+        .message-description {
+            color: #666;
+            line-height: 1.8;
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="message-container">
+        <div class="message-icon">⚠️</div>
+        <h1 class="message-title">この名刺は現在ご利用いただけません</h1>
+        <p class="message-description">
+            <?php if ($card['payment_status'] !== 'CR' && $card['payment_status'] !== 'BANK_PAID'): ?>
+                入金確認が完了していないため、名刺を表示することができません。<br>
+                名刺のご利用には入金確認が必要です。
+            <?php elseif ($card['is_published'] == 0): ?>
+                この名刺は現在非公開のため表示できません。
+            <?php endif; ?>
+        </p>
+    </div>
+</body>
+</html>
+    <?php
+    exit();
 }
 
 // アクセスログ記録

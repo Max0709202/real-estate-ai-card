@@ -55,7 +55,7 @@ try {
             
             // 決済完了後の処理（QRコード発行など）
             $stmt = $db->prepare("
-                SELECT p.user_id, p.business_card_id, p.payment_type
+                SELECT p.user_id, p.business_card_id, p.payment_type, p.payment_method
                 FROM payments p
                 WHERE p.stripe_payment_intent_id = ? AND p.payment_status = 'completed'
             ");
@@ -63,28 +63,39 @@ try {
             $payment = $stmt->fetch();
             
             if ($payment) {
-                // ビジネスカードの公開状態を更新
+                // Update business_cards payment_status based on payment method
+                // Credit card payments → 'CR'
+                $newPaymentStatus = ($payment['payment_method'] === 'credit_card') ? 'CR' : 'BANK_PAID';
+                
+                // ビジネスカードのpayment_statusを更新（CRまたはBANK_PAIDの場合のみ）
+                // Note: We do NOT auto-open (is_published). Admin must manually enable OPEN.
                 $stmt = $db->prepare("
                     UPDATE business_cards
-                    SET payment_status = 'paid', is_published = TRUE
+                    SET payment_status = ?
                     WHERE id = ? AND user_id = ?
                 ");
-                $stmt->execute([$payment['business_card_id'], $payment['user_id']]);
+                $stmt->execute([$newPaymentStatus, $payment['business_card_id'], $payment['user_id']]);
                 
-                // QRコードが未発行の場合、発行処理を実行
-                $stmt = $db->prepare("
-                    SELECT qr_code_issued FROM business_cards WHERE id = ?
-                ");
-                $stmt->execute([$payment['business_card_id']]);
-                $bc = $stmt->fetch();
+                // Enforce rule: if card was open but payment_status was disallowed, close it
+                // (This handles edge cases where status changed from one disallowed to another)
+                enforceOpenPaymentStatusRule($db, $payment['business_card_id'], $newPaymentStatus);
                 
-                if ($bc && !$bc['qr_code_issued']) {
-                    // Generate QR code immediately
-                    $qrResult = generateBusinessCardQRCode($payment['business_card_id'], $db);
-                    if ($qrResult['success']) {
-                        error_log("QR code generated successfully for business_card_id: " . $payment['business_card_id']);
-                    } else {
-                        error_log("Failed to generate QR code for business_card_id: " . $payment['business_card_id'] . " - " . ($qrResult['message'] ?? 'Unknown error'));
+                // QRコードが未発行の場合、発行処理を実行（CRまたはBANK_PAIDの場合のみ）
+                if (in_array($newPaymentStatus, ['CR', 'BANK_PAID'])) {
+                    $stmt = $db->prepare("
+                        SELECT qr_code_issued FROM business_cards WHERE id = ?
+                    ");
+                    $stmt->execute([$payment['business_card_id']]);
+                    $bc = $stmt->fetch();
+                    
+                    if ($bc && !$bc['qr_code_issued']) {
+                        // Generate QR code immediately
+                        $qrResult = generateBusinessCardQRCode($payment['business_card_id'], $db);
+                        if ($qrResult['success']) {
+                            error_log("QR code generated successfully for business_card_id: " . $payment['business_card_id']);
+                        } else {
+                            error_log("Failed to generate QR code for business_card_id: " . $payment['business_card_id'] . " - " . ($qrResult['message'] ?? 'Unknown error'));
+                        }
                     }
                 }
             }

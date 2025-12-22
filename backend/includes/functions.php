@@ -128,6 +128,37 @@ function generateToken($length = 32) {
  * @param string|null $description Description of the change
  * @return bool Success status
  */
+/**
+ * Force close business card (is_published=0) when payment_status is not allowed for OPEN
+ * This ensures data consistency when payment_status changes to disallowed state
+ * 
+ * @param PDO $db Database connection
+ * @param int $businessCardId Business card ID
+ * @param string $paymentStatus New payment status
+ * @return bool True if card was forced closed, false otherwise
+ */
+function enforceOpenPaymentStatusRule($db, $businessCardId, $paymentStatus) {
+    $canOpen = in_array($paymentStatus, ['CR', 'BANK_PAID']);
+    
+    if (!$canOpen) {
+        // Check if card is currently open
+        $stmt = $db->prepare("SELECT is_published FROM business_cards WHERE id = ?");
+        $stmt->execute([$businessCardId]);
+        $card = $stmt->fetch();
+        
+        if ($card && $card['is_published'] == 1) {
+            // Force close the card
+            $stmt = $db->prepare("UPDATE business_cards SET is_published = 0 WHERE id = ?");
+            $stmt->execute([$businessCardId]);
+            
+            error_log("Payment status rule enforced: Business card ID {$businessCardId} forced to closed (is_published=0) due to payment_status={$paymentStatus}");
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 function logAdminChange($db, $adminId, $adminEmail, $changeType, $targetType, $targetId = null, $description = null) {
     try {
         $stmt = $db->prepare("

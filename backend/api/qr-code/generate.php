@@ -24,9 +24,8 @@ try {
 
     // ビジネスカード取得
     $stmt = $db->prepare("
-        SELECT bc.id, bc.url_slug, bc.qr_code_issued, p.payment_status
+        SELECT bc.id, bc.url_slug, bc.qr_code_issued, bc.payment_status
         FROM business_cards bc
-        LEFT JOIN payments p ON bc.id = p.business_card_id AND p.payment_status = 'completed'
         WHERE bc.user_id = ?
     ");
     $stmt->execute([$userId]);
@@ -37,8 +36,9 @@ try {
     }
 
     // 決済確認（新規・既存ユーザーの場合）
-    if ($businessCard['payment_status'] !== 'completed' && !empty($businessCard['payment_status'])) {
-        sendErrorResponse('決済が完了していません', 400);
+    // QR code can only be generated if payment_status is CR or BANK_PAID
+    if (!in_array($businessCard['payment_status'], ['CR', 'BANK_PAID'])) {
+        sendErrorResponse('決済が完了していません。QRコードは入金確認済みの場合のみ発行できます。', 400);
     }
 
     // Generate QR code using helper function

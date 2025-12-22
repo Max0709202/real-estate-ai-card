@@ -337,16 +337,29 @@ document.querySelectorAll('.payment-checkbox').forEach(checkbox => {
 // Open checkbox change
 document.querySelectorAll('.open-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', function() {
-        // Check if checkbox is disabled (client role)
+        // Check if checkbox is disabled (client role or payment not allowed)
         if (this.disabled) {
             this.checked = !this.checked; // Revert change
-            showError('クライアントロールはこの操作を実行できません');
+            const paymentStatus = this.dataset.paymentStatus;
+            if (paymentStatus && !['CR', 'BANK_PAID'].includes(paymentStatus)) {
+                showError('入金完了（CR / 振込済）後にOPEN可能です');
+            } else {
+                showError('クライアントロールはこの操作を実行できません');
+            }
             return;
         }
         
         const businessCardId = this.dataset.bcId;
+        const paymentStatus = this.dataset.paymentStatus;
         const isOpen = this.checked ? 1 : 0;
         const originalState = !this.checked; // Store original state for revert
+        
+        // Frontend validation: double-check payment status before sending
+        if (isOpen === 1 && paymentStatus && !['CR', 'BANK_PAID'].includes(paymentStatus)) {
+            this.checked = false; // Revert
+            showError('入金完了（CR / 振込済）後にOPEN可能です');
+            return;
+        }
         
         // Update published status
         updatePublishedStatus(businessCardId, isOpen, this, originalState);
@@ -553,6 +566,105 @@ async function deleteSelectedUsers() {
             showError('エラーが発生しました');
         }
     }, null, 'ユーザー削除の確認');
+}
+
+// Confirm bank transfer paid
+function confirmBankTransferPaid(businessCardId, badgeElement) {
+    // Check if user has admin role
+    if (window.isAdmin === false) {
+        showError('クライアントロールはこの操作を実行できません');
+        return;
+    }
+
+    // Store badge element for reverting if cancelled
+    window.currentBadgeElement = badgeElement;
+    window.currentBusinessCardId = businessCardId;
+
+    // Remove any existing modal first
+    const existingModal = document.querySelector('.modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>振込確認</h3>
+            <p>振込済みに変更しますか？</p>
+            <p style="font-size: 14px; color: #666; margin-top: 10px;">QRコードが発行され、ユーザーにメールが送信されます。</p>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-yes" id="confirm-bank-paid-yes">はい</button>
+                <button class="modal-btn modal-btn-no" id="confirm-bank-paid-no">いいえ</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Force reflow to ensure DOM is updated
+    void modal.offsetHeight;
+
+    // Add active class to show modal
+    setTimeout(() => {
+        modal.classList.add('active');
+    }, 10);
+
+    // Add event listeners after DOM is updated
+    setTimeout(() => {
+        const yesBtn = document.getElementById('confirm-bank-paid-yes');
+        const noBtn = document.getElementById('confirm-bank-paid-no');
+
+        if (yesBtn) {
+            yesBtn.addEventListener('click', function() {
+                processBankTransferPaid(businessCardId, badgeElement);
+                modal.remove();
+            });
+        }
+
+        if (noBtn) {
+            noBtn.addEventListener('click', function() {
+                modal.remove();
+            });
+        }
+    }, 10);
+}
+
+async function processBankTransferPaid(businessCardId, badgeElement) {
+    try {
+        const response = await fetch('../../backend/api/admin/update-payment-status.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                business_card_id: businessCardId,
+                payment_status: 'BANK_PAID'
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Update badge
+            if (badgeElement) {
+                badgeElement.className = 'payment-badge payment-badge-transfer-completed';
+                badgeElement.textContent = '振込済';
+                badgeElement.removeAttribute('onclick');
+                badgeElement.removeAttribute('title');
+                badgeElement.style.cursor = 'default';
+                badgeElement.setAttribute('data-current-status', 'BANK_PAID');
+            }
+
+            showSuccess('入金状況を「振込済」に更新しました');
+        } else {
+            showError(result.message || '更新に失敗しました');
+        }
+    } catch (error) {
+        console.error('Error updating payment status:', error);
+        showError('エラーが発生しました');
+    }
 }
 
 // Table sorting

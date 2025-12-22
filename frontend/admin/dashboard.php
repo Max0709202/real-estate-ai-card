@@ -48,14 +48,9 @@ $where = [];
 $params = [];
 
 // 入金状況の検索条件
-if (!empty($_GET['payment_status'])) {
-    if ($_GET['payment_status'] === 'completed') {
-        // 入金済み: completedステータスの支払いが存在する
-        $where[] = "EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed')";
-    } elseif ($_GET['payment_status'] === 'pending') {
-        // 未入金: completedステータスの支払いが存在しない
-        $where[] = "NOT EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed')";
-    }
+if (!empty($_GET['payment_status']) && in_array($_GET['payment_status'], ['CR', 'BANK_PENDING', 'BANK_PAID', 'UNUSED'])) {
+    $where[] = "bc.payment_status = ?";
+    $params[] = $_GET['payment_status'];
 }
 
 // 公開状況の検索条件（空文字列の場合は条件を追加しない）
@@ -68,7 +63,7 @@ $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // Map sort fields from request to database fields
 $sortFieldMap = [
-    'payment_confirmed' => 'payment_confirmed',
+    'payment_status' => 'bc.payment_status',
     'is_open' => 'bc.is_published',
     'user_type' => 'u.user_type',
     'company_name' => 'bc.company_name',
@@ -98,7 +93,7 @@ $sql = "
         bc.url_slug,
         bc.is_published as is_open,
         bc.admin_notes,
-        CASE WHEN EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed') THEN 1 ELSE 0 END as payment_confirmed,
+        bc.payment_status,
         COALESCE((
             SELECT COUNT(*)
             FROM access_logs al
@@ -116,7 +111,7 @@ $sql = "
     JOIN users u ON bc.user_id = u.id
     $whereClause
     GROUP BY bc.id, u.id, u.email, u.user_type, bc.company_name, bc.name, bc.mobile_phone, bc.url_slug,
-             bc.is_published, bc.admin_notes, bc.created_at, u.last_login_at
+             bc.is_published, bc.admin_notes, bc.payment_status, bc.created_at, u.last_login_at
     ORDER BY $sortField $sortOrder
     LIMIT ? OFFSET ?
 ";
@@ -220,8 +215,10 @@ $users = $stmt->fetchAll();
                 <form method="GET" class="filter-form">
                     <select name="payment_status">
                         <option value="">入金状況</option>
-                        <option value="completed" <?php echo ($_GET['payment_status'] ?? '') === 'completed' ? 'selected' : ''; ?>>入金済み</option>
-                        <option value="pending" <?php echo ($_GET['payment_status'] ?? '') === 'pending' ? 'selected' : ''; ?>>未入金</option>
+                        <option value="CR" <?php echo ($_GET['payment_status'] ?? '') === 'CR' ? 'selected' : ''; ?>>CR</option>
+                        <option value="BANK_PENDING" <?php echo ($_GET['payment_status'] ?? '') === 'BANK_PENDING' ? 'selected' : ''; ?>>振込予定</option>
+                        <option value="BANK_PAID" <?php echo ($_GET['payment_status'] ?? '') === 'BANK_PAID' ? 'selected' : ''; ?>>振込済</option>
+                        <option value="UNUSED" <?php echo ($_GET['payment_status'] ?? '') === 'UNUSED' ? 'selected' : ''; ?>>未利用</option>
                     </select>
                     <select name="is_open">
                         <option value="">公開状況</option>
@@ -264,8 +261,8 @@ $users = $stmt->fetchAll();
             <table class="users-table">
                 <thead>
                     <tr>
-                        <th class="sortable" data-sort="user_type">ユーザータイプ</th>
-                        <th class="sortable" data-sort="payment_confirmed">入金</th>
+                        <th class="sortable" data-sort="user_type">分類</th>
+                        <th class="sortable" data-sort="payment_status">入金状況</th>
                         <th class="sortable" data-sort="is_open">OPEN</th>
                         <th class="sortable" data-sort="company_name">社名</th>
                         <th class="sortable" data-sort="name">名前</th>
@@ -284,7 +281,7 @@ $users = $stmt->fetchAll();
                 <tbody>
                     <?php foreach ($users as $index => $user): ?>
                     <tr class="<?php echo ($index % 2 === 0) ? 'even-row' : 'odd-row'; ?>">
-                        <td data-label="ユーザータイプ">
+                        <td data-label="分類">
                             <?php
                             $userTypeText = [
                                 'new' => '新規',
@@ -298,26 +295,58 @@ $users = $stmt->fetchAll();
                             ];
                             $type = $user['user_type'] ?? 'new';
                             ?>
-                            <span class="user-type-badge <?php echo $userTypeClass[$type] ?? 'user-type-new'; ?>">
+                            <span class="user-type-badge-text <?php echo $userTypeClass[$type] ?? 'user-type-new'; ?>">
                                 <?php echo htmlspecialchars($userTypeText[$type] ?? '新規'); ?>
                             </span>
                         </td>
-                        <td data-label="入金">
+                        <td data-label="入金状況">
                             <?php
+                            $paymentStatus = $user['payment_status'] ?? 'UNUSED';
+                            $paymentStatusLabels = [
+                                'CR' => 'CR',
+                                'BANK_PENDING' => '振込予定',
+                                'BANK_PAID' => '振込済',
+                                'UNUSED' => '未利用'
+                            ];
+                            $paymentStatusClasses = [
+                                'CR' => 'payment-badge-credit',
+                                'BANK_PENDING' => 'payment-badge-transfer-pending',
+                                'BANK_PAID' => 'payment-badge-transfer-completed',
+                                'UNUSED' => 'payment-badge-unused'
+                            ];
+                            $label = $paymentStatusLabels[$paymentStatus] ?? '未利用';
+                            $class = $paymentStatusClasses[$paymentStatus] ?? 'payment-badge-unused';
                             $isFreeUser = ($user['user_type'] ?? 'new') === 'free';
-                            $paymentDisabled = !$isAdmin || $isFreeUser;
+                            $canToggle = $isAdmin && !$isFreeUser && $paymentStatus === 'BANK_PENDING';
                             ?>
-                            <input type="checkbox" class="payment-checkbox"
-                                   data-bc-id="<?php echo $user['id']; ?>"
-                                   <?php echo $user['payment_confirmed'] ? 'checked' : ''; ?>
-                                   <?php echo $paymentDisabled ? 'disabled' : ''; ?>
-                                   <?php if ($isFreeUser): ?>title="無料ユーザーは入金確認できません"<?php endif; ?>>
+                            <span class="payment-badge <?php echo $class; ?> <?php echo $canToggle ? 'payment-badge-clickable' : ''; ?>"
+                                  data-bc-id="<?php echo $user['id']; ?>"
+                                  data-current-status="<?php echo htmlspecialchars($paymentStatus); ?>"
+                                  <?php if ($canToggle): ?>
+                                  onclick="confirmBankTransferPaid(<?php echo $user['id']; ?>, this)"
+                                  title="クリックして「振込済」に変更"
+                                  style="cursor: pointer;"
+                                  <?php endif; ?>>
+                                <?php echo htmlspecialchars($label); ?>
+                            </span>
                         </td>
                         <td data-label="OPEN">
+                            <?php
+                            $paymentStatus = $user['payment_status'] ?? 'UNUSED';
+                            $canOpen = in_array($paymentStatus, ['CR', 'BANK_PAID']);
+                            $isActuallyOpen = $user['is_open'] && $canOpen; // Force closed if payment not allowed
+                            $isDisabled = !$isAdmin || !$canOpen;
+                            $tooltip = !$canOpen ? '入金完了（CR / 振込済）後にOPEN可能' : '';
+                            ?>
                             <input type="checkbox" class="open-checkbox"
                                    data-bc-id="<?php echo $user['id']; ?>"
-                                   <?php echo $user['is_open'] ? 'checked' : ''; ?>
-                                   <?php echo !$isAdmin ? 'disabled' : ''; ?>>
+                                   data-payment-status="<?php echo htmlspecialchars($paymentStatus); ?>"
+                                   <?php echo $isActuallyOpen ? 'checked' : ''; ?>
+                                   <?php echo $isDisabled ? 'disabled' : ''; ?>
+                                   <?php if ($tooltip): ?>title="<?php echo htmlspecialchars($tooltip); ?>"<?php endif; ?>>
+                            <?php if ($tooltip && !$isActuallyOpen): ?>
+                                <!-- <span style="font-size: 0.75rem; color: #999; margin-left: 0.5rem;" title="<?php echo htmlspecialchars($tooltip); ?>">※</span> -->
+                            <?php endif; ?>
                         </td>
                         <td data-label="社名"><?php echo htmlspecialchars($user['company_name'] ?? ''); ?></td>
                         <td data-label="名前">
@@ -330,7 +359,11 @@ $users = $stmt->fetchAll();
                             <?php endif; ?>
                         </td>
                         <td data-label="携帯"><?php echo htmlspecialchars($user['mobile_phone'] ?? ''); ?></td>
-                        <td data-label="メール"><?php echo htmlspecialchars($user['email']); ?></td>
+                        <td data-label="メール">
+                            <a href="mailto:<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>" style="color: #0066cc; text-decoration: none;">
+                                <?php echo htmlspecialchars($user['email']); ?>
+                            </a>
+                        </td>
                         <td data-label="表示回数（1か月）"><?php echo $user['monthly_views']; ?></td>
                         <td data-label="表示回数（累積）"><?php echo $user['total_views']; ?></td>
                         <td data-label="登録日"><?php echo htmlspecialchars($user['registered_at']); ?></td>

@@ -18,14 +18,9 @@ try {
     $params = [];
 
     // 入金状況の検索条件
-    if (!empty($_GET['payment_status'])) {
-        if ($_GET['payment_status'] === 'completed') {
-            // 入金済み: completedステータスの支払いが存在する
-            $where[] = "EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed')";
-        } elseif ($_GET['payment_status'] === 'pending') {
-            // 未入金: completedステータスの支払いが存在しない
-            $where[] = "NOT EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed')";
-        }
+    if (!empty($_GET['payment_status']) && in_array($_GET['payment_status'], ['CR', 'BANK_PENDING', 'BANK_PAID', 'UNUSED'])) {
+        $where[] = "bc.payment_status = ?";
+        $params[] = $_GET['payment_status'];
     }
 
     // 公開状況の検索条件（空文字列の場合は条件を追加しない）
@@ -47,7 +42,7 @@ try {
     
     // ヘッダー
     fputcsv($output, [
-        'ユーザータイプ', '入金', 'OPEN', '社名', '名前', '携帯電話番号', 'メールアドレス',
+        '分類', '入金状況', 'OPEN', '社名', '名前', '携帯電話番号', 'メールアドレス',
         '表示回数（過去1か月）', '表示回数（累積）', '名刺URL', '登録日', '最終ログイン日'
     ]);
 
@@ -60,7 +55,13 @@ try {
                 WHEN u.user_type = 'free' THEN '無料'
                 ELSE '新規'
             END as user_type,
-            CASE WHEN EXISTS (SELECT 1 FROM payments p2 WHERE p2.business_card_id = bc.id AND p2.payment_status = 'completed') THEN '✓' ELSE '' END as payment_confirmed,
+            CASE 
+                WHEN bc.payment_status = 'CR' THEN 'CR'
+                WHEN bc.payment_status = 'BANK_PENDING' THEN '振込予定'
+                WHEN bc.payment_status = 'BANK_PAID' THEN '振込済'
+                WHEN bc.payment_status = 'UNUSED' THEN '未利用'
+                ELSE '未利用'
+            END as payment_status_label,
             CASE WHEN bc.is_published = 1 THEN '✓' ELSE '' END as is_open,
             bc.company_name,
             bc.name,
@@ -84,7 +85,7 @@ try {
         JOIN users u ON bc.user_id = u.id
         $whereClause
         GROUP BY bc.id, u.id, u.email, u.user_type, bc.company_name, bc.name, bc.mobile_phone, bc.url_slug, 
-                 bc.is_published, bc.created_at, u.last_login_at
+                 bc.is_published, bc.payment_status, bc.created_at, u.last_login_at
         ORDER BY bc.created_at DESC
     ";
 
@@ -94,7 +95,7 @@ try {
     while ($row = $stmt->fetch()) {
         fputcsv($output, [
             $row['user_type'],
-            $row['payment_confirmed'],
+            $row['payment_status_label'],
             $row['is_open'],
             $row['company_name'],
             $row['name'],

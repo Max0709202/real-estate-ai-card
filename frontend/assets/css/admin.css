@@ -641,27 +641,73 @@ body {
 }
 
 /* User Type Badge */
-.user-type-badge {
+.user-type-badge-text {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    min-width: 50px;
+    background: transparent;
+    border: none;
+}
+
+.user-type-new {
+    color: #0066cc;
+}
+
+.user-type-existing {
+    color: #666;
+}
+
+.user-type-free {
+    color: #ff9900;
+}
+
+/* Payment Status Badges */
+.payment-badge {
     display: inline-block;
     padding: 4px 12px;
     border-radius: 12px;
     font-size: 12px;
     font-weight: bold;
     text-align: center;
-    min-width: 50px;
+    min-width: 60px;
 }
 
-.user-type-new {
-    background: #007bff;
-    color: #fff;
-}
-
-.user-type-existing {
+.payment-badge-credit {
     background: #28a745;
     color: #fff;
 }
 
-.user-type-free {
+.payment-badge-transfer-pending {
+    background: #dc3545;
+    color: #fff;
+}
+
+.payment-badge-transfer-completed {
+    background: #0066cc;
+    color: #fff;
+}
+
+.payment-badge-unused {
+    background: #fff;
+    color: #666;
+    border: 1px solid #ddd;
+}
+
+.payment-badge-clickable:hover {
+    opacity: 0.8;
+    transform: scale(1.05);
+    transition: all 0.2s;
+}
+
+/* Dark theme payment badges */
+.dark-theme .payment-badge-unused {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
     background: #ffc107;
     color: #333;
 }
@@ -1119,8 +1165,20 @@ body {
     color: #fff;
 }
 
-.dark-theme .user-type-badge {
+.dark-theme .user-type-badge-text {
     color: var(--text-primary);
+}
+
+.dark-theme .user-type-new {
+    color: #72acf8;
+}
+
+.dark-theme .user-type-existing {
+    color: #ccc;
+}
+
+.dark-theme .user-type-free {
+    color: #ffb84d;
 }
 
 .dark-theme .btn-export {
@@ -1140,5 +1198,40 @@ body {
 .dark-theme .users-table td .admin-notes-input:focus {
     border-color: #0066cc;
     box-shadow: 0 0 0 2px rgba(0,102,204,0.2);
+}
+
+.dark-theme .user-type-badge-text {
+    color: var(--text-primary);
+}
+
+.dark-theme .user-type-new {
+    color: #72acf8;
+}
+
+.dark-theme .user-type-existing {
+    color: #ccc;
+}
+
+.dark-theme .user-type-free {
+    color: #ffb84d;
+}
+
+.dark-theme .payment-badge-unused {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+/* Email link hover styling */
+.users-table td a[href^="mailto:"]:hover {
+    text-decoration: underline;
+}
+
+.dark-theme .users-table td a[href^="mailto:"] {
+    color: #72acf8;
+}
+
+.dark-theme .users-table td a[href^="mailto:"]:hover {
+    text-decoration: underline;
 }
 

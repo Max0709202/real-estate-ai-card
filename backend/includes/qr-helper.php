@@ -24,16 +24,11 @@ function generateBusinessCardQRCode($businessCardId, $db) {
     try {
         // Get business card info
         $stmt = $db->prepare("
-            SELECT bc.id, bc.url_slug, bc.qr_code, bc.qr_code_issued, 
-                   p.id as payment_id, p.payment_status, p.total_amount, 
-                   p.paid_at, u.email, u.phone_number
+            SELECT bc.id, bc.url_slug, bc.qr_code, bc.qr_code_issued, bc.payment_status,
+                   u.email, u.phone_number
             FROM business_cards bc
             JOIN users u ON bc.user_id = u.id
-            LEFT JOIN payments p ON bc.id = p.business_card_id 
-                AND p.payment_status = 'completed'
             WHERE bc.id = ?
-            ORDER BY p.paid_at DESC
-            LIMIT 1
         ");
         $stmt->execute([$businessCardId]);
         $card = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -42,6 +37,14 @@ function generateBusinessCardQRCode($businessCardId, $db) {
             return [
                 'success' => false,
                 'message' => 'Business card not found'
+            ];
+        }
+
+        // QR code can only be generated if payment_status is CR or BANK_PAID
+        if (!in_array($card['payment_status'], ['CR', 'BANK_PAID'])) {
+            return [
+                'success' => false,
+                'message' => 'Payment not confirmed. QR code can only be generated for CR or BANK_PAID status.'
             ];
         }
         

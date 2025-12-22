@@ -314,7 +314,7 @@ function populateForms(data) {
             try {
                 const freeInputData = JSON.parse(data.free_input);
                 const container = document.getElementById('free-input-pairs-container');
-
+                
                 if (!container) return;
 
                 // Handle both old format and new format
@@ -326,16 +326,16 @@ function populateForms(data) {
                 } else if (freeInputData.text) {
                     texts = [freeInputData.text];
                 }
-
-                if (freeInputData.images && Array.isArray(freeInputData.images)) {
-                    images = freeInputData.images;
-                } else if (freeInputData.image || freeInputData.image_link) {
-                    images = [{
-                        image: freeInputData.image || '',
-                        link: freeInputData.image_link || ''
-                    }];
-                }
-
+                
+                    if (freeInputData.images && Array.isArray(freeInputData.images)) {
+                        images = freeInputData.images;
+                    } else if (freeInputData.image || freeInputData.image_link) {
+                        images = [{
+                            image: freeInputData.image || '',
+                            link: freeInputData.image_link || ''
+                        }];
+                    }
+                    
                 // Ensure we have at least one pair
                 const pairCount = Math.max(texts.length, images.length, 1);
 
@@ -378,16 +378,16 @@ function populateForms(data) {
                             </div>
                         </div>
                         <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
-                    `;
+                        `;
 
                     container.appendChild(pairItem);
-
-                    // Store existing image path in data attribute for later use
-                    if (imgData.image) {
+                        
+                        // Store existing image path in data attribute for later use
+                        if (imgData.image) {
                         pairItem.querySelector('.upload-area').dataset.existingImage = imgData.image;
-                    }
-
-                    // Initialize file upload handler
+                        }
+                        
+                        // Initialize file upload handler
                     initializeFreeImageUpload(pairItem);
                 }
             } catch (e) {
@@ -1039,7 +1039,7 @@ function setupNavigation() {
         };
         return stepMap[step] || '';
     }
-
+    
     // Scroll active nav item to center on page load
     const activeNavItem = document.querySelector('.nav-item.active');
     if (activeNavItem) {
@@ -1400,7 +1400,7 @@ function addGreeting() {
     if (greetingsList.firstChild) {
         greetingsList.insertBefore(greetingItem, greetingsList.firstChild);
     } else {
-        greetingsList.appendChild(greetingItem);
+    greetingsList.appendChild(greetingItem);
     }
     updateGreetingNumbers();
     updateGreetingButtons();
@@ -1888,7 +1888,7 @@ function escapeHtml(text) {
 function addFreeInputPair() {
     const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-
+    
     const itemCount = container.querySelectorAll('.free-input-pair-item').length;
     const newPairItem = document.createElement('div');
     newPairItem.className = 'free-input-pair-item';
@@ -1900,7 +1900,7 @@ function addFreeInputPair() {
         <!-- Text Input -->
         <div class="form-group">
             <label>テキスト</label>
-            <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
         </div>
         <!-- Image/Banner Input -->
         <div class="form-group">
@@ -1920,12 +1920,12 @@ function addFreeInputPair() {
         </div>
         <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)">削除</button>
     `;
-
+    
     container.appendChild(newPairItem);
 
     // Initialize file input handler for the new item
     initializeFreeImageUpload(newPairItem);
-
+    
     // Show delete buttons if there are multiple items
     updateFreeInputPairDeleteButtons();
 }
@@ -1934,13 +1934,13 @@ function addFreeInputPair() {
 function removeFreeInputPair(button) {
     const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-
+    
     const items = container.querySelectorAll('.free-input-pair-item');
     if (items.length <= 1) {
         showWarning('最低1つのセットが必要です。');
         return;
     }
-
+    
     const item = button.closest('.free-input-pair-item');
     if (item) {
         item.remove();
@@ -1952,10 +1952,10 @@ function removeFreeInputPair(button) {
 function updateFreeInputPairDeleteButtons() {
     const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-
+    
     const items = container.querySelectorAll('.free-input-pair-item');
     const deleteButtons = container.querySelectorAll('.free-input-pair-item .btn-delete-small');
-
+    
     if (items.length > 1) {
         deleteButtons.forEach(btn => btn.style.display = 'inline-block');
     } else {

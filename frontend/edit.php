@@ -68,11 +68,11 @@ $defaultGreetings = [
     </style>
 </head>
 <body>
-    <?php
+    <?php 
     $showNavLinks = false; // Hide nav links on edit page
-    include __DIR__ . '/includes/header.php';
+    include __DIR__ . '/includes/header.php'; 
     ?>
-
+    
     <div class="edit-container">
         <header class="edit-header">
             <h1>デジタル名刺作成・編集</h1>
@@ -119,7 +119,7 @@ $defaultGreetings = [
                             <label>会社名 <span class="required">*</span></label>
                             <input type="text" name="company_name" class="form-control" required>
                         </div>
-
+                        
                         <div class="form-section">
                             <h3>ロゴマーク</h3>
                             <div class="upload-area" data-upload-id="company_logo">
@@ -359,23 +359,23 @@ $defaultGreetings = [
                                         <!-- Text Input -->
                                         <div class="form-group">
                                             <label>テキスト</label>
-                                            <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
-                                        </div>
+                                        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+                                    </div>
                                         <!-- Image/Banner Input -->
-                                        <div class="form-group">
+                            <div class="form-group">
                                             <label>画像・バナー（リンク付き画像）</label>
-                                            <div class="upload-area" data-upload-id="free_image_0">
-                                                <input type="file" name="free_image[]" accept="image/*" style="display: none;">
-                                                <div class="upload-preview"></div>
-                                                <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\"file\"]').click()">
-                                                    画像をアップロード
-                                                </button>
-                                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
-                                            </div>
-                                            <div class="form-group" style="margin-top: 0.5rem;">
-                                                <label>画像のリンク先URL（任意）</label>
-                                                <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
-                                            </div>
+                                        <div class="upload-area" data-upload-id="free_image_0">
+                                            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                                            <div class="upload-preview"></div>
+                                            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\"file\"]').click()">
+                                                画像をアップロード
+                                            </button>
+                                            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                                        </div>
+                                        <div class="form-group" style="margin-top: 0.5rem;">
+                                            <label>画像のリンク先URL（任意）</label>
+                                            <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+                                        </div>
                                         </div>
                                         <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" style="display: none;">削除</button>
                                     </div>
@@ -402,11 +402,11 @@ $defaultGreetings = [
                 <div id="communication-section" class="edit-section">
                     <h2>コミュニケーション機能部</h2>
                     <p class="step-description">メッセージアプリやSNSの連携を設定してください</p>
-
+                    
                     <div class="form-section">
                         <h3>メッセージアプリ部</h3>
                         <p class="section-note">一番簡単につながる方法を教えてください。ここが重要になります。</p>
-
+                        
                         <div class="communication-grid">
                             <div class="communication-item">
                                 <label class="communication-checkbox">
@@ -491,7 +491,7 @@ $defaultGreetings = [
                     <div class="form-section">
                         <h3>SNS部</h3>
                         <p class="section-note">SNSのリンク先を入力できます。</p>
-
+                        
                         <div class="communication-grid">
                             <div class="communication-item">
                                 <label class="communication-checkbox">
@@ -598,7 +598,7 @@ $defaultGreetings = [
                             </div>
                         </div>
                     </div>
-
+                    
                     <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存して次へ</button>
                 </div>
             </div>
@@ -644,15 +644,15 @@ $defaultGreetings = [
             if (headerGreetingForm) {
                 headerGreetingForm.addEventListener('submit', async function(e) {
                     e.preventDefault();
-
+                    
                     const formData = new FormData(headerGreetingForm);
                     const data = {};
-
+                    
                     // Get all fields
                     for (let [key, value] of formData.entries()) {
                         data[key] = value;
                     }
-
+                    
                     // Handle greetings
                     const greetingItems = document.querySelectorAll('#greetings-list .greeting-item');
                     const greetings = [];
@@ -661,14 +661,14 @@ $defaultGreetings = [
                         if (item.dataset.cleared === 'true') {
                             return;
                         }
-
+                        
                         // Try to get values from different possible selectors
                         const titleInput = item.querySelector('input[name="greeting_title[]"]') || item.querySelector('.greeting-title');
                         const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]') || item.querySelector('.greeting-content');
-
+                        
                         const title = titleInput ? (titleInput.value || '').trim() : '';
                         const content = contentTextarea ? (contentTextarea.value || '').trim() : '';
-
+                        
                         // Only add if both title and content have values
                         if (title && content) {
                             greetings.push({
@@ -679,7 +679,7 @@ $defaultGreetings = [
                         }
                     });
                     data.greetings = greetings;
-
+                    
                     // Handle logo and photo paths
                     if (window.businessCardData) {
                         if (window.businessCardData.company_logo && !data.company_logo) {
@@ -689,7 +689,7 @@ $defaultGreetings = [
                             data.profile_photo = window.businessCardData.profile_photo;
                         }
                     }
-
+                    
                     // Send to API
                     try {
                         const response = await fetch('../backend/api/business-card/update.php', {
@@ -700,9 +700,9 @@ $defaultGreetings = [
                             body: JSON.stringify(data),
                             credentials: 'include'
                         });
-
+                        
                         const result = await response.json();
-
+                        
                         if (result.success) {
                             loadBusinessCardData();
                             // Move to next step (Step 2)
@@ -720,36 +720,36 @@ $defaultGreetings = [
                     }
                 });
             }
-
+            
             // Step 2: Company Profile form submission
             const companyProfileForm = document.getElementById('company-profile-form');
             if (companyProfileForm) {
                 companyProfileForm.addEventListener('submit', async function(e) {
                     e.preventDefault();
-
+                    
                     // Validate required fields for real estate license
                     const prefecture = document.getElementById('license_prefecture').value;
                     const renewal = document.getElementById('license_renewal').value;
                     const registration = document.getElementById('license_registration').value.trim();
-
+                    
                     if (!prefecture || !renewal || !registration) {
                         showError('宅建業者番号（都道府県、更新番号、登録番号）は必須項目です。');
                         return;
                     }
-
+                    
                     const formData = new FormData(companyProfileForm);
                     const data = {};
-
+                    
                     for (let [key, value] of formData.entries()) {
                         data[key] = value;
                     }
-
+                    
                     // Merge company_name from profile step
                     if (data.company_name_profile) {
                         data.company_name = data.company_name_profile;
                         delete data.company_name_profile;
                     }
-
+                    
                     try {
                         const response = await fetch('../backend/api/business-card/update.php', {
                             method: 'POST',
@@ -759,9 +759,9 @@ $defaultGreetings = [
                             body: JSON.stringify(data),
                             credentials: 'include'
                         });
-
+                        
                         const result = await response.json();
-
+                        
                         if (result.success) {
                             loadBusinessCardData();
                             // Move to next step (Step 3)
@@ -779,30 +779,30 @@ $defaultGreetings = [
                     }
                 });
             }
-
+            
             // Step 3: Personal Information form submission
             const personalInfoForm = document.getElementById('personal-info-form');
             if (personalInfoForm) {
                 personalInfoForm.addEventListener('submit', async function(e) {
                     e.preventDefault();
-
+                    
                     const formData = new FormData(personalInfoForm);
                     const data = {};
-
+                    
                     for (let [key, value] of formData.entries()) {
                         data[key] = value;
                     }
-
+                    
                     // Combine last_name and first_name
                     const lastName = data.last_name || '';
                     const firstName = data.first_name || '';
                     data.name = (lastName + ' ' + firstName).trim();
-
+                    
                     // Combine romaji names
                     const lastNameRomaji = data.last_name_romaji || '';
                     const firstNameRomaji = data.first_name_romaji || '';
                     data.name_romaji = (lastNameRomaji + ' ' + firstNameRomaji).trim();
-
+                    
                     // Handle qualifications
                     const qualifications = [];
                     if (formData.get('qualification_takken')) {
@@ -818,11 +818,11 @@ $defaultGreetings = [
                     delete data.qualification_takken;
                     delete data.qualification_kenchikushi;
                     delete data.qualifications_other;
-
+                    
                     // Handle free input from paired items - collect all textarea values and images
                     const freeInputTexts = [];
                     const images = [];
-
+                    
                     // Get all paired items
                     const pairedItems = document.querySelectorAll('#free-input-pairs-container .free-input-pair-item');
 
@@ -840,22 +840,22 @@ $defaultGreetings = [
                         const linkInput = pairItem.querySelector('input[type="url"]');
                         const uploadArea = pairItem.querySelector('.upload-area');
                         const existingImage = uploadArea ? uploadArea.dataset.existingImage : '';
-
+                        
                         let imagePath = existingImage || '';
-
+                        
                         // If new file is selected, upload it
                         if (fileInput && fileInput.files && fileInput.files[0]) {
                             const uploadData = new FormData();
                             uploadData.append('file', fileInput.files[0]);
                             uploadData.append('file_type', 'free');
-
+                            
                             try {
                                 const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
                                     method: 'POST',
                                     body: uploadData,
                                     credentials: 'include'
                                 });
-
+                                
                                 const uploadResult = await uploadResponse.json();
                                 if (uploadResult.success) {
                                     const fullPath = uploadResult.data.file_path;
@@ -865,19 +865,19 @@ $defaultGreetings = [
                                 console.error('Upload error:', error);
                             }
                         }
-
+                        
                         // Add image data (even if empty, to maintain pairing)
                         images.push({
                             image: imagePath,
                             link: linkInput ? linkInput.value.trim() : ''
                         });
                     }
-
+                    
                     let freeInputData = {
                         texts: freeInputTexts.length > 0 ? freeInputTexts : [''],
                         images: images.length > 0 ? images : [{ image: '', link: '' }]
                     };
-
+                    
                     data.free_input = JSON.stringify(freeInputData);
                     // Remove all free_input_text entries from data
                     Object.keys(data).forEach(key => {
@@ -890,7 +890,7 @@ $defaultGreetings = [
                     delete data.first_name;
                     delete data.last_name_romaji;
                     delete data.first_name_romaji;
-
+                    
                     try {
                         const response = await fetch('../backend/api/business-card/update.php', {
                             method: 'POST',
@@ -900,9 +900,9 @@ $defaultGreetings = [
                             body: JSON.stringify(data),
                             credentials: 'include'
                         });
-
+                        
                         const result = await response.json();
-
+                        
                         if (result.success) {
                             loadBusinessCardData();
                             // Move to next step (Step 4)
@@ -920,20 +920,20 @@ $defaultGreetings = [
                     }
                 });
             }
-
+            
             // Postal code lookup
             document.getElementById('lookup-address')?.addEventListener('click', async () => {
                 const postalCode = document.getElementById('company_postal_code').value.replace(/-/g, '');
-
+                
                 if (!postalCode || postalCode.length !== 7) {
                     showWarning('7桁の郵便番号を入力してください');
                     return;
                 }
-
+                
                 try {
                     const response = await fetch(`../backend/api/utils/postal-code-lookup.php?postal_code=${postalCode}`);
                     const result = await response.json();
-
+                    
                     if (result.success) {
                         document.getElementById('company_address').value = result.data.address;
                     } else {
@@ -944,18 +944,18 @@ $defaultGreetings = [
                     showError('エラーが発生しました');
                 }
             });
-
+            
             // License lookup
             document.getElementById('lookup-license')?.addEventListener('click', async () => {
                 const prefecture = document.getElementById('license_prefecture').value;
                 const renewal = document.getElementById('license_renewal').value;
                 const registration = document.getElementById('license_registration').value;
-
+                
                 if (!prefecture || !renewal || !registration) {
                     showWarning('都道府県、更新番号、登録番号をすべて入力してください');
                     return;
                 }
-
+                
                 try {
                     const response = await fetch('../backend/api/utils/license-lookup.php', {
                         method: 'POST',
@@ -969,7 +969,7 @@ $defaultGreetings = [
                         })
                     });
                     const result = await response.json();
-
+                    
                     if (result.success) {
                         if (result.data.company_name) {
                             document.querySelector('input[name="company_name_profile"]').value = result.data.company_name;
@@ -986,14 +986,14 @@ $defaultGreetings = [
                 }
             });
         });
-
+        
         // 漢字からローマ字への自動変換機能（edit.php用）
         document.addEventListener('DOMContentLoaded', function() {
             const lastNameInput = document.getElementById('edit_last_name');
             const firstNameInput = document.getElementById('edit_first_name');
             const lastNameRomajiInput = document.getElementById('edit_last_name_romaji');
             const firstNameRomajiInput = document.getElementById('edit_first_name_romaji');
-
+            
             // 簡易的な変換テーブル
             const nameConversionMap = {
                 '山田': 'Yamada', '田中': 'Tanaka', '佐藤': 'Sato', '鈴木': 'Suzuki',
@@ -1006,7 +1006,7 @@ $defaultGreetings = [
                 '一郎': 'Ichiro', '二郎': 'Jiro', '三郎': 'Saburo', '美咲': 'Misaki',
                 'さくら': 'Sakura', 'あかり': 'Akari', 'ひなた': 'Hinata', 'みお': 'Mio'
             };
-
+            
             function convertToRomaji(japanese) {
                 if (!japanese) return '';
                 if (nameConversionMap[japanese]) {
@@ -1014,7 +1014,7 @@ $defaultGreetings = [
                 }
                 return '';
             }
-
+            
             if (lastNameInput && lastNameRomajiInput) {
                 let lastNameTimeout;
                 lastNameInput.addEventListener('input', function() {
@@ -1030,7 +1030,7 @@ $defaultGreetings = [
                     }
                 });
             }
-
+            
             if (firstNameInput && firstNameRomajiInput) {
                 let firstNameTimeout;
                 firstNameInput.addEventListener('input', function() {
@@ -1047,34 +1047,34 @@ $defaultGreetings = [
                 });
             }
         });
-
+        
         // ドラッグ&ドロップ機能の初期化（edit.php用）
         document.addEventListener('DOMContentLoaded', function() {
             // すべてのアップロードエリアにドラッグ&ドロップ機能を追�
             document.querySelectorAll('.upload-area').forEach(uploadArea => {
                 const fileInput = uploadArea.querySelector('input[type="file"]');
                 if (!fileInput) return;
-
+                
                 // ドラッグオーバー時の処理
                 uploadArea.addEventListener('dragover', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     uploadArea.classList.add('drag-over');
                 });
-
+                
                 // ドラッグリーブ時の処理
                 uploadArea.addEventListener('dragleave', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     uploadArea.classList.remove('drag-over');
                 });
-
+                
                 // ドロップ時の処理
                 uploadArea.addEventListener('drop', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     uploadArea.classList.remove('drag-over');
-
+                    
                     const files = e.dataTransfer.files;
                     if (files.length > 0) {
                         const file = files[0];
@@ -1089,7 +1089,7 @@ $defaultGreetings = [
                         }
                     }
                 });
-
+                
                 // クリックでファイル選択も可能
                 uploadArea.addEventListener('click', function(e) {
                     // ボタンやプレビュー画像をクリックした場合は除外
