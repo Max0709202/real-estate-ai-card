@@ -224,9 +224,9 @@ try {
                     ");
                     $stmt->execute([$subscriptionId]);
 
-                    // Suspend business card
+                    // Suspend business card and ensure it's unpublished
                     $stmt = $db->prepare("
-                        SELECT s.business_card_id, s.user_id, u.email, bc.url_slug
+                        SELECT s.business_card_id, s.user_id, u.email, bc.url_slug, bc.is_published
                         FROM subscriptions s
                         JOIN users u ON s.user_id = u.id
                         JOIN business_cards bc ON s.business_card_id = bc.id
@@ -236,6 +236,7 @@ try {
                     $sub = $stmt->fetch();
 
                     if ($sub) {
+                        // Always set is_published to FALSE on payment failure
                         $stmt = $db->prepare("
                             UPDATE business_cards
                             SET card_status = 'suspended',
@@ -245,16 +246,18 @@ try {
                         ");
                         $stmt->execute([$sub['business_card_id']]);
 
-                        // Log suspension
-                        logAdminChange(
-                            $db,
-                            null,
-                            'system',
-                            'subscription_suspended',
-                            'business_card',
-                            $sub['business_card_id'],
-                            "サブスクリプション支払い失敗によりサスペンド: ユーザー {$sub['email']} (URL: {$sub['url_slug']})"
-                        );
+                        // Log suspension (only if it was previously published)
+                        if ($sub['is_published']) {
+                            logAdminChange(
+                                $db,
+                                null,
+                                'system',
+                                'subscription_suspended',
+                                'business_card',
+                                $sub['business_card_id'],
+                                "サブスクリプション支払い失敗により自動非公開: ユーザー {$sub['email']} (URL: {$sub['url_slug']})"
+                            );
+                        }
                     }
                 }
                 break;

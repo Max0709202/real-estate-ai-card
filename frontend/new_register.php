@@ -69,11 +69,11 @@ if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
 </head>
 <body>
     <div class="register-container">
-            <div class="register-header">
+        <!-- <div class="register-header">
             <a href="index.php<?php echo ($isTokenBased && !empty($invitationToken)) ? '?token=' . urlencode($invitationToken) . (in_array($userType, ['existing', 'free']) ? '&type=' . $userType : '') : ''; ?>" class="logo-link">
                 <img src="assets/images/logo.png" alt="不動産AI名刺">
             </a>
-        </div>
+        </div> -->
 
         <div class="new_register-content">
 
@@ -158,7 +158,9 @@ if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
                             既にアカウントをお持ちの方は<a href="login.php<?php echo ($isTokenBased && !empty($invitationToken)) ? '?token=' . urlencode($invitationToken) . (in_array($userType, ['existing', 'free']) ? '&type=' . $userType : '') : ''; ?>" style="color: #0066cc; text-decoration: underline;">こちらからログイン</a>してください
                         </p>
                     </div>
-
+                    <div class="login-link" style="margin-top: 1rem; display: flex; justify-content: center;">
+                        <a href="index.php">ホームページへ戻る</a>
+                    </div>
                     <div class="form-actions">
                         <button type="submit" class="btn-primary btn-large">次へ</button>
                     </div>
@@ -278,9 +280,9 @@ if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
 
                 if (result.success) {
                     // Clear auto-save drafts on success
-                    if (window.autoSave) {
-                        await window.autoSave.clearDraftsOnSuccess();
-                    }
+                    // if (window.autoSave) {
+                    //     await window.autoSave.clearDraftsOnSuccess();
+                    // }
                     // Prevent further submissions
                     submitButton.textContent = '登録完了';
                     // Show success modal with email verification message
@@ -312,7 +314,7 @@ if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
             }
         });
     </script>
-    <script src="assets/js/auto-save.js"></script>
+    <!-- <script src="assets/js/auto-save.js"></script> -->
     <script src="assets/js/modal.js"></script>
     <script src="assets/js/error-handler.js"></script>
 </body>
