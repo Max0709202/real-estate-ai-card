@@ -81,7 +81,7 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    background: #1a2b4a;
+    background: #ffffff;
     border-radius: 10px;
 }
 
@@ -166,7 +166,7 @@
     padding: 0 20px;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
 }
 
 .hero-cta-text {

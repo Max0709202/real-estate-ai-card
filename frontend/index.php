@@ -58,11 +58,105 @@ if ($isTokenBased) {
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
     <!-- Swiper CSS -->
+    <link rel="stylesheet" href="assets/css/lp.css">
+    <link rel="stylesheet" href="assets/css/modal.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
 </head>
 <body>
     <?php include __DIR__ . '/includes/header.php'; ?>
+    
+    <!-- Hero Slider Section -->
+    <section class="hero-slider">
+        <div class="hero-swiper-container">
+            <div class="swiper hero-swiper">
+                <div class="swiper-wrapper">
+                    <!-- Slide 1 -->
+                    <div class="swiper-slide hero-slide">
+                        <div class="container">
+                            <div class="hero-slide-content">
+                                <div class="hero-slide-left">
+                                    <div class="hero-badge">不動産エージェント向け</div>
+                                    <h1 class="hero-title">
+                                        <span class="text-blue">簡単に</span>つながり<br>
+                                        顧客に<span class="text-blue">選ばれる</span><br>
+                                        不思議な<span class="text-blue">AI名刺</span>
+                                    </h1>
+                                    <p class="hero-description">
+                                        今お使いの名刺を強力にパワーアップ。営業が圧倒的に楽になる。<br>
+                                        ワンタップで顧客とつながり、ロボットが顧客対応を自動化。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Slide 2 -->
+                    <div class="swiper-slide hero-slide">
+                        <div class="container">
+                            <div class="hero-slide-content">
+                                <div class="hero-slide-left">
+                                    <div class="hero-badge">不動産エージェント向け</div>
+                                    <h1 class="hero-title">
+                                        <span class="text-blue">デジタル名刺</span>とは<br>
+                                        ずいぶん<span class="text-blue">違う</span><br>
+                                        頼られる<span class="text-blue">AI名刺</span>
+                                    </h1>
+                                    <p class="hero-description">
+                                        普通の名刺が、6種類の不動産DX機能を搭載した名刺に変身。<br>
+                                        顧客が必要な情報発信で、顧客からの問い合わせが増える。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Slide 3 -->
+                    <div class="swiper-slide hero-slide">
+                        <div class="container">
+                            <div class="hero-slide-content">
+                                <div class="hero-slide-left">
+                                    <div class="hero-badge">不動産エージェント向け</div>
+                                    <h1 class="hero-title">
+                                        <span class="text-blue">楽</span>になる、仕事。<br>
+                                        <span class="text-blue">楽に</span>なる、提案。<br>
+                                        <span class="text-blue">楽になる</span>、つながり。
+                                    </h1>
+                                    <p class="hero-description">
+                                        月間15万件以上の新着不動産情報から、お客様の希望の物件情報が<br>
+                                        毎日自動で配信。お客様へのアクセス頻度が増え成約率がUP。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Pagination -->
+                <div class="swiper-pagination"></div>
+            </div>
+            <div class="hero-cta">
+                <a href="new_register.php" class="btn-primary btn-large">不動産 AI 名刺とは？！</a>
+                <!-- <span class="hero-cta-text">※3分で完成</span> -->
+            </div>
+        </div>
 
+        <div class="hero-slide-right">
+            <!-- <img src="assets/images/first.jpg" alt="効率化" class="hero-slide-image"> -->
+            <div class="container">
+                <h2>有効的な活用方法が簡単に理解できる</h2>
+                <p class="section-subtitle" style="margin-bottom: 1rem;">30～60秒のアニメ動画で、サービスを簡単にご紹介</p>
+                <div class="video-container">
+                    <div class="video-wrapper">
+                        <video class="service-video" controls>
+                            <source src="assets/video/card.mp4" type="video/mp4">
+                            お使いのブラウザは動画再生に対応していません。
+                        </video>
+                    </div>
+                    <!-- <p class="video-description">新規店舗・既存店舗共通でご利用いただける、契約を促す動画サンプルです。</p> -->
+                </div>
+            </div>
+        </div>
+
+    </section>
     <!-- Hero Section -->
     <section class="hero">
         <div class="container">
@@ -408,6 +502,8 @@ if ($isTokenBased) {
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script src="assets/js/main.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
+    <script src="assets/js/modal.js"></script>
+    <script src="assets/js/lp.js"></script>
     <?php if ($isTokenBased && !$tokenValid): ?>
     <script>
         // Show error if token is invalid

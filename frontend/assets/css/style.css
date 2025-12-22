@@ -447,12 +447,27 @@ body {
 .video-wrapper {
     position: relative;
     width: 100%;
-    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    padding-bottom: 75%; /* Increased height for better visibility (approximately 4:3 aspect ratio) */
     background: #000;
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
     margin-bottom: 1.5rem;
+    min-height: 500px; /* Minimum height for larger displays */
+}
+
+@media (min-width: 768px) {
+    .video-wrapper {
+        padding-bottom: 65%; /* Slightly taller on tablets */
+        min-height: 300px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .video-wrapper {
+        padding-bottom: 70%; /* Even taller on desktop */
+        min-height: 450px;
+    }
 }
 
 .service-video {
