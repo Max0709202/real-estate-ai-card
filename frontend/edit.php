@@ -135,23 +135,23 @@ $defaultGreetings = [
         <div class="edit-content">
             <div class="edit-sidebar">
                 <nav class="edit-nav">
-                    <a href="#header-greeting" class="nav-item active" data-step="1">
+                    <a href="#header-greeting" class="nav-item active" data-step="1" data-section="header-greeting-section">
                         <span class="step-number">1/5</span>
                         <span class="step-label">ヘッダー・挨拶</span>
                     </a>
-                    <a href="#company-profile" class="nav-item" data-step="2">
+                    <a href="#company-profile" class="nav-item" data-step="2" data-section="company-profile-section">
                         <span class="step-number">2/5</span>
                         <span class="step-label">会社プロフィール</span>
                     </a>
-                    <a href="#personal-info" class="nav-item" data-step="3">
+                    <a href="#personal-info" class="nav-item" data-step="3" data-section="personal-info-section">
                         <span class="step-number">3/5</span>
                         <span class="step-label">個人情報</span>
                     </a>
-                    <a href="#tech-tools" class="nav-item" data-step="4">
+                    <a href="#tech-tools" class="nav-item" data-step="4" data-section="tech-tools-section">
                         <span class="step-number">4/5</span>
                         <span class="step-label">テックツール</span>
                     </a>
-                    <a href="#communication" class="nav-item" data-step="5">
+                    <a href="#communication" class="nav-item" data-step="5" data-section="communication-section">
                         <span class="step-number">5/5</span>
                         <span class="step-label">コミュニケーション</span>
                     </a>
@@ -494,8 +494,12 @@ $defaultGreetings = [
                         <h3>メッセージアプリ部</h3>
                         <p class="section-note">一番簡単につながる方法を教えてください。ここが重要になります。</p>
                         
-                        <div class="communication-grid">
-                            <div class="communication-item">
+                        <div class="communication-grid" id="message-apps-grid">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(0, 'up', 'message')" disabled>↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(0, 'down', 'message')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_line" value="1">
                                     <div class="comm-icon">
@@ -508,7 +512,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(1, 'up', 'message')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(1, 'down', 'message')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_messenger" value="1">
                                     <div class="comm-icon">
@@ -521,7 +529,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(2, 'up', 'message')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(2, 'down', 'message')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_whatsapp" value="1">
                                     <div class="comm-icon">
@@ -534,7 +546,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(3, 'up', 'message')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(3, 'down', 'message')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_plus_message" value="1">
                                     <div class="comm-icon">
@@ -547,7 +563,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(4, 'up', 'message')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(4, 'down', 'message')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_chatwork" value="1">
                                     <div class="comm-icon">
@@ -560,7 +580,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(5, 'up', 'message')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(5, 'down', 'message')" disabled>↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_andpad" value="1">
                                     <div class="comm-icon">
@@ -579,8 +603,12 @@ $defaultGreetings = [
                         <h3>SNS部</h3>
                         <p class="section-note">SNSのリンク先を入力できます。</p>
                         
-                        <div class="communication-grid">
-                            <div class="communication-item">
+                        <div class="communication-grid" id="sns-grid">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(0, 'up', 'sns')" disabled>↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(0, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_instagram" value="1">
                                     <div class="comm-icon">
@@ -593,7 +621,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(1, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(1, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_facebook" value="1">
                                     <div class="comm-icon">
@@ -606,7 +638,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(2, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(2, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_twitter" value="1">
                                     <div class="comm-icon">
@@ -619,7 +655,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(3, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(3, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_youtube" value="1">
                                     <div class="comm-icon">
@@ -632,7 +672,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(4, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(4, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_tiktok" value="1">
                                     <div class="comm-icon">
@@ -645,7 +689,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(5, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(5, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_note" value="1">
                                     <div class="comm-icon">
@@ -658,7 +706,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(6, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(6, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_pinterest" value="1">
                                     <div class="comm-icon">
@@ -671,7 +723,11 @@ $defaultGreetings = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(7, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(7, 'down', 'sns')" disabled>↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_threads" value="1">
                                     <div class="comm-icon">
@@ -861,13 +917,24 @@ $defaultGreetings = [
                         const result = await response.json();
                         
                         if (result.success) {
-                            loadBusinessCardData();
-                            // Move to next step (Step 2)
-                            setTimeout(() => {
-                                if (window.goToNextStep) {
-                                    window.goToNextStep(1);
-                                }
-                            }, 500);
+                            // Update business card data and move to next step without reloading
+                            if (typeof loadBusinessCardData === 'function') {
+                                loadBusinessCardData().then(() => {
+                                    // Move to next step (Step 2)
+                                    setTimeout(() => {
+                                        if (window.goToNextStep) {
+                                            window.goToNextStep(1);
+                                        }
+                                    }, 300);
+                                });
+                            } else {
+                                // Fallback: just move to next step
+                                setTimeout(() => {
+                                    if (window.goToNextStep) {
+                                        window.goToNextStep(1);
+                                    }
+                                }, 300);
+                            }
                         } else {
                             showError('保存に失敗しました: ' + result.message);
                         }
@@ -920,13 +987,24 @@ $defaultGreetings = [
                         const result = await response.json();
                         
                         if (result.success) {
-                            loadBusinessCardData();
-                            // Move to next step (Step 3)
-                            setTimeout(() => {
-                                if (window.goToNextStep) {
-                                    window.goToNextStep(2);
-                                }
-                            }, 500);
+                            // Update business card data and move to next step without reloading
+                            if (typeof loadBusinessCardData === 'function') {
+                                loadBusinessCardData().then(() => {
+                                    // Move to next step (Step 3)
+                                    setTimeout(() => {
+                                        if (window.goToNextStep) {
+                                            window.goToNextStep(2);
+                                        }
+                                    }, 300);
+                                });
+                            } else {
+                                // Fallback: just move to next step
+                                setTimeout(() => {
+                                    if (window.goToNextStep) {
+                                        window.goToNextStep(2);
+                                    }
+                                }, 300);
+                            }
                         } else {
                             showError('保存に失敗しました: ' + result.message);
                         }
@@ -1061,13 +1139,24 @@ $defaultGreetings = [
                         const result = await response.json();
                         
                         if (result.success) {
-                            loadBusinessCardData();
-                            // Move to next step (Step 4)
-                            setTimeout(() => {
-                                if (window.goToNextStep) {
-                                    window.goToNextStep(3);
-                                }
-                            }, 500);
+                            // Update business card data and move to next step without reloading
+                            if (typeof loadBusinessCardData === 'function') {
+                                loadBusinessCardData().then(() => {
+                                    // Move to next step (Step 4)
+                                    setTimeout(() => {
+                                        if (window.goToNextStep) {
+                                            window.goToNextStep(3);
+                                        }
+                                    }, 300);
+                                });
+                            } else {
+                                // Fallback: just move to next step
+                                setTimeout(() => {
+                                    if (window.goToNextStep) {
+                                        window.goToNextStep(3);
+                                    }
+                                }, 300);
+                            }
                         } else {
                             showError('保存に失敗しました: ' + result.message);
                         }

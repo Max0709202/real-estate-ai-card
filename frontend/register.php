@@ -557,8 +557,12 @@ $prefectures = [
                         <h3>メッセージアプリ部</h3>
                         <p class="section-note">一番簡単につながる方法を教えてください。ここが重要になります。</p>
 
-                        <div class="communication-grid">
-                            <div class="communication-item">
+                        <div class="communication-grid" id="message-apps-grid">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(0, 'up', 'message')" disabled>↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(0, 'down', 'message')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_line" value="1">
                                     <div class="comm-icon">
@@ -571,7 +575,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(1, 'up', 'message')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(1, 'down', 'message')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_messenger" value="1">
                                     <div class="comm-icon">
@@ -584,7 +592,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(2, 'up', 'message')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(2, 'down', 'message')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_whatsapp" value="1">
                                     <div class="comm-icon">
@@ -597,7 +609,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(3, 'up', 'message')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(3, 'down', 'message')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_plus_message" value="1">
                                     <div class="comm-icon">
@@ -610,7 +626,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(4, 'up', 'message')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(4, 'down', 'message')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_chatwork" value="1">
                                     <div class="comm-icon">
@@ -623,7 +643,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="message">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(5, 'up', 'message')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(5, 'down', 'message')" disabled>↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_andpad" value="1">
                                     <div class="comm-icon">
@@ -642,8 +666,12 @@ $prefectures = [
                         <h3>SNS部</h3>
                         <p class="section-note">SNSのリンク先を入力できます。</p>
 
-                        <div class="communication-grid">
-                            <div class="communication-item">
+                        <div class="communication-grid" id="sns-grid">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(0, 'up', 'sns')" disabled>↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(0, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_instagram" value="1">
                                     <div class="comm-icon">
@@ -656,7 +684,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(1, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(1, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_facebook" value="1">
                                     <div class="comm-icon">
@@ -669,7 +701,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(2, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(2, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_twitter" value="1">
                                     <div class="comm-icon">
@@ -682,7 +718,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(3, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(3, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_youtube" value="1">
                                     <div class="comm-icon">
@@ -695,7 +735,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(4, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(4, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_tiktok" value="1">
                                     <div class="comm-icon">
@@ -708,7 +752,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(5, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(5, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_note" value="1">
                                     <div class="comm-icon">
@@ -721,7 +769,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(6, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(6, 'down', 'sns')">↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_pinterest" value="1">
                                     <div class="comm-icon">
@@ -734,7 +786,11 @@ $prefectures = [
                                 </div>
                             </div>
 
-                            <div class="communication-item">
+                            <div class="communication-item" data-comm-type="sns">
+                                <div class="comm-actions">
+                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(7, 'up', 'sns')">↑</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(7, 'down', 'sns')" disabled>↓</button>
+                                </div>
                                 <label class="communication-checkbox">
                                     <input type="checkbox" name="comm_threads" value="1">
                                     <div class="comm-icon">

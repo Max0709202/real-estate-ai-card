@@ -1051,6 +1051,46 @@ input.form-control {
     margin-bottom: 1rem;
 }
 
+.comm-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.communication-item .btn-move-up,
+.communication-item .btn-move-down {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.3s;
+    color: #333;
+    min-width: 32px;
+}
+
+.communication-item .btn-move-up:hover:not(:disabled),
+.communication-item .btn-move-down:hover:not(:disabled) {
+    background: #0066cc;
+    color: #fff;
+    border-color: #0066cc;
+}
+
+.communication-item .btn-move-up:disabled,
+.communication-item .btn-move-down:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.communication-item.dragging {
+    opacity: 0.5;
+}
+
+.communication-item.drag-over {
+    border: 2px dashed #0066cc;
+}
+
 .communication-item {
     display: flex;
     flex-direction: column;

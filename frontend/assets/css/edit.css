@@ -480,59 +480,192 @@ body {
 
 .tech-tools-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+    margin-bottom: 2rem;
+    align-items: stretch;
 }
 
-.tech-tool-card {
+/* Tech Tool Banner Card */
+.tech-tool-banner-card {
+    position: relative;
+    background: #fff;
+    overflow: hidden;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.tech-tool-banner-card:hover {
+    border-color: #0066cc;
+    box-shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+    transform: translateY(-2px);
+}
+
+.tech-tool-banner-card.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.tech-tool-banner-card.drag-over {
+    border-color: #0066cc;
+    border-style: dashed;
+    background: #e6f2ff;
+}
+
+/* Tech Tool Header (with move buttons) */
+.tech-tool-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.tool-number {
+    font-weight: bold;
+    color: #0066cc;
+    font-size: 1rem;
+    background: #fff;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
+}
+
+.tool-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.tool-actions .btn-move-up,
+.tool-actions .btn-move-down {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.3s;
+    color: #333;
+    min-width: 32px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tool-actions .btn-move-up:hover:not(:disabled),
+.tool-actions .btn-move-down:hover:not(:disabled) {
+    background: #0066cc;
+    color: #fff;
+    border-color: #0066cc;
+}
+
+.tool-actions .btn-move-up:disabled,
+.tool-actions .btn-move-down:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Tech Tool Checkbox */
+.tech-tool-checkbox {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    cursor: pointer;
     position: relative;
 }
 
-.tech-tool-card input[type="checkbox"] {
+.tech-tool-checkbox input[type="checkbox"] {
     position: absolute;
     opacity: 0;
     width: 0;
     height: 0;
+    pointer-events: none;
 }
 
-.tech-tool-card label {
-    display: block;
+/* Tech Tool Content */
+.tech-tool-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding: 0;
+}
+
+.tech-tool-banner {
+    width: 100%;
+    height: 200px;
+    object-fit: contain;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.tech-tool-info {
     padding: 1.5rem;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s;
     background: #fff;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
-.tech-tool-card input[type="checkbox"]:checked + label,
-.tech-tool-card:has(input[type="checkbox"]:checked) label {
-    border-color: #0066cc;
-    background: #f0f7ff;
-    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
-}
-
-.tech-tool-card label:hover {
-    border-color: #0066cc;
-}
-
-.tool-icon {
-    font-size: 2.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.tech-tool-card h4 {
-    font-size: 1rem;
-    margin-bottom: 0.5rem;
+.tech-tool-info h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
     color: #333;
+    margin: 0 0 0.75rem 0;
 }
 
-.tech-tool-card p {
-    font-size: 0.875rem;
+.tech-tool-info p {
+    font-size: 0.9rem;
     color: #666;
+    line-height: 1.6;
     margin: 0;
+    flex: 1;
+}
+
+/* Selected state */
+.tech-tool-banner-card:has(input[type="checkbox"]:checked) {
+    border-color: #0066cc;
+    background-color: #f0f7ff;
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.15);
+}
+
+.tech-tool-banner-card:has(input[type="checkbox"]:checked) .tech-tool-info {
+    background-color: #f0f7ff;
+}
+
+.tech-tool-banner-card:has(input[type="checkbox"]:checked) .tech-tool-header {
+    background-color: #e6f2ff;
+    border-bottom-color: #0066cc;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .tech-tools-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    
+    .tech-tool-banner {
+        height: 180px;
+    }
+    
+    .tech-tool-info {
+        padding: 1.25rem;
+    }
+    
+    .tech-tool-info h4 {
+        font-size: 1rem;
+    }
+    
+    .tech-tool-info p {
+        font-size: 0.85rem;
+    }
 }
 
 /* Communication Section */
@@ -611,6 +744,46 @@ body {
 .comm-details {
     margin-top: 0.75rem;
     width: 100%;
+}
+
+.comm-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.communication-item .btn-move-up,
+.communication-item .btn-move-down {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.3s;
+    color: #333;
+    min-width: 32px;
+}
+
+.communication-item .btn-move-up:hover:not(:disabled),
+.communication-item .btn-move-down:hover:not(:disabled) {
+    background: #0066cc;
+    color: #fff;
+    border-color: #0066cc;
+}
+
+.communication-item .btn-move-up:disabled,
+.communication-item .btn-move-down:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.communication-item.dragging {
+    opacity: 0.5;
+}
+
+.communication-item.drag-over {
+    border: 2px dashed #0066cc;
 }
 
 .communication-item input[type="text"],

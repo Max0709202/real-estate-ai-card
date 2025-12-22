@@ -1,133 +1,158 @@
-/**
- * Edit Business Card JavaScript
- */
+// Move communication item up or down
+function moveCommunicationItem(index, direction, type) {
+    const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
+    const container = document.getElementById(gridId);
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateCommunicationButtons(type);
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateCommunicationButtons(type);
+    }
+}
 
-// Make businessCardData globally accessible
-let businessCardData = null;
-window.businessCardData = businessCardData;
-
-// Load business card data on page load
-document.addEventListener('DOMContentLoaded', function() {
-    loadBusinessCardData();
+// Update communication item move buttons
+function updateCommunicationButtons(type) {
+    const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
+    const container = document.getElementById(gridId);
+    if (!container) return;
     
-    // Navigation handling
-    setupNavigation();
-    
-    // File upload preview handlers
-    setupFileUploads();
-
-    // Initialize drag and drop for greeting items
-    setTimeout(function() {
-        initializeGreetingDragAndDrop();
-    }, 500); // Wait for greetings to be loaded
-    
-    // Auto-capitalize first letter of romaji input fields
-    setupRomajiAutoCapitalize();
-    
-    // Initialize free image upload handlers for existing paired items
-    const freePairItems = document.querySelectorAll('#free-input-pairs-container .free-input-pair-item');
-    freePairItems.forEach(item => {
-        initializeFreeImageUpload(item);
+    const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveCommunicationItem(${index}, 'up', '${type}')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveCommunicationItem(${index}, 'down', '${type}')`);
+        }
     });
-    
-    // Initialize communication checkbox handlers
-    setupCommunicationCheckboxes();
-});
+}
 
-// Setup communication checkbox handlers
-function setupCommunicationCheckboxes() {
-    document.querySelectorAll('.communication-checkbox input[type="checkbox"]').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            const item = this.closest('.communication-item');
-            const details = item.querySelector('.comm-details');
-            if (details) {
-                details.style.display = this.checked ? 'block' : 'none';
+// Initialize drag and drop for communication items
+function initializeCommunicationDragAndDrop(type) {
+    const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
+    const container = document.getElementById(gridId);
+    if (!container) return;
+    
+    let draggedElement = null;
+    let isInitializing = false;
+    
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+        
+        const items = container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`);
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+        
+        attachDragListeners();
+        isInitializing = false;
+    }
+    
+    function attachDragListeners() {
+        const items = container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`);
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+            
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+            
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`).forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+            
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+                return false;
+            });
+            
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+            
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (draggedElement !== this && draggedElement !== null) {
+                    if (observer) observer.disconnect();
+                    
+                    const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
+                    const targetIndex = items.indexOf(this);
+                    const draggedIndexCurrent = items.indexOf(draggedElement);
+                    
+                    if (draggedIndexCurrent < targetIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+                    
+                    draggedElement.dataset.dragInitialized = 'false';
+                    this.dataset.dragInitialized = 'false';
+                    
+                    updateCommunicationButtons(type);
+                    attachDragListeners();
+                    
+                    if (observer) {
+                        observer.observe(container, {
+                            childList: true,
+                            subtree: false
+                        });
+                    }
+                }
+            });
+        });
+    }
+    
+    // MutationObserver to handle dynamic changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList') {
+                makeItemsDraggable();
             }
         });
     });
-}
-
-// Auto-capitalize first letter of romaji input fields
-function setupRomajiAutoCapitalize() {
-    const romajiFields = [
-        document.getElementById('edit_last_name_romaji'),
-        document.getElementById('edit_first_name_romaji')
-    ];
     
-    romajiFields.forEach(field => {
-        if (field) {
-            let isComposing = false; // Track IME composition state
-            
-            // Track composition start (IME input started)
-            field.addEventListener('compositionstart', function() {
-                isComposing = true;
-            });
-            
-            // Track composition end (IME input finished)
-            field.addEventListener('compositionend', function(e) {
-                isComposing = false;
-                // Apply capitalization after composition ends
-                capitalizeFirstLetter(e.target);
-            });
-            
-            // Handle input event - skip during IME composition
-            field.addEventListener('input', function(e) {
-                // Skip if IME is composing or if event has isComposing flag
-                if (isComposing || e.isComposing) {
-                    return;
-                }
-                capitalizeFirstLetter(e.target);
-            });
-            
-            // Also apply on blur (when field loses focus)
-            field.addEventListener('blur', function(e) {
-                capitalizeFirstLetter(e.target);
-                // Sanitize romaji characters on blur
-                sanitizeRomajiInput(e.target);
-            });
-        }
+    makeItemsDraggable();
+    
+    observer.observe(container, {
+        childList: true,
+        subtree: false
     });
 }
 
-// Capitalize first letter helper function
-function capitalizeFirstLetter(input) {
-    let value = input.value;
-    
-    if (value.length > 0) {
-        // 最初の文字が小文字（a-z）の場合は大文字に変換
-        const firstChar = value.charAt(0);
-        if (firstChar >= 'a' && firstChar <= 'z') {
-            const cursorPosition = input.selectionStart;
-            value = firstChar.toUpperCase() + value.slice(1);
-            input.value = value;
-            // カーソル位置を復元
-            input.setSelectionRange(cursorPosition, cursorPosition);
-        }
-    }
-}
+// Global variable to store business card data
+let businessCardData = null;
 
-// Sanitize romaji input - allow A-Z, a-z, space, hyphen, apostrophe, and dot
-function sanitizeRomajiInput(input) {
-    let value = input.value;
-    // Remove any characters that are not: A-Z, a-z, space, hyphen (-), apostrophe ('), or dot (.)
-    const sanitized = value.replace(/[^A-Za-z\s\-'.]/g, '');
-    
-    if (sanitized !== value) {
-        const cursorPosition = input.selectionStart;
-        input.value = sanitized;
-        // Adjust cursor position if characters were removed
-        const removedChars = value.length - sanitized.length;
-        input.setSelectionRange(Math.max(0, cursorPosition - removedChars), Math.max(0, cursorPosition - removedChars));
-    }
-}
-
-// Load business card data from API
+// Load business card data from server (without reloading)
 async function loadBusinessCardData() {
-    const previewContent = document.getElementById('preview-content');
-    if (previewContent) {
-        previewContent.innerHTML = '<p>データを読み込み中...</p>';
-    }
-    
     try {
         const response = await fetch('../backend/api/business-card/get.php', {
             method: 'GET',
@@ -135,232 +160,222 @@ async function loadBusinessCardData() {
         });
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            console.log('No existing data found or not logged in');
+            return;
         }
         
         const result = await response.json();
-        console.log('API Response:', result);
+        console.log('Loaded business card data:', result);
         
         if (result.success && result.data) {
+            // Update the global businessCardData variable
             businessCardData = result.data;
-            window.businessCardData = businessCardData; // Make it globally accessible
-            console.log('Business Card Data:', businessCardData);
-            populateForms(businessCardData);
-            updatePreview(businessCardData);
-        } else {
-            console.error('Failed to load business card data:', result);
-            // Still display tech tools even if data load fails
-            displayTechTools([]);
-            const errorMsg = result.message || 'データの読み込みに失敗しました';
-            if (previewContent) {
-                previewContent.innerHTML = `<p style="color: red;">${errorMsg}</p>`;
-            }
-            showError('データの読み込みに失敗しました: ' + errorMsg);
+            // Note: We don't reload the page to avoid browser warnings
+            // The form data is already saved, so we just need to navigate to the next step
         }
     } catch (error) {
         console.error('Error loading business card data:', error);
-        // Still display tech tools even if there's an error
-        displayTechTools([]);
-        const errorMsg = error.message || 'エラーが発生しました';
-        if (previewContent) {
-            previewContent.innerHTML = `<p style="color: red;">${errorMsg}</p>`;
-        }
-        showError('エラーが発生しました: ' + errorMsg);
     }
 }
 
-// Populate forms with loaded data
-function populateForms(data) {
-    console.log('Populating forms with data:', data);
-    
-    // Step 1: Header & Greeting Form
-    const headerGreetingForm = document.getElementById('header-greeting-form');
-    if (headerGreetingForm) {
-        // Company name
-        const companyNameInput = headerGreetingForm.querySelector('input[name="company_name"]');
-        if (companyNameInput && data.company_name) {
-            companyNameInput.value = data.company_name;
-            console.log('Set company_name:', data.company_name);
+// Load existing business card data on page load and populate forms
+async function loadExistingBusinessCardData() {
+    try {
+        const response = await fetch('../backend/api/business-card/get.php', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            console.log('No existing data found or not logged in');
+            return;
         }
         
-        // Logo
-        if (data.company_logo) {
-            const logoPreview = document.querySelector('[data-upload-id="company_logo"] .upload-preview');
+        const result = await response.json();
+        console.log('Loaded business card data:', result);
+        
+        if (result.success && result.data) {
+            businessCardData = result.data;
+            populateEditForms(businessCardData);
+        }
+    } catch (error) {
+        console.error('Error loading business card data:', error);
+    }
+}
+
+// Populate edit forms with existing data
+function populateEditForms(data) {
+    console.log('Populating edit forms with:', data);
+    
+    // Step 1: Header & Greeting
+    if (data.company_name) {
+        const companyNameInput = document.querySelector('#header-greeting-form input[name="company_name"]');
+        if (companyNameInput) companyNameInput.value = data.company_name;
+    }
+    
+    // Logo preview
+    if (data.company_logo) {
+        const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
+        if (logoUploadArea) {
+            const logoPreview = logoUploadArea.querySelector('.upload-preview');
             if (logoPreview) {
                 const logoPath = data.company_logo.startsWith('http') ? data.company_logo : '../' + data.company_logo;
-                logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
-                console.log('Set company_logo:', logoPath);
+                logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                logoUploadArea.dataset.existingImage = data.company_logo;
             }
         }
-        
-        // Profile Photo
-        if (data.profile_photo) {
-            const photoPreview = document.querySelector('[data-upload-id="profile_photo"] .upload-preview');
+    }
+    
+    // Profile photo preview
+    if (data.profile_photo) {
+        const photoUploadArea = document.querySelector('[data-upload-id="profile_photo"]');
+        if (photoUploadArea) {
+            const photoPreview = photoUploadArea.querySelector('.upload-preview');
             if (photoPreview) {
                 const photoPath = data.profile_photo.startsWith('http') ? data.profile_photo : '../' + data.profile_photo;
-                photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
-                console.log('Set profile_photo:', photoPath);
+                photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                photoUploadArea.dataset.existingImage = data.profile_photo;
             }
         }
+    }
+    
+    // Greetings - ALWAYS clear first, then populate based on data
+    const greetingsContainer = document.getElementById('greetings-list');
+    if (greetingsContainer) {
+        greetingsContainer.innerHTML = '';
         
-        // Greetings - ALWAYS clear first, then populate based on data
-        const greetingsList = document.getElementById('greetings-list');
-        if (greetingsList) {
-            greetingsList.innerHTML = '';
-            
-            if (data.greetings && Array.isArray(data.greetings) && data.greetings.length > 0) {
-                console.log('Displaying greetings:', data.greetings);
-                displayGreetings(data.greetings);
-            } else if (data.greetings && Array.isArray(data.greetings) && data.greetings.length === 0) {
-                // Empty array - user has deleted all greetings, keep it empty
-                console.log('Greetings array is empty - keeping it empty');
-                // Already cleared above
+        if (data.greetings && Array.isArray(data.greetings) && data.greetings.length > 0) {
+            console.log('Displaying greetings from database:', data.greetings);
+            displayGreetingsForEdit(data.greetings);
+        }
+        // If no greetings, keep the default ones from PHP
+    }
+    
+    // Step 2: Company Profile
+    if (data.real_estate_license_prefecture) {
+        const prefSelect = document.getElementById('license_prefecture');
+        if (prefSelect) prefSelect.value = data.real_estate_license_prefecture;
+    }
+    if (data.real_estate_license_renewal_number) {
+        const renewalSelect = document.getElementById('license_renewal');
+        if (renewalSelect) renewalSelect.value = data.real_estate_license_renewal_number;
+    }
+    if (data.real_estate_license_registration_number) {
+        const regInput = document.getElementById('license_registration');
+        if (regInput) regInput.value = data.real_estate_license_registration_number;
+    }
+    if (data.company_name) {
+        const companyProfileInput = document.querySelector('input[name="company_name_profile"]');
+        if (companyProfileInput) companyProfileInput.value = data.company_name;
+    }
+    if (data.company_postal_code) {
+        const postalInput = document.getElementById('company_postal_code');
+        if (postalInput) postalInput.value = data.company_postal_code;
+    }
+    if (data.company_address) {
+        const addressInput = document.getElementById('company_address');
+        if (addressInput) addressInput.value = data.company_address;
+    }
+    if (data.company_phone) {
+        const phoneInput = document.querySelector('input[name="company_phone"]');
+        if (phoneInput) phoneInput.value = data.company_phone;
+    }
+    if (data.company_website) {
+        const websiteInput = document.querySelector('input[name="company_website"]');
+        if (websiteInput) websiteInput.value = data.company_website;
+    }
+    
+    // Step 3: Personal Information
+    if (data.branch_department) {
+        const branchInput = document.querySelector('input[name="branch_department"]');
+        if (branchInput) branchInput.value = data.branch_department;
+    }
+    if (data.position) {
+        const positionInput = document.querySelector('input[name="position"]');
+        if (positionInput) positionInput.value = data.position;
+    }
+    
+    // Name (split into last_name and first_name)
+    if (data.name) {
+        const nameParts = data.name.trim().split(/\s+/);
+        const lastNameInput = document.getElementById('edit_last_name');
+        const firstNameInput = document.getElementById('edit_first_name');
+        if (lastNameInput && firstNameInput) {
+            if (nameParts.length >= 2) {
+                lastNameInput.value = nameParts[0];
+                firstNameInput.value = nameParts.slice(1).join(' ');
             } else {
-                // No greetings data or greetings is null/undefined - first time, display defaults
-                console.log('No greetings data - displaying defaults');
-                displayDefaultGreetings();
+                lastNameInput.value = data.name;
             }
         }
     }
     
-    // Step 2: Company Profile Form
-    const companyProfileForm = document.getElementById('company-profile-form');
-    if (companyProfileForm) {
-        if (data.real_estate_license_prefecture) {
-            const prefectureSelect = companyProfileForm.querySelector('select[name="real_estate_license_prefecture"]');
-            if (prefectureSelect) prefectureSelect.value = data.real_estate_license_prefecture;
-        }
-        if (data.real_estate_license_renewal_number) {
-            const renewalSelect = companyProfileForm.querySelector('select[name="real_estate_license_renewal_number"]');
-            if (renewalSelect) renewalSelect.value = data.real_estate_license_renewal_number;
-        }
-        if (data.real_estate_license_registration_number) {
-            const registrationInput = companyProfileForm.querySelector('input[name="real_estate_license_registration_number"]');
-            if (registrationInput) registrationInput.value = data.real_estate_license_registration_number;
-        }
-        if (data.company_name) {
-            const companyNameInput = companyProfileForm.querySelector('input[name="company_name_profile"]');
-            if (companyNameInput) companyNameInput.value = data.company_name;
-        }
-        if (data.company_postal_code) {
-            const postalCodeInput = companyProfileForm.querySelector('input[name="company_postal_code"]');
-            if (postalCodeInput) postalCodeInput.value = data.company_postal_code;
-        }
-        if (data.company_address) {
-            const addressInput = companyProfileForm.querySelector('input[name="company_address"]');
-            if (addressInput) addressInput.value = data.company_address;
-        }
-        if (data.company_phone) {
-            const phoneInput = companyProfileForm.querySelector('input[name="company_phone"]');
-            if (phoneInput) phoneInput.value = data.company_phone;
-        }
-        if (data.company_website) {
-            const websiteInput = companyProfileForm.querySelector('input[name="company_website"]');
-            if (websiteInput) websiteInput.value = data.company_website;
+    // Name Romaji
+    if (data.name_romaji) {
+        const romajiParts = data.name_romaji.trim().split(/\s+/);
+        const lastNameRomajiInput = document.getElementById('edit_last_name_romaji');
+        const firstNameRomajiInput = document.getElementById('edit_first_name_romaji');
+        if (lastNameRomajiInput && firstNameRomajiInput) {
+            if (romajiParts.length >= 2) {
+                lastNameRomajiInput.value = romajiParts[0];
+                firstNameRomajiInput.value = romajiParts.slice(1).join(' ');
+            } else {
+                lastNameRomajiInput.value = data.name_romaji;
+            }
         }
     }
     
-    // Step 3: Personal Information Form
-    const personalInfoForm = document.getElementById('personal-info-form');
-    if (personalInfoForm) {
-        if (data.branch_department) {
-            const branchDeptInput = personalInfoForm.querySelector('input[name="branch_department"]');
-            if (branchDeptInput) branchDeptInput.value = data.branch_department;
+    if (data.mobile_phone) {
+        const mobileInput = document.querySelector('input[name="mobile_phone"]');
+        if (mobileInput) mobileInput.value = data.mobile_phone;
+    }
+    if (data.birth_date) {
+        const birthInput = document.querySelector('input[name="birth_date"]');
+        if (birthInput) birthInput.value = data.birth_date;
+    }
+    if (data.current_residence) {
+        const residenceInput = document.querySelector('input[name="current_residence"]');
+        if (residenceInput) residenceInput.value = data.current_residence;
+    }
+    if (data.hometown) {
+        const hometownInput = document.querySelector('input[name="hometown"]');
+        if (hometownInput) hometownInput.value = data.hometown;
+    }
+    if (data.alma_mater) {
+        const almaMaterInput = document.querySelector('input[name="alma_mater"]');
+        if (almaMaterInput) almaMaterInput.value = data.alma_mater;
+    }
+    
+    // Qualifications
+    if (data.qualifications) {
+        const qualifications = data.qualifications.split('、');
+        if (qualifications.includes('宅地建物取引士')) {
+            const takkenCheckbox = document.querySelector('input[name="qualification_takken"]');
+            if (takkenCheckbox) takkenCheckbox.checked = true;
         }
-        if (data.position) {
-            const positionInput = personalInfoForm.querySelector('input[name="position"]');
-            if (positionInput) positionInput.value = data.position;
+        if (qualifications.includes('建築士')) {
+            const kenchikushiCheckbox = document.querySelector('input[name="qualification_kenchikushi"]');
+            if (kenchikushiCheckbox) kenchikushiCheckbox.checked = true;
         }
-        
-        // Name (split into last_name and first_name)
-        if (data.name) {
-            const lastNameInput = document.getElementById('edit_last_name');
-            const firstNameInput = document.getElementById('edit_first_name');
+        const otherQuals = qualifications.filter(q => q !== '宅地建物取引士' && q !== '建築士').join('、');
+        if (otherQuals) {
+            const otherInput = document.querySelector('textarea[name="qualifications_other"]');
+            if (otherInput) otherInput.value = otherQuals;
+        }
+    }
+    
+    if (data.hobbies) {
+        const hobbiesInput = document.querySelector('textarea[name="hobbies"]');
+        if (hobbiesInput) hobbiesInput.value = data.hobbies;
+    }
+    
+    // Free input - Populate paired items (text + image)
+    if (data.free_input) {
+        try {
+            const freeInputData = JSON.parse(data.free_input);
+            const container = document.getElementById('free-input-pairs-container');
             
-            if (lastNameInput && firstNameInput) {
-                const nameParts = data.name.trim().split(/\s+/);
-                if (nameParts.length >= 2) {
-                    lastNameInput.value = nameParts[0];
-                    firstNameInput.value = nameParts.slice(1).join(' ');
-                } else {
-                    lastNameInput.value = data.name;
-                    firstNameInput.value = '';
-                }
-                console.log('Set name:', data.name, '->', lastNameInput.value, firstNameInput.value);
-            }
-        }
-        
-        // Name Romaji (split into last_name_romaji and first_name_romaji)
-        if (data.name_romaji) {
-            const lastNameRomajiInput = document.getElementById('edit_last_name_romaji');
-            const firstNameRomajiInput = document.getElementById('edit_first_name_romaji');
-            
-            if (lastNameRomajiInput && firstNameRomajiInput) {
-                const romajiParts = data.name_romaji.trim().split(/\s+/);
-                if (romajiParts.length >= 2) {
-                    lastNameRomajiInput.value = romajiParts[0];
-                    firstNameRomajiInput.value = romajiParts.slice(1).join(' ');
-                } else {
-                    lastNameRomajiInput.value = data.name_romaji;
-                    firstNameRomajiInput.value = '';
-                }
-                console.log('Set name_romaji:', data.name_romaji);
-            }
-        }
-        
-        if (data.mobile_phone) {
-            const mobilePhoneInput = personalInfoForm.querySelector('input[name="mobile_phone"]');
-            if (mobilePhoneInput) mobilePhoneInput.value = data.mobile_phone;
-        }
-        if (data.birth_date) {
-            const birthDateInput = personalInfoForm.querySelector('input[name="birth_date"]');
-            if (birthDateInput) birthDateInput.value = data.birth_date;
-        }
-        if (data.current_residence) {
-            const residenceInput = personalInfoForm.querySelector('input[name="current_residence"]');
-            if (residenceInput) residenceInput.value = data.current_residence;
-        }
-        if (data.hometown) {
-            const hometownInput = personalInfoForm.querySelector('input[name="hometown"]');
-            if (hometownInput) hometownInput.value = data.hometown;
-        }
-        if (data.alma_mater) {
-            const almaMaterInput = personalInfoForm.querySelector('input[name="alma_mater"]');
-            if (almaMaterInput) almaMaterInput.value = data.alma_mater;
-        }
-        
-        // Qualifications
-        if (data.qualifications) {
-            const qualifications = data.qualifications.split('、');
-            if (qualifications.includes('宅地建物取引士')) {
-                const takkenCheckbox = personalInfoForm.querySelector('input[name="qualification_takken"]');
-                if (takkenCheckbox) takkenCheckbox.checked = true;
-            }
-            if (qualifications.includes('建築士')) {
-                const kenchikushiCheckbox = personalInfoForm.querySelector('input[name="qualification_kenchikushi"]');
-                if (kenchikushiCheckbox) kenchikushiCheckbox.checked = true;
-            }
-            // Other qualifications
-            const otherQuals = qualifications.filter(q => q !== '宅地建物取引士' && q !== '建築士').join('、');
-            if (otherQuals) {
-                const otherQualsTextarea = personalInfoForm.querySelector('textarea[name="qualifications_other"]');
-                if (otherQualsTextarea) otherQualsTextarea.value = otherQuals;
-            }
-        }
-        
-        if (data.hobbies) {
-            const hobbiesTextarea = personalInfoForm.querySelector('textarea[name="hobbies"]');
-            if (hobbiesTextarea) hobbiesTextarea.value = data.hobbies;
-        }
-        
-        // Free input - Populate paired items (text + image)
-        if (data.free_input) {
-            try {
-                const freeInputData = JSON.parse(data.free_input);
-                const container = document.getElementById('free-input-pairs-container');
-                
-                if (!container) return;
-
+            if (container) {
                 // Handle both old format and new format
                 let texts = [];
                 let images = [];
@@ -371,15 +386,15 @@ function populateForms(data) {
                     texts = [freeInputData.text];
                 }
                 
-                    if (freeInputData.images && Array.isArray(freeInputData.images)) {
-                        images = freeInputData.images;
-                    } else if (freeInputData.image || freeInputData.image_link) {
-                        images = [{
-                            image: freeInputData.image || '',
-                            link: freeInputData.image_link || ''
-                        }];
-                    }
-                    
+                if (freeInputData.images && Array.isArray(freeInputData.images)) {
+                    images = freeInputData.images;
+                } else if (freeInputData.image || freeInputData.image_link) {
+                    images = [{
+                        image: freeInputData.image || '',
+                        link: freeInputData.image_link || ''
+                    }];
+                }
+                
                 // Ensure we have at least one pair
                 const pairCount = Math.max(texts.length, images.length, 1);
 
@@ -422,188 +437,66 @@ function populateForms(data) {
                             </div>
                         </div>
                         <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
-                        `;
+                    `;
 
                     container.appendChild(pairItem);
-                        
-                        // Store existing image path in data attribute for later use
-                        if (imgData.image) {
+                    
+                    // Store existing image path in data attribute for later use
+                    if (imgData.image) {
                         pairItem.querySelector('.upload-area').dataset.existingImage = imgData.image;
-                        }
-                        
-                        // Initialize file upload handler
-                    initializeFreeImageUpload(pairItem);
+                    }
                 }
-            } catch (e) {
-                console.error('Error parsing free_input:', e);
             }
+        } catch (e) {
+            console.error('Error parsing free_input:', e);
         }
     }
     
-    // Step 4: Tech Tools - Always display all tools (even if none selected)
-    const techTools = (data.tech_tools && Array.isArray(data.tech_tools)) ? data.tech_tools : [];
-    console.log('Displaying tech tools:', techTools);
-    displayTechTools(techTools);
+    // Step 4: Tech Tools - Load tech tools (always load, even if no saved tools)
+    loadTechTools(data.tech_tools || []);
     
     // Step 5: Communication Methods
-    if (data.communication_methods && Array.isArray(data.communication_methods) && data.communication_methods.length > 0) {
-        console.log('Displaying communication methods:', data.communication_methods);
-        displayCommunicationMethods(data.communication_methods);
-    } else {
-        console.log('No communication methods to display');
+    if (data.communication_methods && Array.isArray(data.communication_methods)) {
+        data.communication_methods.forEach(method => {
+            // Check the checkbox
+            const checkbox = document.querySelector(`input[name="comm_${method.method_type}"]`);
+            if (checkbox) {
+                checkbox.checked = method.is_active;
+                
+                // Show details div
+                const item = checkbox.closest('.communication-item');
+                if (item) {
+                    const details = item.querySelector('.comm-details');
+                    if (details && method.is_active) {
+                        details.style.display = 'block';
+                        
+                        // Fill in the value
+                        const input = details.querySelector('input');
+                        if (input) {
+                            input.value = method.method_url || method.method_id || '';
+                        }
+                    }
+                }
+            }
+        });
+        // Re-initialize communication checkbox handlers
+        setupCommunicationCheckboxes();
     }
     
-    console.log('Form population complete');
+    console.log('Edit forms populated');
 }
 
-// Default greetings (same as register.php)
-const defaultGreetings = [
-    {
-        title: '笑顔が増える「住み替え」を叶えます',
-        content: '初めての売買で感じる不安や疑問。「あなたに頼んでよかった」と言っていただけるよう、理想の住まい探しと売却を全力で伴走いたします。私は、お客様が描く「10年後の幸せな日常」を第一に考えます。'
-    },
-    {
-        title: '自宅は大きな貯金箱',
-        content: '「不動産売買は人生最大の投資」という視点に立ち、物件のメリットだけでなく、将来のリスクやデメリットも隠さずお伝えするのが信条です。感情に流されない、確実な資産形成と納得のいく取引をサポートします。'
-    },
-    {
-        title: 'お客様に「情報武装」をご提案',
-        content: '「この価格は妥当なのだろうか？」「もっとよい物件情報は無いのだろうか？」私は全ての情報をお客様に開示いたしますが、お客様に「情報武装」していただく事で、それをさらに担保いたします。他のエージェントにはない、私独自のサービスをご活用ください。'
-    },
-    {
-        title: 'お客様を「3つの疲労」から解放いたします',
-        content: '一つ目は、ポータルサイト巡りの「情報収集疲労」。二つ目は、不動産会社への「問い合わせ疲労」、専門知識不足による「判断疲労」です。私がご提供するテックツールで、情報収集は自動化、私が全ての情報を公開しますので多くの不動産会社に問い合わせることも不要、物件情報にAI評価がついているので客観的判断も自動化されます。'
-    },
-    {
-        title: '忙しい子育て世代へ。手間を省くスマート売買',
-        content: '「売り」と「買い」を同時に進める住み替えは手続きが煩雑になりがちです。忙しいご夫婦に代わり、書類作成から金融機関との折衝、内覧の調整まで私が窓口となってスムーズに進めます。お子様連れでの内覧や打ち合わせも大歓迎です。ご家族の貴重な時間を奪わないよう、迅速かつ丁寧な段取りをお約束します。'
-    }
-];
-
-// Display default greetings when no saved greetings exist
-// This function now appends default greetings to existing ones instead of replacing them
-function displayDefaultGreetings() {
-    const greetingsList = document.getElementById('greetings-list');
-    if (!greetingsList) return;
+// Display greetings from database for edit page
+function displayGreetingsForEdit(greetings) {
+    const greetingsContainer = document.getElementById('greetings-list');
+    if (!greetingsContainer) return;
     
-    // Get current greeting items count
-    const existingItems = greetingsList.querySelectorAll('.greeting-item');
-    const currentCount = existingItems.length;
-    
-    // Append default greetings to existing ones
-    defaultGreetings.forEach((greeting, index) => {
-        const greetingItem = document.createElement('div');
-        greetingItem.className = 'greeting-item';
-        // Temporary order, will be updated by updateGreetingNumbers()
-        greetingItem.dataset.order = currentCount + index;
-        greetingItem.innerHTML = `
-            <div class="greeting-header">
-                <span class="greeting-number">${currentCount + index + 1}</span>
-                <div class="greeting-actions">
-                    <button type="button" class="btn-move-up" onclick="moveGreeting(${currentCount + index}, 'up')">↑</button>
-                    <button type="button" class="btn-move-down" onclick="moveGreeting(${currentCount + index}, 'down')">↓</button>
-                </div>
-                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
-            </div>
-            <div class="form-group">
-                <label>タイトル</label>
-                <input type="text" name="greeting_title[]" class="form-control greeting-title" value="${escapeHtml(greeting.title)}" placeholder="タイトル">
-            </div>
-            <div class="form-group">
-                <label>本文</label>
-                <textarea name="greeting_content[]" class="form-control greeting-content" rows="4" placeholder="本文">${escapeHtml(greeting.content)}</textarea>
-            </div>
-        `;
-        greetingsList.appendChild(greetingItem);
-    });
-
-    // Re-initialize drag and drop and update numbering/buttons after displaying
-    setTimeout(function() {
-        initializeGreetingDragAndDrop();
-        updateGreetingNumbers();
-        updateGreetingButtons();
-    }, 100);
-}
-
-// Restore default greetings (button click handler)
-function restoreDefaultGreetings() {
-    // Remove any existing modal first
-    const existingModal = document.querySelector('.modal-overlay');
-    if (existingModal) {
-        existingModal.remove();
-    }
-    
-    // Create modal
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'block';
-    modal.innerHTML = `
-        <div class="modal-content restore-greetings-modal" style="display:flex !important; flex-direction: column !important; margin :auto !important; margin-top:20rem !important;">
-            <div class="modal-header-restore">
-                <h3>5つの挨拶文例を再表示</h3>
-            </div>
-            <div class="modal-body-restore">
-                <p class="modal-message-main">デフォルトの挨拶文を再表示しますか？</p>
-                <p class="modal-message-sub">現在の挨拶文に5つの挨拶文例が追加されます。</p>
-            </div>
-            <div class="modal-buttons">
-                <button class="modal-btn modal-btn-yes" id="confirm-restore-yes">はい</button>
-                <button class="modal-btn modal-btn-no" id="confirm-restore-no">いいえ</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    
-    // Force reflow to ensure DOM is updated
-    void modal.offsetHeight;
-    
-    // Add active class to show modal
-    setTimeout(() => {
-        modal.classList.add('show');
-    }, 10);
-
-    // Add event listeners after DOM is updated
-    setTimeout(() => {
-        const yesBtn = document.getElementById('confirm-restore-yes');
-        const noBtn = document.getElementById('confirm-restore-no');
-        
-        if (yesBtn) {
-            yesBtn.addEventListener('click', function() {
-                closeRestoreModal();
-                displayDefaultGreetings();
-            });
-        }
-        
-        if (noBtn) {
-            noBtn.addEventListener('click', function() {
-                closeRestoreModal();
-            });
-        }
-    }, 50);
-}
-
-// Close restore modal
-function closeRestoreModal() {
-    const modal = document.querySelector('.modal-overlay');
-    if (modal) {
-        modal.classList.remove('show');
-        setTimeout(() => {
-            modal.remove();
-        }, 300);
-    }
-}
-
-// Display greetings
-function displayGreetings(greetings) {
-    const greetingsList = document.getElementById('greetings-list');
-    if (!greetingsList) return;
-    
-    greetingsList.innerHTML = '';
+    greetingsContainer.innerHTML = '';
     
     greetings.forEach((greeting, index) => {
         const greetingItem = document.createElement('div');
         greetingItem.className = 'greeting-item';
-        greetingItem.dataset.id = greeting.id;
+        greetingItem.dataset.id = greeting.id || '';
         greetingItem.dataset.order = index;
         greetingItem.innerHTML = `
             <div class="greeting-header">
@@ -611,21 +504,21 @@ function displayGreetings(greetings) {
                 <div class="greeting-actions">
                     <button type="button" class="btn-move-up" onclick="moveGreeting(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
                     <button type="button" class="btn-move-down" onclick="moveGreeting(${index}, 'down')" ${index === greetings.length - 1 ? 'disabled' : ''}>↓</button>
+                    <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
                 </div>
-                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
             </div>
             <div class="form-group">
                 <label>タイトル</label>
-                <input type="text" class="form-control greeting-title" value="${escapeHtml(greeting.title || '')}" placeholder="タイトル">
+                <input type="text" name="greeting_title[]" class="form-control" value="${escapeHtml(greeting.title || '')}" placeholder="タイトル">
             </div>
             <div class="form-group">
                 <label>本文</label>
-                <textarea class="form-control greeting-content" rows="4" placeholder="本文">${escapeHtml(greeting.content || '')}</textarea>
+                <textarea name="greeting_content[]" class="form-control" rows="4" placeholder="本文">${escapeHtml(greeting.content || '')}</textarea>
             </div>
         `;
-        greetingsList.appendChild(greetingItem);
+        greetingsContainer.appendChild(greetingItem);
     });
-
+    
     // Re-initialize drag and drop after displaying
     setTimeout(function() {
         initializeGreetingDragAndDrop();
@@ -633,1172 +526,203 @@ function displayGreetings(greetings) {
     }, 100);
 }
 
-// Move greeting up/down
-function moveGreeting(index, direction) {
-    const container = document.getElementById('greetings-list');
-    const items = Array.from(container.querySelectorAll('.greeting-item'));
-
-    if (direction === 'up' && index > 0) {
-        const currentItem = items[index];
-        const prevItem = items[index - 1];
-        container.insertBefore(currentItem, prevItem);
-        updateGreetingNumbers();
-        updateGreetingButtons();
-    } else if (direction === 'down' && index < items.length - 1) {
-        const currentItem = items[index];
-        const nextItem = items[index + 1];
-        container.insertBefore(nextItem, currentItem);
-        updateGreetingNumbers();
-        updateGreetingButtons();
-    }
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
-// Initialize drag and drop for greeting items
-function initializeGreetingDragAndDrop() {
-    const container = document.getElementById('greetings-list');
-    if (!container) return;
-
-    let draggedElement = null;
-    let isInitializing = false; // Flag to prevent infinite loops
-
-    // Make all greeting items draggable
-    function makeItemsDraggable() {
-        if (isInitializing) return; // Prevent recursive calls
-        isInitializing = true;
-
-        const items = container.querySelectorAll('.greeting-item');
-        items.forEach((item, index) => {
-            // Only set draggable if not already set
-            if (!item.hasAttribute('draggable')) {
-                item.draggable = true;
-            }
-            item.dataset.dragIndex = index;
-        });
-
-        // Attach event listeners (only if not already attached)
-        attachDragListeners();
-
-        isInitializing = false;
-    }
-
-    function attachDragListeners() {
-        const items = container.querySelectorAll('.greeting-item');
-        items.forEach((item) => {
-            // Skip if already has drag listeners (check for data attribute)
-            if (item.dataset.dragInitialized === 'true') return;
-
-            // Mark as initialized
-            item.dataset.dragInitialized = 'true';
-
-            // Drag start
-            item.addEventListener('dragstart', function(e) {
-                draggedElement = this;
-                this.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/html', this.innerHTML);
-            });
-
-            // Drag end
-            item.addEventListener('dragend', function(e) {
-                this.classList.remove('dragging');
-                container.querySelectorAll('.greeting-item').forEach(item => {
-                    item.classList.remove('drag-over');
-                });
-            });
-
-            // Drag over
-            item.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.dataTransfer.dropEffect = 'move';
-                this.classList.add('drag-over');
-                return false;
-            });
-
-            // Drag leave
-            item.addEventListener('dragleave', function(e) {
-                this.classList.remove('drag-over');
-            });
-
-            // Drop
-            item.addEventListener('drop', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                if (draggedElement !== this && draggedElement !== null) {
-                    // Temporarily disconnect observer to prevent loop
-                    if (observer) observer.disconnect();
-
-                    const items = Array.from(container.querySelectorAll('.greeting-item'));
-                    const targetIndex = items.indexOf(this);
-                    const draggedIndexCurrent = items.indexOf(draggedElement);
-
-                    if (draggedIndexCurrent < targetIndex) {
-                        container.insertBefore(draggedElement, this.nextSibling);
-                    } else {
-                        container.insertBefore(draggedElement, this);
-                    }
-
-                    // Mark dragged element as not initialized so it gets re-initialized
-                    draggedElement.dataset.dragInitialized = 'false';
-                    this.dataset.dragInitialized = 'false';
-
-                    updateGreetingNumbers();
-                    updateGreetingButtons();
-
-                    // Re-attach listeners to moved items
-                    attachDragListeners();
-
-                    // Reconnect observer
-                    if (observer) {
-                        observer.observe(container, {
-                            childList: true,
-                            subtree: false
-                        });
-                    }
-                }
-
-                this.classList.remove('drag-over');
-                draggedElement = null;
-                return false;
-            });
-        });
-    }
-
-    // Initial setup
-    makeItemsDraggable();
-
-    // Re-initialize when items are added/modified (but not during our own operations)
-    const observer = new MutationObserver(function(mutations) {
-        if (isInitializing) return; // Skip if we're already initializing
-
-        let shouldReinit = false;
-        mutations.forEach(function(mutation) {
-            // Only reinit if nodes were actually added/removed (not just moved)
-            if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
-                // Check if any added nodes are new greeting items (not just reordered)
-                for (let node of mutation.addedNodes) {
-                    if (node.nodeType === 1 && node.classList && node.classList.contains('greeting-item')) {
-                        if (!node.dataset.dragInitialized) {
-                            shouldReinit = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-
-        if (shouldReinit) {
-            makeItemsDraggable();
-        }
-    });
-
-    observer.observe(container, {
-        childList: true,
-        subtree: false
-    });
-}
-
-function updateGreetingNumbers() {
-    const items = document.querySelectorAll('#greetings-list .greeting-item');
-    items.forEach((item, index) => {
-        item.querySelector('.greeting-number').textContent = index + 1;
-        item.setAttribute('data-order', index);
-    });
-}
-
-function updateGreetingButtons() {
-    const items = document.querySelectorAll('#greetings-list .greeting-item');
-    items.forEach((item, index) => {
-        const upBtn = item.querySelector('.btn-move-up');
-        const downBtn = item.querySelector('.btn-move-down');
-        if (upBtn) {
-            upBtn.disabled = index === 0;
-            upBtn.setAttribute('onclick', `moveGreeting(${index}, 'up')`);
-        }
-        if (downBtn) {
-            downBtn.disabled = index === items.length - 1;
-            downBtn.setAttribute('onclick', `moveGreeting(${index}, 'down')`);
-        }
-    });
-}
-
-// Display tech tools (Banner format - matching register.php)
-function displayTechTools(techTools) {
+// Load tech tools and display them
+function loadTechTools(savedTechTools) {
     const techToolsList = document.getElementById('tech-tools-list');
-    if (!techToolsList) {
-        console.error('Tech tools list element not found');
-        return;
-    }
+    if (!techToolsList) return;
     
-    const toolData = {
-        'mdb': {
-            name: '全国マンションデータベース',
-            id: 'tool-mdb-edit',
-            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span></p></div>',
-            banner_image: 'assets/images/tech_banner/mdb.jpg'
-        },
-        'rlp': {
-            name: '物件提案ロボ',
-            id: 'tool-rlp-edit',
-            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>AI評価付き『物件提案ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><strong><span style="color: #000000;">」で自動配信します。WEB上に登録になった</span></strong><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span></p></div>',
-            banner_image: 'assets/images/tech_banner/rlp.jpg'
-        },
-        'llp': {
-            name: '土地情報ロボ',
-            id: 'tool-llp-edit',
-            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>『土地情報ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><span style="color: #000000;"><strong>」で自動配信します。WEB上に登録になった</strong></span><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span></p></div>',
-            banner_image: 'assets/images/tech_banner/llp.jpg'
-        },
-        'ai': {
-            name: 'AIマンション査定',
-            id: 'tool-ai-edit',
-            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span></p></div>',
-            banner_image: 'assets/images/tech_banner/ai.jpg'
-        },
-        'slp': {
-            name: 'セルフィン',
-            id: 'tool-slp-edit',
-            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><strong><span style="color: #000000;">AI評価付き『SelFin（セルフィン）』は消費者自ら</span></strong><span style="color: #ff0000;"><span style="font-weight: 700 !important;">「物件の資産性」を自動判定できる</span></span></span><span style="color: #000000;"><strong><span style="font-size: 14px;">ツールです。「価格の妥当性」「街力」「流動性」「耐震性」「管理費・修繕積立金の妥当性」を自動判定します。また物件提案ロボで配信される物件にはSelFin評価が付随します。</span></strong></span></p></div>',
-            banner_image: 'assets/images/tech_banner/slp.jpg'
-        },
-        'olp': {
-            name: 'オーナーコネクト',
-            id: 'tool-olp-edit',
-            description: '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>オーナーコネクトはマンション所有者様向けのサービスで、</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">誰でも簡単に自宅の資産状況を確認できます。</span></span></span><span style="color: #000000;"><strong>登録されたマンションで新たに売り出し情報が出たらメールでお知らせいたします。</strong></span><span style="color: #000000;"><strong>また、</strong></span><span style="font-weight: 700 !important;"><span style="color: #ff0000;">毎週自宅の資産状況をまとめたレポートメールも送信</span></span><strong><span style="color: #000000;">いたします。</span></strong></span></p></div>',
-            banner_image: 'assets/images/tech_banner/olp.jpg'
-        }
+    // Tech tool definitions (same as register.js)
+    const techToolNames = {
+        'mdb': '全国マンションデータベース',
+        'rlp': '物件提案ロボ',
+        'llp': '土地情報ロボ',
+        'ai': 'AIマンション査定',
+        'slp': 'セルフィン',
+        'olp': 'オーナーコネクト',
+        'alp': '統合LP'
     };
     
-    // All available tools
-    const allTools = ['mdb', 'rlp', 'llp', 'ai', 'slp', 'olp'];
+    const techToolDescriptions = {
+        'mdb': '全国のマンション情報を検索・比較できます',
+        'rlp': 'お客様の条件に合った物件を自動で提案します',
+        'llp': '土地情報を簡単に検索・比較できます',
+        'ai': 'AIがマンションの適正価格を査定します',
+        'slp': '不動産売買をサポートする総合ツール',
+        'olp': 'オーナー向けの不動産管理ツール',
+        'alp': '複数のテックツールを統合したLP'
+    };
+    
+    const techToolBanners = {
+        'mdb': 'assets/images/tech_banner/mdb.jpg',
+        'rlp': 'assets/images/tech_banner/rlp.jpg',
+        'llp': 'assets/images/tech_banner/llp.jpg',
+        'ai': 'assets/images/tech_banner/ai.jpg',
+        'slp': 'assets/images/tech_banner/slp.jpg',
+        'olp': 'assets/images/tech_banner/olp.jpg',
+        'alp': 'assets/images/tech_banner/alp.jpg'
+    };
+    
+    // Create a map of saved tech tools by tool_type for quick lookup
+    const savedToolsMap = {};
+    if (savedTechTools && Array.isArray(savedTechTools)) {
+        savedTechTools.forEach(tool => {
+            savedToolsMap[tool.tool_type] = tool;
+        });
+    }
+    
+    // Define the order of tech tools
+    const toolOrder = ['mdb', 'rlp', 'llp', 'ai', 'slp', 'olp', 'alp'];
     
     techToolsList.innerHTML = '';
     
-    // Display all tools in banner card format (same as register.php)
-    allTools.forEach((toolType) => {
-        const tool = toolData[toolType];
-        const existingTool = techTools ? techTools.find(t => t.tool_type === toolType) : null;
-        const isActive = existingTool ? (existingTool.is_active === 1 || existingTool.is_active === true) : false;
+    // Display tech tools in the defined order
+    toolOrder.forEach((toolType, index) => {
+        const isActive = savedToolsMap[toolType]?.is_active || false;
+        const toolName = techToolNames[toolType] || toolType;
+        const toolDescription = techToolDescriptions[toolType] || '';
+        const toolBanner = techToolBanners[toolType] || 'assets/images/tech_banner/default.jpg';
         
         const toolCard = document.createElement('div');
-        toolCard.className = 'tech-tool-banner-card register-tech-card';
+        toolCard.className = 'tech-tool-banner-card';
+        toolCard.dataset.toolType = toolType;
         if (isActive) {
             toolCard.classList.add('selected');
         }
-        if (existingTool) {
-            toolCard.dataset.id = existingTool.id;
-        }
-        toolCard.dataset.toolType = toolType;
-
         toolCard.innerHTML = `
-            <div class="tech-tool-actions">
-                <button type="button" class="btn-move-up" onclick="moveTechTool(${allTools.indexOf(toolType)}, 'up')" ${allTools.indexOf(toolType) === 0 ? 'disabled' : ''}>↑</button>
-                <button type="button" class="btn-move-down" onclick="moveTechTool(${allTools.indexOf(toolType)}, 'down')" ${allTools.indexOf(toolType) === allTools.length - 1 ? 'disabled' : ''}>↓</button>
+            <div class="tech-tool-header">
+                <span class="tool-number">${index + 1}</span>
+                <div class="tool-actions">
+                    <button type="button" class="btn-move-up" onclick="moveTechTool(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
+                    <button type="button" class="btn-move-down" onclick="moveTechTool(${index}, 'down')" ${index === toolOrder.length - 1 ? 'disabled' : ''}>↓</button>
+                </div>
             </div>
-            <input type="checkbox" id="${tool.id}" class="tech-tool-checkbox" ${isActive ? 'checked' : ''}>
-            <label for="${tool.id}" class="tech-tool-label">
-                <div class="tool-banner-header" style="background-image: url('${tool.banner_image}'); background-size: contain; background-position: center; background-repeat: no-repeat;"></div>
-                <div class="tool-banner-content">
-                    <div class="tool-description">${tool.description}</div>
+            <label class="tech-tool-checkbox">
+                <input type="checkbox" name="tech_tools[]" value="${toolType}" ${isActive ? 'checked' : ''}>
+                <div class="tech-tool-content">
+                    <img src="${toolBanner}" alt="${toolName}" class="tech-tool-banner">
+                    <div class="tech-tool-info">
+                        <h4>${escapeHtml(toolName)}</h4>
+                        <p>${escapeHtml(toolDescription)}</p>
+                    </div>
                 </div>
             </label>
         `;
-
-        techToolsList.appendChild(toolCard);
         
-        // Add click event to toggle selection styling
-        const checkbox = toolCard.querySelector('.tech-tool-checkbox');
-        checkbox.addEventListener('change', function() {
-            if (this.checked) {
-                toolCard.classList.add('selected');
+        // Add click handler to toggle checkbox and update card state
+        const checkbox = toolCard.querySelector('input[type="checkbox"]');
+        const cardElement = toolCard;
+        toolCard.addEventListener('click', function(e) {
+            // Don't toggle if clicking on move buttons
+            if (e.target.closest('.tool-actions')) {
+                return;
+            }
+            checkbox.checked = !checkbox.checked;
+            if (checkbox.checked) {
+                cardElement.classList.add('selected');
             } else {
-                toolCard.classList.remove('selected');
+                cardElement.classList.remove('selected');
             }
         });
+        
+        techToolsList.appendChild(toolCard);
     });
-
-    // Initialize drag and drop for tech tools
+    
+    // Initialize tech tool drag and drop
     setTimeout(() => {
         initializeTechToolDragAndDrop();
         updateTechToolButtons();
     }, 100);
-
-    console.log('Tech tools displayed:', techTools);
-}
-
-// Display communication methods
-function displayCommunicationMethods(methods) {
-    if (!methods || !Array.isArray(methods)) return;
-    
-    // Create a map of method_type to method data for quick lookup
-    const methodMap = {};
-    methods.forEach(method => {
-        methodMap[method.method_type] = method;
-    });
-    
-    // Message apps
-    const messageApps = [
-        { type: 'line', checkboxName: 'comm_line', inputName: 'comm_line_id' },
-        { type: 'messenger', checkboxName: 'comm_messenger', inputName: 'comm_messenger_id' },
-        { type: 'whatsapp', checkboxName: 'comm_whatsapp', inputName: 'comm_whatsapp_id' },
-        { type: 'plus_message', checkboxName: 'comm_plus_message', inputName: 'comm_plus_message_id' },
-        { type: 'chatwork', checkboxName: 'comm_chatwork', inputName: 'comm_chatwork_id' },
-        { type: 'andpad', checkboxName: 'comm_andpad', inputName: 'comm_andpad_id' }
-    ];
-    
-    messageApps.forEach(app => {
-        const method = methodMap[app.type];
-        if (method) {
-            const checkbox = document.querySelector(`input[name="${app.checkboxName}"]`);
-            const input = document.querySelector(`input[name="${app.inputName}"]`);
-            const details = checkbox?.closest('.communication-item')?.querySelector('.comm-details');
-            
-            if (checkbox) {
-                checkbox.checked = method.is_active === 1 || method.is_active === true;
-            }
-            if (input && (method.method_id || method.method_url)) {
-                input.value = method.method_id || method.method_url || '';
-            }
-            if (details && checkbox && checkbox.checked) {
-                details.style.display = 'block';
-            }
-        }
-    });
-    
-    // SNS apps
-    const snsApps = [
-        { type: 'instagram', checkboxName: 'comm_instagram', inputName: 'comm_instagram_url' },
-        { type: 'facebook', checkboxName: 'comm_facebook', inputName: 'comm_facebook_url' },
-        { type: 'twitter', checkboxName: 'comm_twitter', inputName: 'comm_twitter_url' },
-        { type: 'youtube', checkboxName: 'comm_youtube', inputName: 'comm_youtube_url' },
-        { type: 'tiktok', checkboxName: 'comm_tiktok', inputName: 'comm_tiktok_url' },
-        { type: 'note', checkboxName: 'comm_note', inputName: 'comm_note_url' },
-        { type: 'pinterest', checkboxName: 'comm_pinterest', inputName: 'comm_pinterest_url' },
-        { type: 'threads', checkboxName: 'comm_threads', inputName: 'comm_threads_url' }
-    ];
-    
-    snsApps.forEach(app => {
-        const method = methodMap[app.type];
-        if (method) {
-            const checkbox = document.querySelector(`input[name="${app.checkboxName}"]`);
-            const input = document.querySelector(`input[name="${app.inputName}"]`);
-            const details = checkbox?.closest('.communication-item')?.querySelector('.comm-details');
-            
-            if (checkbox) {
-                checkbox.checked = method.is_active === 1 || method.is_active === true;
-            }
-            if (input && method.method_url) {
-                input.value = method.method_url || '';
-            }
-            if (details && checkbox && checkbox.checked) {
-                details.style.display = 'block';
-            }
-        }
-    });
-    
-    // Re-initialize communication checkbox handlers after data is loaded
-    setupCommunicationCheckboxes();
-}
-
-// Setup navigation
-function setupNavigation() {
-    const navItems = document.querySelectorAll('.nav-item');
-    const sections = document.querySelectorAll('.edit-section');
-    const editNav = document.querySelector('.edit-nav');
-    
-    // Function to scroll active nav item to center
-    function scrollActiveNavToCenter(activeItem) {
-        if (!editNav || !activeItem) return;
-        
-        const navRect = editNav.getBoundingClientRect();
-        const itemRect = activeItem.getBoundingClientRect();
-        const itemTop = itemRect.top - navRect.top;
-        const itemHeight = itemRect.height;
-        const navHeight = navRect.height;
-        
-        // Calculate scroll position to center the item
-        const scrollPosition = itemTop - (navHeight / 2) + (itemHeight / 2);
-        
-        editNav.scrollTo({
-            top: scrollPosition,
-            behavior: 'smooth'
-        });
-    }
-    
-    navItems.forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            const targetId = this.getAttribute('href').substring(1);
-            
-            // Update active nav item
-            navItems.forEach(nav => nav.classList.remove('active'));
-            this.classList.add('active');
-            
-            // Scroll active item to center
-            scrollActiveNavToCenter(this);
-            
-            // Show target section
-            sections.forEach(section => {
-                section.classList.remove('active');
-                if (section.id === targetId + '-section') {
-                    section.classList.add('active');
-                }
-            });
-        });
-    });
-    
-    // Function to go to next step
-    window.goToNextStep = function(currentStep) {
-        const nextStep = currentStep + 1;
-        const maxStep = 5;
-
-        if (nextStep > maxStep) {
-            // Already at last step
-            return;
-        }
-
-        // Find the next nav item
-        const nextNavItem = document.querySelector(`.nav-item[data-step="${nextStep}"]`);
-        if (nextNavItem) {
-            // Trigger click on next nav item
-            nextNavItem.click();
-
-            // Scroll to the top of the screen
-            setTimeout(() => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }, 100);
-        }
-    };
-
-    // Helper function to get section ID by step number
-    function getSectionIdByStep(step) {
-        const stepMap = {
-            1: 'header-greeting-section',
-            2: 'company-profile-section',
-            3: 'personal-info-section',
-            4: 'tech-tools-section',
-            5: 'communication-section'
-        };
-        return stepMap[step] || '';
-    }
-    
-    // Scroll active nav item to center on page load
-    const activeNavItem = document.querySelector('.nav-item.active');
-    if (activeNavItem) {
-        setTimeout(() => {
-            scrollActiveNavToCenter(activeNavItem);
-        }, 100);
-    }
-    
-    // Map navigation IDs to section IDs
-    const navMap = {
-        'header-greeting': 'header-greeting-section',
-        'company-profile': 'company-profile-section',
-        'personal-info': 'personal-info-section',
-        'tech-tools': 'tech-tools-section',
-        'communication': 'communication-section'
-    };
-}
-
-// Setup file uploads
-function setupFileUploads() {
-    // Logo upload
-    const logoInput = document.getElementById('company_logo');
-    if (logoInput) {
-        logoInput.addEventListener('change', function(e) {
-            handleFileUpload(e, 'company_logo');
-        });
-    }
-    
-    // Profile photo upload
-    const photoInput = document.getElementById('profile_photo');
-    if (photoInput) {
-        photoInput.addEventListener('change', function(e) {
-            handleFileUpload(e, 'profile_photo');
-        });
-    }
-    
-    // Free image upload
-    const freeImageInput = document.getElementById('free_image');
-    if (freeImageInput) {
-        freeImageInput.addEventListener('change', function(e) {
-            handleFileUpload(e, 'free_image');
-        });
-    }
-}
-
-// Global cropper instance
-let currentCropper = null;
-let currentCropFieldName = null;
-let currentCropFile = null;
-let currentImageObjectURL = null; // Track object URL for cleanup
-let cropperImageLoadHandler = null; // Track onload handler
-
-// Handle file upload
-async function handleFileUpload(event, fieldName) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    if (!file.type.startsWith('image/')) {
-        showWarning('画像ファイルを選択してください');
-        return;
-    }
-    
-    // For logo and profile photo, show cropper modal
-    if (fieldName === 'company_logo' || fieldName === 'profile_photo') {
-        showImageCropper(file, fieldName, event);
-        return;
-    }
-    
-    // For other images, upload directly
-    await uploadFileDirectly(file, fieldName, event);
-}
-
-// Show image cropper modal
-function showImageCropper(file, fieldName, originalEvent) {
-    const modal = document.getElementById('image-cropper-modal');
-    const cropperImage = document.getElementById('cropper-image');
-    
-    if (!modal || !cropperImage) {
-        // Fallback to direct upload if modal doesn't exist
-        uploadFileDirectly(file, fieldName, originalEvent);
-        return;
-    }
-    
-    // Step 1: Clean up previous state completely
-    if (currentCropper) {
-        try {
-            currentCropper.destroy();
-        } catch (e) {
-            console.warn('Error destroying previous cropper:', e);
-        }
-        currentCropper = null;
-    }
-    
-    // Revoke previous object URL if exists
-    if (currentImageObjectURL) {
-        try {
-            URL.revokeObjectURL(currentImageObjectURL);
-        } catch (e) {
-            console.warn('Error revoking previous object URL:', e);
-        }
-        currentImageObjectURL = null;
-    }
-    
-    // Remove previous onload handler if exists
-    if (cropperImageLoadHandler) {
-        cropperImage.removeEventListener('load', cropperImageLoadHandler);
-        cropperImageLoadHandler = null;
-    }
-    
-    // Reset image element completely
-    cropperImage.onload = null;
-    cropperImage.onerror = null;
-    cropperImage.src = ''; // Clear src first
-    
-    // Step 2: Remove old event listeners from buttons (create new handlers)
-    const cancelBtn = document.getElementById('crop-cancel-btn');
-    const confirmBtn = document.getElementById('crop-confirm-btn');
-    
-    // Clone buttons to remove all event listeners (alternative: use removeEventListener)
-    if (cancelBtn) {
-        const newCancelBtn = cancelBtn.cloneNode(true);
-        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-        document.getElementById('crop-cancel-btn').onclick = null; // Clear any existing handlers
-    }
-    
-    if (confirmBtn) {
-        const newConfirmBtn = confirmBtn.cloneNode(true);
-        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-        document.getElementById('crop-confirm-btn').onclick = null; // Clear any existing handlers
-    }
-    
-    // Step 3: Store file and field name for later use
-    currentCropFile = file;
-    currentCropFieldName = fieldName;
-    
-    // Step 4: Create new object URL for the image
-    currentImageObjectURL = URL.createObjectURL(file);
-    
-    // Step 5: Show modal with proper styling
-    modal.style.display = 'flex';
-    modal.style.alignItems = 'center';
-    modal.style.justifyContent = 'center';
-    
-    // Step 6: Set up image load handler
-    cropperImageLoadHandler = function() {
-        // Destroy any existing cropper (defensive)
-        if (currentCropper) {
-            try {
-                currentCropper.destroy();
-            } catch (e) {
-                console.warn('Error destroying cropper in onload:', e);
-            }
-        }
-        
-        // Initialize cropper with aspect ratio
-        const aspectRatio = fieldName === 'company_logo' ? 1 : 1; // Square for both
-        try {
-            currentCropper = new Cropper(cropperImage, {
-                aspectRatio: aspectRatio,
-                viewMode: 1,
-                dragMode: 'move',
-                autoCropArea: 0.8,
-                restore: false,
-                guides: true,
-                center: true,
-                highlight: false,
-                cropBoxMovable: true,
-                cropBoxResizable: true,
-                toggleDragModeOnDblclick: false,
-                responsive: true,
-                minContainerWidth: 300,
-                minContainerHeight: 300
-            });
-        } catch (e) {
-            console.error('Error initializing cropper:', e);
-            showError('画像の読み込みに失敗しました');
-            closeImageCropper();
-        }
-    };
-    
-    cropperImage.onerror = function() {
-        console.error('Error loading image');
-        showError('画像の読み込みに失敗しました');
-        closeImageCropper();
-    };
-    
-    // Set image src (this will trigger onload)
-    cropperImage.src = currentImageObjectURL;
-    
-    // If image is already loaded (cached), trigger onload manually
-    if (cropperImage.complete) {
-        cropperImageLoadHandler();
-    } else {
-        cropperImage.onload = cropperImageLoadHandler;
-    }
-    
-    // Step 7: Setup cancel button (after recreating it)
-    const newCancelBtn = document.getElementById('crop-cancel-btn');
-    if (newCancelBtn) {
-        newCancelBtn.onclick = function() {
-            // Simply close the modal without uploading or cropping
-            closeImageCropper();
-            // Reset file input so user can select the same file again if needed
-            if (originalEvent && originalEvent.target) {
-                originalEvent.target.value = '';
-            }
-        };
-    }
-    
-    // Step 8: Setup confirm button (after recreating it)
-    const newConfirmBtn = document.getElementById('crop-confirm-btn');
-    if (newConfirmBtn) {
-        newConfirmBtn.onclick = function() {
-            cropAndUpload(originalEvent);
-        };
-    }
-}
-
-// Close image cropper
-function closeImageCropper() {
-    const modal = document.getElementById('image-cropper-modal');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.style.alignItems = '';
-        modal.style.justifyContent = '';
-    }
-    
-    // Destroy cropper instance
-    if (currentCropper) {
-        try {
-            currentCropper.destroy();
-        } catch (e) {
-            console.warn('Error destroying cropper on close:', e);
-        }
-        currentCropper = null;
-    }
-    
-    // Clean up object URL
-    const cropperImage = document.getElementById('cropper-image');
-    if (cropperImage) {
-        // Remove event handlers
-        if (cropperImageLoadHandler) {
-            cropperImage.removeEventListener('load', cropperImageLoadHandler);
-            cropperImage.onload = null;
-            cropperImageLoadHandler = null;
-        }
-        cropperImage.onerror = null;
-        
-        // Revoke object URL
-        if (currentImageObjectURL) {
-            try {
-                URL.revokeObjectURL(currentImageObjectURL);
-            } catch (e) {
-                console.warn('Error revoking object URL:', e);
-            }
-            currentImageObjectURL = null;
-        }
-        
-        // Clear image src
-        cropperImage.src = '';
-    }
-    
-    // Clear state
-    currentCropFile = null;
-    currentCropFieldName = null;
-}
-
-// Crop and upload image
-async function cropAndUpload(originalEvent) {
-    if (!currentCropper || !currentCropFile || !currentCropFieldName) {
-        return;
-    }
-    
-    try {
-        // Get cropped canvas
-        const canvas = currentCropper.getCroppedCanvas({
-            width: 800,
-            height: 800,
-            imageSmoothingEnabled: true,
-            imageSmoothingQuality: 'high'
-        });
-        
-        // Convert canvas to blob
-        canvas.toBlob(async function(blob) {
-            if (!blob) {
-                showError('画像のトリミングに失敗しました');
-                return;
-            }
-            
-            // Create FormData with cropped image
-            const formData = new FormData();
-            formData.append('file', blob, currentCropFile.name);
-            
-            // Determine file type
-            let fileType = 'photo';
-            if (currentCropFieldName === 'company_logo') {
-                fileType = 'logo';
-            } else if (currentCropFieldName === 'free_image') {
-                fileType = 'free';
-            }
-            formData.append('file_type', fileType);
-            
-            // Upload cropped image
-            await uploadFileDirectly(blob, currentCropFieldName, originalEvent, formData);
-            
-            // Close cropper
-            closeImageCropper();
-        }, currentCropFile.type, 0.95);
-        
-    } catch (error) {
-        console.error('Crop error:', error);
-        showError('画像のトリミング中にエラーが発生しました');
-    }
-}
-
-// Upload file directly (without cropping or after cropping)
-async function uploadFileDirectly(file, fieldName, originalEvent, existingFormData = null) {
-    const formData = existingFormData || new FormData();
-    
-    if (!existingFormData) {
-        formData.append('file', file);
-        
-        // Determine file type
-        let fileType = 'photo';
-        if (fieldName === 'company_logo') {
-            fileType = 'logo';
-        } else if (fieldName === 'free_image') {
-            fileType = 'free';
-        }
-        formData.append('file_type', fileType);
-    }
-    
-    try {
-        const response = await fetch('../backend/api/business-card/upload.php', {
-            method: 'POST',
-            body: formData,
-            credentials: 'include'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            // Show preview with resize info
-            const preview = originalEvent.target.closest('.upload-area').querySelector('.upload-preview');
-            if (preview) {
-                const imagePath = result.data.file_path.startsWith('http') ? result.data.file_path : '../' + result.data.file_path;
-
-                // Build resize info message
-                let resizeInfo = '';
-                if (result.data.was_resized) {
-                    const orig = result.data.original_dimensions;
-                    const final = result.data.final_dimensions;
-                    const origSize = result.data.original_size_kb;
-                    const finalSize = result.data.final_size_kb;
-                    resizeInfo = `<p style="font-size: 0.8rem; color: #666; margin-top: 0.5rem;">
-                        自動リサイズ: ${orig.width}×${orig.height} → ${final.width}×${final.height}px
-                        <br>(${origSize}KB → ${finalSize}KB)
-                    </p>`;
-                }
-
-                preview.innerHTML = `
-                    <img src="${imagePath}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
-                    ${resizeInfo}
-                `;
-            }
-            
-                // Update business card data
-                if (businessCardData) {
-                    if (fieldName === 'free_image') {
-                        // For free image, update the free_input JSON
-                        let freeInputData = {};
-                        try {
-                            if (businessCardData.free_input) {
-                                freeInputData = JSON.parse(businessCardData.free_input);
-                            }
-                        } catch (e) {
-                            console.error('Error parsing free_input:', e);
-                        }
-                        const fullPath = result.data.file_path;
-                        const relativePath = fullPath.split('/php/')[1] || fullPath;
-                        freeInputData.image = relativePath;
-                        businessCardData.free_input = JSON.stringify(freeInputData);
-                    } else {
-                        // Extract relative path from absolute URL for database storage
-                        let relativePath = result.data.file_path;
-                        if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
-                            // Remove BASE_URL prefix to get relative path
-                            // URL format: http://domain/backend/uploads/logo/filename.jpg
-                            // We need: backend/uploads/logo/filename.jpg
-                            const urlParts = relativePath.split('/');
-                            const backendIndex = urlParts.indexOf('backend');
-                            if (backendIndex !== -1) {
-                                relativePath = urlParts.slice(backendIndex).join('/');
-                            } else {
-                                // Fallback: try to find 'uploads' directory
-                                const uploadsIndex = urlParts.indexOf('uploads');
-                                if (uploadsIndex !== -1) {
-                                    relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
-                                }
-                            }
-                        }
-                        businessCardData[fieldName] = relativePath;
-                        console.log('Updated businessCardData[' + fieldName + '] =', relativePath);
-                    }
-                    window.businessCardData = businessCardData; // Sync with global
-                }
-                
-                // Update preview
-                if (businessCardData) {
-                updatePreview(businessCardData);
-            }
-
-            // Log resize info to console
-            if (result.data.was_resized) {
-                console.log('Image auto-resized:', result.data);
-            }
-        } else {
-            showError('アップロードに失敗しました: ' + result.message);
-        }
-    } catch (error) {
-        console.error('Upload error:', error);
-        showError('エラーが発生しました');
-    }
-}
-
-// Add greeting
-function addGreeting() {
-    const greetingsList = document.getElementById('greetings-list');
-    if (!greetingsList) return;
-    
-    const index = 0; // New items are added at the top, so index is always 0
-    const greetingItem = document.createElement('div');
-    greetingItem.className = 'greeting-item';
-    greetingItem.dataset.order = index;
-    greetingItem.innerHTML = `
-        <div class="greeting-header">
-            <span class="greeting-number">${index + 1}</span>
-            <div class="greeting-actions">
-                <button type="button" class="btn-move-up" onclick="moveGreeting(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
-                <button type="button" class="btn-move-down" onclick="moveGreeting(${index}, 'down')">↓</button>
-                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
-            </div>
-        </div>
-        <div class="form-group">
-            <label>タイトル</label>
-            <input type="text" name="greeting_title[]" class="form-control greeting-title" placeholder="タイトル">
-        </div>
-        <div class="form-group">
-            <label>本文</label>
-            <textarea name="greeting_content[]" class="form-control greeting-content" rows="4" placeholder="本文"></textarea>
-        </div>
-    `;
-    // Insert at the top of the container (before the first child, or append if no children exist)
-    if (greetingsList.firstChild) {
-        greetingsList.insertBefore(greetingItem, greetingsList.firstChild);
-    } else {
-    greetingsList.appendChild(greetingItem);
-    }
-    updateGreetingNumbers();
-    updateGreetingButtons();
-    initializeGreetingDragAndDrop();
-}
-
-// Save greetings
-async function saveGreetings() {
-    const greetingItems = document.querySelectorAll('#greetings-list .greeting-item');
-    const greetings = [];
-    
-    greetingItems.forEach((item, index) => {
-        // Try multiple selectors for title and content
-        const titleInput = item.querySelector('input[name="greeting_title[]"]') || 
-                           item.querySelector('.greeting-title');
-        const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]') || 
-                                item.querySelector('.greeting-content');
-        
-        const title = titleInput ? titleInput.value.trim() : '';
-        const content = contentTextarea ? contentTextarea.value.trim() : '';
-        
-        // Only add if both title and content have values
-        if (title && content) {
-            greetings.push({
-                title: title,
-                content: content,
-                display_order: index
-            });
-        }
-    });
-    
-    // ALWAYS send greetings array, even if empty - this ensures database is updated
-    console.log('Saving greetings:', greetings.length === 0 ? 'EMPTY ARRAY' : greetings);
-    
-    try {
-        const response = await fetch('../backend/api/business-card/update.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ greetings: greetings }), // Send empty array if all deleted
-            credentials: 'include'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            // Clear drafts on successful save
-            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
-                await window.autoSave.clearDraftsOnSuccess();
-            }
-            // Reload data to reflect changes
-            await loadBusinessCardData();
-        } else {
-            if (window.autoSave && window.autoSave.markSubmissionFailed) {
-                window.autoSave.markSubmissionFailed();
-            }
-            showError('保存に失敗しました: ' + result.message);
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showError('エラーが発生しました');
-    }
-}
-
-// Delete greeting (for existing greetings with ID)
-function deleteGreeting(id) {
-    showConfirm('この挨拶文を削除しますか？', () => {
-        // Remove from DOM
-        const item = document.querySelector(`.greeting-item[data-id="${id}"]`);
-        if (item) {
-            item.remove();
-        }
-        // Save changes
-        saveGreetings();
-    });
-    return;
-    
-    // Remove from DOM
-    const item = document.querySelector(`.greeting-item[data-id="${id}"]`);
-    if (item) {
-        item.remove();
-    }
-    
-    // Save changes
-    saveGreetings();
-}
-
-// Delete greeting (removes the entire greeting-item div and updates database)
-function clearGreeting(button) {
-    const greetingItem = button.closest('.greeting-item');
-    if (!greetingItem) return;
-    
-    // Check if this is an existing greeting with ID (from database)
-    const greetingId = greetingItem.dataset.id;
-    
-    if (greetingId) {
-        // Existing greeting - use deleteGreeting function
-        deleteGreeting(greetingId);
-    } else {
-        // Template greeting - remove from DOM
-        greetingItem.remove();
-        
-        // Update greeting numbers and buttons
-        updateGreetingNumbers();
-        updateGreetingButtons();
-        initializeGreetingDragAndDrop();
-        
-        // Save changes to database
-        saveGreetings();
-    }
-}
-
-// Toggle tech tool (deprecated - no longer auto-saves)
-// Tech tools are now only saved when the "保存" button is clicked
-function toggleTechTool(toolTypeOrId, isActive) {
-    // Just update visual state - no auto-save
-    // The checkbox state is already handled by the browser
-    console.log('Tech tool toggled:', toolTypeOrId, isActive);
 }
 
 // Save tech tools
 async function saveTechTools() {
-    const techToolsList = document.getElementById('tech-tools-list');
-    if (!techToolsList) {
-        console.error('Tech tools list not found');
+    const selectedCheckboxes = document.querySelectorAll('#tech-tools-list input[name="tech_tools[]"]:checked');
+    
+    if (selectedCheckboxes.length < 2) {
+        showError('最低2つ以上のテックツールを選択してください');
         return;
     }
     
-    // Use .tech-tool-banner-card or .tech-tool-card selector (matches the banner format)
-    // Get tools in DOM order (respecting user's reordering)
-    const toolCards = Array.from(techToolsList.querySelectorAll('.tech-tool-banner-card, .tech-tool-card'));
-    const selectedToolTypes = [];
-    
-    toolCards.forEach(card => {
-        const checkbox = card.querySelector('input[type="checkbox"]');
+    // Get selected tools in DOM order
+    const techToolsList = document.getElementById('tech-tools-list');
+    const selectedTools = [];
+    techToolsList.querySelectorAll('.tech-tool-banner-card').forEach(card => {
+        const checkbox = card.querySelector('input[name="tech_tools[]"]');
         if (checkbox && checkbox.checked) {
-            selectedToolTypes.push(card.dataset.toolType);
+            selectedTools.push(checkbox.value);
         }
     });
     
-    if (selectedToolTypes.length < 2) {
-        showWarning('最低2つ以上のテックツールを選択してください');
-        return;
-    }
-    
     try {
-        // Step 1: Generate URLs for selected tools
+        // Get tool URLs from API
         const urlResponse = await fetch('../backend/api/tech-tools/generate-urls.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ selected_tools: selectedToolTypes }),
+            body: JSON.stringify({ selected_tools: selectedTools }),
             credentials: 'include'
         });
         
         const urlResult = await urlResponse.json();
         if (!urlResult.success) {
-            showError('URL生成に失敗しました: ' + urlResult.message);
+            showError('テックツールURLの取得に失敗しました');
             return;
         }
         
-        // Step 2: Format tech tools for database - preserve DOM order
-        // Create a map of tool_type to tool_url for quick lookup
+        // Format tech tools for database - preserve DOM order
         const toolUrlMap = {};
         urlResult.data.tech_tools.forEach(tool => {
             toolUrlMap[tool.tool_type] = tool.tool_url;
         });
         
-        // Build tech tools array in DOM order
-        const techTools = selectedToolTypes.map((toolType, index) => ({
+        const techToolsForDB = selectedTools.map((toolType, index) => ({
             tool_type: toolType,
             tool_url: toolUrlMap[toolType],
             display_order: index,
             is_active: 1
         }));
         
-        console.log('Saving tech tools:', techTools);
-        
-        // Step 3: Save to database
+        // Save to database
         const saveResponse = await fetch('../backend/api/business-card/update.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ tech_tools: techTools }),
+            body: JSON.stringify({ tech_tools: techToolsForDB }),
             credentials: 'include'
         });
         
         const saveResult = await saveResponse.json();
-        
         if (saveResult.success) {
-            // Clear drafts on successful save
-            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
-                await window.autoSave.clearDraftsOnSuccess();
-            }
-            loadBusinessCardData(); // Reload data
+            // Update business card data without reloading
+            await loadBusinessCardData();
             // Move to next step (Step 5)
             setTimeout(() => {
                 if (window.goToNextStep) {
                     window.goToNextStep(4);
                 }
-            }, 500);
+            }, 300);
         } else {
             showError('保存に失敗しました: ' + saveResult.message);
         }
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error saving tech tools:', error);
         showError('エラーが発生しました');
-    }
-}
-
-// Toggle communication method (kept for backward compatibility, but now handled by setupCommunicationCheckboxes)
-function toggleCommunicationMethod(id, isActive) {
-    // This function is now handled by setupCommunicationCheckboxes
-    // But we keep it for any existing calls
-    if (id === null) {
-        // Handle inline checkbox changes - already handled by setupCommunicationCheckboxes
-        return;
-    } else {
-        const item = document.querySelector(`.communication-item[data-id="${id}"]`);
-        if (item) {
-            const details = item.querySelector('.comm-details');
-            details.style.display = isActive ? 'block' : 'none';
-        }
-    }
-}
-
-// Delete communication method (no longer needed since all methods are always visible)
-async function deleteCommunicationMethod(id) {
-    // This function is kept for backward compatibility but is no longer used
-    // All communication methods are now always visible
-    return;
-}
-
-// Add communication method (no longer needed since all methods are always visible)
-function addCommunicationMethod() {
-    // This function is kept for backward compatibility but is no longer used
-    // All communication methods are now always visible
-    showInfo('すべてのコミュニケーション方法が表示されています。チェックボックスで選択してください。');
-}
-
-// Validate URL
-function isValidUrl(url) {
-    if (!url) return false;
-    try {
-        const urlObj = new URL(url);
-        return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
-    } catch (e) {
-        return false;
     }
 }
 
 // Save communication methods
 async function saveCommunicationMethods() {
-    const methods = [];
-    const errors = [];
+    const communicationMethods = [];
     let displayOrder = 0;
     
     // Message apps
@@ -1814,46 +738,19 @@ async function saveCommunicationMethods() {
     messageApps.forEach(app => {
         const checkbox = document.querySelector(`input[name="${app.key}"]`);
         if (checkbox && checkbox.checked) {
-            const input = document.querySelector(`input[name="${app.idField}"]`);
-            const value = input ? input.value.trim() : '';
-            
-            if (!value) {
-                const methodNames = {
-                    'line': 'LINE',
-                    'messenger': 'Messenger',
-                    'whatsapp': 'WhatsApp',
-                    'plus_message': '+メッセージ',
-                    'chatwork': 'Chatwork',
-                    'andpad': 'Andpad'
-                };
-                errors.push(`${methodNames[app.type] || app.type}のIDまたはURLを入力してください。`);
-                if (input) {
-                    input.style.borderColor = '#dc3545';
-                    input.addEventListener('input', function() {
-                        if (this.value.trim()) {
-                            this.style.borderColor = '';
-                        }
-                    });
-                }
-                return;
-            }
-            
-            if (input) {
-                input.style.borderColor = '';
-            }
-            
-            methods.push({
+            const idInput = document.querySelector(`input[name="${app.idField}"]`);
+            const id = idInput ? idInput.value.trim() : '';
+            communicationMethods.push({
                 method_type: app.type,
                 method_name: app.type,
-                method_url: value.startsWith('http') ? value : '',
-                method_id: value.startsWith('http') ? '' : value,
-                is_active: 1,
+                method_url: id.startsWith('http') ? id : '',
+                method_id: id.startsWith('http') ? '' : id,
                 display_order: displayOrder++
             });
         }
     });
     
-    // SNS apps
+    // SNS
     const snsApps = [
         { key: 'comm_instagram', type: 'instagram', urlField: 'comm_instagram_url' },
         { key: 'comm_facebook', type: 'facebook', urlField: 'comm_facebook_url' },
@@ -1868,59 +765,21 @@ async function saveCommunicationMethods() {
     snsApps.forEach(app => {
         const checkbox = document.querySelector(`input[name="${app.key}"]`);
         if (checkbox && checkbox.checked) {
-            const input = document.querySelector(`input[name="${app.urlField}"]`);
-            const value = input ? input.value.trim() : '';
-            
-            // Validation for URL-based methods
-            if (value && !isValidUrl(value)) {
-                const methodNames = {
-                    'instagram': 'Instagram',
-                    'facebook': 'Facebook',
-                    'twitter': 'X (Twitter)',
-                    'youtube': 'YouTube',
-                    'tiktok': 'TikTok',
-                    'note': 'note',
-                    'pinterest': 'Pinterest',
-                    'threads': 'Threads'
-                };
-                errors.push(`${methodNames[app.type] || app.type}のURLが無効です。https://で始まる有効なURLを入力してください。`);
-                if (input) {
-                    input.style.borderColor = '#dc3545';
-                    input.addEventListener('input', function() {
-                        if (isValidUrl(this.value.trim())) {
-                            this.style.borderColor = '';
-                        }
-                    });
-                }
-                return;
-            }
-            
-            if (input) {
-                input.style.borderColor = '';
-            }
-            
-            methods.push({
+            const urlInput = document.querySelector(`input[name="${app.urlField}"]`);
+            const url = urlInput ? urlInput.value.trim() : '';
+            communicationMethods.push({
                 method_type: app.type,
                 method_name: app.type,
-                method_url: value,
+                method_url: url,
                 method_id: '',
-                is_active: 1,
                 display_order: displayOrder++
             });
         }
     });
     
-    // Show validation errors if any
-    if (errors.length > 0) {
-        showError('入力内容に誤りがあります:\n' + errors.join('\n'));
-        return;
-    }
-    
-    // If no methods selected, show warning
-    if (methods.length === 0) {
-        showWarning('少なくとも1つのコミュニケーション方法を選択してください');
-        return;
-    }
+    const data = {
+        communication_methods: communicationMethods
+    };
     
     try {
         const response = await fetch('../backend/api/business-card/update.php', {
@@ -1928,20 +787,15 @@ async function saveCommunicationMethods() {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ communication_methods: methods }),
+            body: JSON.stringify(data),
             credentials: 'include'
         });
         
         const result = await response.json();
-        
         if (result.success) {
-            // Clear drafts on successful save
-            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
-                await window.autoSave.clearDraftsOnSuccess();
-            }
-            loadBusinessCardData(); // Reload data
-            // Last step (Step 5), no next step to move to
-            // Optionally, could scroll to top or show completion message
+            // Update business card data without reloading
+            await loadBusinessCardData();
+            showSuccess('保存しました');
         } else {
             showError('保存に失敗しました: ' + result.message);
         }
@@ -1951,305 +805,207 @@ async function saveCommunicationMethods() {
     }
 }
 
-// Update preview
-function updatePreview(data) {
-    const previewContent = document.getElementById('preview-content');
-    if (!previewContent) {
-        console.error('Preview content element not found');
-        return;
-    }
-    
-    console.log('Updating preview with data:', data);
-    
-    // Simple preview HTML generation
-    let html = '<div class="preview-card" style="background: #fff;">';
-    
-    // Header
-    html += '<div style="text-align: center; margin-bottom: 20px;">';
-    if (data.company_logo) {
-        const logoPath = data.company_logo.startsWith('http') ? data.company_logo : '../' + data.company_logo;
-        html += `<div style="margin-bottom: 10px;"><img src="${logoPath}" alt="ロゴ" style="max-width: 150px; max-height: 150px;"></div>`;
-    }
-    if (data.company_name) {
-        html += `<h1 style="font-size: 1.5rem; margin: 10px 0;">${escapeHtml(data.company_name)}</h1>`;
-    }
-    html += '</div>';
-    
-    // Profile
-    html += '<div style="display: flex; gap: 20px; margin-bottom: 20px;">';
-    if (data.profile_photo) {
-        const photoPath = data.profile_photo.startsWith('http') ? data.profile_photo : '../' + data.profile_photo;
-        html += `<div><img src="${photoPath}" alt="プロフィール写真" style="max-width: 100px; max-height: 100px; border-radius: 50%;"></div>`;
-    }
-    html += '<div>';
-    if (data.name) {
-        html += `<h2 style="font-size: 1.2rem; margin: 0 0 10px 0;">${escapeHtml(data.name)}</h2>`;
-    }
-    if (data.position) {
-        html += `<p style="margin: 5px 0; color: #666;">${escapeHtml(data.position)}</p>`;
-    }
-    if (data.branch_department) {
-        html += `<p style="margin: 5px 0; color: #666;">${escapeHtml(data.branch_department)}</p>`;
-    }
-    html += '</div>';
-    html += '</div>';
-    
-    // Additional info
-    if (data.company_address || data.company_phone || data.mobile_phone) {
-        html += '<div style="border-top: 1px solid #eee; padding-top: 15px; margin-top: 15px;">';
-        if (data.company_address) {
-            html += `<p style="margin: 5px 0;"><strong>住所:</strong> ${escapeHtml(data.company_address)}</p>`;
-        }
-        if (data.company_phone) {
-            html += `<p style="margin: 5px 0;"><strong>電話:</strong> ${escapeHtml(data.company_phone)}</p>`;
-        }
-        if (data.mobile_phone) {
-            html += `<p style="margin: 5px 0;"><strong>携帯:</strong> ${escapeHtml(data.mobile_phone)}</p>`;
-        }
-        html += '</div>';
-    }
-    
-    html += '</div>';
-    
-    previewContent.innerHTML = html;
-    console.log('Preview updated');
-}
-
-// Escape HTML
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Add free input text textarea
-// Add a paired item (text + image) for edit
-function addFreeInputPair() {
-    const container = document.getElementById('free-input-pairs-container');
-    if (!container) return;
-    
-    const itemCount = container.querySelectorAll('.free-input-pair-item').length;
-    const newPairItem = document.createElement('div');
-    newPairItem.className = 'free-input-pair-item';
-    newPairItem.style.marginTop = '2rem';
-    newPairItem.style.paddingTop = '2rem';
-    newPairItem.style.borderTop = '1px solid #e0e0e0';
-
-    newPairItem.innerHTML = `
-        <!-- Text Input -->
-        <div class="form-group">
-            <label>テキスト</label>
-        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
-        </div>
-        <!-- Image/Banner Input -->
-        <div class="form-group">
-            <label>画像・バナー（リンク付き画像）</label>
-            <div class="upload-area" data-upload-id="free_image_${itemCount}">
-                <input type="file" name="free_image[]" accept="image/*" style="display: none;">
-                <div class="upload-preview"></div>
-                <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
-                    画像をアップロード
-                </button>
-                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
-            </div>
-            <div class="form-group" style="margin-top: 0.5rem;">
-                <label>画像のリンク先URL（任意）</label>
-                <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
-            </div>
-        </div>
-        <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)">削除</button>
-    `;
-    
-    container.appendChild(newPairItem);
-
-    // Initialize file input handler for the new item
-    initializeFreeImageUpload(newPairItem);
-    
-    // Show delete buttons if there are multiple items
-    updateFreeInputPairDeleteButtons();
-}
-
-// Remove a paired item (text + image) for edit
-function removeFreeInputPair(button) {
-    const container = document.getElementById('free-input-pairs-container');
-    if (!container) return;
-    
-    const items = container.querySelectorAll('.free-input-pair-item');
-    if (items.length <= 1) {
-        showWarning('最低1つのセットが必要です。');
-        return;
-    }
-    
-    const item = button.closest('.free-input-pair-item');
-    if (item) {
-        item.remove();
-        updateFreeInputPairDeleteButtons();
-    }
-}
-
-// Update delete button visibility for paired items in edit
-function updateFreeInputPairDeleteButtons() {
-    const container = document.getElementById('free-input-pairs-container');
-    if (!container) return;
-    
-    const items = container.querySelectorAll('.free-input-pair-item');
-    const deleteButtons = container.querySelectorAll('.free-input-pair-item .btn-delete-small');
-    
-    if (items.length > 1) {
-        deleteButtons.forEach(btn => btn.style.display = 'inline-block');
-    } else {
-        deleteButtons.forEach(btn => btn.style.display = 'none');
-    }
-}
-
-// Legacy function kept for backwards compatibility
-function removeFreeInputText(button) {
-    removeFreeInputPair(button);
-}
-
-// Legacy function kept for backwards compatibility
-function updateFreeInputDeleteButtons() {
-    updateFreeInputPairDeleteButtons();
-}
-
-// Add free image item
-// Function removed - adding new image items is no longer supported
-// function addFreeImageItem() {
-//     const container = document.getElementById('free-images-container');
-//     if (!container) return;
-//
-//     const itemCount = container.querySelectorAll('.free-image-item').length;
-//     const newItem = document.createElement('div');
-//     newItem.className = 'free-image-item';
-//     newItem.innerHTML = `
-//         <div class="upload-area" data-upload-id="free_image_${itemCount}">
-//             <input type="file" name="free_image[]" accept="image/*" style="display: none;">
-//             <div class="upload-preview"></div>
-//             <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
-//                 画像をアップロード
-//             </button>
-//             <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
-//         </div>
-//         <div class="form-group" style="margin-top: 0.5rem;">
-//             <label>画像のリンク先URL（任意）</label>
-//             <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
-//         </div>
-//         <button type="button" class="btn-delete-small" onclick="removeFreeImageItem(this)">削除</button>
-//     `;
-//
-//     container.appendChild(newItem);
-//
-//     // Initialize file input handler for the new item
-//     initializeFreeImageUpload(newItem);
-//
-//     // Show delete buttons if there are multiple items
-//     updateFreeImageDeleteButtons();
-// }
-
-// Remove free image item
-function removeFreeImageItem(button) {
-    const container = document.getElementById('free-images-container');
-    if (!container) return;
-    
-    const items = container.querySelectorAll('.free-image-item');
-    if (items.length <= 1) {
-        showWarning('最低1つの画像項目が必要です。');
-        return;
-    }
-    
-    const item = button.closest('.free-image-item');
-    if (item) {
-        item.remove();
-        updateFreeImageDeleteButtons();
-    }
-}
-
-// Update delete button visibility for free images
-function updateFreeImageDeleteButtons() {
-    const container = document.getElementById('free-images-container');
-    if (!container) return;
-    
-    const items = container.querySelectorAll('.free-image-item');
-    const deleteButtons = container.querySelectorAll('#free-images-container .btn-delete-small');
-    
-    if (items.length > 1) {
-        deleteButtons.forEach(btn => btn.style.display = 'inline-block');
-    } else {
-        deleteButtons.forEach(btn => btn.style.display = 'none');
-    }
-}
-
-// Initialize file upload handler for free image items
-function initializeFreeImageUpload(item) {
-    const fileInput = item.querySelector('input[type="file"]');
-    if (!fileInput) return;
-    
-    fileInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const preview = item.querySelector('.upload-preview');
-                if (preview) {
-                    const img = new Image();
-                    img.onload = () => {
-                        const resizeNote = (img.width > 1200 || img.height > 1200) 
-                            ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
-                            : '';
-                        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
-                    };
-                    img.src = event.target.result;
-                }
-            };
-            reader.readAsDataURL(file);
-        }
+// Setup communication checkboxes to show/hide details
+function setupCommunicationCheckboxes() {
+    document.querySelectorAll('.communication-checkbox input[type="checkbox"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const item = this.closest('.communication-item');
+            const details = item ? item.querySelector('.comm-details') : null;
+            if (details) {
+                details.style.display = this.checked ? 'block' : 'none';
+            }
+        });
     });
 }
 
-// Move tech tool up or down
-function moveTechTool(index, direction) {
-    const container = document.getElementById('tech-tools-list');
+// Initialize communication drag and drop on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Load existing business card data
+    loadExistingBusinessCardData();
+    
+    // Initialize for both message apps and SNS
+    setTimeout(() => {
+        initializeCommunicationDragAndDrop('message');
+        initializeCommunicationDragAndDrop('sns');
+    }, 100);
+    
+    // Initialize navigation functionality
+    initializeEditNavigation();
+    
+    // Setup communication checkboxes
+    setupCommunicationCheckboxes();
+});
+
+// Greeting functions for edit page
+function moveGreeting(index, direction) {
+    const container = document.getElementById('greetings-list');
     if (!container) return;
     
-    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card'));
+    const items = Array.from(container.querySelectorAll('.greeting-item'));
     
     if (direction === 'up' && index > 0) {
         const currentItem = items[index];
         const prevItem = items[index - 1];
         container.insertBefore(currentItem, prevItem);
-        updateTechToolButtons();
+        updateGreetingButtons();
+        updateGreetingNumbers();
     } else if (direction === 'down' && index < items.length - 1) {
         const currentItem = items[index];
         const nextItem = items[index + 1];
         container.insertBefore(nextItem, currentItem);
-        updateTechToolButtons();
+        updateGreetingButtons();
+        updateGreetingNumbers();
     }
 }
 
-// Update tech tool move buttons
-function updateTechToolButtons() {
-    const container = document.getElementById('tech-tools-list');
+function updateGreetingButtons() {
+    const container = document.getElementById('greetings-list');
     if (!container) return;
     
-    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card'));
+    const items = Array.from(container.querySelectorAll('.greeting-item'));
     items.forEach((item, index) => {
         const upBtn = item.querySelector('.btn-move-up');
         const downBtn = item.querySelector('.btn-move-down');
         if (upBtn) {
             upBtn.disabled = index === 0;
-            upBtn.setAttribute('onclick', `moveTechTool(${index}, 'up')`);
+            upBtn.setAttribute('onclick', `moveGreeting(${index}, 'up')`);
         }
         if (downBtn) {
             downBtn.disabled = index === items.length - 1;
-            downBtn.setAttribute('onclick', `moveTechTool(${index}, 'down')`);
+            downBtn.setAttribute('onclick', `moveGreeting(${index}, 'down')`);
         }
     });
 }
 
-// Initialize drag and drop for tech tools
-function initializeTechToolDragAndDrop() {
-    const container = document.getElementById('tech-tools-list');
+function updateGreetingNumbers() {
+    const container = document.getElementById('greetings-list');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.greeting-item');
+    items.forEach((item, index) => {
+        const numberSpan = item.querySelector('.greeting-number');
+        if (numberSpan) {
+            numberSpan.textContent = index + 1;
+        }
+    });
+}
+
+function clearGreeting(button) {
+    const greetingItem = button.closest('.greeting-item');
+    if (!greetingItem) return;
+    
+    // Remove the entire greeting-item div
+    greetingItem.remove();
+    
+    // Update greeting numbers and buttons
+    updateGreetingNumbers();
+    updateGreetingButtons();
+    initializeGreetingDragAndDrop();
+}
+
+function addGreeting() {
+    const container = document.getElementById('greetings-list');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.greeting-item');
+    const newIndex = items.length;
+    
+    const greetingItem = document.createElement('div');
+    greetingItem.className = 'greeting-item';
+    greetingItem.dataset.order = newIndex;
+    greetingItem.innerHTML = `
+        <div class="greeting-header">
+            <span class="greeting-number">${newIndex + 1}</span>
+            <div class="greeting-actions">
+                <button type="button" class="btn-move-up" onclick="moveGreeting(${newIndex}, 'up')" ${newIndex === 0 ? 'disabled' : ''}>↑</button>
+                <button type="button" class="btn-move-down" onclick="moveGreeting(${newIndex}, 'down')">↓</button>
+                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>タイトル</label>
+            <input type="text" name="greeting_title[]" class="form-control" placeholder="タイトル">
+        </div>
+        <div class="form-group">
+            <label>本文</label>
+            <textarea name="greeting_content[]" class="form-control" rows="4" placeholder="本文"></textarea>
+        </div>
+    `;
+    
+    // Insert at the beginning
+    container.insertBefore(greetingItem, container.firstChild);
+    
+    // Update greeting numbers and buttons
+    updateGreetingNumbers();
+    updateGreetingButtons();
+    initializeGreetingDragAndDrop();
+}
+
+function restoreDefaultGreetings() {
+    const defaultGreetings = [
+        {
+            title: '笑顔が増える「住み替え」を叶えます',
+            content: '初めての売買で感じる不安や疑問。「あなたに頼んでよかった」と言っていただけるよう、理想の住まい探しと売却を全力で伴走いたします。私は、お客様が描く「10年後の幸せな日常」を第一に考えます。'
+        },
+        {
+            title: '自宅は大きな貯金箱',
+            content: '「不動産売買は人生最大の投資」という視点に立ち、物件のメリットだけでなく、将来のリスクやデメリットも隠さずお伝えするのが信条です。感情に流されない、確実な資産形成と納得のいく取引をサポートします。'
+        },
+        {
+            title: 'お客様に「情報武装」をご提案',
+            content: '「この価格は妥当なのだろうか？」「もっとよい物件情報は無いのだろうか？」私は全ての情報をお客様に開示いたしますが、お客様に「情報武装」していただく事で、それをさらに担保いたします。他のエージェントにはない、私独自のサービスをご活用ください。'
+        },
+        {
+            title: 'お客様を「3つの疲労」から解放いたします',
+            content: '一つ目は、ポータルサイト巡りの「情報収集疲労」。二つ目は、不動産会社への「問い合わせ疲労」、専門知識不足による「判断疲労」です。私がご提供するテックツールで、情報収集は自動化、私が全ての情報を公開しますので多くの不動産会社に問い合わせることも不要、物件情報にAI評価がついているので客観的判断も自動化されます。'
+        },
+        {
+            title: '忙しい子育て世代へ。手間を省くスマート売買',
+            content: '「売り」と「買い」を同時に進める住み替えは手続きが煩雑になりがちです。忙しいご夫婦に代わり、書類作成から金融機関との折衝、内覧の調整まで私が窓口となってスムーズに進めます。お子様連れでの内覧や打ち合わせも大歓迎です。ご家族の貴重な時間を奪わないよう、迅速かつ丁寧な段取りをお約束します。'
+        }
+    ];
+    
+    const container = document.getElementById('greetings-list');
+    if (!container) return;
+    
+    const currentCount = container.querySelectorAll('.greeting-item').length;
+    
+    defaultGreetings.forEach((greeting, index) => {
+        const greetingItem = document.createElement('div');
+        greetingItem.className = 'greeting-item';
+        greetingItem.dataset.order = currentCount + index;
+        greetingItem.innerHTML = `
+            <div class="greeting-header">
+                <span class="greeting-number">${currentCount + index + 1}</span>
+                <div class="greeting-actions">
+                    <button type="button" class="btn-move-up" onclick="moveGreeting(${currentCount + index}, 'up')">↑</button>
+                    <button type="button" class="btn-move-down" onclick="moveGreeting(${currentCount + index}, 'down')">↓</button>
+                    <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>タイトル</label>
+                <input type="text" name="greeting_title[]" class="form-control" value="${escapeHtml(greeting.title)}" placeholder="タイトル">
+            </div>
+            <div class="form-group">
+                <label>本文</label>
+                <textarea name="greeting_content[]" class="form-control" rows="4" placeholder="本文">${escapeHtml(greeting.content)}</textarea>
+            </div>
+        `;
+        container.appendChild(greetingItem);
+    });
+    
+    // Re-initialize drag and drop and update numbering/buttons after displaying
+    setTimeout(function() {
+        initializeGreetingDragAndDrop();
+        updateGreetingNumbers();
+        updateGreetingButtons();
+    }, 100);
+}
+
+// Initialize greeting drag and drop
+function initializeGreetingDragAndDrop() {
+    const container = document.getElementById('greetings-list');
     if (!container) return;
     
     let draggedElement = null;
@@ -2259,7 +1015,7 @@ function initializeTechToolDragAndDrop() {
         if (isInitializing) return;
         isInitializing = true;
         
-        const items = container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card');
+        const items = container.querySelectorAll('.greeting-item');
         items.forEach((item, index) => {
             if (!item.hasAttribute('draggable')) {
                 item.draggable = true;
@@ -2272,7 +1028,7 @@ function initializeTechToolDragAndDrop() {
     }
     
     function attachDragListeners() {
-        const items = container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card');
+        const items = container.querySelectorAll('.greeting-item');
         items.forEach((item) => {
             if (item.dataset.dragInitialized === 'true') return;
             item.dataset.dragInitialized = 'true';
@@ -2286,7 +1042,7 @@ function initializeTechToolDragAndDrop() {
             
             item.addEventListener('dragend', function(e) {
                 this.classList.remove('dragging');
-                container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card').forEach(item => {
+                container.querySelectorAll('.greeting-item').forEach(item => {
                     item.classList.remove('drag-over');
                 });
             });
@@ -2310,7 +1066,157 @@ function initializeTechToolDragAndDrop() {
                 if (draggedElement !== this && draggedElement !== null) {
                     if (observer) observer.disconnect();
                     
-                    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card, .tech-tool-card'));
+                    const items = Array.from(container.querySelectorAll('.greeting-item'));
+                    const targetIndex = items.indexOf(this);
+                    const draggedIndexCurrent = items.indexOf(draggedElement);
+                    
+                    if (draggedIndexCurrent < targetIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+                    
+                    draggedElement.dataset.dragInitialized = 'false';
+                    this.dataset.dragInitialized = 'false';
+                    
+                    updateGreetingNumbers();
+                    updateGreetingButtons();
+                    attachDragListeners();
+                    
+                    if (observer) {
+                        observer.observe(container, {
+                            childList: true,
+                            subtree: false
+                        });
+                    }
+                }
+                
+                this.classList.remove('drag-over');
+                draggedElement = null;
+                return false;
+            });
+        });
+    }
+    
+    // MutationObserver to handle dynamic changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList') {
+                makeItemsDraggable();
+            }
+        });
+    });
+    
+    makeItemsDraggable();
+    
+    observer.observe(container, {
+        childList: true,
+        subtree: false
+    });
+}
+
+// Tech tool functions
+function moveTechTool(index, direction) {
+    const container = document.getElementById('tech-tools-list');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateTechToolButtons();
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateTechToolButtons();
+    }
+}
+
+function updateTechToolButtons() {
+    const container = document.getElementById('tech-tools-list');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveTechTool(${index}, 'up')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveTechTool(${index}, 'down')`);
+        }
+    });
+}
+
+function initializeTechToolDragAndDrop() {
+    const container = document.getElementById('tech-tools-list');
+    if (!container) return;
+    
+    let draggedElement = null;
+    let isInitializing = false;
+    
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+        
+        const items = container.querySelectorAll('.tech-tool-banner-card');
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+        
+        attachDragListeners();
+        isInitializing = false;
+    }
+    
+    function attachDragListeners() {
+        const items = container.querySelectorAll('.tech-tool-banner-card');
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+            
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+            
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll('.tech-tool-banner-card').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+            
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+                return false;
+            });
+            
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+            
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (draggedElement !== this && draggedElement !== null) {
+                    if (observer) observer.disconnect();
+                    
+                    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
                     const targetIndex = items.indexOf(this);
                     const draggedIndexCurrent = items.indexOf(draggedElement);
                     
@@ -2341,29 +1247,16 @@ function initializeTechToolDragAndDrop() {
         });
     }
     
-    makeItemsDraggable();
-    
+    // MutationObserver to handle dynamic changes
     const observer = new MutationObserver(function(mutations) {
-        if (isInitializing) return;
-        
-        let shouldReinit = false;
         mutations.forEach(function(mutation) {
-            if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
-                for (let node of mutation.addedNodes) {
-                    if (node.nodeType === 1 && node.classList && (node.classList.contains('tech-tool-banner-card') || node.classList.contains('tech-tool-card'))) {
-                        if (!node.dataset.dragInitialized) {
-                            shouldReinit = true;
-                            break;
-                        }
-                    }
-                }
+            if (mutation.type === 'childList') {
+                makeItemsDraggable();
             }
         });
-        
-        if (shouldReinit) {
-            makeItemsDraggable();
-        }
     });
+    
+    makeItemsDraggable();
     
     observer.observe(container, {
         childList: true,
@@ -2371,3 +1264,168 @@ function initializeTechToolDragAndDrop() {
     });
 }
 
+// Free input pair functions
+function addFreeInputPair() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const pairCount = container.querySelectorAll('.free-input-pair-item').length;
+    
+    const pairItem = document.createElement('div');
+    pairItem.className = 'free-input-pair-item';
+    if (pairCount > 0) {
+        pairItem.style.marginTop = '2rem';
+        pairItem.style.paddingTop = '2rem';
+        pairItem.style.borderTop = '1px solid #e0e0e0';
+    }
+    
+    pairItem.innerHTML = `
+        <!-- Text Input -->
+        <div class="form-group">
+            <label>テキスト</label>
+            <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+        </div>
+        <!-- Image/Banner Input -->
+        <div class="form-group">
+            <label>画像・バナー（リンク付き画像）</label>
+            <div class="upload-area" data-upload-id="free_image_${pairCount}">
+                <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                <div class="upload-preview"></div>
+                <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
+                    画像をアップロード
+                </button>
+                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+            </div>
+            <div class="form-group" style="margin-top: 0.5rem;">
+                <label>画像のリンク先URL（任意）</label>
+                <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+            </div>
+        </div>
+        <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)">削除</button>
+    `;
+    
+    container.appendChild(pairItem);
+    
+    // Update delete button visibility
+    const allPairs = container.querySelectorAll('.free-input-pair-item');
+    allPairs.forEach((pair, index) => {
+        const deleteBtn = pair.querySelector('.btn-delete-small');
+        if (deleteBtn) {
+            deleteBtn.style.display = allPairs.length > 1 ? 'block' : 'none';
+        }
+    });
+}
+
+function removeFreeInputPair(button) {
+    const pairItem = button.closest('.free-input-pair-item');
+    if (!pairItem) return;
+    
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const allPairs = container.querySelectorAll('.free-input-pair-item');
+    if (allPairs.length <= 1) {
+        showWarning('最低1つのペアが必要です');
+        return;
+    }
+    
+    pairItem.remove();
+    
+    // Update delete button visibility
+    const remainingPairs = container.querySelectorAll('.free-input-pair-item');
+    remainingPairs.forEach((pair) => {
+        const deleteBtn = pair.querySelector('.btn-delete-small');
+        if (deleteBtn) {
+            deleteBtn.style.display = remainingPairs.length > 1 ? 'block' : 'none';
+        }
+    });
+}
+
+// Navigate to next step (called after saving)
+window.goToNextStep = function(currentStep) {
+    const nextStep = currentStep + 1;
+    const sectionMap = {
+        1: 'header-greeting-section',
+        2: 'company-profile-section',
+        3: 'personal-info-section',
+        4: 'tech-tools-section',
+        5: 'communication-section'
+    };
+    
+    const targetSectionId = sectionMap[nextStep];
+    if (!targetSectionId) {
+        console.log('No next step available');
+        return;
+    }
+    
+    // Hide all sections
+    document.querySelectorAll('.edit-section').forEach(section => {
+        section.classList.remove('active');
+        section.style.display = 'none';
+    });
+    
+    // Show target section
+    const targetSection = document.getElementById(targetSectionId);
+    if (targetSection) {
+        targetSection.classList.add('active');
+        targetSection.style.display = 'block';
+        
+        // Update active nav item
+        const navItems = document.querySelectorAll('.edit-nav .nav-item');
+        navItems.forEach(item => item.classList.remove('active'));
+        
+        // Find and activate the corresponding nav item
+        const targetNavItem = Array.from(navItems).find(item => {
+            const section = item.getAttribute('data-section');
+            return section === targetSectionId;
+        });
+        
+        if (targetNavItem) {
+            targetNavItem.classList.add('active');
+        }
+        
+        // Scroll to top of the page
+        setTimeout(() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
+    }
+};
+
+// Navigation functionality for edit page
+function initializeEditNavigation() {
+    const navItems = document.querySelectorAll('.edit-nav .nav-item');
+    
+    navItems.forEach(navItem => {
+        navItem.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Get target section ID from data-section attribute or href
+            const targetSectionId = this.getAttribute('data-section') || 
+                                   this.getAttribute('href').replace('#', '') + '-section';
+            
+            if (targetSectionId) {
+                // Hide all sections
+                document.querySelectorAll('.edit-section').forEach(section => {
+                    section.classList.remove('active');
+                    section.style.display = 'none';
+                });
+                
+                // Show target section
+                const targetSection = document.getElementById(targetSectionId);
+                if (targetSection) {
+                    targetSection.classList.add('active');
+                    targetSection.style.display = 'block';
+                    
+                    // Update active nav item
+                    navItems.forEach(item => item.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Scroll to top of the page for better UX
+                    setTimeout(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }, 100);
+                }
+            }
+        });
+    });
+}

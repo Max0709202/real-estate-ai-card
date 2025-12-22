@@ -362,24 +362,98 @@
             const formData = JSON.parse(saved);
             let restored = false;
 
+            // Handle flat data structure (from collectFormDataForDraft)
+            if (formData.greetings && Array.isArray(formData.greetings)) {
+                // Restore greetings separately
+                const greetingItems = document.querySelectorAll('#greetings-list .greeting-item');
+                formData.greetings.forEach((greeting, index) => {
+                    if (index < greetingItems.length) {
+                        const item = greetingItems[index];
+                        const titleInput = item.querySelector('input[name="greeting_title[]"]') || item.querySelector('.greeting-title');
+                        const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]') || item.querySelector('.greeting-content');
+                        if (titleInput && greeting.title) {
+                            titleInput.value = greeting.title;
+                            restored = true;
+                        }
+                        if (contentTextarea && greeting.content) {
+                            contentTextarea.value = greeting.content;
+                            restored = true;
+                        }
+                    }
+                });
+                // Remove greetings from formData to avoid duplicate processing
+                delete formData.greetings;
+            }
+
+            // Handle nested form structure (formId -> fields)
             Object.keys(formData).forEach(formId => {
+                // Skip if it's not a form ID (e.g., greetings, techTools, etc.)
+                if (formId === 'techTools' || formId === 'files') {
+                    return;
+                }
+
                 const form = document.getElementById(formId) || document.querySelector('form');
                 if (!form) return;
 
+                // Check if formData[formId] is an object (nested structure)
+                if (typeof formData[formId] === 'object' && formData[formId] !== null && !Array.isArray(formData[formId])) {
                 Object.keys(formData[formId]).forEach(fieldName => {
-                    const field = form.querySelector(`[name="${fieldName}"], #${fieldName}`);
-                    if (!field || isPasswordField(field)) return;
+                    // Skip array fields (they are handled separately)
+                    if (fieldName.includes('[]')) {
+                        return;
+                    }
+                    
+                    // Build selector - only use ID selector if fieldName doesn't contain brackets or special characters
+                    let selector = `[name="${fieldName}"]`;
+                    // Only add ID selector if fieldName is a valid CSS identifier (no brackets, spaces, etc.)
+                    if (fieldName && /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(fieldName)) {
+                        selector += `, #${fieldName}`;
+                    }
+                    
+                    try {
+                        const field = form.querySelector(selector);
+                        if (!field || isPasswordField(field)) return;
 
-                    if (field.type === 'checkbox' || field.type === 'radio') {
-                        if (formData[formId][fieldName]) {
-                            field.checked = true;
-                            restored = true;
+                        if (field.type === 'checkbox' || field.type === 'radio') {
+                            if (formData[formId][fieldName]) {
+                                field.checked = true;
+                                restored = true;
+                            }
+                        } else {
+                            field.value = formData[formId][fieldName];
+                            if (formData[formId][fieldName]) restored = true;
                         }
-                    } else {
-                        field.value = formData[formId][fieldName];
-                        if (formData[formId][fieldName]) restored = true;
+                    } catch (selectorError) {
+                        console.warn(`Invalid selector for field "${fieldName}":`, selectorError);
                     }
                 });
+                } else {
+                    // Handle flat structure (direct field names)
+                    const fieldName = formId;
+                    let selector = `[name="${fieldName}"]`;
+                    if (fieldName && /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(fieldName)) {
+                        selector += `, #${fieldName}`;
+                    }
+                    try {
+                        const form = document.querySelector('form');
+                        if (form) {
+                            const field = form.querySelector(selector);
+                            if (field && !isPasswordField(field)) {
+                                if (field.type === 'checkbox' || field.type === 'radio') {
+                                    if (formData[fieldName]) {
+                                        field.checked = true;
+                                        restored = true;
+                                    }
+                                } else {
+                                    field.value = formData[fieldName];
+                                    if (formData[fieldName]) restored = true;
+                                }
+                            }
+                        }
+                    } catch (selectorError) {
+                        console.warn(`Invalid selector for field "${fieldName}":`, selectorError);
+                    }
+                }
             });
 
             if (restored) {

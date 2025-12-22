@@ -3142,3 +3142,162 @@ function initializeTechToolDragAndDropForRegister() {
         subtree: false
     });
 }
+
+// Move communication item up or down
+function moveCommunicationItem(index, direction, type) {
+    const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
+    const container = document.getElementById(gridId);
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateCommunicationButtons(type);
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateCommunicationButtons(type);
+    }
+}
+
+// Update communication item move buttons
+function updateCommunicationButtons(type) {
+    const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
+    const container = document.getElementById(gridId);
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveCommunicationItem(${index}, 'up', '${type}')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveCommunicationItem(${index}, 'down', '${type}')`);
+        }
+    });
+}
+
+// Initialize drag and drop for communication items
+function initializeCommunicationDragAndDrop(type) {
+    const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
+    const container = document.getElementById(gridId);
+    if (!container) return;
+    
+    let draggedElement = null;
+    let isInitializing = false;
+    
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+        
+        const items = container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`);
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+        
+        attachDragListeners();
+        isInitializing = false;
+    }
+    
+    function attachDragListeners() {
+        const items = container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`);
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+            
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+            
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`).forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+            
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+                return false;
+            });
+            
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+            
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (draggedElement !== this && draggedElement !== null) {
+                    if (observer) observer.disconnect();
+                    
+                    const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
+                    const targetIndex = items.indexOf(this);
+                    const draggedIndexCurrent = items.indexOf(draggedElement);
+                    
+                    if (draggedIndexCurrent < targetIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+                    
+                    draggedElement.dataset.dragInitialized = 'false';
+                    this.dataset.dragInitialized = 'false';
+                    
+                    updateCommunicationButtons(type);
+                    attachDragListeners();
+                    
+                    if (observer) {
+                        observer.observe(container, {
+                            childList: true,
+                            subtree: false
+                        });
+                    }
+                }
+            });
+        });
+    }
+    
+    // MutationObserver to handle dynamic changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList') {
+                makeItemsDraggable();
+            }
+        });
+    });
+    
+    makeItemsDraggable();
+    
+    observer.observe(container, {
+        childList: true,
+        subtree: false
+    });
+}
+
+// Initialize communication drag and drop on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize for both message apps and SNS
+    setTimeout(() => {
+        initializeCommunicationDragAndDrop('message');
+        initializeCommunicationDragAndDrop('sns');
+    }, 100);
+});
