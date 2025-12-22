@@ -56,25 +56,69 @@ function setupRomajiAutoCapitalize() {
     
     romajiFields.forEach(field => {
         if (field) {
-            // Use input event to capitalize first letter
+            let isComposing = false; // Track IME composition state
+            
+            // Track composition start (IME input started)
+            field.addEventListener('compositionstart', function() {
+                isComposing = true;
+            });
+            
+            // Track composition end (IME input finished)
+            field.addEventListener('compositionend', function(e) {
+                isComposing = false;
+                // Apply capitalization after composition ends
+                capitalizeFirstLetter(e.target);
+            });
+            
+            // Handle input event - skip during IME composition
             field.addEventListener('input', function(e) {
-                const input = e.target;
-                let value = input.value;
-                
-                if (value.length > 0) {
-                    // 最初の文字が小文字（a-z）の場合は大文字に変換
-                    const firstChar = value.charAt(0);
-                    if (firstChar >= 'a' && firstChar <= 'z') {
-                        const cursorPosition = input.selectionStart;
-                        value = firstChar.toUpperCase() + value.slice(1);
-                        input.value = value;
-                        // カーソル位置を復元
-                        input.setSelectionRange(cursorPosition, cursorPosition);
-                    }
+                // Skip if IME is composing or if event has isComposing flag
+                if (isComposing || e.isComposing) {
+                    return;
                 }
+                capitalizeFirstLetter(e.target);
+            });
+            
+            // Also apply on blur (when field loses focus)
+            field.addEventListener('blur', function(e) {
+                capitalizeFirstLetter(e.target);
+                // Sanitize romaji characters on blur
+                sanitizeRomajiInput(e.target);
             });
         }
     });
+}
+
+// Capitalize first letter helper function
+function capitalizeFirstLetter(input) {
+    let value = input.value;
+    
+    if (value.length > 0) {
+        // 最初の文字が小文字（a-z）の場合は大文字に変換
+        const firstChar = value.charAt(0);
+        if (firstChar >= 'a' && firstChar <= 'z') {
+            const cursorPosition = input.selectionStart;
+            value = firstChar.toUpperCase() + value.slice(1);
+            input.value = value;
+            // カーソル位置を復元
+            input.setSelectionRange(cursorPosition, cursorPosition);
+        }
+    }
+}
+
+// Sanitize romaji input - allow A-Z, a-z, space, hyphen, apostrophe, and dot
+function sanitizeRomajiInput(input) {
+    let value = input.value;
+    // Remove any characters that are not: A-Z, a-z, space, hyphen (-), apostrophe ('), or dot (.)
+    const sanitized = value.replace(/[^A-Za-z\s\-'.]/g, '');
+    
+    if (sanitized !== value) {
+        const cursorPosition = input.selectionStart;
+        input.value = sanitized;
+        // Adjust cursor position if characters were removed
+        const removedChars = value.length - sanitized.length;
+        input.setSelectionRange(Math.max(0, cursorPosition - removedChars), Math.max(0, cursorPosition - removedChars));
+    }
 }
 
 // Load business card data from API
@@ -144,7 +188,7 @@ function populateForms(data) {
             const logoPreview = document.querySelector('[data-upload-id="company_logo"] .upload-preview');
             if (logoPreview) {
                 const logoPath = data.company_logo.startsWith('http') ? data.company_logo : '../' + data.company_logo;
-                logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
                 console.log('Set company_logo:', logoPath);
             }
         }
@@ -154,7 +198,7 @@ function populateForms(data) {
             const photoPreview = document.querySelector('[data-upload-id="profile_photo"] .upload-preview');
             if (photoPreview) {
                 const photoPath = data.profile_photo.startsWith('http') ? data.profile_photo : '../' + data.profile_photo;
-                photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
                 console.log('Set profile_photo:', photoPath);
             }
         }
@@ -1089,6 +1133,8 @@ function setupFileUploads() {
 let currentCropper = null;
 let currentCropFieldName = null;
 let currentCropFile = null;
+let currentImageObjectURL = null; // Track object URL for cleanup
+let cropperImageLoadHandler = null; // Track onload handler
 
 // Handle file upload
 async function handleFileUpload(event, fieldName) {
@@ -1121,66 +1167,136 @@ function showImageCropper(file, fieldName, originalEvent) {
         return;
     }
     
-    // Store file and field name for later use
+    // Step 1: Clean up previous state completely
+    if (currentCropper) {
+        try {
+            currentCropper.destroy();
+        } catch (e) {
+            console.warn('Error destroying previous cropper:', e);
+        }
+        currentCropper = null;
+    }
+    
+    // Revoke previous object URL if exists
+    if (currentImageObjectURL) {
+        try {
+            URL.revokeObjectURL(currentImageObjectURL);
+        } catch (e) {
+            console.warn('Error revoking previous object URL:', e);
+        }
+        currentImageObjectURL = null;
+    }
+    
+    // Remove previous onload handler if exists
+    if (cropperImageLoadHandler) {
+        cropperImage.removeEventListener('load', cropperImageLoadHandler);
+        cropperImageLoadHandler = null;
+    }
+    
+    // Reset image element completely
+    cropperImage.onload = null;
+    cropperImage.onerror = null;
+    cropperImage.src = ''; // Clear src first
+    
+    // Step 2: Remove old event listeners from buttons (create new handlers)
+    const cancelBtn = document.getElementById('crop-cancel-btn');
+    const confirmBtn = document.getElementById('crop-confirm-btn');
+    
+    // Clone buttons to remove all event listeners (alternative: use removeEventListener)
+    if (cancelBtn) {
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        document.getElementById('crop-cancel-btn').onclick = null; // Clear any existing handlers
+    }
+    
+    if (confirmBtn) {
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        document.getElementById('crop-confirm-btn').onclick = null; // Clear any existing handlers
+    }
+    
+    // Step 3: Store file and field name for later use
     currentCropFile = file;
     currentCropFieldName = fieldName;
     
-    // Create object URL for the image
-    const imageUrl = URL.createObjectURL(file);
-    cropperImage.src = imageUrl;
+    // Step 4: Create new object URL for the image
+    currentImageObjectURL = URL.createObjectURL(file);
     
-    // Show modal with proper styling
+    // Step 5: Show modal with proper styling
     modal.style.display = 'flex';
     modal.style.alignItems = 'center';
     modal.style.justifyContent = 'center';
     
-    // Initialize cropper after image loads
-    cropperImage.onload = function() {
-        // Destroy existing cropper if any
+    // Step 6: Set up image load handler
+    cropperImageLoadHandler = function() {
+        // Destroy any existing cropper (defensive)
         if (currentCropper) {
-            currentCropper.destroy();
+            try {
+                currentCropper.destroy();
+            } catch (e) {
+                console.warn('Error destroying cropper in onload:', e);
+            }
         }
         
         // Initialize cropper with aspect ratio
         const aspectRatio = fieldName === 'company_logo' ? 1 : 1; // Square for both
-        currentCropper = new Cropper(cropperImage, {
-            aspectRatio: aspectRatio,
-            viewMode: 1,
-            dragMode: 'move',
-            autoCropArea: 0.8,
-            restore: false,
-            guides: true,
-            center: true,
-            highlight: false,
-            cropBoxMovable: true,
-            cropBoxResizable: true,
-            toggleDragModeOnDblclick: false,
-            responsive: true,
-            minContainerWidth: 300,
-            minContainerHeight: 300
-        });
+        try {
+            currentCropper = new Cropper(cropperImage, {
+                aspectRatio: aspectRatio,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 0.8,
+                restore: false,
+                guides: true,
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+                responsive: true,
+                minContainerWidth: 300,
+                minContainerHeight: 300
+            });
+        } catch (e) {
+            console.error('Error initializing cropper:', e);
+            showError('画像の読み込みに失敗しました');
+            closeImageCropper();
+        }
     };
     
-    // Setup cancel button
-    const cancelBtn = document.getElementById('crop-cancel-btn');
-    if (cancelBtn) {
-        cancelBtn.onclick = async function() {
-            // Upload original image without cropping
-            if (currentCropFile && currentCropFieldName) {
-                await uploadFileDirectly(currentCropFile, currentCropFieldName, originalEvent);
-            }
+    cropperImage.onerror = function() {
+        console.error('Error loading image');
+        showError('画像の読み込みに失敗しました');
+        closeImageCropper();
+    };
+    
+    // Set image src (this will trigger onload)
+    cropperImage.src = currentImageObjectURL;
+    
+    // If image is already loaded (cached), trigger onload manually
+    if (cropperImage.complete) {
+        cropperImageLoadHandler();
+    } else {
+        cropperImage.onload = cropperImageLoadHandler;
+    }
+    
+    // Step 7: Setup cancel button (after recreating it)
+    const newCancelBtn = document.getElementById('crop-cancel-btn');
+    if (newCancelBtn) {
+        newCancelBtn.onclick = function() {
+            // Simply close the modal without uploading or cropping
             closeImageCropper();
-            // Reset file input
+            // Reset file input so user can select the same file again if needed
             if (originalEvent && originalEvent.target) {
                 originalEvent.target.value = '';
             }
         };
     }
     
-    // Setup confirm button
-    const confirmBtn = document.getElementById('crop-confirm-btn');
-    if (confirmBtn) {
-        confirmBtn.onclick = function() {
+    // Step 8: Setup confirm button (after recreating it)
+    const newConfirmBtn = document.getElementById('crop-confirm-btn');
+    if (newConfirmBtn) {
+        newConfirmBtn.onclick = function() {
             cropAndUpload(originalEvent);
         };
     }
@@ -1195,18 +1311,42 @@ function closeImageCropper() {
         modal.style.justifyContent = '';
     }
     
+    // Destroy cropper instance
     if (currentCropper) {
-        currentCropper.destroy();
+        try {
+            currentCropper.destroy();
+        } catch (e) {
+            console.warn('Error destroying cropper on close:', e);
+        }
         currentCropper = null;
     }
     
     // Clean up object URL
     const cropperImage = document.getElementById('cropper-image');
-    if (cropperImage && cropperImage.src) {
-        URL.revokeObjectURL(cropperImage.src);
+    if (cropperImage) {
+        // Remove event handlers
+        if (cropperImageLoadHandler) {
+            cropperImage.removeEventListener('load', cropperImageLoadHandler);
+            cropperImage.onload = null;
+            cropperImageLoadHandler = null;
+        }
+        cropperImage.onerror = null;
+        
+        // Revoke object URL
+        if (currentImageObjectURL) {
+            try {
+                URL.revokeObjectURL(currentImageObjectURL);
+            } catch (e) {
+                console.warn('Error revoking object URL:', e);
+            }
+            currentImageObjectURL = null;
+        }
+        
+        // Clear image src
         cropperImage.src = '';
     }
     
+    // Clear state
     currentCropFile = null;
     currentCropFieldName = null;
 }
@@ -2057,7 +2197,7 @@ function initializeFreeImageUpload(item) {
                         const resizeNote = (img.width > 1200 || img.height > 1200) 
                             ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
                             : '';
-                        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
+                        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
                     };
                     img.src = event.target.result;
                 }

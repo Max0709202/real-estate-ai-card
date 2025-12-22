@@ -7,6 +7,8 @@ let registerCropper = null;
 let registerCropFieldName = null;
 let registerCropFile = null;
 let registerCropOriginalEvent = null;
+let registerImageObjectURL = null; // Track object URL for cleanup
+let registerCropperImageLoadHandler = null; // Track onload handler
 
 let currentStep = 1;
 let formData = {};
@@ -60,25 +62,69 @@ function setupRomajiAutoCapitalize() {
     
     romajiFields.forEach(field => {
         if (field) {
-            // Use input event to capitalize first letter
+            let isComposing = false; // Track IME composition state
+            
+            // Track composition start (IME input started)
+            field.addEventListener('compositionstart', function() {
+                isComposing = true;
+            });
+            
+            // Track composition end (IME input finished)
+            field.addEventListener('compositionend', function(e) {
+                isComposing = false;
+                // Apply capitalization after composition ends
+                capitalizeFirstLetterForRegister(e.target);
+            });
+            
+            // Handle input event - skip during IME composition
             field.addEventListener('input', function(e) {
-                const input = e.target;
-                let value = input.value;
-                
-                if (value.length > 0) {
-                    // 最初の文字が小文字（a-z）の場合は大文字に変換
-                    const firstChar = value.charAt(0);
-                    if (firstChar >= 'a' && firstChar <= 'z') {
-                        const cursorPosition = input.selectionStart;
-                        value = firstChar.toUpperCase() + value.slice(1);
-                        input.value = value;
-                        // カーソル位置を復元
-                        input.setSelectionRange(cursorPosition, cursorPosition);
-                    }
+                // Skip if IME is composing or if event has isComposing flag
+                if (isComposing || e.isComposing) {
+                    return;
                 }
+                capitalizeFirstLetterForRegister(e.target);
+            });
+            
+            // Also apply on blur (when field loses focus)
+            field.addEventListener('blur', function(e) {
+                capitalizeFirstLetterForRegister(e.target);
+                // Sanitize romaji characters on blur
+                sanitizeRomajiInputForRegister(e.target);
             });
         }
     });
+}
+
+// Capitalize first letter helper function for register page
+function capitalizeFirstLetterForRegister(input) {
+    let value = input.value;
+    
+    if (value.length > 0) {
+        // 最初の文字が小文字（a-z）の場合は大文字に変換
+        const firstChar = value.charAt(0);
+        if (firstChar >= 'a' && firstChar <= 'z') {
+            const cursorPosition = input.selectionStart;
+            value = firstChar.toUpperCase() + value.slice(1);
+            input.value = value;
+            // カーソル位置を復元
+            input.setSelectionRange(cursorPosition, cursorPosition);
+        }
+    }
+}
+
+// Sanitize romaji input - allow A-Z, a-z, space, hyphen, apostrophe, and dot
+function sanitizeRomajiInputForRegister(input) {
+    let value = input.value;
+    // Remove any characters that are not: A-Z, a-z, space, hyphen (-), apostrophe ('), or dot (.)
+    const sanitized = value.replace(/[^A-Za-z\s\-'.]/g, '');
+    
+    if (sanitized !== value) {
+        const cursorPosition = input.selectionStart;
+        input.value = sanitized;
+        // Adjust cursor position if characters were removed
+        const removedChars = value.length - sanitized.length;
+        input.setSelectionRange(Math.max(0, cursorPosition - removedChars), Math.max(0, cursorPosition - removedChars));
+    }
 }
 
 // Load existing business card data from API and populate forms
@@ -2401,104 +2447,135 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
         return;
     }
     
-    // Store file and field name for later use
+    // Step 1: Clean up previous state completely
+    if (registerCropper) {
+        try {
+            registerCropper.destroy();
+        } catch (e) {
+            console.warn('Error destroying previous cropper:', e);
+        }
+        registerCropper = null;
+    }
+    
+    // Revoke previous object URL if exists
+    if (registerImageObjectURL) {
+        try {
+            URL.revokeObjectURL(registerImageObjectURL);
+        } catch (e) {
+            console.warn('Error revoking previous object URL:', e);
+        }
+        registerImageObjectURL = null;
+    }
+    
+    // Remove previous onload handler if exists
+    if (registerCropperImageLoadHandler) {
+        cropperImage.removeEventListener('load', registerCropperImageLoadHandler);
+        registerCropperImageLoadHandler = null;
+    }
+    
+    // Reset image element completely
+    cropperImage.onload = null;
+    cropperImage.onerror = null;
+    cropperImage.src = ''; // Clear src first
+    
+    // Step 2: Remove old event listeners from buttons (create new handlers)
+    const cancelBtn = document.getElementById('crop-cancel-btn');
+    const confirmBtn = document.getElementById('crop-confirm-btn');
+    
+    // Clone buttons to remove all event listeners
+    if (cancelBtn) {
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        document.getElementById('crop-cancel-btn').onclick = null; // Clear any existing handlers
+    }
+    
+    if (confirmBtn) {
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        document.getElementById('crop-confirm-btn').onclick = null; // Clear any existing handlers
+    }
+    
+    // Step 3: Store file and field name for later use
     registerCropFile = file;
     registerCropFieldName = fieldName;
     registerCropOriginalEvent = originalEvent;
     
-    // Create object URL for the image
-    const imageUrl = URL.createObjectURL(file);
-    cropperImage.src = imageUrl;
+    // Step 4: Create new object URL for the image
+    registerImageObjectURL = URL.createObjectURL(file);
     
-    // Show modal
+    // Step 5: Show modal
     modal.style.display = 'block';
     
-    // Initialize cropper after image loads
-    cropperImage.onload = function() {
-        // Destroy existing cropper if any
+    // Step 6: Set up image load handler
+    registerCropperImageLoadHandler = function() {
+        // Destroy any existing cropper (defensive)
         if (registerCropper) {
-            registerCropper.destroy();
+            try {
+                registerCropper.destroy();
+            } catch (e) {
+                console.warn('Error destroying cropper in onload:', e);
+            }
         }
         
         // Initialize cropper with aspect ratio
         const aspectRatio = fieldName === 'company_logo' ? 1 : 1; // Square for both
-        registerCropper = new Cropper(cropperImage, {
-            aspectRatio: aspectRatio,
-            viewMode: 1,
-            dragMode: 'move',
-            autoCropArea: 0.8,
-            restore: false,
-            guides: true,
-            center: true,
-            highlight: false,
-            cropBoxMovable: true,
-            cropBoxResizable: true,
-            toggleDragModeOnDblclick: false,
-            responsive: true,
-            minContainerWidth: 300,
-            minContainerHeight: 300
-        });
+        try {
+            registerCropper = new Cropper(cropperImage, {
+                aspectRatio: aspectRatio,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 0.8,
+                restore: false,
+                guides: true,
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+                responsive: true,
+                minContainerWidth: 300,
+                minContainerHeight: 300
+            });
+        } catch (e) {
+            console.error('Error initializing cropper:', e);
+            showError('画像の読み込みに失敗しました');
+            closeRegisterImageCropper();
+        }
     };
     
-    // Setup cancel button
-    const cancelBtn = document.getElementById('crop-cancel-btn');
-    if (cancelBtn) {
-        cancelBtn.onclick = function() {
-            // Store original file (without cropping) for later upload
-            if (registerCropFile && registerCropFieldName && registerCropOriginalEvent) {
-                // Find upload area
-                let uploadArea = null;
-                if (registerCropOriginalEvent.target) {
-                    uploadArea = registerCropOriginalEvent.target.closest('.upload-area');
-                }
-
-                // If we can't find it from the event, try to find it by field name
-                if (!uploadArea && registerCropFieldName) {
-                    const fieldId = registerCropFieldName === 'company_logo' ? 'company_logo' : 'profile_photo_header';
-                    const fieldElement = document.getElementById(fieldId);
-                    if (fieldElement) {
-                        uploadArea = fieldElement.closest('.upload-area');
-                    }
-                }
-
-                if (uploadArea) {
-                    // Show preview with original image
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        const preview = uploadArea.querySelector('.upload-preview');
-                        if (preview) {
-                            const img = new Image();
-                            img.onload = () => {
-                                const resizeNote = (img.width > 800 || img.height > 800)
-                                    ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大800×800px)</p>`
-                                    : '';
-                                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
-                            };
-                            img.src = event.target.result;
-                        }
-
-                        // Store original file as data URL for later upload (same format as cropped blob)
-                        uploadArea.dataset.croppedBlob = event.target.result; // Store as data URL
-                        uploadArea.dataset.croppedFileName = registerCropFile.name;
-                        // Clear cropped flag to indicate this is original, not cropped
-                        uploadArea.dataset.isCropped = 'false';
-                    };
-                    reader.readAsDataURL(registerCropFile);
-                }
-            }
-
+    cropperImage.onerror = function() {
+        console.error('Error loading image');
+        showError('画像の読み込みに失敗しました');
+        closeRegisterImageCropper();
+    };
+    
+    // Set image src (this will trigger onload)
+    cropperImage.src = registerImageObjectURL;
+    
+    // If image is already loaded (cached), trigger onload manually
+    if (cropperImage.complete) {
+        registerCropperImageLoadHandler();
+    } else {
+        cropperImage.onload = registerCropperImageLoadHandler;
+    }
+    
+    // Step 7: Setup cancel button (after recreating it)
+    const newCancelBtn = document.getElementById('crop-cancel-btn');
+    if (newCancelBtn) {
+        newCancelBtn.onclick = function() {
+            // Simply close the modal without uploading, cropping, or updating preview
             closeRegisterImageCropper();
-            // Reset file input
+            // Reset file input so user can select the same file again if needed
             if (originalEvent && originalEvent.target) {
                 originalEvent.target.value = '';
             }
         };
     }
     
-    // Setup confirm button
-    const confirmBtn = document.getElementById('crop-confirm-btn');
-    if (confirmBtn) {
-        confirmBtn.onclick = function() {
+    // Step 8: Setup confirm button (after recreating it)
+    const newConfirmBtn = document.getElementById('crop-confirm-btn');
+    if (newConfirmBtn) {
+        newConfirmBtn.onclick = function() {
             cropAndStoreForRegister();
         };
     }
@@ -2513,18 +2590,42 @@ function closeRegisterImageCropper() {
         modal.style.justifyContent = '';
     }
     
+    // Destroy cropper instance
     if (registerCropper) {
-        registerCropper.destroy();
+        try {
+            registerCropper.destroy();
+        } catch (e) {
+            console.warn('Error destroying cropper on close:', e);
+        }
         registerCropper = null;
     }
     
     // Clean up object URL
     const cropperImage = document.getElementById('cropper-image');
-    if (cropperImage && cropperImage.src) {
-        URL.revokeObjectURL(cropperImage.src);
+    if (cropperImage) {
+        // Remove event handlers
+        if (registerCropperImageLoadHandler) {
+            cropperImage.removeEventListener('load', registerCropperImageLoadHandler);
+            cropperImage.onload = null;
+            registerCropperImageLoadHandler = null;
+        }
+        cropperImage.onerror = null;
+        
+        // Revoke object URL
+        if (registerImageObjectURL) {
+            try {
+                URL.revokeObjectURL(registerImageObjectURL);
+            } catch (e) {
+                console.warn('Error revoking object URL:', e);
+            }
+            registerImageObjectURL = null;
+        }
+        
+        // Clear image src
         cropperImage.src = '';
     }
     
+    // Clear state
     registerCropFile = null;
     registerCropFieldName = null;
     registerCropOriginalEvent = null;
@@ -2581,7 +2682,7 @@ function cropAndStoreForRegister() {
             reader.onload = (event) => {
                 const preview = uploadArea.querySelector('.upload-preview');
                 if (preview) {
-                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
                 }
                 
                 // Store cropped blob in a data attribute for later upload
@@ -2611,7 +2712,7 @@ function showRegisterImagePreview(file, fieldName, originalEvent) {
                 const resizeNote = (img.width > 800 || img.height > 800) 
                     ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大800×800px)</p>` 
                     : '';
-                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
+                                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
             };
             img.src = event.target.result;
         }
@@ -2647,7 +2748,7 @@ document.getElementById('free_image')?.addEventListener('change', (e) => {
                     const resizeNote = (img.width > 1200 || img.height > 1200) 
                         ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
                         : '';
-                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
+                                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
                 };
                 img.src = event.target.result;
             }
@@ -2830,7 +2931,7 @@ function initializeFreeImageUploadForRegister(item) {
                         const resizeNote = (img.width > 1200 || img.height > 1200) 
                             ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
                             : '';
-                        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">${resizeNote}`;
+                                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
                     };
                     img.src = event.target.result;
                 }

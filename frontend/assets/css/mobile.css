@@ -382,6 +382,7 @@
 
     /* Select dropdowns */
     select.form-control {
+        background-color: #fff;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
         background-position: right 1rem center;
@@ -856,6 +857,84 @@
     }
 
     /* Sidebar becomes horizontal scrollable nav */
+    /* Mobile User Menu Section in Hamburger Menu */
+    .mobile-user-menu-section {
+        border-top: 1px solid #e0e0e0;
+        margin-top: 1rem;
+        padding-top: 1rem;
+    }
+
+    .mobile-user-menu-section .dropdown-divider {
+        height: 1px;
+        background: #e0e0e0;
+        margin: 0.5rem 0;
+    }
+
+    .mobile-user-menu-section .dropdown-section-header {
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .mobile-user-menu-section .dropdown-subscription-info {
+        padding: 0.75rem 1rem;
+        background: #f8f9fa;
+        border-radius: 4px;
+        margin: 0.5rem 0;
+        font-size: 0.875rem;
+    }
+
+    .mobile-user-menu-section .subscription-status,
+    .mobile-user-menu-section .subscription-next-billing {
+        margin-bottom: 0.5rem;
+    }
+
+    .mobile-user-menu-section .status-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .mobile-user-menu-section .status-active {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .mobile-user-menu-section .status-trialing {
+        background: #d1ecf1;
+        color: #0c5460;
+    }
+
+    .mobile-user-menu-section .status-past_due {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .mobile-user-menu-section .status-incomplete {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .mobile-user-menu-section .dropdown-button {
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: background 0.2s;
+    }
+
+    .mobile-user-menu-section .dropdown-button:hover {
+        background: #f0f7ff;
+    }
+
     .edit-sidebar {
         position: static;
         order: 1;

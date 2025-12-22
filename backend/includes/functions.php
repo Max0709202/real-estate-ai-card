@@ -1317,6 +1317,26 @@ function validatePostalCode($postalCode) {
  */
 function startSessionIfNotStarted() {
     if (session_status() === PHP_SESSION_NONE) {
+        // セッション保存パスをプロジェクト内に設定（権限エラーを回避）
+        $sessionPath = __DIR__ . '/../../sessions';
+        
+        // セッションディレクトリが存在しない場合は作成
+        if (!is_dir($sessionPath)) {
+            @mkdir($sessionPath, 0755, true);
+        }
+        
+        // セッション保存パスが書き込み可能か確認
+        if (is_dir($sessionPath) && is_writable($sessionPath)) {
+            session_save_path($sessionPath);
+        } else {
+            // 書き込みできない場合は、システムの一時ディレクトリを使用
+            $systemTemp = sys_get_temp_dir();
+            if (is_writable($systemTemp)) {
+                session_save_path($systemTemp);
+            }
+            // それでも書き込みできない場合は、デフォルトのパスを使用（警告は出るが動作は続行）
+        }
+        
         session_start();
     }
 }

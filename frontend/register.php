@@ -336,12 +336,12 @@ $prefectures = [
                         <div class="form-group">
                             <label>ローマ字姓</label>
                             <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
-                            <input type="text" name="last_name_romaji" id="last_name_romaji" class="form-control" placeholder="例：Yamada">
+                            <input type="text" name="last_name_romaji" id="last_name_romaji" class="form-control" placeholder="例：Yamada" inputmode="latin" autocomplete="family-name" autocapitalize="words" spellcheck="false">
                         </div>
                         <div class="form-group">
                             <label>ローマ字名</label>
                             <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
-                            <input type="text" name="first_name_romaji" id="first_name_romaji" class="form-control" placeholder="例：Taro">
+                            <input type="text" name="first_name_romaji" id="first_name_romaji" class="form-control" placeholder="例：Taro" inputmode="latin" autocomplete="given-name" autocapitalize="words" spellcheck="false">
                         </div>
                     </div>
 
@@ -825,11 +825,11 @@ $prefectures = [
                 <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
                     画像のサイズを調整し、必要な部分を選択してください。指でドラッグしてトリミングエリアを移動・拡大縮小できます。
                 </p>
-                <div style="width: 100%; max-width: 800px; margin: 0 auto;">
-                    <img id="cropper-image" style="max-width: 100%; display: block;">
+                <div style="width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;">
+                    <img id="cropper-image" style="max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;">
                 </div>
                 <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
-                    <button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; width: auto;">キャンセル</button>
+                    <button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; width: auto; cursor: pointer;">キャンセル</button>
                     <button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px; width: auto;">トリミングを適用</button>
                 </div>
             </div>

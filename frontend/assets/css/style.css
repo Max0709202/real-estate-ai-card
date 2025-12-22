@@ -156,6 +156,78 @@ body {
     letter-spacing: 0.5px;
 }
 
+.dropdown-divider {
+    height: 1px;
+    background: #e0e0e0;
+    margin: 0.5rem 0;
+}
+
+.dropdown-section-header {
+    padding: 0.5rem 1.25rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dropdown-subscription-info {
+    padding: 0.75rem 1.25rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin: 0.5rem 1.25rem;
+    font-size: 0.875rem;
+}
+
+.subscription-status,
+.subscription-next-billing {
+    margin-bottom: 0.5rem;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-active {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-trialing {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.status-past_due {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-incomplete {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.dropdown-button {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 0.75rem 1.25rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+    color: inherit;
+}
+
+.dropdown-button:hover {
+    background: #f0f7ff;
+}
+
 /* Hide mobile-only dropdown items on PC (screens wider than 968px) */
 .user-dropdown .mobile-only-dropdown {
     display: none;

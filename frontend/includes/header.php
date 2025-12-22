@@ -144,6 +144,79 @@ if ($isLoggedIn) {
                         <a href="edit.php" class="dropdown-item">
                             <span>マイページ</span>
                         </a>
+                        <?php
+                        // Get subscription info for header dropdown
+                        $headerSubscriptionInfo = null;
+                        $headerHasActiveSubscription = false;
+                        if ($isLoggedIn) {
+                            try {
+                                require_once __DIR__ . '/../../backend/config/database.php';
+                                $database = new Database();
+                                $db = $database->getConnection();
+                                $stmt = $db->prepare("
+                                    SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
+                                           bc.payment_status, u.user_type
+                                    FROM subscriptions s
+                                    JOIN business_cards bc ON s.business_card_id = bc.id
+                                    JOIN users u ON bc.user_id = u.id
+                                    WHERE s.user_id = ?
+                                    ORDER BY s.created_at DESC
+                                    LIMIT 1
+                                ");
+                                $stmt->execute([$_SESSION['user_id']]);
+                                $headerSubscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                                if ($headerSubscriptionInfo && in_array($headerSubscriptionInfo['status'], ['active', 'trialing', 'past_due', 'incomplete'])) {
+                                    $headerHasActiveSubscription = true;
+                                } elseif (!$headerSubscriptionInfo) {
+                                    $stmt = $db->prepare("
+                                        SELECT bc.payment_status, u.user_type
+                                        FROM business_cards bc
+                                        JOIN users u ON bc.user_id = u.id
+                                        WHERE bc.user_id = ?
+                                        LIMIT 1
+                                    ");
+                                    $stmt->execute([$_SESSION['user_id']]);
+                                    $cardInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                                    if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID']) && $cardInfo['user_type'] === 'new') {
+                                        $headerHasActiveSubscription = true;
+                                    }
+                                }
+                            } catch (Exception $e) {
+                                error_log("Header subscription check error: " . $e->getMessage());
+                            }
+                        }
+                        ?>
+                        <?php if ($headerHasActiveSubscription): ?>
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-section-header">サブスクリプション</div>
+                        <?php if ($headerSubscriptionInfo): ?>
+                        <div class="dropdown-subscription-info">
+                            <div class="subscription-status">
+                                ステータス: <span class="status-badge status-<?php echo htmlspecialchars($headerSubscriptionInfo['status']); ?>">
+                                    <?php
+                                    $statusLabels = [
+                                        'active' => 'アクティブ',
+                                        'trialing' => 'トライアル中',
+                                        'past_due' => '延滞中',
+                                        'incomplete' => '未完了',
+                                        'canceled' => 'キャンセル済み'
+                                    ];
+                                    echo htmlspecialchars($statusLabels[$headerSubscriptionInfo['status']] ?? $headerSubscriptionInfo['status']);
+                                    ?>
+                                </span>
+                            </div>
+                            <?php if ($headerSubscriptionInfo['next_billing_date']): ?>
+                            <div class="subscription-next-billing">
+                                次回請求日: <?php echo htmlspecialchars($headerSubscriptionInfo['next_billing_date']); ?>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+                        <button type="button" id="header-cancel-subscription-btn" class="dropdown-item dropdown-button" style="color: #dc3545; cursor: pointer; width: 100%; text-align: left; background: none; border: none; padding: 0.75rem 1.25rem;">
+                            <span>サブスクリプションをキャンセル</span>
+                        </button>
+                        <?php endif; ?>
+                        <div class="dropdown-divider"></div>
                         <a href="auth/reset-email.php" class="dropdown-item mobile-only-dropdown">
                             <span>メールアドレスリセット</span>
                         </a>
@@ -186,6 +259,66 @@ if ($isLoggedIn) {
         document.addEventListener('click', function(e) {
             if (!userMenu.contains(e.target)) {
                 userMenu.classList.remove('active');
+            }
+        });
+    }
+
+    // Subscription cancellation handler for header dropdown
+    const headerCancelBtn = document.getElementById('header-cancel-subscription-btn');
+    if (headerCancelBtn) {
+        headerCancelBtn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (!confirm('サブスクリプションをキャンセルしますか？\n\n期間終了時にキャンセルされます。即座にキャンセルする場合は「OK」を押した後、確認画面で選択してください。')) {
+                return;
+            }
+
+            const cancelImmediately = confirm('即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル');
+
+            headerCancelBtn.disabled = true;
+            const originalText = headerCancelBtn.querySelector('span')?.textContent || 'サブスクリプションをキャンセル';
+            if (headerCancelBtn.querySelector('span')) {
+                headerCancelBtn.querySelector('span').textContent = '処理中...';
+            } else {
+                headerCancelBtn.textContent = '処理中...';
+            }
+
+            try {
+                const response = await fetch('../backend/api/mypage/cancel.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        cancel_immediately: cancelImmediately
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(result.message || 'サブスクリプションをキャンセルしました');
+                    window.location.reload();
+                } else {
+                    alert(result.message || 'サブスクリプションのキャンセルに失敗しました');
+                    headerCancelBtn.disabled = false;
+                    if (headerCancelBtn.querySelector('span')) {
+                        headerCancelBtn.querySelector('span').textContent = originalText;
+                    } else {
+                        headerCancelBtn.textContent = originalText;
+                    }
+                }
+            } catch (error) {
+                console.error('Error canceling subscription:', error);
+                alert('エラーが発生しました');
+                headerCancelBtn.disabled = false;
+                if (headerCancelBtn.querySelector('span')) {
+                    headerCancelBtn.querySelector('span').textContent = originalText;
+                } else {
+                    headerCancelBtn.textContent = originalText;
+                }
             }
         });
     }

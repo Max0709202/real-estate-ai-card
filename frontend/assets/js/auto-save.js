@@ -162,9 +162,9 @@
     }
 
     /**
-     * Save form data to localStorage
+     * Save form data to localStorage and optionally to server (draft autosave)
      */
-    function saveFormData() {
+    async function saveFormData() {
         const forms = document.querySelectorAll('form');
         const formData = {};
 
@@ -190,18 +190,53 @@
         });
 
         try {
+            // Save to localStorage first (immediate)
             localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(formData));
+            
             // Clear any pending status timeout
             if (statusTimeout) {
                 clearTimeout(statusTimeout);
             }
-            // Show "Saving..." briefly, then change to "Saved" which auto-hides
+            
+            // Show "Saving..." status
             showStatus('保存中...', 'saving');
-            // Change to "Saved" message after a brief moment (since localStorage is synchronous, this happens almost immediately)
-            statusTimeout = setTimeout(() => {
+            
+            // Try to save draft to server (autosave endpoint)
+            // Only if we're on edit.php (My Page)
+            if (window.location.pathname.includes('edit.php')) {
+                try {
+                    const draftData = collectFormDataForDraft();
+                    if (draftData && Object.keys(draftData).length > 0) {
+                        const response = await fetch('../backend/api/mypage/autosave.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify(draftData)
+                        });
+                        
+                        const result = await response.json();
+                        if (result.success) {
+                            showStatus('ドラフトを保存しました', 'success');
+                        } else {
+                            // If server save fails, still show local save success
+                            showStatus('ローカルに保存しました', 'success');
+                        }
+                    } else {
+                        showStatus('保存しました', 'success');
+                    }
+                } catch (error) {
+                    console.error('Error saving draft to server:', error);
+                    // If server save fails, still show local save success
+                    showStatus('ローカルに保存しました', 'success');
+                }
+            } else {
+                // Not on edit page, just show local save success
                 showStatus('保存しました', 'success');
-                statusTimeout = null;
-            }, 300);
+            }
+            
+            statusTimeout = null;
         } catch (error) {
             console.error('Error saving to localStorage:', error);
             if (statusTimeout) {
@@ -210,6 +245,110 @@
             }
             showStatus('保存に失敗しました', 'warning');
         }
+    }
+
+    /**
+     * Collect form data for draft autosave
+     */
+    function collectFormDataForDraft() {
+        const data = {};
+        
+        // Collect all form fields
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            // Basic fields
+            const fields = form.querySelectorAll('input:not([type="file"]):not([type="password"]):not([type="checkbox"]):not([type="radio"]), textarea, select');
+            fields.forEach(field => {
+                if (isPasswordField(field)) return;
+                const name = field.name || field.id;
+                if (name && field.value) {
+                    data[name] = field.value;
+                }
+            });
+            
+            // Checkboxes and radios
+            const checkboxes = form.querySelectorAll('input[type="checkbox"]:checked, input[type="radio"]:checked');
+            checkboxes.forEach(checkbox => {
+                const name = checkbox.name;
+                if (name) {
+                    if (!data[name]) {
+                        data[name] = checkbox.value;
+                    } else if (Array.isArray(data[name])) {
+                        data[name].push(checkbox.value);
+                    } else {
+                        data[name] = [data[name], checkbox.value];
+                    }
+                }
+            });
+        });
+        
+        // Collect greetings
+        const greetingItems = document.querySelectorAll('#greetings-list .greeting-item');
+        if (greetingItems.length > 0) {
+            const greetings = [];
+            greetingItems.forEach((item, index) => {
+                const titleInput = item.querySelector('input[name="greeting_title[]"]') || item.querySelector('.greeting-title');
+                const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]') || item.querySelector('.greeting-content');
+                const title = titleInput ? titleInput.value.trim() : '';
+                const content = contentTextarea ? contentTextarea.value.trim() : '';
+                if (title || content) {
+                    greetings.push({
+                        title: title,
+                        content: content,
+                        display_order: index
+                    });
+                }
+            });
+            if (greetings.length > 0) {
+                data.greetings = greetings;
+            }
+        }
+        
+        // Collect tech tools
+        const techToolCheckboxes = document.querySelectorAll('.tech-tool-checkbox:checked');
+        if (techToolCheckboxes.length > 0) {
+            const techTools = [];
+            techToolCheckboxes.forEach((checkbox, index) => {
+                techTools.push({
+                    tool_type: checkbox.value,
+                    tool_url: '', // Will be generated on server
+                    display_order: index,
+                    is_active: true
+                });
+            });
+            if (techTools.length > 0) {
+                data.tech_tools = techTools;
+            }
+        }
+        
+        // Collect communication methods
+        const commItems = document.querySelectorAll('.communication-item');
+        if (commItems.length > 0) {
+            const communicationMethods = [];
+            commItems.forEach((item, index) => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox && checkbox.checked) {
+                    const methodType = checkbox.name.replace('comm_', '');
+                    const details = item.querySelector('.comm-details');
+                    const urlInput = details ? details.querySelector('input[type="url"]') : null;
+                    const textInput = details ? details.querySelector('input[type="text"]') : null;
+                    
+                    communicationMethods.push({
+                        method_type: methodType,
+                        method_name: item.querySelector('span')?.textContent || methodType,
+                        method_url: urlInput ? urlInput.value : '',
+                        method_id: textInput ? textInput.value : '',
+                        is_active: true,
+                        display_order: index
+                    });
+                }
+            });
+            if (communicationMethods.length > 0) {
+                data.communication_methods = communicationMethods;
+            }
+        }
+        
+        return data;
     }
 
     /**

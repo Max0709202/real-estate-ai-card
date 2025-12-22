@@ -57,8 +57,8 @@
         const menuNav = document.createElement('div');
         menuNav.className = 'mobile-menu-nav';
 
-        // Get all nav links (excluding buttons)
-        const navLinks = nav.querySelectorAll('a:not(.btn-primary):not(.btn-secondary)');
+        // Get all nav links (excluding buttons and user menu)
+        const navLinks = nav.querySelectorAll('a:not(.btn-primary):not(.btn-secondary):not(.user-menu a)');
         navLinks.forEach(link => {
             const menuLink = link.cloneNode(true);
             menuLink.addEventListener('click', () => {
@@ -67,11 +67,47 @@
             menuNav.appendChild(menuLink);
         });
 
+        // Add user menu items (person icon menu) to mobile menu
+        const userMenu = nav.querySelector('.user-menu');
+        if (userMenu) {
+            const userDropdown = userMenu.querySelector('.user-dropdown');
+            if (userDropdown) {
+                // Create user menu section
+                const userMenuSection = document.createElement('div');
+                userMenuSection.className = 'mobile-user-menu-section';
+                
+                // Clone all dropdown items
+                const dropdownItems = userDropdown.querySelectorAll('.dropdown-item, .dropdown-divider, .dropdown-section-header, .dropdown-subscription-info, .dropdown-button');
+                dropdownItems.forEach(item => {
+                    const clonedItem = item.cloneNode(true);
+                    // Remove mobile-only-dropdown class for mobile menu (show all items)
+                    clonedItem.classList.remove('mobile-only-dropdown');
+                    
+                    // Handle subscription cancel button
+                    if (clonedItem.id === 'header-cancel-subscription-btn') {
+                        clonedItem.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            closeMobileMenu();
+                            // Trigger the same handler as desktop version
+                            const originalBtn = document.getElementById('header-cancel-subscription-btn');
+                            if (originalBtn) {
+                                originalBtn.click();
+                            }
+                        });
+                    }
+                    
+                    userMenuSection.appendChild(clonedItem);
+                });
+                
+                menuNav.appendChild(userMenuSection);
+            }
+        }
+
         // Add buttons if they exist
         const loginBtn = nav.querySelector('.btn-secondary');
         const registerBtn = nav.querySelector('.btn-primary');
         
-        if (loginBtn) {
+        if (loginBtn && !nav.querySelector('.user-menu')) {
             const menuLoginBtn = loginBtn.cloneNode(true);
             menuLoginBtn.className = 'btn-secondary';
             menuNav.appendChild(menuLoginBtn);

@@ -15,6 +15,61 @@ if (empty($_SESSION['user_id'])) {
 
 $userId = $_SESSION['user_id'];
 
+// Get subscription information
+$subscriptionInfo = null;
+$hasActiveSubscription = false;
+try {
+    require_once __DIR__ . '/../backend/config/database.php';
+    $database = new Database();
+    $db = $database->getConnection();
+
+    // Get subscription information - check for any subscription (not just active ones)
+    $stmt = $db->prepare("
+        SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
+               bc.id as business_card_id, bc.card_status, bc.payment_status
+        FROM subscriptions s
+        JOIN business_cards bc ON s.business_card_id = bc.id
+        WHERE s.user_id = ?
+        ORDER BY s.created_at DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$userId]);
+    $subscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Also check if user has completed payment (for cases where subscription might not exist yet)
+    $hasCompletedPayment = false;
+    if (!$subscriptionInfo) {
+        $stmt = $db->prepare("
+            SELECT bc.payment_status
+            FROM business_cards bc
+            WHERE bc.user_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        $cardInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID'])) {
+            $hasCompletedPayment = true;
+        }
+    }
+
+    // Show cancel button if:
+    // 1. Has active/trialing subscription, OR
+    // 2. Has completed payment (for new users who should have subscription)
+    if ($subscriptionInfo && in_array($subscriptionInfo['status'], ['active', 'trialing', 'past_due', 'incomplete'])) {
+        $hasActiveSubscription = true;
+    } elseif ($hasCompletedPayment) {
+        // Check if user is new user type (should have subscription)
+        $stmt = $db->prepare("SELECT user_type FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $userType = $stmt->fetchColumn();
+        if ($userType === 'new') {
+            $hasActiveSubscription = true; // Show button even if subscription not found (will be created)
+        }
+    }
+} catch (Exception $e) {
+    error_log("Error fetching subscription info: " . $e->getMessage());
+}
+
 // Default greeting messages
 $defaultGreetings = [
     [
@@ -105,7 +160,39 @@ $defaultGreetings = [
                     <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column; padding-inline: 10px;">
                         <a href="auth/forgot-password.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">パスワードリセット</a>
                         <a href="auth/reset-email.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">メールアドレスリセット</a>
+                        <?php if ($hasActiveSubscription): ?>
+                        <button type="button" id="cancel-subscription-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer; background: #dc3545; color: #fff; border: none;">
+                            サブスクリプションをキャンセル
+                        </button>
+                        <?php endif; ?>
                     </div>
+                    <?php if ($subscriptionInfo || (isset($hasCompletedPayment) && $hasCompletedPayment)): ?>
+                    <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; font-size: 0.875rem;">
+                        <div style="margin-bottom: 0.5rem;"><strong>サブスクリプション状況</strong></div>
+                        <?php if ($subscriptionInfo): ?>
+                        <div>ステータス: <span id="subscription-status"><?php
+                            $statusLabels = [
+                                'active' => 'アクティブ',
+                                'trialing' => 'トライアル中',
+                                'past_due' => '延滞中',
+                                'incomplete' => '未完了',
+                                'incomplete_expired' => '期限切れ',
+                                'canceled' => 'キャンセル済み',
+                                'unpaid' => '未払い'
+                            ];
+                            echo htmlspecialchars($statusLabels[$subscriptionInfo['status']] ?? $subscriptionInfo['status']);
+                        ?></span></div>
+                        <?php if ($subscriptionInfo['next_billing_date']): ?>
+                        <div>次回請求日: <?php echo htmlspecialchars($subscriptionInfo['next_billing_date']); ?></div>
+                        <?php endif; ?>
+                        <?php if ($subscriptionInfo['cancelled_at']): ?>
+                        <div style="color: #dc3545; margin-top: 0.5rem;">キャンセル予定: <?php echo htmlspecialchars($subscriptionInfo['cancelled_at']); ?></div>
+                        <?php endif; ?>
+                        <?php else: ?>
+                        <div>ステータス: <span id="subscription-status">支払い完了（サブスクリプション作成中）</span></div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -286,12 +373,12 @@ $defaultGreetings = [
                             <div class="form-group">
                                 <label>ローマ字姓</label>
                                 <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
-                                <input type="text" name="last_name_romaji" id="edit_last_name_romaji" class="form-control" placeholder="例：Yamada">
+                                <input type="text" name="last_name_romaji" id="edit_last_name_romaji" class="form-control" placeholder="例：Yamada" inputmode="latin" autocomplete="family-name" autocapitalize="words" spellcheck="false">
                             </div>
                             <div class="form-group">
                                 <label>ローマ字名</label>
                                 <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
-                                <input type="text" name="first_name_romaji" id="edit_first_name_romaji" class="form-control" placeholder="例：Taro">
+                                <input type="text" name="first_name_romaji" id="edit_first_name_romaji" class="form-control" placeholder="例：Taro" inputmode="latin" autocomplete="given-name" autocapitalize="words" spellcheck="false">
                             </div>
                         </div>
 
@@ -620,11 +707,11 @@ $defaultGreetings = [
                 <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
                     画像のサイズを調整し、必要な部分を選択してください。指でドラッグしてトリミングエリアを移動・拡大縮小できます。
                 </p>
-                <div style="width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px;">
-                    <img id="cropper-image" style="max-width: 100%; display: block; max-height: 60vh;">
+                <div style="width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;">
+                    <img id="cropper-image" style="max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;">
                 </div>
                 <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                    <button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; width: auto;">キャンセル</button>
+                    <button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; width: auto; cursor: pointer;">キャンセル</button>
                     <button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px; width: auto;">トリミングを適用</button>
                 </div>
             </div>
@@ -637,6 +724,76 @@ $defaultGreetings = [
     <script src="assets/js/auto-save.js"></script>
     <script src="assets/js/edit.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
+    <script>
+        // Subscription cancellation handler for edit.php sidebar
+        document.addEventListener('DOMContentLoaded', function() {
+            const cancelBtn = document.getElementById('cancel-subscription-btn');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', async function() {
+                    if (!confirm('サブスクリプションをキャンセルしますか？\n\n期間終了時にキャンセルされます。即座にキャンセルする場合は「OK」を押した後、確認画面で選択してください。')) {
+                        return;
+                    }
+
+                    const cancelImmediately = confirm('即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル');
+
+                    cancelBtn.disabled = true;
+                    cancelBtn.textContent = '処理中...';
+
+                    try {
+                        const response = await fetch('../backend/api/mypage/cancel.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                cancel_immediately: cancelImmediately
+                            })
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            if (typeof showSuccess === 'function') {
+                                showSuccess(result.message || 'サブスクリプションをキャンセルしました', { autoClose: 5000 });
+                            } else {
+                                alert(result.message || 'サブスクリプションをキャンセルしました');
+                            }
+
+                            const statusEl = document.getElementById('subscription-status');
+                            if (statusEl) {
+                                statusEl.textContent = 'キャンセル済み';
+                                statusEl.style.color = '#dc3545';
+                            }
+
+                            cancelBtn.style.display = 'none';
+
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 3000);
+                        } else {
+                            if (typeof showError === 'function') {
+                                showError(result.message || 'サブスクリプションのキャンセルに失敗しました');
+                            } else {
+                                alert(result.message || 'サブスクリプションのキャンセルに失敗しました');
+                            }
+                            cancelBtn.disabled = false;
+                            cancelBtn.textContent = 'サブスクリプションをキャンセル';
+                        }
+                    } catch (error) {
+                        console.error('Error canceling subscription:', error);
+                        if (typeof showError === 'function') {
+                            showError('エラーが発生しました');
+                        } else {
+                            alert('エラーが発生しました');
+                        }
+                        cancelBtn.disabled = false;
+                        cancelBtn.textContent = 'サブスクリプションをキャンセル';
+                    }
+                });
+            }
+        });
+    </script>
     <script>
         // Step 1: Header & Greeting form submission
         document.addEventListener('DOMContentLoaded', function() {
@@ -1099,6 +1256,7 @@ $defaultGreetings = [
                 });
             });
         });
+
     </script>
 </body>
 </html>

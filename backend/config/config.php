@@ -17,7 +17,7 @@ if (ENVIRONMENT === 'development') {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
 } else {
-    error_reporting(0);
+    error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
     ini_set('display_errors', 0);
 }
 
@@ -28,6 +28,21 @@ date_default_timezone_set('Asia/Tokyo');
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0); // HTTPS使用時は1に変更
+
+// セッション保存パスをプロジェクト内に設定（権限エラーを回避）
+$sessionPath = __DIR__ . '/../sessions';
+if (!is_dir($sessionPath)) {
+    @mkdir($sessionPath, 0755, true);
+}
+if (is_dir($sessionPath) && is_writable($sessionPath)) {
+    ini_set('session.save_path', $sessionPath);
+} else {
+    // 書き込みできない場合は、システムの一時ディレクトリを使用
+    $systemTemp = sys_get_temp_dir();
+    if (is_writable($systemTemp)) {
+        ini_set('session.save_path', $systemTemp);
+    }
+}
 
 // ベースURL
 define('BASE_URL', 'http://103.179.45.108/php');
