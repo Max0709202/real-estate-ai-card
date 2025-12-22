@@ -568,67 +568,88 @@ async function deleteSelectedUsers() {
     }, null, 'ユーザー削除の確認');
 }
 
-// Confirm bank transfer paid
+// Confirm bank transfer paid (make it globally accessible)
 function confirmBankTransferPaid(businessCardId, badgeElement) {
-    // Check if user has admin role
-    if (window.isAdmin === false) {
-        showError('クライアントロールはこの操作を実行できません');
-        return;
-    }
+    console.log('confirmBankTransferPaid called', businessCardId, badgeElement);
 
-    // Store badge element for reverting if cancelled
-    window.currentBadgeElement = badgeElement;
-    window.currentBusinessCardId = businessCardId;
+    try {
+        // Check if user has admin role
+        if (window.isAdmin === false) {
+            if (typeof showError === 'function') {
+                showError('クライアントロールはこの操作を実行できません');
+            } else {
+                alert('クライアントロールはこの操作を実行できません');
+            }
+            return;
+        }
 
-    // Remove any existing modal first
-    const existingModal = document.querySelector('.modal-overlay');
-    if (existingModal) {
-        existingModal.remove();
-    }
+        // Store badge element for reverting if cancelled
+        window.currentBadgeElement = badgeElement;
+        window.currentBusinessCardId = businessCardId;
 
-    // Create modal
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-        <div class="modal-content">
-            <h3>振込確認</h3>
-            <p>振込済みに変更しますか？</p>
-            <p style="font-size: 14px; color: #666; margin-top: 10px;">QRコードが発行され、ユーザーにメールが送信されます。</p>
-            <div class="modal-buttons">
-                <button class="modal-btn modal-btn-yes" id="confirm-bank-paid-yes">はい</button>
-                <button class="modal-btn modal-btn-no" id="confirm-bank-paid-no">いいえ</button>
+        // Remove any existing modal first
+        const existingModal = document.querySelector('.modal-overlay');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // Create modal (using admin.css modal styles - same as showQRCodeConfirmation)
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3>振込確認</h3>
+                <p>振込済みに変更しますか？</p>
+                <p style="font-size: 14px; color: #666; margin-top: 10px;">QRコードが発行され、ユーザーにメールが送信されます。</p>
+                <div class="modal-buttons">
+                    <button class="modal-btn modal-btn-yes" id="confirm-bank-paid-yes">はい</button>
+                    <button class="modal-btn modal-btn-no" id="confirm-bank-paid-no">いいえ</button>
+                </div>
             </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
+        `;
+        document.body.appendChild(modal);
 
-    // Force reflow to ensure DOM is updated
-    void modal.offsetHeight;
+        // Force reflow to ensure DOM is updated
+        void modal.offsetHeight;
 
-    // Add active class to show modal
-    setTimeout(() => {
-        modal.classList.add('active');
-    }, 10);
+        // Add active class to display modal (matching admin.css)
+        setTimeout(() => {
+            modal.classList.add('active');
+            console.log('Modal class added:', modal.className);
+            console.log('Modal element:', modal);
+            console.log('Modal display style:', window.getComputedStyle(modal).display);
+        }, 10);
 
-    // Add event listeners after DOM is updated
-    setTimeout(() => {
-        const yesBtn = document.getElementById('confirm-bank-paid-yes');
-        const noBtn = document.getElementById('confirm-bank-paid-no');
+        // Add event listeners after DOM is updated
+        setTimeout(() => {
+            const yesBtn = document.getElementById('confirm-bank-paid-yes');
+            const noBtn = document.getElementById('confirm-bank-paid-no');
 
-        if (yesBtn) {
-            yesBtn.addEventListener('click', function() {
-                processBankTransferPaid(businessCardId, badgeElement);
-                modal.remove();
-            });
-        }
+            if (yesBtn) {
+                yesBtn.addEventListener('click', function() {
+                    processBankTransferPaid(businessCardId, badgeElement);
+                    modal.remove();
+                });
+            } else {
+                console.error('Yes button not found');
+            }
 
-        if (noBtn) {
-            noBtn.addEventListener('click', function() {
-                modal.remove();
-            });
-        }
-    }, 10);
+            if (noBtn) {
+                noBtn.addEventListener('click', function() {
+                    modal.remove();
+                });
+            } else {
+                console.error('No button not found');
+            }
+        }, 10);
+    } catch (error) {
+        console.error('Error in confirmBankTransferPaid:', error);
+        alert('エラーが発生しました: ' + error.message);
+    }
 }
+
+// Also assign to window for inline onclick handlers
+window.confirmBankTransferPaid = confirmBankTransferPaid;
 
 async function processBankTransferPaid(businessCardId, badgeElement) {
     try {
@@ -657,7 +678,13 @@ async function processBankTransferPaid(businessCardId, badgeElement) {
                 badgeElement.setAttribute('data-current-status', 'BANK_PAID');
             }
 
-            showSuccess('入金状況を「振込済」に更新しました');
+            showSuccess(result.message || '入金状況を「振込済」に更新しました。QRコードが発行され、ユーザーにメールが送信されました。', {
+                autoClose: 3000,
+                onClose: () => {
+                    // Reload page to ensure all data is synced
+                    window.location.reload();
+                }
+            });
         } else {
             showError(result.message || '更新に失敗しました');
         }

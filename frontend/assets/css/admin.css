@@ -744,7 +744,9 @@ body {
 }
 
 .modal-overlay.active {
-    display: flex;
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
 }
 
 .modal-content {
