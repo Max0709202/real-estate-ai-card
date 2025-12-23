@@ -101,7 +101,7 @@ body {
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    min-width: 210px;
+    min-width: 125px;
     opacity: 0;
     visibility: hidden;
     transform: translateY(-10px);
