@@ -494,7 +494,8 @@ async function saveStepData(stepNumber) {
                 const formData2 = new FormData(form);
                 saveData = Object.fromEntries(formData2);
                 if (saveData.company_name_profile) {
-                    saveData.company_name = saveData.company_name_profile;
+                    // Trim to prevent unwanted periods/whitespace
+                    saveData.company_name = String(saveData.company_name_profile).trim();
                     delete saveData.company_name_profile;
                 }
                 break;
@@ -1154,7 +1155,9 @@ document.getElementById('lookup-license')?.addEventListener('click', async () =>
         
         if (result.success) {
             if (result.data.company_name) {
-                document.querySelector('input[name="company_name_profile"]').value = result.data.company_name;
+                // Trim the company name to remove any accidental periods or whitespace
+                const companyName = String(result.data.company_name).trim();
+                document.querySelector('input[name="company_name_profile"]').value = companyName;
             }
             if (result.data.address) {
                 document.getElementById('company_address').value = result.data.address;
@@ -1415,9 +1418,9 @@ document.getElementById('company-profile-form')?.addEventListener('submit', asyn
     const formDataObj = new FormData(e.target);
     const data = Object.fromEntries(formDataObj);
     
-    // Merge company_name from profile step
+    // Merge company_name from profile step and trim to prevent unwanted periods/whitespace
     if (data.company_name_profile) {
-        data.company_name = data.company_name_profile;
+        data.company_name = String(data.company_name_profile).trim();
         delete data.company_name_profile;
     }
     
@@ -1844,7 +1847,8 @@ function collectFormData() {
         if (step1Form) {
             const formData = new FormData(step1Form);
             if (formData.get('company_name')) {
-                data.company_name = formData.get('company_name');
+                // Trim to prevent unwanted periods/whitespace
+                data.company_name = String(formData.get('company_name')).trim();
             }
             
             // Logo
@@ -1886,7 +1890,8 @@ function collectFormData() {
         if (step2Form) {
             const formData = new FormData(step2Form);
             if (formData.get('company_name_profile')) {
-                data.company_name_profile = formData.get('company_name_profile');
+                // Trim to prevent unwanted periods/whitespace
+                data.company_name_profile = String(formData.get('company_name_profile')).trim();
             }
             if (formData.get('company_postal_code')) {
                 data.company_postal_code = formData.get('company_postal_code');
@@ -2141,25 +2146,32 @@ function generatePreview(data) {
     
     // Header Section (matching card.php)
     html += '<div class="card-header">';
+    let hasHeaderContent = false;
     if (data.company_logo) {
         html += `<img src="${escapeHtml(data.company_logo)}" alt="ロゴ" class="company-logo">`;
+        hasHeaderContent = true;
     }
     const companyName = data.company_name || data.company_name_profile || '';
     if (companyName) {
         html += `<h1 class="company-name">${escapeHtml(companyName)}</h1>`;
+        hasHeaderContent = true;
     }
     html += '</div>';
-    html += '<hr>';
+    if (hasHeaderContent) {
+        html += '<hr>';
+    }
     
     // Card Body
     html += '<div class="card-body">';
     
     // Profile photo and greeting section (matching card.php)
     html += '<div class="profile-greeting-section">';
+    let hasProfileGreetingContent = false;
     if (data.profile_photo) {
         html += '<div class="profile-photo-container">';
         html += `<img src="${escapeHtml(data.profile_photo)}" alt="プロフィール写真" class="profile-photo">`;
         html += '</div>';
+        hasProfileGreetingContent = true;
     }
     
     // First greeting only
@@ -2175,23 +2187,29 @@ function generatePreview(data) {
                 html += `<p class="greeting-text">${escapeHtml(firstGreeting.content).replace(/\n/g, '<br>')}</p>`;
             }
             html += '</div>';
+            hasProfileGreetingContent = true;
         }
     }
     html += '</div>'; // greeting-content
     html += '</div>'; // profile-greeting-section
     html += '</div>'; // card-body
-    html += '<hr>';
+    if (hasProfileGreetingContent) {
+        html += '<hr>';
+    }
     
     // Responsive two-column info layout (matching card.php)
     html += '<div class="card-body">';
     html += '<div class="info-responsive-grid">';
-    
+
+    let hasInfoContent = false;
+
     // Company name
     if (companyName) {
         html += '<div class="info-section company-info">';
         html += '<h3>会社名</h3>';
         html += `<p>${escapeHtml(companyName)}</p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // License
@@ -2204,6 +2222,7 @@ function generatePreview(data) {
         licenseText += `第${escapeHtml(data.real_estate_license_registration_number)}号`;
         html += `<p>${licenseText}</p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Address
@@ -2217,6 +2236,7 @@ function generatePreview(data) {
             html += `<p>${escapeHtml(data.company_address)}</p>`;
         }
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Company phone
@@ -2225,6 +2245,7 @@ function generatePreview(data) {
         html += '<h3>会社電話番号</h3>';
         html += `<p>${escapeHtml(data.company_phone)}</p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Website
@@ -2233,6 +2254,7 @@ function generatePreview(data) {
         html += '<h3>HP</h3>';
         html += `<p><a href="${escapeHtml(data.company_website)}" target="_blank">${escapeHtml(data.company_website)}</a></p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Department / Position
@@ -2242,6 +2264,7 @@ function generatePreview(data) {
         let deptPosition = [data.branch_department, data.position].filter(Boolean).join(' / ');
         html += `<p>${escapeHtml(deptPosition)}</p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Name
@@ -2254,6 +2277,7 @@ function generatePreview(data) {
         }
         html += '</p>';
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Mobile phone
@@ -2262,6 +2286,7 @@ function generatePreview(data) {
         html += '<h3>携帯番号</h3>';
         html += `<p>${escapeHtml(data.mobile_phone)}</p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Birthday
@@ -2270,6 +2295,7 @@ function generatePreview(data) {
         html += '<h3>誕生日</h3>';
         html += `<p>${escapeHtml(data.birth_date)}</p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Residence / Hometown
@@ -2279,6 +2305,7 @@ function generatePreview(data) {
         let residenceText = [data.current_residence, data.hometown].filter(Boolean).join(' / ');
         html += `<p>${escapeHtml(residenceText)}</p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Alma mater
@@ -2287,6 +2314,7 @@ function generatePreview(data) {
         html += '<h3>出身大学</h3>';
         html += `<p>${escapeHtml(data.alma_mater).replace(/\n/g, '<br>')}</p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Qualifications
@@ -2295,6 +2323,7 @@ function generatePreview(data) {
         html += '<h3>資格</h3>';
         html += `<p>${escapeHtml(data.qualifications).replace(/\n/g, '<br>')}</p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Hobbies
@@ -2303,6 +2332,7 @@ function generatePreview(data) {
         html += '<h3>趣味</h3>';
         html += `<p>${escapeHtml(data.hobbies).replace(/\n/g, '<br>')}</p>`;
         html += '</div>';
+        hasInfoContent = true;
     }
     
     // Free input (Other)
@@ -2329,12 +2359,15 @@ function generatePreview(data) {
         
         html += '</div>';
         html += '</div>';
+        hasInfoContent = true;
     }
     
     html += '</div>'; // info-responsive-grid
-    
-    html += '<hr>';
-    
+
+    if (hasInfoContent) {
+        html += '<hr>';
+    }
+
     // Tech Tools Section (matching card.php banner style)
     if (data.tech_tools && data.tech_tools.length > 0) {
         html += '<section class="tech-tools-section">';
@@ -2359,7 +2392,10 @@ function generatePreview(data) {
         html += '</div>';
     }
     
-    html += '<hr>';
+    // Only show HR if tech tools section was displayed
+    if (data.tech_tools && data.tech_tools.length > 0) {
+        html += '<hr>';
+    }
     
     // Communication Section (matching card.php)
     if (data.communication && Object.keys(data.communication).length > 0) {
@@ -2457,7 +2493,20 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
         registerCropper = null;
     }
     
-    // Revoke previous object URL if exists
+    // Step 1.5: Reset image element completely BEFORE revoking URL (to prevent errors)
+    cropperImage.onload = null;
+    cropperImage.onerror = null;
+    cropperImage.removeAttribute('src'); // Use removeAttribute instead of setting to empty string
+    cropperImage.style.display = 'none'; // Hide while resetting
+
+    // Remove any cropper wrapper elements that might be left behind
+    const cropperContainer = cropperImage.parentElement;
+    if (cropperContainer) {
+        // Remove any cropper-related classes and data attributes
+        cropperContainer.querySelectorAll('.cropper-container, .cropper-wrap-box, .cropper-canvas, .cropper-drag-box, .cropper-crop-box, .cropper-modal').forEach(el => el.remove());
+    }
+
+    // Revoke previous object URL if exists (after clearing src)
     if (registerImageObjectURL) {
         try {
             URL.revokeObjectURL(registerImageObjectURL);
@@ -2466,17 +2515,12 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
         }
         registerImageObjectURL = null;
     }
-    
+
     // Remove previous onload handler if exists
     if (registerCropperImageLoadHandler) {
         cropperImage.removeEventListener('load', registerCropperImageLoadHandler);
         registerCropperImageLoadHandler = null;
     }
-    
-    // Reset image element completely
-    cropperImage.onload = null;
-    cropperImage.onerror = null;
-    cropperImage.src = ''; // Clear src first
     
     // Step 2: Remove old event listeners from buttons (create new handlers)
     const cancelBtn = document.getElementById('crop-cancel-btn');
@@ -2506,58 +2550,75 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
     // Step 5: Show modal
     modal.style.display = 'block';
     
-    // Step 6: Set up image load handler
-    registerCropperImageLoadHandler = function() {
-        // Destroy any existing cropper (defensive)
-        if (registerCropper) {
-            try {
-                registerCropper.destroy();
-            } catch (e) {
-                console.warn('Error destroying cropper in onload:', e);
+    // Step 6: Set up image load handler (with timeout to ensure DOM is ready)
+    setTimeout(() => {
+        // Make image visible again
+        cropperImage.style.display = 'block';
+
+        registerCropperImageLoadHandler = function() {
+            // Destroy any existing cropper (defensive)
+            if (registerCropper) {
+                try {
+                    registerCropper.destroy();
+                } catch (e) {
+                    console.warn('Error destroying cropper in onload:', e);
+                }
             }
-        }
+
+            // Small delay to ensure image is fully rendered
+            setTimeout(() => {
+                // Initialize cropper with aspect ratio
+                const aspectRatio = fieldName === 'company_logo' ? 1 : 1; // Square for both
+                try {
+                    registerCropper = new Cropper(cropperImage, {
+                        aspectRatio: aspectRatio,
+                        viewMode: 1,
+                        dragMode: 'move',
+                        autoCropArea: 0.8,
+                        restore: false,
+                        guides: true,
+                        center: true,
+                        highlight: false,
+                        cropBoxMovable: true,
+                        cropBoxResizable: true,
+                        toggleDragModeOnDblclick: false,
+                        responsive: true,
+                        minContainerWidth: 300,
+                        minContainerHeight: 300
+                    });
+                } catch (e) {
+                    console.error('Error initializing cropper:', e);
+                    showError('画像の読み込みに失敗しました');
+                    closeRegisterImageCropper();
+                }
+            }, 50);
+        };
         
-        // Initialize cropper with aspect ratio
-        const aspectRatio = fieldName === 'company_logo' ? 1 : 1; // Square for both
-        try {
-            registerCropper = new Cropper(cropperImage, {
-                aspectRatio: aspectRatio,
-                viewMode: 1,
-                dragMode: 'move',
-                autoCropArea: 0.8,
-                restore: false,
-                guides: true,
-                center: true,
-                highlight: false,
-                cropBoxMovable: true,
-                cropBoxResizable: true,
-                toggleDragModeOnDblclick: false,
-                responsive: true,
-                minContainerWidth: 300,
-                minContainerHeight: 300
-            });
-        } catch (e) {
-            console.error('Error initializing cropper:', e);
+        cropperImage.onerror = function() {
+            console.error('Error loading image');
             showError('画像の読み込みに失敗しました');
             closeRegisterImageCropper();
+        };
+
+        // Set image src (this will trigger onload)
+        cropperImage.src = registerImageObjectURL;
+
+        // Force reload by adding timestamp to break cache (for re-uploads)
+        if (cropperImage.complete) {
+            // If already loaded, reload it
+            const currentSrc = cropperImage.src;
+            cropperImage.src = '';
+            setTimeout(() => {
+                cropperImage.src = currentSrc;
+                // Manually trigger onload for cached images
+                if (cropperImage.complete && registerCropperImageLoadHandler) {
+                    registerCropperImageLoadHandler();
+                }
+            }, 10);
+        } else {
+            cropperImage.onload = registerCropperImageLoadHandler;
         }
-    };
-    
-    cropperImage.onerror = function() {
-        console.error('Error loading image');
-        showError('画像の読み込みに失敗しました');
-        closeRegisterImageCropper();
-    };
-    
-    // Set image src (this will trigger onload)
-    cropperImage.src = registerImageObjectURL;
-    
-    // If image is already loaded (cached), trigger onload manually
-    if (cropperImage.complete) {
-        registerCropperImageLoadHandler();
-    } else {
-        cropperImage.onload = registerCropperImageLoadHandler;
-    }
+    }, 100); // Small delay to ensure cleanup completes
     
     // Step 7: Setup cancel button (after recreating it)
     const newCancelBtn = document.getElementById('crop-cancel-btn');

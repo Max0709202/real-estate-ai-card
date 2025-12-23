@@ -968,9 +968,9 @@ $defaultGreetings = [
                         data[key] = value;
                     }
                     
-                    // Merge company_name from profile step
+                    // Merge company_name from profile step and trim to prevent unwanted periods/whitespace
                     if (data.company_name_profile) {
-                        data.company_name = data.company_name_profile;
+                        data.company_name = String(data.company_name_profile).trim();
                         delete data.company_name_profile;
                     }
                     
@@ -1218,7 +1218,9 @@ $defaultGreetings = [
                     
                     if (result.success) {
                         if (result.data.company_name) {
-                            document.querySelector('input[name="company_name_profile"]').value = result.data.company_name;
+                            // Trim the company name to remove any accidental periods or whitespace
+                            const companyName = String(result.data.company_name).trim();
+                            document.querySelector('input[name="company_name_profile"]').value = companyName;
                         }
                         if (result.data.address) {
                             document.getElementById('company_address').value = result.data.address;

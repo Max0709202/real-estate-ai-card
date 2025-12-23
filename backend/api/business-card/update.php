@@ -91,6 +91,11 @@ try {
             continue;
         }
 
+        // For text fields, trim whitespace but preserve the exact input (don't add periods)
+        if (is_string($value)) {
+            $value = trim($value);
+        }
+
         $updateFields[] = "$field = ?";
         $updateValues[] = sanitizeInput($value);
     }

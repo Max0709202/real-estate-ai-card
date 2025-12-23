@@ -1,3 +1,11 @@
+// Global cropper instance for edit page
+let editCropper = null;
+let editCropFieldName = null;
+let editCropFile = null;
+let editCropOriginalEvent = null;
+let editImageObjectURL = null; // Track object URL for cleanup
+let editCropperImageLoadHandler = null; // Track onload handler
+
 // Move communication item up or down
 function moveCommunicationItem(index, direction, type) {
     const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
@@ -210,7 +218,10 @@ function populateEditForms(data) {
     // Step 1: Header & Greeting
     if (data.company_name) {
         const companyNameInput = document.querySelector('#header-greeting-form input[name="company_name"]');
-        if (companyNameInput) companyNameInput.value = data.company_name;
+        if (companyNameInput) {
+            // Trim to prevent unwanted periods/whitespace
+            companyNameInput.value = String(data.company_name).trim();
+        }
     }
     
     // Logo preview
@@ -1429,3 +1440,295 @@ function initializeEditNavigation() {
         });
     });
 }
+
+// Show image cropper modal for edit page
+function showEditImageCropper(file, fieldName, originalEvent) {
+    const modal = document.getElementById('image-cropper-modal');
+    const cropperImage = document.getElementById('cropper-image');
+
+    if (!modal || !cropperImage) {
+        showEditImagePreview(file, fieldName, originalEvent);
+        return;
+    }
+
+    // Step 1: Clean up previous state completely
+    if (editCropper) {
+        try {
+            editCropper.destroy();
+        } catch (e) {
+            console.warn('Error destroying previous cropper:', e);
+        }
+        editCropper = null;
+    }
+
+    // Reset image element completely
+    cropperImage.onload = null;
+    cropperImage.onerror = null;
+    cropperImage.removeAttribute('src');
+    cropperImage.style.display = 'none';
+
+    // Remove any cropper wrapper elements
+    const cropperContainer = cropperImage.parentElement;
+    if (cropperContainer) {
+        cropperContainer.querySelectorAll('.cropper-container, .cropper-wrap-box, .cropper-canvas, .cropper-drag-box, .cropper-crop-box, .cropper-modal').forEach(el => el.remove());
+    }
+
+    // Revoke previous object URL
+    if (editImageObjectURL) {
+        try {
+            URL.revokeObjectURL(editImageObjectURL);
+        } catch (e) {
+            console.warn('Error revoking previous object URL:', e);
+        }
+        editImageObjectURL = null;
+    }
+
+    // Remove previous onload handler
+    if (editCropperImageLoadHandler) {
+        cropperImage.removeEventListener('load', editCropperImageLoadHandler);
+        editCropperImageLoadHandler = null;
+    }
+
+    // Remove old event listeners from buttons
+    const cancelBtn = document.getElementById('crop-cancel-btn');
+    const confirmBtn = document.getElementById('crop-confirm-btn');
+
+    if (cancelBtn) {
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    }
+
+    if (confirmBtn) {
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    }
+
+    // Store file and field name
+    editCropFile = file;
+    editCropFieldName = fieldName;
+    editCropOriginalEvent = originalEvent;
+
+    // Create new object URL
+    editImageObjectURL = URL.createObjectURL(file);
+
+    // Show modal
+    modal.style.display = 'block';
+
+    // Set up image load handler
+    setTimeout(() => {
+        cropperImage.style.display = 'block';
+
+        editCropperImageLoadHandler = function() {
+            if (editCropper) {
+                try {
+                    editCropper.destroy();
+                } catch (e) {
+                    console.warn('Error destroying cropper in onload:', e);
+                }
+            }
+
+            setTimeout(() => {
+                const aspectRatio = fieldName === 'company_logo' ? 1 : 1;
+                try {
+                    editCropper = new Cropper(cropperImage, {
+                        aspectRatio: aspectRatio,
+                        viewMode: 1,
+                        dragMode: 'move',
+                        autoCropArea: 0.8,
+                        restore: false,
+                        guides: true,
+                        center: true,
+                        highlight: false,
+                        cropBoxMovable: true,
+                        cropBoxResizable: true,
+                        toggleDragModeOnDblclick: false,
+                        responsive: true,
+                        minContainerWidth: 300,
+                        minContainerHeight: 300
+                    });
+                } catch (e) {
+                    console.error('Error initializing cropper:', e);
+                    showError('画像の読み込みに失敗しました');
+                    closeEditImageCropper();
+                }
+            }, 50);
+        };
+
+        cropperImage.onerror = function() {
+            console.error('Error loading image');
+            showError('画像の読み込みに失敗しました');
+            closeEditImageCropper();
+        };
+
+        cropperImage.src = editImageObjectURL;
+
+        if (cropperImage.complete) {
+            const currentSrc = cropperImage.src;
+            cropperImage.src = '';
+            setTimeout(() => {
+                cropperImage.src = currentSrc;
+                if (cropperImage.complete && editCropperImageLoadHandler) {
+                    editCropperImageLoadHandler();
+                }
+            }, 10);
+        } else {
+            cropperImage.onload = editCropperImageLoadHandler;
+        }
+    }, 100);
+
+    // Setup cancel button
+    const newCancelBtn = document.getElementById('crop-cancel-btn');
+    if (newCancelBtn) {
+        newCancelBtn.onclick = function() {
+            closeEditImageCropper();
+            if (originalEvent && originalEvent.target) {
+                originalEvent.target.value = '';
+            }
+        };
+    }
+
+    // Setup confirm button
+    const newConfirmBtn = document.getElementById('crop-confirm-btn');
+    if (newConfirmBtn) {
+        newConfirmBtn.onclick = function() {
+            cropAndStoreForEdit();
+        };
+    }
+}
+
+// Close image cropper for edit page
+function closeEditImageCropper() {
+    const modal = document.getElementById('image-cropper-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+
+    if (editCropper) {
+        try {
+            editCropper.destroy();
+        } catch (e) {
+            console.warn('Error destroying cropper on close:', e);
+        }
+        editCropper = null;
+    }
+
+    const cropperImage = document.getElementById('cropper-image');
+    if (cropperImage) {
+        if (editCropperImageLoadHandler) {
+            cropperImage.removeEventListener('load', editCropperImageLoadHandler);
+            cropperImage.onload = null;
+            editCropperImageLoadHandler = null;
+        }
+        cropperImage.onerror = null;
+
+        if (editImageObjectURL) {
+            try {
+                URL.revokeObjectURL(editImageObjectURL);
+            } catch (e) {
+                console.warn('Error revoking object URL:', e);
+            }
+            editImageObjectURL = null;
+        }
+
+        cropperImage.src = '';
+    }
+
+    editCropFile = null;
+    editCropFieldName = null;
+    editCropOriginalEvent = null;
+}
+
+// Crop and store image for edit page
+function cropAndStoreForEdit() {
+    if (!editCropper || !editCropFile || !editCropFieldName) {
+        return;
+    }
+
+    let uploadArea = null;
+    if (editCropOriginalEvent && editCropOriginalEvent.target) {
+        uploadArea = editCropOriginalEvent.target.closest('.upload-area');
+    }
+
+    if (!uploadArea && editCropFieldName) {
+        const fieldId = editCropFieldName === 'company_logo' ? 'company_logo' : 'profile_photo';
+        const fieldElement = document.getElementById(fieldId);
+        if (fieldElement) {
+            uploadArea = fieldElement.closest('.upload-area');
+        }
+    }
+
+    if (!uploadArea) {
+        showError('アップロードエリアが見つかりません');
+        return;
+    }
+
+    const cropFileName = editCropFile ? editCropFile.name : 'cropped_image.png';
+    const cropFileType = editCropFile ? editCropFile.type : 'image/png';
+
+    try {
+        const canvas = editCropper.getCroppedCanvas({
+            width: 800,
+            height: 800,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+
+        canvas.toBlob(function(blob) {
+            if (!blob) {
+                showError('画像のトリミングに失敗しました');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const preview = uploadArea.querySelector('.upload-preview');
+                if (preview) {
+                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
+                }
+
+                uploadArea.dataset.croppedBlob = event.target.result;
+                uploadArea.dataset.croppedFileName = cropFileName;
+            };
+            reader.readAsDataURL(blob);
+
+            closeEditImageCropper();
+        }, cropFileType, 0.95);
+    } catch (error) {
+        console.error('Crop error:', error);
+        showError('画像のトリミング中にエラーが発生しました');
+    }
+}
+
+// Show image preview (fallback)
+function showEditImagePreview(file, fieldName, originalEvent) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const preview = originalEvent.target.closest('.upload-area').querySelector('.upload-preview');
+        if (preview) {
+            const img = new Image();
+            img.onload = () => {
+                const resizeNote = (img.width > 800 || img.height > 800)
+                    ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大800×800px)</p>`
+                    : '';
+                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
+            };
+            img.src = event.target.result;
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+// Photo upload previews with cropping for edit page
+document.getElementById('profile_photo')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        showEditImageCropper(file, 'profile_photo', e);
+    }
+});
+
+document.getElementById('company_logo')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        showEditImageCropper(file, 'company_logo', e);
+    }
+});
