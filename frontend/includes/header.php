@@ -66,6 +66,9 @@ if ($isTokenBased && !$isLoggedIn) {
     }
 }
 
+// Subscription status for mobile menu
+$hasActiveSubscriptionForMobile = false;
+
 if ($isLoggedIn) {
     try {
         require_once __DIR__ . '/../../backend/config/database.php';
@@ -98,6 +101,38 @@ if ($isLoggedIn) {
         if ($cardData && $cardData['qr_code_issued'] && $cardData['payment_status'] === 'completed') {
             $showMyCard = true;
             $cardSlug = $cardData['url_slug'];
+        }
+        
+        // Check subscription status for mobile menu
+        $stmt = $db->prepare("
+            SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
+                   bc.payment_status, u.user_type
+            FROM subscriptions s
+            JOIN business_cards bc ON s.business_card_id = bc.id
+            JOIN users u ON bc.user_id = u.id
+            WHERE s.user_id = ?
+            ORDER BY s.created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$_SESSION['user_id']]);
+        $subscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($subscriptionInfo && in_array($subscriptionInfo['status'], ['active', 'trialing', 'past_due', 'incomplete'])) {
+            $hasActiveSubscriptionForMobile = true;
+        } elseif (!$subscriptionInfo) {
+            // Check if user has completed payment (for new users who should have subscription)
+            $stmt = $db->prepare("
+                SELECT bc.payment_status, u.user_type
+                FROM business_cards bc
+                JOIN users u ON bc.user_id = u.id
+                WHERE bc.user_id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$_SESSION['user_id']]);
+            $cardInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID']) && $cardInfo['user_type'] === 'new') {
+                $hasActiveSubscriptionForMobile = true;
+            }
         }
     } catch (Exception $e) {
         error_log("Header card check error: " . $e->getMessage());
@@ -206,6 +241,10 @@ if ($isLoggedIn) {
 </script>
 
 <!-- Mobile Menu Script -->
+<script>
+    // Pass subscription status to mobile menu
+    window.hasActiveSubscription = <?php echo json_encode($hasActiveSubscriptionForMobile); ?>;
+</script>
 <script src="assets/js/mobile-menu.js"></script>
 <!-- Modal Notification Script -->
 <script src="assets/js/modal.js"></script>

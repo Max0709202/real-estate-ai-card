@@ -76,31 +76,122 @@
                 const userMenuSection = document.createElement('div');
                 userMenuSection.className = 'mobile-user-menu-section';
                 
-                // Clone all dropdown items
-                const dropdownItems = userDropdown.querySelectorAll('.dropdown-item, .dropdown-divider, .dropdown-section-header, .dropdown-subscription-info, .dropdown-button');
+                // Clone existing dropdown items (マイ名刺、マイページ、ログアウト)
+                const dropdownItems = userDropdown.querySelectorAll('.dropdown-item');
                 dropdownItems.forEach(item => {
                     const clonedItem = item.cloneNode(true);
-                    // Remove mobile-only-dropdown class for mobile menu (show all items)
-                    clonedItem.classList.remove('mobile-only-dropdown');
-                    
-                    // Handle subscription cancel button
-                    if (clonedItem.id === 'header-cancel-subscription-btn') {
-                        clonedItem.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            closeMobileMenu();
-                            // Trigger the same handler as desktop version
-                            const originalBtn = document.getElementById('header-cancel-subscription-btn');
-                            if (originalBtn) {
-                                originalBtn.click();
-                            }
-                        });
-                    }
-                    
                     userMenuSection.appendChild(clonedItem);
                 });
                 
+                // Add email reset link (before logout)
+                const emailResetLink = document.createElement('a');
+                emailResetLink.href = 'auth/reset-email.php';
+                emailResetLink.className = 'dropdown-item';
+                emailResetLink.innerHTML = '<span>メールアドレスリセット</span>';
+                emailResetLink.addEventListener('click', () => {
+                    closeMobileMenu();
+                });
+                
+                // Add password reset link (before logout)
+                const passwordResetLink = document.createElement('a');
+                passwordResetLink.href = 'auth/forgot-password.php';
+                passwordResetLink.className = 'dropdown-item';
+                passwordResetLink.innerHTML = '<span>パスワードリセット</span>';
+                passwordResetLink.addEventListener('click', () => {
+                    closeMobileMenu();
+                });
+                
+                // Insert email reset and password reset before logout
+                const logoutLink = userMenuSection.querySelector('#logout-link');
+                if (logoutLink) {
+                    userMenuSection.insertBefore(emailResetLink, logoutLink);
+                    userMenuSection.insertBefore(passwordResetLink, logoutLink);
+                    
+                    // Add subscription cancel button (before logout, if user has active subscription)
+                    if (window.hasActiveSubscription) {
+                        const cancelBtn = createSubscriptionCancelButton();
+                        userMenuSection.insertBefore(cancelBtn, logoutLink);
+                    }
+                } else {
+                    // If logout link not found, append to end
+                    userMenuSection.appendChild(emailResetLink);
+                    userMenuSection.appendChild(passwordResetLink);
+                    if (window.hasActiveSubscription) {
+                        const cancelBtn = createSubscriptionCancelButton();
+                        userMenuSection.appendChild(cancelBtn);
+                    }
+                }
+                
                 menuNav.appendChild(userMenuSection);
             }
+        }
+        
+        // Function to create subscription cancel button
+        function createSubscriptionCancelButton() {
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.className = 'dropdown-item dropdown-button';
+            cancelBtn.style.cssText = 'color: #dc3545; cursor: pointer; width: 100%; text-align: left; background: none; border: none; padding: 0.75rem 1.25rem;';
+            cancelBtn.innerHTML = '<span>サブスクリプションをキャンセル</span>';
+            
+            cancelBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                closeMobileMenu();
+                
+                if (!confirm('サブスクリプションをキャンセルしますか？\n\n期間終了時にキャンセルされます。即座にキャンセルする場合は「OK」を押した後、確認画面で選択してください。')) {
+                    return;
+                }
+                
+                const cancelImmediately = confirm('即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル');
+                
+                cancelBtn.disabled = true;
+                const originalText = cancelBtn.querySelector('span')?.textContent || 'サブスクリプションをキャンセル';
+                if (cancelBtn.querySelector('span')) {
+                    cancelBtn.querySelector('span').textContent = '処理中...';
+                } else {
+                    cancelBtn.textContent = '処理中...';
+                }
+                
+                try {
+                    const cancelResponse = await fetch('../backend/api/mypage/cancel.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            cancel_immediately: cancelImmediately
+                        })
+                    });
+                    
+                    const cancelResult = await cancelResponse.json();
+                    
+                    if (cancelResult.success) {
+                        alert(cancelResult.message || 'サブスクリプションをキャンセルしました');
+                        window.location.reload();
+                    } else {
+                        alert(cancelResult.message || 'サブスクリプションのキャンセルに失敗しました');
+                        cancelBtn.disabled = false;
+                        if (cancelBtn.querySelector('span')) {
+                            cancelBtn.querySelector('span').textContent = originalText;
+                        } else {
+                            cancelBtn.textContent = originalText;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error canceling subscription:', error);
+                    alert('エラーが発生しました');
+                    cancelBtn.disabled = false;
+                    if (cancelBtn.querySelector('span')) {
+                        cancelBtn.querySelector('span').textContent = originalText;
+                    } else {
+                        cancelBtn.textContent = originalText;
+                    }
+                }
+            });
+            
+            return cancelBtn;
         }
 
         // Add buttons if they exist
