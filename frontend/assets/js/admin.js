@@ -583,9 +583,19 @@ function confirmBankTransferPaid(businessCardId, badgeElement) {
             return;
         }
 
+        // Get current status from badge element
+        const currentStatus = badgeElement.getAttribute('data-current-status') || 'BANK_PENDING';
+        const isCurrentlyPaid = currentStatus === 'BANK_PAID';
+        const newStatus = isCurrentlyPaid ? 'BANK_PENDING' : 'BANK_PAID';
+        const actionText = isCurrentlyPaid ? '振込予定に戻しますか？' : '振込済みに変更しますか？';
+        const warningText = isCurrentlyPaid 
+            ? '入金状況が「振込予定」に戻ります。' 
+            : 'QRコードが発行され、ユーザーにメールが送信されます。';
+
         // Store badge element for reverting if cancelled
         window.currentBadgeElement = badgeElement;
         window.currentBusinessCardId = businessCardId;
+        window.newPaymentStatus = newStatus;
 
         // Remove any existing modal first
         const existingModal = document.querySelector('.modal-overlay');
@@ -599,8 +609,8 @@ function confirmBankTransferPaid(businessCardId, badgeElement) {
         modal.innerHTML = `
             <div class="modal-content">
                 <h3>振込確認</h3>
-                <p>振込済みに変更しますか？</p>
-                <p style="font-size: 14px; color: #666; margin-top: 10px;">QRコードが発行され、ユーザーにメールが送信されます。</p>
+                <p>${actionText}</p>
+                <p style="font-size: 14px; color: #666; margin-top: 10px;">${warningText}</p>
                 <div class="modal-buttons">
                     <button class="modal-btn modal-btn-yes" id="confirm-bank-paid-yes">はい</button>
                     <button class="modal-btn modal-btn-no" id="confirm-bank-paid-no">いいえ</button>
@@ -627,7 +637,7 @@ function confirmBankTransferPaid(businessCardId, badgeElement) {
 
             if (yesBtn) {
                 yesBtn.addEventListener('click', function() {
-                    processBankTransferPaid(businessCardId, badgeElement);
+                    processBankTransferPaid(businessCardId, badgeElement, newStatus);
                     modal.remove();
                 });
             } else {
@@ -651,7 +661,7 @@ function confirmBankTransferPaid(businessCardId, badgeElement) {
 // Also assign to window for inline onclick handlers
 window.confirmBankTransferPaid = confirmBankTransferPaid;
 
-async function processBankTransferPaid(businessCardId, badgeElement) {
+async function processBankTransferPaid(businessCardId, badgeElement, newStatus) {
     try {
         const response = await fetch('../../backend/api/admin/update-payment-status.php', {
             method: 'POST',
@@ -661,24 +671,37 @@ async function processBankTransferPaid(businessCardId, badgeElement) {
             credentials: 'include',
             body: JSON.stringify({
                 business_card_id: businessCardId,
-                payment_status: 'BANK_PAID'
+                payment_status: newStatus
             })
         });
 
         const result = await response.json();
 
         if (result.success) {
-            // Update badge
+            // Update badge based on new status
             if (badgeElement) {
-                badgeElement.className = 'payment-badge payment-badge-transfer-completed';
-                badgeElement.textContent = '振込済';
-                badgeElement.removeAttribute('onclick');
-                badgeElement.removeAttribute('title');
-                badgeElement.style.cursor = 'default';
-                badgeElement.setAttribute('data-current-status', 'BANK_PAID');
+                if (newStatus === 'BANK_PAID') {
+                    badgeElement.className = 'payment-badge payment-badge-transfer-completed payment-badge-clickable';
+                    badgeElement.textContent = '振込済';
+                    badgeElement.setAttribute('onclick', `confirmBankTransferPaid(${businessCardId}, this)`);
+                    badgeElement.setAttribute('title', 'クリックして「振込予定」に戻す');
+                    badgeElement.style.cursor = 'pointer';
+                } else {
+                    badgeElement.className = 'payment-badge payment-badge-transfer-pending payment-badge-clickable';
+                    badgeElement.textContent = '振込予定';
+                    badgeElement.setAttribute('onclick', `confirmBankTransferPaid(${businessCardId}, this)`);
+                    badgeElement.setAttribute('title', 'クリックして「振込済」に変更');
+                    badgeElement.style.cursor = 'pointer';
+                }
+                badgeElement.setAttribute('data-current-status', newStatus);
             }
 
-            showSuccess(result.message || '入金状況を「振込済」に更新しました。QRコードが発行され、ユーザーにメールが送信されました。', {
+            const statusText = newStatus === 'BANK_PAID' ? '振込済' : '振込予定';
+            const message = newStatus === 'BANK_PAID' 
+                ? (result.message || '入金状況を「振込済」に更新しました。QRコードが発行され、ユーザーにメールが送信されました。')
+                : (result.message || `入金状況を「振込予定」に戻しました。`);
+
+            showSuccess(message, {
                 autoClose: 3000,
                 onClose: () => {
                     // Reload page to ensure all data is synced
