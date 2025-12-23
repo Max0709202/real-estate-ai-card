@@ -386,7 +386,7 @@ try {
                             is_published = FALSE,
                             updated_at = NOW()
                         WHERE id = ?
-                    ");
+                ");
                     $stmt->execute([$sub['business_card_id']]);
                 }
                 break;
@@ -466,9 +466,9 @@ try {
                     if ($qrResult['success']) {
                                 error_log("QR code generated for business_card_id: " . $payment['business_card_id']);
                             }
-                        }
                     }
                 }
+            }
             break;
 
         case 'payment_intent.payment_failed':
@@ -504,7 +504,7 @@ try {
             UPDATE webhook_event_log
             SET processed = TRUE, processed_at = NOW()
             WHERE stripe_event_id = ?
-        ");
+            ");
         $stmt->execute([$eventId]);
 
         $db->commit();
@@ -518,7 +518,7 @@ try {
             UPDATE webhook_event_log
             SET error_message = ?
             WHERE stripe_event_id = ?
-        ");
+            ");
         $stmt->execute([$e->getMessage(), $eventId]);
         
         throw $e;

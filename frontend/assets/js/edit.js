@@ -225,7 +225,7 @@ function populateEditForms(data) {
     }
     
     // Logo preview
-    if (data.company_logo) {
+        if (data.company_logo) {
         const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
         if (logoUploadArea) {
             const logoPreview = logoUploadArea.querySelector('.upload-preview');
@@ -234,11 +234,11 @@ function populateEditForms(data) {
                 logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
                 logoUploadArea.dataset.existingImage = data.company_logo;
             }
+            }
         }
-    }
-    
+        
     // Profile photo preview
-    if (data.profile_photo) {
+        if (data.profile_photo) {
         const photoUploadArea = document.querySelector('[data-upload-id="profile_photo"]');
         if (photoUploadArea) {
             const photoPreview = photoUploadArea.querySelector('.upload-preview');
@@ -247,15 +247,15 @@ function populateEditForms(data) {
                 photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
                 photoUploadArea.dataset.existingImage = data.profile_photo;
             }
+            }
         }
-    }
-    
-    // Greetings - ALWAYS clear first, then populate based on data
+        
+        // Greetings - ALWAYS clear first, then populate based on data
     const greetingsContainer = document.getElementById('greetings-list');
     if (greetingsContainer) {
         greetingsContainer.innerHTML = '';
-        
-        if (data.greetings && Array.isArray(data.greetings) && data.greetings.length > 0) {
+            
+            if (data.greetings && Array.isArray(data.greetings) && data.greetings.length > 0) {
             console.log('Displaying greetings from database:', data.greetings);
             displayGreetingsForEdit(data.greetings);
         }
@@ -263,129 +263,129 @@ function populateEditForms(data) {
     }
     
     // Step 2: Company Profile
-    if (data.real_estate_license_prefecture) {
+        if (data.real_estate_license_prefecture) {
         const prefSelect = document.getElementById('license_prefecture');
         if (prefSelect) prefSelect.value = data.real_estate_license_prefecture;
-    }
-    if (data.real_estate_license_renewal_number) {
+        }
+        if (data.real_estate_license_renewal_number) {
         const renewalSelect = document.getElementById('license_renewal');
-        if (renewalSelect) renewalSelect.value = data.real_estate_license_renewal_number;
-    }
-    if (data.real_estate_license_registration_number) {
+            if (renewalSelect) renewalSelect.value = data.real_estate_license_renewal_number;
+        }
+        if (data.real_estate_license_registration_number) {
         const regInput = document.getElementById('license_registration');
         if (regInput) regInput.value = data.real_estate_license_registration_number;
-    }
-    if (data.company_name) {
+        }
+        if (data.company_name) {
         const companyProfileInput = document.querySelector('input[name="company_name_profile"]');
         if (companyProfileInput) companyProfileInput.value = data.company_name;
-    }
-    if (data.company_postal_code) {
+        }
+        if (data.company_postal_code) {
         const postalInput = document.getElementById('company_postal_code');
         if (postalInput) postalInput.value = data.company_postal_code;
-    }
-    if (data.company_address) {
+        }
+        if (data.company_address) {
         const addressInput = document.getElementById('company_address');
-        if (addressInput) addressInput.value = data.company_address;
-    }
-    if (data.company_phone) {
+            if (addressInput) addressInput.value = data.company_address;
+        }
+        if (data.company_phone) {
         const phoneInput = document.querySelector('input[name="company_phone"]');
-        if (phoneInput) phoneInput.value = data.company_phone;
-    }
-    if (data.company_website) {
+            if (phoneInput) phoneInput.value = data.company_phone;
+        }
+        if (data.company_website) {
         const websiteInput = document.querySelector('input[name="company_website"]');
-        if (websiteInput) websiteInput.value = data.company_website;
+            if (websiteInput) websiteInput.value = data.company_website;
     }
     
     // Step 3: Personal Information
-    if (data.branch_department) {
+        if (data.branch_department) {
         const branchInput = document.querySelector('input[name="branch_department"]');
         if (branchInput) branchInput.value = data.branch_department;
-    }
-    if (data.position) {
+        }
+        if (data.position) {
         const positionInput = document.querySelector('input[name="position"]');
-        if (positionInput) positionInput.value = data.position;
-    }
-    
-    // Name (split into last_name and first_name)
-    if (data.name) {
+            if (positionInput) positionInput.value = data.position;
+        }
+        
+        // Name (split into last_name and first_name)
+        if (data.name) {
         const nameParts = data.name.trim().split(/\s+/);
-        const lastNameInput = document.getElementById('edit_last_name');
-        const firstNameInput = document.getElementById('edit_first_name');
-        if (lastNameInput && firstNameInput) {
-            if (nameParts.length >= 2) {
-                lastNameInput.value = nameParts[0];
-                firstNameInput.value = nameParts.slice(1).join(' ');
-            } else {
-                lastNameInput.value = data.name;
+            const lastNameInput = document.getElementById('edit_last_name');
+            const firstNameInput = document.getElementById('edit_first_name');
+            if (lastNameInput && firstNameInput) {
+                if (nameParts.length >= 2) {
+                    lastNameInput.value = nameParts[0];
+                    firstNameInput.value = nameParts.slice(1).join(' ');
+                } else {
+                    lastNameInput.value = data.name;
+                }
             }
         }
-    }
-    
+        
     // Name Romaji
-    if (data.name_romaji) {
+        if (data.name_romaji) {
         const romajiParts = data.name_romaji.trim().split(/\s+/);
-        const lastNameRomajiInput = document.getElementById('edit_last_name_romaji');
-        const firstNameRomajiInput = document.getElementById('edit_first_name_romaji');
-        if (lastNameRomajiInput && firstNameRomajiInput) {
-            if (romajiParts.length >= 2) {
-                lastNameRomajiInput.value = romajiParts[0];
-                firstNameRomajiInput.value = romajiParts.slice(1).join(' ');
-            } else {
-                lastNameRomajiInput.value = data.name_romaji;
+            const lastNameRomajiInput = document.getElementById('edit_last_name_romaji');
+            const firstNameRomajiInput = document.getElementById('edit_first_name_romaji');
+            if (lastNameRomajiInput && firstNameRomajiInput) {
+                if (romajiParts.length >= 2) {
+                    lastNameRomajiInput.value = romajiParts[0];
+                    firstNameRomajiInput.value = romajiParts.slice(1).join(' ');
+                } else {
+                    lastNameRomajiInput.value = data.name_romaji;
+                }
             }
         }
-    }
-    
-    if (data.mobile_phone) {
+        
+        if (data.mobile_phone) {
         const mobileInput = document.querySelector('input[name="mobile_phone"]');
         if (mobileInput) mobileInput.value = data.mobile_phone;
-    }
-    if (data.birth_date) {
+        }
+        if (data.birth_date) {
         const birthInput = document.querySelector('input[name="birth_date"]');
         if (birthInput) birthInput.value = data.birth_date;
-    }
-    if (data.current_residence) {
+        }
+        if (data.current_residence) {
         const residenceInput = document.querySelector('input[name="current_residence"]');
-        if (residenceInput) residenceInput.value = data.current_residence;
-    }
-    if (data.hometown) {
+            if (residenceInput) residenceInput.value = data.current_residence;
+        }
+        if (data.hometown) {
         const hometownInput = document.querySelector('input[name="hometown"]');
-        if (hometownInput) hometownInput.value = data.hometown;
-    }
-    if (data.alma_mater) {
+            if (hometownInput) hometownInput.value = data.hometown;
+        }
+        if (data.alma_mater) {
         const almaMaterInput = document.querySelector('input[name="alma_mater"]');
-        if (almaMaterInput) almaMaterInput.value = data.alma_mater;
-    }
-    
-    // Qualifications
-    if (data.qualifications) {
-        const qualifications = data.qualifications.split('、');
-        if (qualifications.includes('宅地建物取引士')) {
+            if (almaMaterInput) almaMaterInput.value = data.alma_mater;
+        }
+        
+        // Qualifications
+        if (data.qualifications) {
+            const qualifications = data.qualifications.split('、');
+            if (qualifications.includes('宅地建物取引士')) {
             const takkenCheckbox = document.querySelector('input[name="qualification_takken"]');
-            if (takkenCheckbox) takkenCheckbox.checked = true;
-        }
-        if (qualifications.includes('建築士')) {
+                if (takkenCheckbox) takkenCheckbox.checked = true;
+            }
+            if (qualifications.includes('建築士')) {
             const kenchikushiCheckbox = document.querySelector('input[name="qualification_kenchikushi"]');
-            if (kenchikushiCheckbox) kenchikushiCheckbox.checked = true;
-        }
-        const otherQuals = qualifications.filter(q => q !== '宅地建物取引士' && q !== '建築士').join('、');
-        if (otherQuals) {
+                if (kenchikushiCheckbox) kenchikushiCheckbox.checked = true;
+            }
+            const otherQuals = qualifications.filter(q => q !== '宅地建物取引士' && q !== '建築士').join('、');
+            if (otherQuals) {
             const otherInput = document.querySelector('textarea[name="qualifications_other"]');
             if (otherInput) otherInput.value = otherQuals;
+            }
         }
-    }
-    
-    if (data.hobbies) {
+        
+        if (data.hobbies) {
         const hobbiesInput = document.querySelector('textarea[name="hobbies"]');
         if (hobbiesInput) hobbiesInput.value = data.hobbies;
-    }
-    
+        }
+        
     // Free input - Populate paired items (text + image)
-    if (data.free_input) {
-        try {
-            const freeInputData = JSON.parse(data.free_input);
+        if (data.free_input) {
+            try {
+                const freeInputData = JSON.parse(data.free_input);
             const container = document.getElementById('free-input-pairs-container');
-            
+                
             if (container) {
                 // Handle both old format and new format
                 let texts = [];
@@ -397,15 +397,15 @@ function populateEditForms(data) {
                     texts = [freeInputData.text];
                 }
                 
-                if (freeInputData.images && Array.isArray(freeInputData.images)) {
-                    images = freeInputData.images;
-                } else if (freeInputData.image || freeInputData.image_link) {
-                    images = [{
-                        image: freeInputData.image || '',
-                        link: freeInputData.image_link || ''
-                    }];
-                }
-                
+                    if (freeInputData.images && Array.isArray(freeInputData.images)) {
+                        images = freeInputData.images;
+                    } else if (freeInputData.image || freeInputData.image_link) {
+                        images = [{
+                            image: freeInputData.image || '',
+                            link: freeInputData.image_link || ''
+                        }];
+                    }
+                    
                 // Ensure we have at least one pair
                 const pairCount = Math.max(texts.length, images.length, 1);
 
@@ -448,18 +448,18 @@ function populateEditForms(data) {
                             </div>
                         </div>
                         <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
-                    `;
+                        `;
 
                     container.appendChild(pairItem);
-                    
-                    // Store existing image path in data attribute for later use
-                    if (imgData.image) {
+                        
+                        // Store existing image path in data attribute for later use
+                        if (imgData.image) {
                         pairItem.querySelector('.upload-area').dataset.existingImage = imgData.image;
-                    }
+                        }
                 }
-            }
-        } catch (e) {
-            console.error('Error parsing free_input:', e);
+                }
+            } catch (e) {
+                console.error('Error parsing free_input:', e);
         }
     }
     
@@ -515,7 +515,7 @@ function displayGreetingsForEdit(greetings) {
                 <div class="greeting-actions">
                     <button type="button" class="btn-move-up" onclick="moveGreeting(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
                     <button type="button" class="btn-move-down" onclick="moveGreeting(${index}, 'down')" ${index === greetings.length - 1 ? 'disabled' : ''}>↓</button>
-                    <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
+                <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
                 </div>
             </div>
             <div class="form-group">
@@ -529,7 +529,7 @@ function displayGreetingsForEdit(greetings) {
         `;
         greetingsContainer.appendChild(greetingItem);
     });
-    
+
     // Re-initialize drag and drop after displaying
     setTimeout(function() {
         initializeGreetingDragAndDrop();
@@ -613,7 +613,7 @@ function loadTechTools(savedTechTools) {
                 <div class="tool-actions">
                     <button type="button" class="btn-move-up" onclick="moveTechTool(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
                     <button type="button" class="btn-move-down" onclick="moveTechTool(${index}, 'down')" ${index === toolOrder.length - 1 ? 'disabled' : ''}>↓</button>
-                </div>
+            </div>
             </div>
             <label class="tech-tool-checkbox">
                 <input type="checkbox" name="tech_tools[]" value="${toolType}" ${isActive ? 'checked' : ''}>
@@ -622,8 +622,8 @@ function loadTechTools(savedTechTools) {
                     <div class="tech-tool-info">
                         <h4>${escapeHtml(toolName)}</h4>
                         <p>${escapeHtml(toolDescription)}</p>
-                    </div>
-                </div>
+            </div>
+        </div>
             </label>
         `;
         
@@ -717,7 +717,7 @@ async function saveTechTools() {
             // Update business card data without reloading
             await loadBusinessCardData();
             // Move to next step (Step 5)
-            setTimeout(() => {
+    setTimeout(() => {
                 if (window.goToNextStep) {
                     window.goToNextStep(4);
                 }
@@ -873,7 +873,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadExistingBusinessCardData();
     
     // Initialize for both message apps and SNS
-    setTimeout(() => {
+        setTimeout(() => {
         initializeCommunicationDragAndDrop('message');
         initializeCommunicationDragAndDrop('sns');
     }, 100);
@@ -959,34 +959,34 @@ function addGreeting() {
     const items = container.querySelectorAll('.greeting-item');
     const newIndex = items.length;
     
-    const greetingItem = document.createElement('div');
-    greetingItem.className = 'greeting-item';
+        const greetingItem = document.createElement('div');
+        greetingItem.className = 'greeting-item';
     greetingItem.dataset.order = newIndex;
-    greetingItem.innerHTML = `
-        <div class="greeting-header">
+        greetingItem.innerHTML = `
+            <div class="greeting-header">
             <span class="greeting-number">${newIndex + 1}</span>
-            <div class="greeting-actions">
+                <div class="greeting-actions">
                 <button type="button" class="btn-move-up" onclick="moveGreeting(${newIndex}, 'up')" ${newIndex === 0 ? 'disabled' : ''}>↑</button>
                 <button type="button" class="btn-move-down" onclick="moveGreeting(${newIndex}, 'down')">↓</button>
                 <button type="button" class="btn-delete" onclick="clearGreeting(this)">削除</button>
             </div>
-        </div>
-        <div class="form-group">
-            <label>タイトル</label>
+            </div>
+            <div class="form-group">
+                <label>タイトル</label>
             <input type="text" name="greeting_title[]" class="form-control" placeholder="タイトル">
-        </div>
-        <div class="form-group">
-            <label>本文</label>
+            </div>
+            <div class="form-group">
+                <label>本文</label>
             <textarea name="greeting_content[]" class="form-control" rows="4" placeholder="本文"></textarea>
-        </div>
-    `;
+            </div>
+        `;
     
     // Insert at the beginning
     container.insertBefore(greetingItem, container.firstChild);
     
     // Update greeting numbers and buttons
     updateGreetingNumbers();
-    updateGreetingButtons();
+        updateGreetingButtons();
     initializeGreetingDragAndDrop();
 }
 
@@ -1056,14 +1056,14 @@ function restoreDefaultGreetings() {
 function initializeGreetingDragAndDrop() {
     const container = document.getElementById('greetings-list');
     if (!container) return;
-    
+
     let draggedElement = null;
     let isInitializing = false;
-    
+
     function makeItemsDraggable() {
         if (isInitializing) return;
         isInitializing = true;
-        
+
         const items = container.querySelectorAll('.greeting-item');
         items.forEach((item, index) => {
             if (!item.hasAttribute('draggable')) {
@@ -1071,31 +1071,31 @@ function initializeGreetingDragAndDrop() {
             }
             item.dataset.dragIndex = index;
         });
-        
+
         attachDragListeners();
         isInitializing = false;
     }
-    
+
     function attachDragListeners() {
         const items = container.querySelectorAll('.greeting-item');
         items.forEach((item) => {
             if (item.dataset.dragInitialized === 'true') return;
             item.dataset.dragInitialized = 'true';
-            
+
             item.addEventListener('dragstart', function(e) {
                 draggedElement = this;
                 this.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/html', this.innerHTML);
             });
-            
+
             item.addEventListener('dragend', function(e) {
                 this.classList.remove('dragging');
                 container.querySelectorAll('.greeting-item').forEach(item => {
                     item.classList.remove('drag-over');
                 });
             });
-            
+
             item.addEventListener('dragover', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1103,35 +1103,35 @@ function initializeGreetingDragAndDrop() {
                 this.classList.add('drag-over');
                 return false;
             });
-            
+
             item.addEventListener('dragleave', function(e) {
                 this.classList.remove('drag-over');
             });
-            
+
             item.addEventListener('drop', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 if (draggedElement !== this && draggedElement !== null) {
                     if (observer) observer.disconnect();
-                    
+
                     const items = Array.from(container.querySelectorAll('.greeting-item'));
                     const targetIndex = items.indexOf(this);
                     const draggedIndexCurrent = items.indexOf(draggedElement);
-                    
+
                     if (draggedIndexCurrent < targetIndex) {
                         container.insertBefore(draggedElement, this.nextSibling);
                     } else {
                         container.insertBefore(draggedElement, this);
                     }
-                    
+
                     draggedElement.dataset.dragInitialized = 'false';
                     this.dataset.dragInitialized = 'false';
-                    
+
                     updateGreetingNumbers();
                     updateGreetingButtons();
                     attachDragListeners();
-                    
+
                     if (observer) {
                         observer.observe(container, {
                             childList: true,
@@ -1139,14 +1139,14 @@ function initializeGreetingDragAndDrop() {
                         });
                     }
                 }
-                
+
                 this.classList.remove('drag-over');
                 draggedElement = null;
                 return false;
             });
         });
     }
-    
+
     // MutationObserver to handle dynamic changes
     const observer = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
@@ -1156,8 +1156,8 @@ function initializeGreetingDragAndDrop() {
         });
     });
     
-    makeItemsDraggable();
-    
+            makeItemsDraggable();
+
     observer.observe(container, {
         childList: true,
         subtree: false
@@ -1243,9 +1243,9 @@ function initializeTechToolDragAndDrop() {
                 this.classList.remove('dragging');
                 container.querySelectorAll('.tech-tool-banner-card').forEach(item => {
                     item.classList.remove('drag-over');
-                });
-            });
-            
+        });
+    });
+
             item.addEventListener('dragover', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1493,7 +1493,7 @@ function showEditImageCropper(file, fieldName, originalEvent) {
     if (editCropper) {
         try {
             editCropper.destroy();
-        } catch (e) {
+                        } catch (e) {
             console.warn('Error destroying previous cropper:', e);
         }
         editCropper = null;
@@ -1609,7 +1609,7 @@ function showEditImageCropper(file, fieldName, originalEvent) {
                     editCropperImageLoadHandler();
                 }
             }, 10);
-        } else {
+    } else {
             cropperImage.onload = editCropperImageLoadHandler;
         }
     }, 100);
@@ -1699,7 +1699,7 @@ function cropAndStoreForEdit() {
         showError('アップロードエリアが見つかりません');
         return;
     }
-
+    
     const cropFileName = editCropFile ? editCropFile.name : 'cropped_image.png';
     const cropFileType = editCropFile ? editCropFile.type : 'image/png';
 
@@ -1714,9 +1714,9 @@ function cropAndStoreForEdit() {
         canvas.toBlob(function(blob) {
             if (!blob) {
                 showError('画像のトリミングに失敗しました');
-                return;
-            }
-
+        return;
+    }
+    
             const reader = new FileReader();
             reader.onload = (event) => {
                 const preview = uploadArea.querySelector('.upload-preview');
@@ -1739,21 +1739,21 @@ function cropAndStoreForEdit() {
 
 // Show image preview (fallback)
 function showEditImagePreview(file, fieldName, originalEvent) {
-    const reader = new FileReader();
-    reader.onload = (event) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
         const preview = originalEvent.target.closest('.upload-area').querySelector('.upload-preview');
-        if (preview) {
-            const img = new Image();
-            img.onload = () => {
+                if (preview) {
+                    const img = new Image();
+                    img.onload = () => {
                 const resizeNote = (img.width > 800 || img.height > 800)
                     ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大800×800px)</p>`
-                    : '';
+                            : '';
                 preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
+                    };
+                    img.src = event.target.result;
+                }
             };
-            img.src = event.target.result;
-        }
-    };
-    reader.readAsDataURL(file);
+            reader.readAsDataURL(file);
 }
 
 // Photo upload previews with cropping for edit page

@@ -130,6 +130,17 @@ foreach ($techTools as &$tool) {
 unset($tool);
 
 // コミュニケーション方法取得 - Message Apps first, then SNS
+// Mapping from method_type to icon filename (some method types don't match icon filenames)
+$iconMapping = [
+    'plus_message' => 'message',  // plus_message uses message.png
+    // All other types use their method_type as the filename
+];
+
+// Function to get icon filename from method_type
+function getIconFilename($methodType, $iconMapping) {
+    return $iconMapping[$methodType] ?? $methodType;
+}
+
 // Message app types (safe - hardcoded list)
 $messageAppTypes = ['line', 'messenger', 'whatsapp', 'plus_message', 'chatwork', 'andpad'];
 $placeholders = implode(',', array_fill(0, count($messageAppTypes), '?'));
@@ -501,11 +512,12 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                                         <div class="comm-card">
                                             <!-- Message App Logo -->
                                             <div class="comm-logo">
-                                                <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($method['method_type']); ?>.png" 
+                                                <?php $iconFile = getIconFilename($method['method_type'], $iconMapping); ?>
+                                                <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($iconFile); ?>.png"
                                                      alt="<?php echo htmlspecialchars($method['method_name']); ?>"
                                                      onerror="this.style.display='none'; this.parentElement.innerHTML='<?php echo htmlspecialchars($method['method_name']); ?>';">
                                             </div>
-                                            
+
                                             <!-- Details Button -->
                                             <?php 
                                             $linkUrl = '';
@@ -540,11 +552,12 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                                         <div class="comm-card">
                                             <!-- SNS Logo -->
                                             <div class="comm-logo">
-                                                <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($method['method_type']); ?>.png" 
+                                                <?php $iconFile = getIconFilename($method['method_type'], $iconMapping); ?>
+                                                <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($iconFile); ?>.png"
                                                      alt="<?php echo htmlspecialchars($method['method_name']); ?>"
                                                      onerror="this.style.display='none'; this.parentElement.innerHTML='<?php echo htmlspecialchars($method['method_name']); ?>';">
                                             </div>
-                                            
+
                                             <!-- Details Button -->
                                             <?php 
                                             $linkUrl = '';

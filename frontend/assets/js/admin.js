@@ -344,7 +344,7 @@ document.querySelectorAll('.open-checkbox').forEach(checkbox => {
             if (paymentStatus && !['CR', 'BANK_PAID'].includes(paymentStatus)) {
                 showError('入金完了（CR / 振込済）後にOPEN可能です');
             } else {
-                showError('クライアントロールはこの操作を実行できません');
+            showError('クライアントロールはこの操作を実行できません');
             }
             return;
         }
