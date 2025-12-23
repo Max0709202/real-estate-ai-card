@@ -317,14 +317,18 @@ $users = $stmt->fetchAll();
                             $label = $paymentStatusLabels[$paymentStatus] ?? '未利用';
                             $class = $paymentStatusClasses[$paymentStatus] ?? 'payment-badge-unused';
                             $isFreeUser = ($user['user_type'] ?? 'new') === 'free';
-                            $canToggle = $isAdmin && !$isFreeUser && $paymentStatus === 'BANK_PENDING';
+                            // Allow toggling between BANK_PENDING and BANK_PAID
+                            $canToggle = $isAdmin && !$isFreeUser && in_array($paymentStatus, ['BANK_PENDING', 'BANK_PAID']);
+                            $toggleTitle = $paymentStatus === 'BANK_PENDING' 
+                                ? 'クリックして「振込済」に変更' 
+                                : 'クリックして「振込予定」に戻す';
                             ?>
                             <span class="payment-badge <?php echo $class; ?> <?php echo $canToggle ? 'payment-badge-clickable' : ''; ?>"
                                   data-bc-id="<?php echo $user['id']; ?>"
                                   data-current-status="<?php echo htmlspecialchars($paymentStatus); ?>"
                                   <?php if ($canToggle): ?>
                                   onclick="confirmBankTransferPaid(<?php echo $user['id']; ?>, this)"
-                                  title="クリックして「振込済」に変更"
+                                  title="<?php echo htmlspecialchars($toggleTitle); ?>"
                                   style="cursor: pointer;"
                                   <?php endif; ?>>
                                 <?php echo htmlspecialchars($label); ?>
