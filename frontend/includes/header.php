@@ -187,7 +187,7 @@ if ($isLoggedIn) {
                         }
                         ?>
                         <?php if ($headerHasActiveSubscription): ?>
-                        <div class="dropdown-divider"></div>
+                        <!-- <div class="dropdown-divider"></div> -->
                         <div class="dropdown-section-header">サブスクリプション</div>
                         <?php if ($headerSubscriptionInfo): ?>
                         <div class="dropdown-subscription-info">
@@ -216,11 +216,11 @@ if ($isLoggedIn) {
                             <span>サブスクリプションをキャンセル</span>
                         </button>
                         <?php endif; ?>
-                        <div class="dropdown-divider"></div>
-                        <a href="auth/reset-email.php" class="dropdown-item mobile-only-dropdown">
+                        <!-- <div class="dropdown-divider"></div> -->
+                        <a href="auth/reset-email.php" class="dropdown-item">
                             <span>メールアドレスリセット</span>
                         </a>
-                        <a href="auth/forgot-password.php" class="dropdown-item mobile-only-dropdown">
+                        <a href="auth/forgot-password.php" class="dropdown-item">
                             <span>パスワードリセット</span>
                         </a>
                         <a href="#" id="logout-link" class="dropdown-item">

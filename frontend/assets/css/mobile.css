@@ -740,7 +740,7 @@
         padding-bottom: 1.25rem;
         position: relative; /* Changed from sticky to relative */
         background: #fff;
-        border-top: 1px solid #e0e0e0;
+        /* border-top: 1px solid #e0e0e0; */
         box-shadow: none; /* Removed shadow since it's not sticky */
     }
 

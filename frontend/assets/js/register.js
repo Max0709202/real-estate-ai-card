@@ -1686,53 +1686,91 @@ document.getElementById('communication-form')?.addEventListener('submit', async 
     const communicationMethods = [];
     let displayOrder = 0;
     
-    // Message apps
-    const messageApps = [
-        { key: 'comm_line', type: 'line', idField: 'comm_line_id' },
-        { key: 'comm_messenger', type: 'messenger', idField: 'comm_messenger_id' },
-        { key: 'comm_whatsapp', type: 'whatsapp', idField: 'comm_whatsapp_id' },
-        { key: 'comm_plus_message', type: 'plus_message', idField: 'comm_plus_message_id' },
-        { key: 'comm_chatwork', type: 'chatwork', idField: 'comm_chatwork_id' },
-        { key: 'comm_andpad', type: 'andpad', idField: 'comm_andpad_id' }
-    ];
+    // Mapping from method_type to form field names
+    const methodTypeMap = {
+        'line': { key: 'comm_line', idField: 'comm_line_id', isUrl: false },
+        'messenger': { key: 'comm_messenger', idField: 'comm_messenger_id', isUrl: false },
+        'whatsapp': { key: 'comm_whatsapp', idField: 'comm_whatsapp_id', isUrl: false },
+        'plus_message': { key: 'comm_plus_message', idField: 'comm_plus_message_id', isUrl: false },
+        'chatwork': { key: 'comm_chatwork', idField: 'comm_chatwork_id', isUrl: false },
+        'andpad': { key: 'comm_andpad', idField: 'comm_andpad_id', isUrl: false },
+        'instagram': { key: 'comm_instagram', urlField: 'comm_instagram_url', isUrl: true },
+        'facebook': { key: 'comm_facebook', urlField: 'comm_facebook_url', isUrl: true },
+        'twitter': { key: 'comm_twitter', urlField: 'comm_twitter_url', isUrl: true },
+        'youtube': { key: 'comm_youtube', urlField: 'comm_youtube_url', isUrl: true },
+        'tiktok': { key: 'comm_tiktok', urlField: 'comm_tiktok_url', isUrl: true },
+        'note': { key: 'comm_note', urlField: 'comm_note_url', isUrl: true },
+        'pinterest': { key: 'comm_pinterest', urlField: 'comm_pinterest_url', isUrl: true },
+        'threads': { key: 'comm_threads', urlField: 'comm_threads_url', isUrl: true }
+    };
     
-    messageApps.forEach(app => {
-        if (formDataObj.get(app.key)) {
-            const id = formDataObj.get(app.idField) || '';
-            communicationMethods.push({
-                method_type: app.type,
-                method_name: app.type,
-                method_url: id.startsWith('http') ? id : '',
-                method_id: id.startsWith('http') ? '' : id,
-                display_order: displayOrder++
-            });
-        }
-    });
+    // Collect Message Apps first (in DOM order)
+    const messageGrid = document.getElementById('message-apps-grid');
+    if (messageGrid) {
+        const messageItems = Array.from(messageGrid.querySelectorAll('.communication-item[data-comm-type="message"]'));
+        messageItems.forEach(item => {
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            if (checkbox && checkbox.checked) {
+                const methodType = checkbox.name.replace('comm_', '');
+                const methodInfo = methodTypeMap[methodType];
+                if (methodInfo) {
+                    if (methodInfo.isUrl) {
+                        const url = formDataObj.get(methodInfo.urlField) || '';
+                        communicationMethods.push({
+                            method_type: methodType,
+                            method_name: methodType,
+                            method_url: url,
+                            method_id: '',
+                            display_order: displayOrder++
+                        });
+                    } else {
+                        const id = formDataObj.get(methodInfo.idField) || '';
+                        communicationMethods.push({
+                            method_type: methodType,
+                            method_name: methodType,
+                            method_url: id.startsWith('http') ? id : '',
+                            method_id: id.startsWith('http') ? '' : id,
+                            display_order: displayOrder++
+                        });
+                    }
+                }
+            }
+        });
+    }
     
-    // SNS
-    const snsApps = [
-        { key: 'comm_instagram', type: 'instagram', urlField: 'comm_instagram_url' },
-        { key: 'comm_facebook', type: 'facebook', urlField: 'comm_facebook_url' },
-        { key: 'comm_twitter', type: 'twitter', urlField: 'comm_twitter_url' },
-        { key: 'comm_youtube', type: 'youtube', urlField: 'comm_youtube_url' },
-        { key: 'comm_tiktok', type: 'tiktok', urlField: 'comm_tiktok_url' },
-        { key: 'comm_note', type: 'note', urlField: 'comm_note_url' },
-        { key: 'comm_pinterest', type: 'pinterest', urlField: 'comm_pinterest_url' },
-        { key: 'comm_threads', type: 'threads', urlField: 'comm_threads_url' }
-    ];
-    
-    snsApps.forEach(app => {
-        if (formDataObj.get(app.key)) {
-            const url = formDataObj.get(app.urlField) || '';
-            communicationMethods.push({
-                method_type: app.type,
-                method_name: app.type,
-                method_url: url,
-                method_id: '',
-                display_order: displayOrder++
-            });
-        }
-    });
+    // Collect SNS Apps second (in DOM order)
+    const snsGrid = document.getElementById('sns-grid');
+    if (snsGrid) {
+        const snsItems = Array.from(snsGrid.querySelectorAll('.communication-item[data-comm-type="sns"]'));
+        snsItems.forEach(item => {
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            if (checkbox && checkbox.checked) {
+                const methodType = checkbox.name.replace('comm_', '');
+                const methodInfo = methodTypeMap[methodType];
+                if (methodInfo) {
+                    if (methodInfo.isUrl) {
+                        const url = formDataObj.get(methodInfo.urlField) || '';
+                        communicationMethods.push({
+                            method_type: methodType,
+                            method_name: methodType,
+                            method_url: url,
+                            method_id: '',
+                            display_order: displayOrder++
+                        });
+                    } else {
+                        const id = formDataObj.get(methodInfo.idField) || '';
+                        communicationMethods.push({
+                            method_type: methodType,
+                            method_name: methodType,
+                            method_url: id.startsWith('http') ? id : '',
+                            method_id: id.startsWith('http') ? '' : id,
+                            display_order: displayOrder++
+                        });
+                    }
+                }
+            }
+        });
+    }
     
     const data = {
         communication_methods: communicationMethods

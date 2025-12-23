@@ -129,10 +129,27 @@ foreach ($techTools as &$tool) {
 }
 unset($tool);
 
-// コミュニケーション方法取得
-$stmt = $db->prepare("SELECT method_type, method_name, method_url, method_id FROM communication_methods WHERE business_card_id = ? AND is_active = 1 ORDER BY display_order ASC");
-$stmt->execute([$card['id']]);
-$communicationMethods = $stmt->fetchAll();
+// コミュニケーション方法取得 - Message Apps first, then SNS
+// Message app types (safe - hardcoded list)
+$messageAppTypes = ['line', 'messenger', 'whatsapp', 'plus_message', 'chatwork', 'andpad'];
+$placeholders = implode(',', array_fill(0, count($messageAppTypes), '?'));
+$stmt = $db->prepare("SELECT method_type, method_name, method_url, method_id FROM communication_methods WHERE business_card_id = ? AND is_active = 1 AND method_type IN ($placeholders) ORDER BY display_order ASC");
+$stmt->execute(array_merge([$card['id']], $messageAppTypes));
+$messageApps = $stmt->fetchAll();
+// Reverse message apps for display (same as tech tools)
+// $messageApps = array_reverse($messageApps);
+
+// SNS types (safe - hardcoded list)
+$snsTypes = ['instagram', 'facebook', 'twitter', 'youtube', 'tiktok', 'note', 'pinterest', 'threads'];
+$placeholders = implode(',', array_fill(0, count($snsTypes), '?'));
+$stmt = $db->prepare("SELECT method_type, method_name, method_url, method_id FROM communication_methods WHERE business_card_id = ? AND is_active = 1 AND method_type IN ($placeholders) ORDER BY display_order ASC");
+$stmt->execute(array_merge([$card['id']], $snsTypes));
+$snsApps = $stmt->fetchAll();
+// Reverse SNS apps for display (same as tech tools)
+// $snsApps = array_reverse($snsApps);
+
+// Combine: Message Apps first, then SNS
+$communicationMethods = array_merge($messageApps, $snsApps);
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -472,30 +489,84 @@ $communicationMethods = $stmt->fetchAll();
                 <?php endif; ?>
                 <hr>
                 <!-- コミュニケーション方法 -->
-                <?php if (!empty($communicationMethods)): ?>
+                <?php if (!empty($messageApps) || !empty($snsApps)): ?>
                     <div class="communication-section">
                         <h3>コミュニケーション方法</h3>
-                        <div class="communication-grid">
-                            <?php foreach ($communicationMethods as $method): ?>
-                                <?php if ($method['method_url'] || $method['method_id']): ?>
-                                    <div class="comm-card">
-                                        <!-- SNS Logo -->
-                                        <div class="comm-logo">
-                                            <img src="<?php echo BASE_URL; ?>/frontend/assets/images/sns/<?php echo htmlspecialchars($method['method_type']); ?>.png" 
-                                                 alt="<?php echo htmlspecialchars($method['method_name']); ?>"
-                                                 onerror="this.style.display='none'; this.parentElement.innerHTML='<?php echo htmlspecialchars($method['method_name']); ?>';">
+                        
+                        <!-- Message Apps Section (displayed first) -->
+                        <?php if (!empty($messageApps)): ?>
+                            <div class="communication-grid">
+                                <?php foreach ($messageApps as $method): ?>
+                                    <?php if ($method['method_url'] || $method['method_id']): ?>
+                                        <div class="comm-card">
+                                            <!-- Message App Logo -->
+                                            <div class="comm-logo">
+                                                <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($method['method_type']); ?>.png" 
+                                                     alt="<?php echo htmlspecialchars($method['method_name']); ?>"
+                                                     onerror="this.style.display='none'; this.parentElement.innerHTML='<?php echo htmlspecialchars($method['method_name']); ?>';">
+                                            </div>
+                                            
+                                            <!-- Details Button -->
+                                            <?php 
+                                            $linkUrl = '';
+                                            // For message apps, prefer method_id if it's a URL, otherwise use method_url
+                                            if (!empty($method['method_id']) && (strpos($method['method_id'], 'http://') === 0 || strpos($method['method_id'], 'https://') === 0)) {
+                                                $linkUrl = $method['method_id'];
+                                            } elseif (!empty($method['method_url'])) {
+                                                $linkUrl = $method['method_url'];
+                                            } elseif (!empty($method['method_id'])) {
+                                                // method_id might be an ID that needs to be formatted
+                                                $linkUrl = $method['method_id'];
+                                            }
+                                            ?>
+                                            <?php if ($linkUrl): ?>
+                                                <a href="<?php echo htmlspecialchars($linkUrl); ?>" 
+                                                   class="comm-details-button" 
+                                                   target="_blank">
+                                                    詳細はこちら
+                                                </a>
+                                            <?php endif; ?>
                                         </div>
-                                        
-                                        <!-- Details Button -->
-                                        <a href="<?php echo htmlspecialchars($method['method_url'] ?? '#'); ?>" 
-                                           class="comm-details-button" 
-                                           target="_blank">
-                                            詳細はこちら
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        </div>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <!-- SNS Section (displayed second) -->
+                        <?php if (!empty($snsApps)): ?>
+                            <div class="communication-grid">
+                                <?php foreach ($snsApps as $method): ?>
+                                    <?php if ($method['method_url'] || $method['method_id']): ?>
+                                        <div class="comm-card">
+                                            <!-- SNS Logo -->
+                                            <div class="comm-logo">
+                                                <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($method['method_type']); ?>.png" 
+                                                     alt="<?php echo htmlspecialchars($method['method_name']); ?>"
+                                                     onerror="this.style.display='none'; this.parentElement.innerHTML='<?php echo htmlspecialchars($method['method_name']); ?>';">
+                                            </div>
+                                            
+                                            <!-- Details Button -->
+                                            <?php 
+                                            $linkUrl = '';
+                                            // For SNS apps, use method_url
+                                            if (!empty($method['method_url'])) {
+                                                $linkUrl = $method['method_url'];
+                                            } elseif (!empty($method['method_id'])) {
+                                                $linkUrl = $method['method_id'];
+                                            }
+                                            ?>
+                                            <?php if ($linkUrl): ?>
+                                                <a href="<?php echo htmlspecialchars($linkUrl); ?>" 
+                                                   class="comm-details-button" 
+                                                   target="_blank">
+                                                    詳細はこちら
+                                                </a>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
             </div>
