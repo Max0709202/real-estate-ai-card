@@ -106,6 +106,7 @@ $defaultGreetings = [
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/modal.css">
     <link rel="stylesheet" href="assets/css/admin.css">
+    <link rel="stylesheet" href="assets/css/card.css">
 
     <!-- Cropper.js CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
@@ -133,6 +134,12 @@ $defaultGreetings = [
             <div class="edit-header-content">
                 <h1>デジタル名刺作成・編集</h1>
             </div>
+            <button type="button" id="direct-input-btn" class="btn-direct-input">
+                <span class="direct-input-text">
+                    <span class="direct-text">直接</span>
+                    <span class="input-text">入力</span>
+                </span>
+            </button>
         </header>
         <div class="edit-content">
             <div class="edit-sidebar">
@@ -158,44 +165,6 @@ $defaultGreetings = [
                         <span class="step-label">コミュニケーション</span>
                     </a>
                 </nav>
-                <div class="edit-sidebar-actions" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #ddd;">
-                    <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column; padding-inline: 10px;">
-                        <a href="auth/forgot-password.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">パスワードリセット</a>
-                        <a href="auth/reset-email.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">メールアドレスリセット</a>
-                        <?php if ($hasActiveSubscription): ?>
-                        <button type="button" id="cancel-subscription-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer; background: #dc3545; color: #fff; border: none;">
-                            サブスクリプションをキャンセル
-                        </button>
-                        <?php endif; ?>
-                    </div>
-                    <?php if ($subscriptionInfo || (isset($hasCompletedPayment) && $hasCompletedPayment)): ?>
-                    <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; font-size: 0.875rem;">
-                        <div style="margin-bottom: 0.5rem;"><strong>サブスクリプション状況</strong></div>
-                        <?php if ($subscriptionInfo): ?>
-                        <div>ステータス: <span id="subscription-status"><?php
-                            $statusLabels = [
-                                'active' => 'アクティブ',
-                                'trialing' => 'トライアル中',
-                                'past_due' => '延滞中',
-                                'incomplete' => '未完了',
-                                'incomplete_expired' => '期限切れ',
-                                'canceled' => 'キャンセル済み',
-                                'unpaid' => '未払い'
-                            ];
-                            echo htmlspecialchars($statusLabels[$subscriptionInfo['status']] ?? $subscriptionInfo['status']);
-                        ?></span></div>
-                        <?php if ($subscriptionInfo['next_billing_date']): ?>
-                        <div>次回請求日: <?php echo htmlspecialchars($subscriptionInfo['next_billing_date']); ?></div>
-                        <?php endif; ?>
-                        <?php if ($subscriptionInfo['cancelled_at']): ?>
-                        <div style="color: #dc3545; margin-top: 0.5rem;">キャンセル予定: <?php echo htmlspecialchars($subscriptionInfo['cancelled_at']); ?></div>
-                        <?php endif; ?>
-                        <?php else: ?>
-                        <div>ステータス: <span id="subscription-status">支払い完了（サブスクリプション作成中）</span></div>
-                        <?php endif; ?>
-                    </div>
-                    <?php endif; ?>
-                </div>
             </div>
 
             <div class="edit-main">
@@ -747,6 +716,58 @@ $defaultGreetings = [
                     <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存して次へ</button>
                 </div>
             </div>
+
+            <div class="edit-sidebar-actions">
+                <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column; padding-inline: 10px;">
+                    <a href="auth/forgot-password.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">パスワードリセット</a>
+                    <a href="auth/reset-email.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">メールアドレスリセット</a>
+                    <?php if ($hasActiveSubscription): ?>
+                    <button type="button" id="cancel-subscription-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer; background: #dc3545; color: #fff; border: none;">
+                        サブスクリプションをキャンセル
+                    </button>
+                    <?php endif; ?>
+                </div>
+                <?php if ($subscriptionInfo || (isset($hasCompletedPayment) && $hasCompletedPayment)): ?>
+                <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; font-size: 0.875rem;">
+                    <div style="margin-bottom: 0.5rem;"><strong>サブスクリプション状況</strong></div>
+                    <?php if ($subscriptionInfo): ?>
+                    <div>ステータス: <span id="subscription-status"><?php
+                        $statusLabels = [
+                            'active' => 'アクティブ',
+                            'trialing' => 'トライアル中',
+                            'past_due' => '延滞中',
+                            'incomplete' => '未完了',
+                            'incomplete_expired' => '期限切れ',
+                            'canceled' => 'キャンセル済み',
+                            'unpaid' => '未払い'
+                        ];
+                        echo htmlspecialchars($statusLabels[$subscriptionInfo['status']] ?? $subscriptionInfo['status']);
+                    ?></span></div>
+                    <?php if ($subscriptionInfo['next_billing_date']): ?>
+                    <div>次回請求日: <?php echo htmlspecialchars($subscriptionInfo['next_billing_date']); ?></div>
+                    <?php endif; ?>
+                    <?php if ($subscriptionInfo['cancelled_at']): ?>
+                    <div style="color: #dc3545; margin-top: 0.5rem;">キャンセル予定: <?php echo htmlspecialchars($subscriptionInfo['cancelled_at']); ?></div>
+                    <?php endif; ?>
+                    <?php else: ?>
+                    <div>ステータス: <span id="subscription-status">支払い完了（サブスクリプション作成中）</span></div>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- Direct Input Preview Modal -->
+    <div id="direct-input-modal" class="modal-overlay" style="display: none; z-index: 10000; visibility:visible; opacity: 1;">
+        <div class="modal-content direct-input-modal-content" style="max-width: 90%; max-height: 90vh; overflow-y: auto; background: white; border-radius: 8px; padding: 0;">
+            <div style="position: sticky; top: 0; background: white; padding: 1rem; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; z-index: 1;">
+                <h2 style="margin: 0; font-size: 1.5rem; color: #333;">名刺プレビュー</h2>
+                <button type="button" id="close-direct-input-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666; padding: 0.25rem 0.5rem;">&times;</button>
+            </div>
+            <div id="direct-input-preview-content" style="padding: 2rem;">
+                <p style="text-align: center; color: #666;">データを読み込み中...</p>
+            </div>
         </div>
     </div>
 
@@ -769,13 +790,422 @@ $defaultGreetings = [
         </div>
     </div>
 
-    <script src="assets/js/modal.js"></script>
     <!-- Cropper.js -->
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
     <script src="assets/js/auto-save.js"></script>
     <script src="assets/js/edit.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script>
+        // Direct Input button handler and mobile touch support
+        document.addEventListener('DOMContentLoaded', function() {
+            const directInputBtn = document.getElementById('direct-input-btn');
+            if (directInputBtn) {
+                // Mobile: Add 'touched' class on first tap to keep expanded state
+                if (window.innerWidth <= 768) {
+                    directInputBtn.addEventListener('touchstart', function() {
+                        this.classList.add('touched');
+                    }, { once: true });
+                }
+
+                // Handle click action - show preview modal
+                directInputBtn.addEventListener('click', async function() {
+                    await showDirectInputModal();
+                });
+            }
+
+            // Close modal handlers
+            const closeModalBtn = document.getElementById('close-direct-input-modal');
+            const directInputModal = document.getElementById('direct-input-modal');
+
+            if (closeModalBtn) {
+                closeModalBtn.addEventListener('click', function() {
+                    directInputModal.style.display = 'none';
+                });
+            }
+
+            if (directInputModal) {
+                directInputModal.addEventListener('click', function(e) {
+                    if (e.target === directInputModal) {
+                        directInputModal.style.display = 'none';
+                    }
+                });
+            }
+        });
+
+        // Show Direct Input Preview Modal
+        async function showDirectInputModal() {
+            const modal = document.getElementById('direct-input-modal');
+            const previewContent = document.getElementById('direct-input-preview-content');
+
+            if (!modal || !previewContent) return;
+
+            // Show modal
+            modal.style.display = 'flex';
+            previewContent.innerHTML = '<p style="text-align: center; color: #666;">データを読み込み中...</p>';
+
+            try {
+                // Load business card data
+                const response = await fetch('../backend/api/business-card/get.php', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    previewContent.innerHTML = '<p style="text-align: center; color: #dc3545;">データの取得に失敗しました</p>';
+                    return;
+                }
+
+                const result = await response.json();
+                if (!result.success || !result.data) {
+                    previewContent.innerHTML = '<p style="text-align: center; color: #dc3545;">データが見つかりません</p>';
+                    return;
+                }
+
+                const data = result.data;
+
+                // Render preview using card.php layout
+                previewContent.innerHTML = renderBusinessCardPreview(data);
+
+            } catch (error) {
+                console.error('Error loading business card data:', error);
+                previewContent.innerHTML = '<p style="text-align: center; color: #dc3545;">エラーが発生しました</p>';
+            }
+        }
+
+        // Render business card preview (same layout as card.php)
+        function renderBusinessCardPreview(data) {
+            const BASE_URL = window.location.origin + window.location.pathname.split('/').slice(0, -1).join('/');
+
+            function resolveImagePath(path) {
+                if (!path) return '';
+                if (path.startsWith('http://') || path.startsWith('https://')) {
+                    return path;
+                }
+                return BASE_URL + '/' + ltrim(path, '/');
+            }
+
+            function ltrim(str, char) {
+                return str.replace(new RegExp('^' + char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '+'), '');
+            }
+
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            let html = '<div class="card-container" style="max-width: 1000px; margin: 0 auto;">';
+            html += '<section class="card-section" style="background: #fff; border-radius: 16px; overflow: hidden; margin-bottom: 2rem;">';
+
+            // Header
+            html += '<div class="card-header" style="padding: 2rem; text-align: center; display: flex; justify-content: center; align-items: center; gap: 20px;">';
+            if (data.company_logo) {
+                const logoPath = resolveImagePath(data.company_logo);
+                html += `<img src="${escapeHtml(logoPath)}" alt="ロゴ" class="company-logo" style="max-width: 120px; max-height: 120px; border-radius: 8px;">`;
+            }
+            const companyName = data.company_name || '';
+            if (companyName) {
+                html += `<h1 class="company-name" style="font-size: 1.5rem; font-weight: 700; margin: 0;">${escapeHtml(companyName)}</h1>`;
+            }
+            html += '</div>';
+            html += '<hr>';
+
+            // Profile and Greeting
+            html += '<div class="card-body" style="padding: 1rem;">';
+            html += '<div class="profile-greeting-section" style="display: flex; gap: 2rem; align-items: center; justify-content: center;">';
+
+            if (data.profile_photo) {
+                const photoPath = resolveImagePath(data.profile_photo);
+                html += `<div class="profile-photo-container" style="flex-shrink: 0;">`;
+                html += `<img src="${escapeHtml(photoPath)}" alt="プロフィール写真" class="profile-photo" style="width: 200px; height: 200px; object-fit: cover;">`;
+                html += '</div>';
+            }
+
+            html += '<div class="greeting-content" style="flex: 1; min-width: 0;">';
+            if (data.greetings && data.greetings.length > 0) {
+                const firstGreeting = data.greetings[0];
+                html += '<div class="greeting-item">';
+                if (firstGreeting.title) {
+                    html += `<h3 class="greeting-title" style="font-size: 1.2rem; margin-bottom: 0.5rem;">${escapeHtml(firstGreeting.title)}</h3>`;
+                }
+                if (firstGreeting.content) {
+                    html += `<p class="greeting-text" style="line-height: 1.8;">${escapeHtml(firstGreeting.content).replace(/\n/g, '<br>')}</p>`;
+                }
+                html += '</div>';
+            }
+            html += '</div>';
+            html += '</div>';
+            html += '</div>';
+            html += '<hr>';
+
+            // Personal Information
+            html += '<div class="card-body" style="padding: 1rem;">';
+            html += '<div class="info-responsive-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">';
+
+            // Company name
+            if (companyName) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">会社名</h3>';
+                html += `<p style="color: #333;">${escapeHtml(companyName)}</p>`;
+                html += '</div>';
+            }
+
+            // Real estate license
+            if (data.real_estate_license_prefecture || data.real_estate_license_renewal_number || data.real_estate_license_registration_number) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">宅建業番号</h3>';
+                html += '<p style="color: #333;">';
+                if (data.real_estate_license_prefecture) {
+                    html += escapeHtml(data.real_estate_license_prefecture);
+                    if (data.real_estate_license_renewal_number) {
+                        html += '(' + escapeHtml(data.real_estate_license_renewal_number) + ')';
+                    }
+                    if (data.real_estate_license_registration_number) {
+                        html += '第' + escapeHtml(data.real_estate_license_registration_number) + '号';
+                    }
+                }
+                html += '</p>';
+                html += '</div>';
+            }
+
+            // Address
+            if (data.company_postal_code || data.company_address) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">所在地</h3>';
+                if (data.company_postal_code) {
+                    html += `<p style="color: #333;">〒${escapeHtml(data.company_postal_code)}</p>`;
+                }
+                if (data.company_address) {
+                    html += `<p style="color: #333;">${escapeHtml(data.company_address)}</p>`;
+                }
+                html += '</div>';
+            }
+
+            // Company phone
+            if (data.company_phone) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">会社電話番号</h3>';
+                html += `<p style="color: #333;">${escapeHtml(data.company_phone)}</p>`;
+                html += '</div>';
+            }
+
+            // Company website
+            if (data.company_website) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">HP</h3>';
+                html += `<p style="color: #333;"><a href="${escapeHtml(data.company_website)}" target="_blank">${escapeHtml(data.company_website)}</a></p>`;
+                html += '</div>';
+            }
+
+            // Department/Position
+            if (data.branch_department || data.position) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">部署 / 役職</h3>';
+                const deptPosition = [data.branch_department || '', data.position || ''].filter(Boolean);
+                html += `<p style="color: #333;">${escapeHtml(deptPosition.join(' / '))}</p>`;
+                html += '</div>';
+            }
+
+            // Name
+            if (data.name) {
+                html += '<div class="info-section person-name-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">名前</h3>';
+                html += '<p class="person-name-large" style="font-size: 1.5rem; font-weight: 700; color: #333;">';
+                html += escapeHtml(data.name);
+                if (data.name_romaji) {
+                    html += `<span class="name-romaji" style="font-size: 1rem; font-weight: normal; color: #666;"> (${escapeHtml(data.name_romaji)})</span>`;
+                }
+                html += '</p>';
+                html += '</div>';
+            }
+
+            // Mobile phone
+            if (data.mobile_phone) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">携帯番号</h3>';
+                html += `<p style="color: #333;">${escapeHtml(data.mobile_phone)}</p>`;
+                html += '</div>';
+            }
+
+            // Birth date
+            if (data.birth_date) {
+                const birthDate = new Date(data.birth_date);
+                const formattedDate = birthDate.getFullYear() + '年' + (birthDate.getMonth() + 1) + '月' + birthDate.getDate() + '日';
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">誕生日</h3>';
+                html += `<p style="color: #333;">${escapeHtml(formattedDate)}</p>`;
+                html += '</div>';
+            }
+
+            // Residence/Hometown
+            if (data.current_residence || data.hometown) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">現在の居住地 / 出身地</h3>';
+                const residenceParts = [data.current_residence || '', data.hometown || ''].filter(Boolean);
+                html += `<p style="color: #333;">${escapeHtml(residenceParts.join(' / '))}</p>`;
+                html += '</div>';
+            }
+
+            // Alma mater
+            if (data.alma_mater) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">出身大学</h3>';
+                html += `<p style="color: #333;">${escapeHtml(data.alma_mater).replace(/\n/g, '<br>')}</p>`;
+                html += '</div>';
+            }
+
+            // Qualifications
+            if (data.qualifications) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">資格</h3>';
+                html += `<p style="color: #333;">${escapeHtml(data.qualifications).replace(/\n/g, '<br>')}</p>`;
+                html += '</div>';
+            }
+
+            // Hobbies
+            if (data.hobbies) {
+                html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">趣味</h3>';
+                html += `<p style="color: #333;">${escapeHtml(data.hobbies).replace(/\n/g, '<br>')}</p>`;
+                html += '</div>';
+            }
+
+            // Free input
+            if (data.free_input) {
+                try {
+                    const freeInputData = JSON.parse(data.free_input);
+                    if (freeInputData && (freeInputData.texts || freeInputData.images)) {
+                        html += '<div class="info-section" style="margin-bottom: 1rem;">';
+                        html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">その他</h3>';
+                        html += '<div class="free-input-content" style="overflow-wrap: anywhere;">';
+
+                        if (freeInputData.texts && Array.isArray(freeInputData.texts)) {
+                            freeInputData.texts.forEach(text => {
+                                if (text && text.trim()) {
+                                    html += `<p class="free-input-text" style="margin-bottom: 1rem; line-height: 1.8;">${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+                                }
+                            });
+                        }
+
+                        if (freeInputData.images && Array.isArray(freeInputData.images)) {
+                            freeInputData.images.forEach(imgData => {
+                                if (imgData.image) {
+                                    const imgPath = resolveImagePath(imgData.image);
+                                    html += '<div style="margin-bottom: 1rem;">';
+                                    if (imgData.link) {
+                                        html += `<a href="${escapeHtml(imgData.link)}" target="_blank">`;
+                                    }
+                                    html += `<img src="${escapeHtml(imgPath)}" alt="Free input image" style="max-width: 100%; height: auto; border-radius: 8px;">`;
+                                    if (imgData.link) {
+                                        html += '</a>';
+                                    }
+                                    html += '</div>';
+                                }
+                            });
+                        }
+
+                        html += '</div>';
+                        html += '</div>';
+                    }
+                } catch (e) {
+                    // Invalid JSON, skip
+                }
+            }
+
+            html += '</div>';
+            html += '</div>';
+
+            // Tech Tools
+            if (data.tech_tools && data.tech_tools.length > 0) {
+                const activeTechTools = data.tech_tools.filter(tool => tool.is_active);
+                if (activeTechTools.length > 0) {
+                    html += '<hr>';
+                    html += '<div class="card-body" style="padding: 1rem;">';
+                    html += '<h3 style="font-size: 1.2rem; margin-bottom: 1rem; color: #333;">テックツール</h3>';
+                    html += '<div class="tech-tools-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">';
+
+                    const toolNames = {
+                        'mdb': '全国マンションデータベース',
+                        'rlp': '物件提案ロボ',
+                        'llp': '土地情報ロボ',
+                        'ai': 'AIマンション査定',
+                        'slp': 'セルフィン',
+                        'olp': 'オーナーコネクト',
+                        'alp': '統合LP'
+                    };
+
+                    activeTechTools.forEach(tool => {
+                        const toolName = toolNames[tool.tool_type] || 'テックツール';
+                        html += '<div class="tech-tool-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">';
+                        html += `<h4 style="font-size: 1rem; margin-bottom: 0.5rem;">${escapeHtml(toolName)}</h4>`;
+                        if (tool.tool_url) {
+                            html += `<a href="${escapeHtml(tool.tool_url)}" target="_blank" style="color: #0066cc; text-decoration: none;">詳細はこちら</a>`;
+                        }
+                        html += '</div>';
+                    });
+
+                    html += '</div>';
+                    html += '</div>';
+                }
+            }
+
+            // Communication Methods
+            if (data.communication_methods && data.communication_methods.length > 0) {
+                const activeCommMethods = data.communication_methods.filter(method => method.is_active);
+                if (activeCommMethods.length > 0) {
+                    const messageApps = activeCommMethods.filter(m => ['line', 'messenger', 'whatsapp', 'plus_message', 'chatwork', 'andpad'].includes(m.method_type));
+                    const snsApps = activeCommMethods.filter(m => ['instagram', 'facebook', 'twitter', 'youtube', 'tiktok', 'note', 'pinterest', 'threads'].includes(m.method_type));
+
+                    if (messageApps.length > 0 || snsApps.length > 0) {
+                        html += '<hr>';
+                        html += '<div class="card-body" style="padding: 1rem;">';
+                        html += '<h3 style="font-size: 1.2rem; margin-bottom: 1rem; color: #333;">コミュニケーション方法</h3>';
+
+                        if (messageApps.length > 0) {
+                            html += '<div class="communication-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem;">';
+                            messageApps.forEach(method => {
+                                const iconFile = method.method_type === 'plus_message' ? 'message' : method.method_type;
+                                const linkUrl = method.method_url || method.method_id || '';
+                                html += '<div class="comm-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">';
+                                html += `<div class="comm-logo" style="margin-bottom: 0.5rem;">`;
+                                html += `<img src="${BASE_URL}/frontend/assets/images/icons/${escapeHtml(iconFile)}.png" alt="${escapeHtml(method.method_name || '')}" style="width: 40px; height: 40px;" onerror="this.style.display='none';">`;
+                                html += '</div>';
+                                if (linkUrl) {
+                                    html += `<a href="${escapeHtml(linkUrl)}" target="_blank" style="color: #0066cc; text-decoration: none; font-size: 0.9rem;">詳細はこちら</a>`;
+                                }
+                                html += '</div>';
+                            });
+                            html += '</div>';
+                        }
+
+                        if (snsApps.length > 0) {
+                            html += '<div class="communication-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">';
+                            snsApps.forEach(method => {
+                                const iconFile = method.method_type;
+                                const linkUrl = method.method_url || method.method_id || '';
+                                html += '<div class="comm-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">';
+                                html += `<div class="comm-logo" style="margin-bottom: 0.5rem;">`;
+                                html += `<img src="${BASE_URL}/frontend/assets/images/icons/${escapeHtml(iconFile)}.png" alt="${escapeHtml(method.method_name || '')}" style="width: 40px; height: 40px;" onerror="this.style.display='none';">`;
+                                html += '</div>';
+                                if (linkUrl) {
+                                    html += `<a href="${escapeHtml(linkUrl)}" target="_blank" style="color: #0066cc; text-decoration: none; font-size: 0.9rem;">詳細はこちら</a>`;
+                                }
+                                html += '</div>';
+                            });
+                            html += '</div>';
+                        }
+
+                        html += '</div>';
+                    }
+                }
+            }
+
+            html += '</section>';
+            html += '</div>';
+
+            return html;
+        }
+
         // Subscription cancellation handler for edit.php sidebar
         document.addEventListener('DOMContentLoaded', function() {
             const cancelBtn = document.getElementById('cancel-subscription-btn');
