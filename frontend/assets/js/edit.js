@@ -456,6 +456,15 @@ function populateEditForms(data) {
                         if (imgData.image) {
                         pairItem.querySelector('.upload-area').dataset.existingImage = imgData.image;
                         }
+                        
+                        // Initialize file upload handler
+                        initializeFreeImageUpload(pairItem);
+                        
+                        // Initialize drag and drop for upload area
+                        const uploadArea = pairItem.querySelector('.upload-area');
+                        if (uploadArea) {
+                            initializeDragAndDropForUploadArea(uploadArea);
+                        }
                 }
                 }
             } catch (e) {
@@ -581,22 +590,35 @@ function loadTechTools(savedTechTools) {
         'alp': 'assets/images/tech_banner/alp.jpg'
     };
     
+    // Define the default order of tech tools (used for unselected tools)
+    const toolOrder = ['mdb', 'rlp', 'llp', 'ai', 'slp', 'olp', 'alp'];
+    
+    // Sort saved tech tools by display_order
+    const sortedSavedTools = (savedTechTools && Array.isArray(savedTechTools)) 
+        ? [...savedTechTools].sort((a, b) => {
+            const orderA = a.display_order !== undefined ? parseInt(a.display_order) : 999;
+            const orderB = b.display_order !== undefined ? parseInt(b.display_order) : 999;
+            return orderA - orderB;
+        })
+        : [];
+    
     // Create a map of saved tech tools by tool_type for quick lookup
     const savedToolsMap = {};
-    if (savedTechTools && Array.isArray(savedTechTools)) {
-        savedTechTools.forEach(tool => {
-            savedToolsMap[tool.tool_type] = tool;
-        });
-    }
+    sortedSavedTools.forEach(tool => {
+        savedToolsMap[tool.tool_type] = tool;
+    });
     
-    // Define the order of tech tools
-    const toolOrder = ['mdb', 'rlp', 'llp', 'ai', 'slp', 'olp', 'alp'];
+    // Build final order: selected tools (in display_order) first, then unselected tools (in default order)
+    const selectedToolTypes = sortedSavedTools.map(tool => tool.tool_type);
+    const unselectedToolTypes = toolOrder.filter(toolType => !selectedToolTypes.includes(toolType));
+    const finalOrder = [...selectedToolTypes, ...unselectedToolTypes];
     
     techToolsList.innerHTML = '';
     
-    // Display tech tools in the defined order
-    toolOrder.forEach((toolType, index) => {
-        const isActive = savedToolsMap[toolType]?.is_active || false;
+    // Display tech tools in the final order
+    finalOrder.forEach((toolType, index) => {
+        const savedTool = savedToolsMap[toolType];
+        const isActive = savedTool?.is_active || false;
         const toolName = techToolNames[toolType] || toolType;
         const toolDescription = techToolDescriptions[toolType] || '';
         const toolBanner = techToolBanners[toolType] || 'assets/images/tech_banner/default.jpg';
@@ -612,7 +634,7 @@ function loadTechTools(savedTechTools) {
                 <span class="tool-number">${index + 1}</span>
                 <div class="tool-actions">
                     <button type="button" class="btn-move-up" onclick="moveTechTool(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>↑</button>
-                    <button type="button" class="btn-move-down" onclick="moveTechTool(${index}, 'down')" ${index === toolOrder.length - 1 ? 'disabled' : ''}>↓</button>
+                    <button type="button" class="btn-move-down" onclick="moveTechTool(${index}, 'down')" ${index === finalOrder.length - 1 ? 'disabled' : ''}>↓</button>
             </div>
             </div>
             <label class="tech-tool-checkbox">
@@ -1322,11 +1344,7 @@ function addFreeInputPair() {
     
     const pairItem = document.createElement('div');
     pairItem.className = 'free-input-pair-item';
-    if (pairCount > 0) {
-        pairItem.style.marginTop = '2rem';
-        pairItem.style.paddingTop = '2rem';
-        pairItem.style.borderTop = '1px solid #e0e0e0';
-    }
+    // No border/margin on new item (it's at the top)
     
     pairItem.innerHTML = `
         <!-- Text Input -->
@@ -1353,7 +1371,25 @@ function addFreeInputPair() {
         <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)">削除</button>
     `;
     
-    container.appendChild(pairItem);
+    // Insert at the top of the container (before the first child, or append if no children exist)
+    if (container.firstChild) {
+        container.insertBefore(pairItem, container.firstChild);
+        // Add border to the second item (previously first) if it exists
+        const nextItem = pairItem.nextElementSibling;
+        if (nextItem && nextItem.classList.contains('free-input-pair-item')) {
+            nextItem.style.marginTop = '2rem';
+            nextItem.style.paddingTop = '2rem';
+            nextItem.style.borderTop = '1px solid #e0e0e0';
+        }
+    } else {
+        container.appendChild(pairItem);
+    }
+    
+    // Initialize file upload handler for the new item
+    initializeFreeImageUpload(pairItem);
+    
+    // Initialize drag and drop for the new upload area
+    initializeDragAndDropForUploadArea(pairItem.querySelector('.upload-area'));
     
     // Update delete button visibility
     const allPairs = container.querySelectorAll('.free-input-pair-item');
@@ -1386,6 +1422,93 @@ function removeFreeInputPair(button) {
         const deleteBtn = pair.querySelector('.btn-delete-small');
         if (deleteBtn) {
             deleteBtn.style.display = remainingPairs.length > 1 ? 'block' : 'none';
+        }
+    });
+}
+
+// Initialize file upload handler for free image items in edit page
+function initializeFreeImageUpload(item) {
+    const fileInput = item.querySelector('input[type="file"]');
+    if (!fileInput) return;
+    
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const preview = item.querySelector('.upload-preview');
+                if (preview) {
+                    const img = new Image();
+                    img.onload = () => {
+                        const resizeNote = (img.width > 1200 || img.height > 1200) 
+                            ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
+                            : '';
+                        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
+                    };
+                    img.src = event.target.result;
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+// Initialize drag and drop for a specific upload area
+function initializeDragAndDropForUploadArea(uploadArea) {
+    if (!uploadArea) return;
+    
+    const fileInput = uploadArea.querySelector('input[type="file"]');
+    if (!fileInput) return;
+    
+    // Remove existing listeners by cloning the element (this removes all event listeners)
+    // Actually, we should check if already initialized to avoid duplicate listeners
+    if (uploadArea.dataset.dragInitialized === 'true') return;
+    uploadArea.dataset.dragInitialized = 'true';
+    
+    // ドラッグオーバー時の処理
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.add('drag-over');
+    });
+    
+    // ドラッグリーブ時の処理
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('drag-over');
+    });
+    
+    // ドロップ時の処理
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            // 画像ファイルかチェック
+            if (file.type.startsWith('image/')) {
+                fileInput.files = files;
+                // ファイル選択イベントをトリガー
+                const event = new Event('change', { bubbles: true });
+                fileInput.dispatchEvent(event);
+            } else {
+                if (typeof showWarning === 'function') {
+                    showWarning('画像ファイルを選択してください');
+                } else {
+                    alert('画像ファイルを選択してください');
+                }
+            }
+        }
+    });
+    
+    // クリックでファイル選択も可能
+    uploadArea.addEventListener('click', function(e) {
+        // ボタンやプレビュー画像をクリックした場合は除外
+        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'IMG') {
+            fileInput.click();
         }
     });
 }

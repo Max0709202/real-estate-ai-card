@@ -334,12 +334,12 @@ $prefectures = [
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>ローマ字姓</label>
+                            <label>姓（ローマ字）</label>
                             <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                             <input type="text" name="last_name_romaji" id="last_name_romaji" class="form-control" placeholder="例：Yamada" inputmode="latin" autocomplete="family-name" autocapitalize="words" spellcheck="false">
                         </div>
                         <div class="form-group">
-                            <label>ローマ字名</label>
+                            <label>名（ローマ字）</label>
                             <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                             <input type="text" name="first_name_romaji" id="first_name_romaji" class="form-control" placeholder="例：Taro" inputmode="latin" autocomplete="given-name" autocapitalize="words" spellcheck="false">
                         </div>
@@ -983,7 +983,11 @@ $prefectures = [
                             const event = new Event('change', { bubbles: true });
                             fileInput.dispatchEvent(event);
                         } else {
-                            showWarning('画像ファイルを選択してください');
+                            if (typeof showWarning === 'function') {
+                                showWarning('画像ファイルを選択してください');
+                            } else {
+                                alert('画像ファイルを選択してください');
+                            }
                         }
                     }
                 });
@@ -1033,14 +1037,14 @@ $prefectures = [
                 return '';
             }
 
-            // 姓の入力時にローマ字姓を自動入力
+            // 姓の入力時に姓（ローマ字）を自動入力
             if (lastNameInput && lastNameRomajiInput) {
                 let lastNameTimeout;
                 lastNameInput.addEventListener('input', function() {
                     clearTimeout(lastNameTimeout);
                     const value = this.value.trim();
 
-                    // ローマ字姓が空の場合のみ自動入力
+                    // 姓（ローマ字）が空の場合のみ自動入力
                     if (!lastNameRomajiInput.value.trim() && value) {
                         lastNameTimeout = setTimeout(function() {
                             const romaji = convertToRomaji(value);
@@ -1052,14 +1056,14 @@ $prefectures = [
                 });
             }
 
-            // 名の入力時にローマ字名を自動入力
+            // 名の入力時に名（ローマ字）を自動入力
             if (firstNameInput && firstNameRomajiInput) {
                 let firstNameTimeout;
                 firstNameInput.addEventListener('input', function() {
                     clearTimeout(firstNameTimeout);
                     const value = this.value.trim();
 
-                    // ローマ字名が空の場合のみ自動入力
+                    // 名（ローマ字）が空の場合のみ自動入力
                     if (!firstNameRomajiInput.value.trim() && value) {
                         firstNameTimeout = setTimeout(function() {
                             const romaji = convertToRomaji(value);

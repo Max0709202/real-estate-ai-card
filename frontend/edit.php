@@ -371,12 +371,12 @@ $defaultGreetings = [
 
                         <div class="form-row">
                             <div class="form-group">
-                                <label>ローマ字姓</label>
+                                <label>姓（ローマ字）</label>
                                 <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                                 <input type="text" name="last_name_romaji" id="edit_last_name_romaji" class="form-control" placeholder="例：Yamada" inputmode="latin" autocomplete="family-name" autocapitalize="words" spellcheck="false">
                             </div>
                             <div class="form-group">
-                                <label>ローマ字名</label>
+                                <label>名（ローマ字）</label>
                                 <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                                 <input type="text" name="first_name_romaji" id="edit_first_name_romaji" class="form-control" placeholder="例：Taro" inputmode="latin" autocomplete="given-name" autocapitalize="words" spellcheck="false">
                             </div>
@@ -1263,6 +1263,83 @@ $defaultGreetings = [
                 return '';
             }
             
+            // ローマ字入力フィールドの最初の文字を大文字に変換する関数
+            function capitalizeFirstLetterForEdit(input) {
+                if (!input || !input.value) return;
+                
+                let value = input.value.trim();
+                
+                if (value.length > 0) {
+                    // 最初の文字が小文字（a-z）の場合は大文字に変換
+                    const firstChar = value.charAt(0);
+                    if (firstChar >= 'a' && firstChar <= 'z') {
+                        const cursorPosition = input.selectionStart || input.value.length;
+                        value = firstChar.toUpperCase() + value.slice(1);
+                        input.value = value;
+                        // カーソル位置を復元
+                        const newCursorPos = cursorPosition > 0 ? cursorPosition : value.length;
+                        try {
+                            input.setSelectionRange(newCursorPos, newCursorPos);
+                        } catch (e) {
+                            // Some browsers may not support setSelectionRange on all input types
+                        }
+                    }
+                }
+            }
+            
+            // ローマ字入力フィールドの大文字化機能を設定
+            function setupRomajiAutoCapitalizeForEdit() {
+                const romajiFields = [lastNameRomajiInput, firstNameRomajiInput];
+                
+                romajiFields.forEach(field => {
+                    if (field) {
+                        let isComposing = false; // Track IME composition state
+                        
+                        // Track composition start (IME input started)
+                        field.addEventListener('compositionstart', function() {
+                            isComposing = true;
+                        });
+                        
+                        // Track composition end (IME input finished)
+                        field.addEventListener('compositionend', function(e) {
+                            isComposing = false;
+                            // Apply capitalization after composition ends
+                            setTimeout(() => capitalizeFirstLetterForEdit(e.target), 0);
+                        });
+                        
+                        // Handle input event - skip during IME composition
+                        field.addEventListener('input', function(e) {
+                            // Skip if IME is composing or if event has isComposing flag
+                            if (isComposing || e.isComposing) {
+                                return;
+                            }
+                            // Use setTimeout to ensure the value is updated before capitalization
+                            setTimeout(() => capitalizeFirstLetterForEdit(e.target), 0);
+                        });
+                        
+                        // Handle keyup for more reliable capitalization on PC
+                        field.addEventListener('keyup', function(e) {
+                            // Skip during IME composition
+                            if (isComposing || e.isComposing) {
+                                return;
+                            }
+                            // Only capitalize on regular character keys (not special keys)
+                            if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+                                setTimeout(() => capitalizeFirstLetterForEdit(e.target), 0);
+                            }
+                        });
+                        
+                        // Also apply on blur (when field loses focus)
+                        field.addEventListener('blur', function(e) {
+                            capitalizeFirstLetterForEdit(e.target);
+                        });
+                    }
+                });
+            }
+            
+            // ローマ字入力フィールドの大文字化機能を初期化
+            setupRomajiAutoCapitalizeForEdit();
+            
             if (lastNameInput && lastNameRomajiInput) {
                 let lastNameTimeout;
                 lastNameInput.addEventListener('input', function() {
@@ -1273,6 +1350,8 @@ $defaultGreetings = [
                             const romaji = convertToRomaji(value);
                             if (romaji) {
                                 lastNameRomajiInput.value = romaji;
+                                // 自動変換された値も大文字化する
+                                capitalizeFirstLetterForEdit(lastNameRomajiInput);
                             }
                         }, 500);
                     }
@@ -1289,6 +1368,8 @@ $defaultGreetings = [
                             const romaji = convertToRomaji(value);
                             if (romaji) {
                                 firstNameRomajiInput.value = romaji;
+                                // 自動変換された値も大文字化する
+                                capitalizeFirstLetterForEdit(firstNameRomajiInput);
                             }
                         }, 500);
                     }
@@ -1333,7 +1414,11 @@ $defaultGreetings = [
                             const event = new Event('change', { bubbles: true });
                             fileInput.dispatchEvent(event);
                         } else {
-                            showWarning('画像ファイルを選択してください');
+                            if (typeof showWarning === 'function') {
+                                showWarning('画像ファイルを選択してください');
+                            } else {
+                                alert('画像ファイルを選択してください');
+                            }
                         }
                     }
                 });
