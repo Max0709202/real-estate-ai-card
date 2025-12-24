@@ -225,30 +225,50 @@ function populateEditForms(data) {
     }
     
     // Logo preview
-        if (data.company_logo) {
+    if (data.company_logo) {
         const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
         if (logoUploadArea) {
             const logoPreview = logoUploadArea.querySelector('.upload-preview');
             if (logoPreview) {
-                const logoPath = data.company_logo.startsWith('http') ? data.company_logo : '../' + data.company_logo;
+                // Construct correct image path
+                let logoPath = data.company_logo;
+                if (!logoPath.startsWith('http')) {
+                    // If path starts with backend/, add ../ prefix
+                    if (logoPath.startsWith('backend/')) {
+                        logoPath = '../' + logoPath;
+                    } else if (!logoPath.startsWith('../')) {
+                        // Otherwise, assume it's relative to frontend directory
+                        logoPath = '../' + logoPath;
+                    }
+                }
                 logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
                 logoUploadArea.dataset.existingImage = data.company_logo;
             }
-            }
         }
+    }
         
     // Profile photo preview
-        if (data.profile_photo) {
+    if (data.profile_photo) {
         const photoUploadArea = document.querySelector('[data-upload-id="profile_photo"]');
         if (photoUploadArea) {
             const photoPreview = photoUploadArea.querySelector('.upload-preview');
             if (photoPreview) {
-                const photoPath = data.profile_photo.startsWith('http') ? data.profile_photo : '../' + data.profile_photo;
+                // Construct correct image path
+                let photoPath = data.profile_photo;
+                if (!photoPath.startsWith('http')) {
+                    // If path starts with backend/, add ../ prefix
+                    if (photoPath.startsWith('backend/')) {
+                        photoPath = '../' + photoPath;
+                    } else if (!photoPath.startsWith('../')) {
+                        // Otherwise, assume it's relative to frontend directory
+                        photoPath = '../' + photoPath;
+                    }
+                }
                 photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
                 photoUploadArea.dataset.existingImage = data.profile_photo;
             }
-            }
         }
+    }
         
         // Greetings - ALWAYS clear first, then populate based on data
     const greetingsContainer = document.getElementById('greetings-list');
@@ -436,7 +456,18 @@ function populateEditForms(data) {
                             <label>画像・バナー（リンク付き画像）</label>
                             <div class="upload-area" data-upload-id="free_image_${i}">
                                 <input type="file" name="free_image[]" accept="image/*" style="display: none;">
-                                <div class="upload-preview">${imgData.image ? `<img src="${imgData.image.startsWith('http') ? imgData.image : '../' + imgData.image}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">` : ''}</div>
+                                <div class="upload-preview">${(() => {
+                                    if (!imgData.image) return '';
+                                    let imgPath = imgData.image;
+                                    if (!imgPath.startsWith('http')) {
+                                        if (imgPath.startsWith('backend/')) {
+                                            imgPath = '../' + imgPath;
+                                        } else if (!imgPath.startsWith('../')) {
+                                            imgPath = '../' + imgPath;
+                                        }
+                                    }
+                                    return `<img src="${imgPath}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                                })()}</div>
                                 <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
                                     画像をアップロード
                                 </button>
