@@ -130,7 +130,9 @@ $defaultGreetings = [
     
     <div class="edit-container">
         <header class="edit-header">
-            <h1>デジタル名刺作成・編集</h1>
+            <div class="edit-header-content">
+                <h1>デジタル名刺作成・編集</h1>
+            </div>
         </header>
         <div class="edit-content">
             <div class="edit-sidebar">
@@ -743,13 +745,6 @@ $defaultGreetings = [
                     </div>
                     
                     <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存して次へ</button>
-                </div>
-            </div>
-
-            <div class="edit-preview">
-                <h3>プレビュー</h3>
-                <div id="preview-content">
-                    <p>プレビューを読み込み中...</p>
                 </div>
             </div>
         </div>
