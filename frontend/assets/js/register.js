@@ -73,7 +73,7 @@ function setupRomajiAutoCapitalize() {
             field.addEventListener('compositionend', function(e) {
                 isComposing = false;
                 // Apply capitalization after composition ends
-                capitalizeFirstLetterForRegister(e.target);
+                setTimeout(() => capitalizeFirstLetterForRegister(e.target), 0);
             });
             
             // Handle input event - skip during IME composition
@@ -82,7 +82,20 @@ function setupRomajiAutoCapitalize() {
                 if (isComposing || e.isComposing) {
                     return;
                 }
-                capitalizeFirstLetterForRegister(e.target);
+                // Use setTimeout to ensure the value is updated before capitalization
+                setTimeout(() => capitalizeFirstLetterForRegister(e.target), 0);
+            });
+            
+            // Handle keyup for more reliable capitalization on PC
+            field.addEventListener('keyup', function(e) {
+                // Skip during IME composition
+                if (isComposing || e.isComposing) {
+                    return;
+                }
+                // Only capitalize on regular character keys (not special keys)
+                if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+                    setTimeout(() => capitalizeFirstLetterForRegister(e.target), 0);
+                }
             });
             
             // Also apply on blur (when field loses focus)
@@ -97,17 +110,24 @@ function setupRomajiAutoCapitalize() {
 
 // Capitalize first letter helper function for register page
 function capitalizeFirstLetterForRegister(input) {
-    let value = input.value;
+    if (!input || !input.value) return;
+    
+    let value = input.value.trim();
     
     if (value.length > 0) {
         // 最初の文字が小文字（a-z）の場合は大文字に変換
         const firstChar = value.charAt(0);
         if (firstChar >= 'a' && firstChar <= 'z') {
-            const cursorPosition = input.selectionStart;
+            const cursorPosition = input.selectionStart || input.value.length;
             value = firstChar.toUpperCase() + value.slice(1);
             input.value = value;
-            // カーソル位置を復元
-            input.setSelectionRange(cursorPosition, cursorPosition);
+            // カーソル位置を復元（ただし、先頭に挿入された場合は調整）
+            const newCursorPos = cursorPosition > 0 ? cursorPosition : value.length;
+            try {
+                input.setSelectionRange(newCursorPos, newCursorPos);
+            } catch (e) {
+                // Some browsers may not support setSelectionRange on all input types
+            }
         }
     }
 }
@@ -401,20 +421,74 @@ function populateRegistrationForms(data) {
                     
                     // Initialize file upload handler
                 initializeFreeImageUploadForRegister(pairItem);
+                
+                // Initialize drag and drop for upload area
+                const uploadArea = pairItem.querySelector('.upload-area');
+                if (uploadArea) {
+                    initializeDragAndDropForUploadAreaForRegister(uploadArea);
+                }
             }
         } catch (e) {
             console.error('Error parsing free_input:', e);
         }
     }
     
-    // Step 4: Tech Tools
-    if (data.tech_tools && Array.isArray(data.tech_tools)) {
-        data.tech_tools.forEach(tool => {
-            if (tool.is_active) {
-                const checkbox = document.querySelector(`input[name="tech_tools[]"][value="${tool.tool_type}"]`);
-                if (checkbox) checkbox.checked = true;
-            }
+    // Step 4: Tech Tools - Reorder based on display_order from database
+    if (data.tech_tools && Array.isArray(data.tech_tools) && data.tech_tools.length > 0) {
+        // Sort saved tech tools by display_order
+        const sortedSavedTools = [...data.tech_tools].sort((a, b) => {
+            const orderA = a.display_order !== undefined ? parseInt(a.display_order) : 999;
+            const orderB = b.display_order !== undefined ? parseInt(b.display_order) : 999;
+            return orderA - orderB;
         });
+        
+        // Get all tech tool cards from the grid
+        const grid = document.getElementById('tech-tools-grid');
+        if (grid) {
+            const allCards = Array.from(grid.querySelectorAll('.tech-tool-banner-card'));
+            const cardMap = {};
+            allCards.forEach(card => {
+                cardMap[card.dataset.toolType] = card;
+            });
+            
+            // Create ordered list: selected tools first (in display_order), then unselected tools
+            const selectedToolTypes = sortedSavedTools.map(tool => tool.tool_type);
+            const defaultOrder = ['mdb', 'rlp', 'llp', 'ai', 'slp', 'olp', 'alp'];
+            const unselectedToolTypes = defaultOrder.filter(toolType => 
+                !selectedToolTypes.includes(toolType) && cardMap[toolType]
+            );
+            const finalOrder = [...selectedToolTypes, ...unselectedToolTypes];
+            
+            // Reorder cards in DOM
+            finalOrder.forEach(toolType => {
+                if (cardMap[toolType]) {
+                    grid.appendChild(cardMap[toolType]);
+                }
+            });
+            
+            // Check checkboxes for active tools
+            sortedSavedTools.forEach(tool => {
+                if (tool.is_active) {
+                    const checkbox = cardMap[tool.tool_type]?.querySelector(`input[name="tech_tools[]"][value="${tool.tool_type}"]`);
+                    if (checkbox) checkbox.checked = true;
+                    const card = cardMap[tool.tool_type];
+                    if (card) card.classList.add('selected');
+                }
+            });
+            
+            // Update button indices after reordering
+            setTimeout(() => {
+                updateTechToolButtonsForRegister();
+            }, 100);
+        } else {
+            // Fallback: just check checkboxes if grid not found
+            data.tech_tools.forEach(tool => {
+                if (tool.is_active) {
+                    const checkbox = document.querySelector(`input[name="tech_tools[]"][value="${tool.tool_type}"]`);
+                    if (checkbox) checkbox.checked = true;
+                }
+            });
+        }
     }
     
     // Step 5: Communication Methods
@@ -2865,9 +2939,7 @@ function addFreeInputPairForRegister() {
     const itemCount = container.querySelectorAll('.free-input-pair-item').length;
     const newPairItem = document.createElement('div');
     newPairItem.className = 'free-input-pair-item';
-    newPairItem.style.marginTop = '2rem';
-    newPairItem.style.paddingTop = '2rem';
-    newPairItem.style.borderTop = '1px solid #e0e0e0';
+    // No border/margin on new item (it's at the top)
 
     newPairItem.innerHTML = `
         <!-- Text Input -->
@@ -2894,10 +2966,28 @@ function addFreeInputPairForRegister() {
         <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)">削除</button>
     `;
     
-    container.appendChild(newPairItem);
+    // Insert at the top of the container (before the first child, or append if no children exist)
+    if (container.firstChild) {
+        container.insertBefore(newPairItem, container.firstChild);
+        // Add border to the second item (previously first) if it exists
+        const nextItem = newPairItem.nextElementSibling;
+        if (nextItem && nextItem.classList.contains('free-input-pair-item')) {
+            nextItem.style.marginTop = '2rem';
+            nextItem.style.paddingTop = '2rem';
+            nextItem.style.borderTop = '1px solid #e0e0e0';
+        }
+    } else {
+        container.appendChild(newPairItem);
+    }
 
     // Initialize file input handler for the new item
     initializeFreeImageUploadForRegister(newPairItem);
+    
+    // Initialize drag and drop for the new upload area
+    const uploadArea = newPairItem.querySelector('.upload-area');
+    if (uploadArea) {
+        initializeDragAndDropForUploadAreaForRegister(uploadArea);
+    }
     
     // Show delete buttons if there are multiple items
     updateFreeInputPairDeleteButtonsForRegister();
@@ -3036,6 +3126,65 @@ function initializeFreeImageUploadForRegister(item) {
                 }
             };
             reader.readAsDataURL(file);
+        }
+    });
+}
+
+// Initialize drag and drop for a specific upload area (register page)
+function initializeDragAndDropForUploadAreaForRegister(uploadArea) {
+    if (!uploadArea) return;
+    
+    const fileInput = uploadArea.querySelector('input[type="file"]');
+    if (!fileInput) return;
+    
+    // Check if already initialized to avoid duplicate listeners
+    if (uploadArea.dataset.dragInitialized === 'true') return;
+    uploadArea.dataset.dragInitialized = 'true';
+    
+    // ドラッグオーバー時の処理
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.add('drag-over');
+    });
+    
+    // ドラッグリーブ時の処理
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('drag-over');
+    });
+    
+    // ドロップ時の処理
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            // 画像ファイルかチェック
+            if (file.type.startsWith('image/')) {
+                fileInput.files = files;
+                // ファイル選択イベントをトリガー
+                const event = new Event('change', { bubbles: true });
+                fileInput.dispatchEvent(event);
+            } else {
+                if (typeof showWarning === 'function') {
+                    showWarning('画像ファイルを選択してください');
+                } else {
+                    alert('画像ファイルを選択してください');
+                }
+            }
+        }
+    });
+    
+    // クリックでファイル選択も可能
+    uploadArea.addEventListener('click', function(e) {
+        // ボタンやプレビュー画像をクリックした場合は除外
+        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'IMG') {
+            fileInput.click();
         }
     });
 }
