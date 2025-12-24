@@ -35,10 +35,164 @@ body {
     width: 100%;
 }
 
+.edit-header-content {
+    flex: 1;
+}
+
 .edit-header h1 {
     font-size: 1.5rem;
     color: #333;
     font-weight: 600;
+}
+
+/* Direct Input Button */
+.btn-direct-input {
+    background: #019b23;
+    color: #fff;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
+}
+
+.btn-direct-input:hover {
+    background: #03b129;
+    box-shadow: 0 4px 8px rgba(0, 102, 204, 0.3);
+}
+
+.direct-input-text {
+    display: inline-block;
+    overflow: hidden;
+}
+
+.direct-text {
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+
+.input-text {
+    display: inline-block;
+    transition: all 0.3s ease;
+    margin-left: 0.25rem;
+}
+
+/* PC: Full text visible */
+@media (min-width: 769px) {
+    .btn-direct-input {
+        padding: 0.75rem 1.5rem;
+    }
+
+    .direct-text,
+    .input-text {
+        opacity: 1;
+        width: auto;
+    }
+}
+
+/* SP: Initially show only "直接", expand on hover by moving left */
+@media (max-width: 768px) {
+    .btn-direct-input {
+        position: fixed;
+        top: 50%;
+        right: -45px;
+        transform: translateY(-50%);
+        padding: 0.5rem 0.75rem;
+        border-radius: 3px;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+        width: auto;
+        overflow: hidden;
+        transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1), left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .direct-input-text {
+        white-space: nowrap;
+        display: inline-block;
+    }
+
+    .direct-text,
+    .input-text {
+        display: inline-block;
+        line-height: 1.5;
+        vertical-align: middle;
+    }
+
+    .input-text {
+        margin-left: 0.25rem;
+    }
+
+    .btn-direct-input:hover,
+    .btn-direct-input:active {
+        right: -5px;
+        /* left: 1rem; */
+    }
+
+    /* Touch device support - move left after first tap */
+    .btn-direct-input.touched {
+        right: -5px;
+    }
+}
+
+/* Direct Input Modal Styles */
+.direct-input-modal-content {
+    max-width: 90% !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+}
+
+#direct-input-preview-content {
+    padding: 2rem;
+}
+
+#direct-input-preview-content .card-container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+#direct-input-preview-content .card-section {
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+}
+
+#direct-input-preview-content hr {
+    border: none;
+    border-top: 1px solid #e0e0e0;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .direct-input-modal-content {
+        max-width: 95% !important;
+        max-height: 95vh !important;
+    }
+    
+    #direct-input-preview-content {
+        padding: 1rem;
+    }
+    
+    #direct-input-preview-content .profile-greeting-section {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    #direct-input-preview-content .profile-photo {
+        width: 150px;
+        height: 150px;
+    }
+    
+    #direct-input-preview-content .info-responsive-grid {
+        grid-template-columns: 1fr !important;
+    }
 }
 
 .btn-back {
@@ -70,12 +224,29 @@ body {
     flex: 1;
 }
 
+/* PC: Three column layout - Nav (left), Main (center), Actions (right) */
+@media (min-width: 769px) {
+    .edit-content {
+        grid-template-columns: 250px 1fr 280px;
+    }
+}
+
 /* Edit Sidebar */
 .edit-sidebar {
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     padding: 1.5rem 0;
+    height: fit-content;
+    position: sticky;
+    top: 100px;
+}
+
+.edit-sidebar-actions {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    padding: 1.5rem;
     height: fit-content;
     position: sticky;
     top: 100px;
