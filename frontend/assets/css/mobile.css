@@ -1136,6 +1136,159 @@
         border-radius: 12px;
     }
 
+    /* Philosophy Section - Mobile */
+    .philosophy-section {
+        padding: 3rem 0;
+        background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
+        position: relative;
+    }
+
+    .philosophy-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.1), transparent);
+    }
+
+    .philosophy-section .container {
+        padding: 0 1rem;
+        position: relative;
+    }
+
+    .philosophy-images-row {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        padding: 0;
+        margin-bottom: 0;
+    }
+
+    .philosophy-image-wrapper {
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+                    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        background: #fff;
+        position: relative;
+    }
+
+    .philosophy-image-wrapper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 16px;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+        pointer-events: none;
+    }
+
+    .philosophy-image-wrapper:active {
+        transform: scale(0.97);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .philosophy-image-layer {
+        padding-top: 75%;
+        border-radius: 16px;
+        overflow: hidden;
+        position: relative;
+        background: #f5f5f5;
+    }
+
+    .philosophy-image-odd,
+    .philosophy-image-even {
+        border-radius: 16px;
+        transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+    }
+
+    /* Ensure smooth animation on mobile */
+    .philosophy-image-wrapper:nth-child(1) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(1) .philosophy-image-even,
+    .philosophy-image-wrapper:nth-child(2) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(2) .philosophy-image-even,
+    .philosophy-image-wrapper:nth-child(3) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(3) .philosophy-image-even {
+        will-change: opacity;
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+    }
+
+    /* DX Integration Section - Mobile */
+    .dx-integration-section {
+        padding: 3.5rem 0;
+    }
+
+    .dx-integration-content {
+        padding: 0 1rem;
+    }
+
+    .dx-tagline {
+        font-size: 0.95rem;
+        margin-bottom: 1.25rem;
+        line-height: 1.7;
+        padding: 0 0.5rem;
+    }
+
+    .dx-main-title {
+        font-size: 1.75rem;
+        margin-bottom: 1.25rem;
+        line-height: 1.3;
+        padding: 0 0.5rem;
+    }
+
+    .dx-subtitle {
+        font-size: 1rem;
+        margin-bottom: 2.5rem;
+        line-height: 1.7;
+        padding: 0 0.5rem;
+    }
+
+    .dx-product-info {
+        flex-direction: column;
+        gap: 1.25rem;
+        padding: 2rem 1rem;
+        border-top: 2px solid #e0e0e0;
+        border-bottom: 2px solid #e0e0e0;
+    }
+
+    .dx-logo-wrapper {
+        order: 1;
+    }
+
+    .dx-logo {
+        width: 70px;
+        height: 70px;
+    }
+
+    .dx-product-name-wrapper {
+        order: 2;
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .dx-tool-label {
+        font-size: 0.9rem;
+    }
+
+    .dx-product-name {
+        font-size: 1.65rem;
+        line-height: 1.3;
+    }
+
+    .dx-ai-highlight::after {
+        height: 2px;
+    }
+
     /* Tools section */
     .tools-grid {
         grid-template-columns: 1fr;
@@ -1253,6 +1406,71 @@
    TABLET OPTIMIZATIONS (481px - 1024px)
    ============================================ */
 @media (min-width: 481px) and (max-width: 1024px) {
+    /* Philosophy Section - Tablet */
+    .philosophy-section {
+        padding: 3rem 0;
+    }
+
+    .philosophy-images-row {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+        padding: 0 1.5rem;
+        margin-bottom: 2.5rem;
+    }
+
+    .philosophy-image-layer {
+        padding-top: 70%;
+    }
+
+    .philosophy-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        padding: 0 1.5rem;
+    }
+
+    .philosophy-card {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    /* DX Integration Section - Tablet */
+    .dx-integration-section {
+        padding: 4rem 0;
+    }
+
+    .dx-integration-content {
+        padding: 0 1.5rem;
+    }
+
+    .dx-tagline {
+        font-size: 1.05rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .dx-main-title {
+        font-size: 2.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .dx-subtitle {
+        font-size: 1.1rem;
+        margin-bottom: 2.75rem;
+    }
+
+    .dx-product-info {
+        gap: 1.5rem;
+        padding: 2.5rem 1.5rem;
+    }
+
+    .dx-logo {
+        width: 75px;
+        height: 75px;
+    }
+
+    .dx-product-name {
+        font-size: 1.9rem;
+    }
+
     /* Communication section - Tablet */
     .communication-grid {
         grid-template-columns: repeat(3, 1fr);
@@ -1512,7 +1730,7 @@
     }
 
     .communication-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(1, 1fr);
         gap: 0.75rem;
     }
 
@@ -1876,6 +2094,87 @@
 
 /* Very small screens */
 @media (max-width: 480px) {
+    /* Philosophy Section - Very Small Screens */
+    .philosophy-section {
+        padding: 2.5rem 0;
+    }
+
+    .philosophy-section .container {
+        padding: 0 0.875rem;
+    }
+
+    .philosophy-images-row {
+        gap: 1.25rem;
+        margin-bottom: 0;
+    }
+
+    .philosophy-image-wrapper {
+        border-radius: 14px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .philosophy-image-wrapper::after {
+        border-radius: 14px;
+    }
+
+    .philosophy-image-layer {
+        padding-top: 70%;
+        border-radius: 14px;
+    }
+
+    .philosophy-image-odd,
+    .philosophy-image-even {
+        border-radius: 14px;
+    }
+
+    /* DX Integration Section - Very Small Screens */
+    .dx-integration-section {
+        padding: 3rem 0;
+    }
+
+    .dx-integration-content {
+        padding: 0 0.75rem;
+    }
+
+    .dx-tagline {
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+        line-height: 1.6;
+        padding: 0;
+    }
+
+    .dx-main-title {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+        line-height: 1.25;
+        padding: 0;
+    }
+
+    .dx-subtitle {
+        font-size: 0.95rem;
+        margin-bottom: 2rem;
+        line-height: 1.6;
+        padding: 0;
+    }
+
+    .dx-product-info {
+        gap: 1rem;
+        padding: 1.75rem 0.75rem;
+    }
+
+    .dx-logo {
+        width: 60px;
+        height: 60px;
+    }
+
+    .dx-tool-label {
+        font-size: 0.85rem;
+    }
+
+    .dx-product-name {
+        font-size: 1.5rem;
+    }
+
     .card-container {
         padding: 0.25rem;
     }

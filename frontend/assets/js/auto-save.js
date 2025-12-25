@@ -475,7 +475,34 @@
         const previewContainer = document.querySelector(`[data-file-preview="${fieldName}"]`);
         if (!previewContainer) {
             // Create preview container if it doesn't exist
-            const fileInput = document.querySelector(`input[type="file"][name="${fieldName}"], input[type="file"]#${fieldName}`);
+            // Escape special characters in fieldName for CSS selector (especially brackets)
+            const escapedFieldName = fieldName.replace(/[\[\]\\]/g, '\\$&');
+            let fileInput = null;
+            
+            // Try with escaped name attribute
+            try {
+                fileInput = document.querySelector(`input[type="file"][name="${escapedFieldName}"]`);
+            } catch (e) {
+                // If querySelector fails, use alternative method
+            }
+            
+            // If not found, try with ID selector (no escaping needed for ID)
+            if (!fileInput) {
+                try {
+                    fileInput = document.querySelector(`input[type="file"]#${fieldName}`);
+                } catch (e) {
+                    // If querySelector fails, use alternative method
+                }
+            }
+            
+            // If still not found, find by iterating through all file inputs
+            if (!fileInput) {
+                const allFileInputs = document.querySelectorAll('input[type="file"]');
+                fileInput = Array.from(allFileInputs).find(input => {
+                    return (input.name === fieldName) || (input.id === fieldName);
+                });
+            }
+            
             if (fileInput) {
                 const container = document.createElement('div');
                 container.setAttribute('data-file-preview', fieldName);

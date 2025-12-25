@@ -178,6 +178,8 @@ async function loadBusinessCardData() {
         if (result.success && result.data) {
             // Update the global businessCardData variable
             businessCardData = result.data;
+            // Also set window.businessCardData for easier access from other scripts
+            window.businessCardData = result.data;
             // Note: We don't reload the page to avoid browser warnings
             // The form data is already saved, so we just need to navigate to the next step
         }
@@ -204,6 +206,8 @@ async function loadExistingBusinessCardData() {
         
         if (result.success && result.data) {
             businessCardData = result.data;
+            // Also set window.businessCardData for easier access from other scripts
+            window.businessCardData = result.data;
             populateEditForms(businessCardData);
         }
     } catch (error) {
@@ -1457,30 +1461,45 @@ function removeFreeInputPair(button) {
     });
 }
 
-// Initialize file upload handler for free image items in edit page
+// Initialize file upload handler for free image items in edit page (stores file, uploads on form save)
 function initializeFreeImageUpload(item) {
     const fileInput = item.querySelector('input[type="file"]');
     if (!fileInput) return;
     
-    fileInput.addEventListener('change', function(e) {
+    // Remove existing listener if any (by cloning the element)
+    const newFileInput = fileInput.cloneNode(true);
+    fileInput.parentNode.replaceChild(newFileInput, fileInput);
+    
+    newFileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const preview = item.querySelector('.upload-preview');
-                if (preview) {
-                    const img = new Image();
-                    img.onload = () => {
-                        const resizeNote = (img.width > 1200 || img.height > 1200) 
-                            ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
-                            : '';
-                        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
-                    };
-                    img.src = event.target.result;
-                }
-            };
-            reader.readAsDataURL(file);
-        }
+        if (!file) return;
+        
+        const uploadArea = item.querySelector('.upload-area');
+        if (!uploadArea) return;
+        
+        // Show preview and store file (will be uploaded on form save)
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const preview = uploadArea.querySelector('.upload-preview');
+            if (preview) {
+                const img = new Image();
+                img.onload = () => {
+                    const resizeNote = (img.width > 1200 || img.height > 1200) 
+                        ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
+                        : '';
+                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
+                };
+                img.src = event.target.result;
+            }
+            // Store file reference for later upload
+            uploadArea.dataset.freeImageFile = JSON.stringify({
+                name: file.name,
+                type: file.type,
+                size: file.size
+            });
+            uploadArea.dataset.freeImageData = event.target.result;
+        };
+        reader.readAsDataURL(file);
     });
 }
 
@@ -1773,6 +1792,7 @@ function showEditImageCropper(file, fieldName, originalEvent) {
     if (newCancelBtn) {
         newCancelBtn.onclick = function() {
             closeEditImageCropper();
+            // Reset file input so it can be used again
             if (originalEvent && originalEvent.target) {
                 originalEvent.target.value = '';
             }
@@ -1786,6 +1806,11 @@ function showEditImageCropper(file, fieldName, originalEvent) {
             cropAndStoreForEdit();
         };
     }
+    
+    // Make sure modal is visible
+    modal.style.display = 'block';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
 }
 
 // Close image cropper for edit page
@@ -1830,7 +1855,7 @@ function closeEditImageCropper() {
     editCropOriginalEvent = null;
 }
 
-// Crop and store image for edit page
+// Crop and store image for edit page (stores blob, uploads on form save)
 function cropAndStoreForEdit() {
     if (!editCropper || !editCropFile || !editCropFieldName) {
         return;
@@ -1868,22 +1893,36 @@ function cropAndStoreForEdit() {
         canvas.toBlob(function(blob) {
             if (!blob) {
                 showError('画像のトリミングに失敗しました');
-        return;
-    }
+                return;
+            }
     
+            // Show preview and store blob (will be uploaded on form save)
             const reader = new FileReader();
             reader.onload = (event) => {
                 const preview = uploadArea.querySelector('.upload-preview');
                 if (preview) {
                     preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
                 }
-
+                // Store the blob data URL and the actual blob for later upload
                 uploadArea.dataset.croppedBlob = event.target.result;
+                uploadArea.dataset.croppedBlobFile = JSON.stringify({
+                    name: cropFileName,
+                    type: cropFileType
+                });
+                // Store the actual blob object (we'll need to recreate it from the data URL on upload)
+                uploadArea.dataset.croppedBlobData = event.target.result;
                 uploadArea.dataset.croppedFileName = cropFileName;
+                uploadArea.dataset.croppedFileType = cropFileType;
+                uploadArea.dataset.croppedFieldName = editCropFieldName;
             };
             reader.readAsDataURL(blob);
 
             closeEditImageCropper();
+            
+            // Reset file input so it can be used again
+            if (editCropOriginalEvent && editCropOriginalEvent.target) {
+                editCropOriginalEvent.target.value = '';
+            }
         }, cropFileType, 0.95);
     } catch (error) {
         console.error('Crop error:', error);
@@ -1891,36 +1930,45 @@ function cropAndStoreForEdit() {
     }
 }
 
-// Show image preview (fallback)
+// Show image preview (fallback - stores file, uploads on form save)
 function showEditImagePreview(file, fieldName, originalEvent) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-        const preview = originalEvent.target.closest('.upload-area').querySelector('.upload-preview');
-                if (preview) {
-                    const img = new Image();
-                    img.onload = () => {
+    const uploadArea = originalEvent.target.closest('.upload-area');
+    if (!uploadArea) return;
+    
+    // Show preview and store file (will be uploaded on form save)
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const preview = uploadArea.querySelector('.upload-preview');
+        if (preview) {
+            const img = new Image();
+            img.onload = () => {
                 const resizeNote = (img.width > 800 || img.height > 800)
                     ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大800×800px)</p>`
-                            : '';
+                    : '';
                 preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
-                    };
-                    img.src = event.target.result;
-                }
             };
-            reader.readAsDataURL(file);
+            img.src = event.target.result;
+        }
+        // Store file reference for later upload
+        uploadArea.dataset.originalFile = JSON.stringify({
+            name: file.name,
+            type: file.type,
+            size: file.size
+        });
+        uploadArea.dataset.originalFileData = event.target.result;
+        uploadArea.dataset.originalFieldName = fieldName;
+    };
+    reader.readAsDataURL(file);
 }
 
 // Photo upload previews with cropping for edit page
-document.getElementById('profile_photo')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-        showEditImageCropper(file, 'profile_photo', e);
-    }
-});
-
-document.getElementById('company_logo')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-        showEditImageCropper(file, 'company_logo', e);
+// Use event delegation to handle file changes (works for subsequent uploads)
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'profile_photo' || e.target.id === 'company_logo') {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const fieldName = e.target.id === 'company_logo' ? 'company_logo' : 'profile_photo';
+            showEditImageCropper(file, fieldName, e);
+        }
     }
 });
