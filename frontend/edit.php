@@ -106,7 +106,6 @@ $defaultGreetings = [
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/modal.css">
     <link rel="stylesheet" href="assets/css/admin.css">
-    <link rel="stylesheet" href="assets/css/card.css">
 
     <!-- Cropper.js CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
@@ -136,8 +135,8 @@ $defaultGreetings = [
             </div>
             <button type="button" id="direct-input-btn" class="btn-direct-input">
                 <span class="direct-input-text">
-                    <span class="direct-text">直接</span>
-                    <span class="input-text">入力</span>
+                    <span class="direct-text">プレビュー</span>
+                    <!-- <span class="input-text">入力</span> -->
                 </span>
             </button>
         </header>
@@ -758,19 +757,6 @@ $defaultGreetings = [
         </div>
     </div>
 
-    <!-- Direct Input Preview Modal -->
-    <div id="direct-input-modal" class="modal-overlay" style="display: none; z-index: 10000; visibility:visible; opacity: 1;">
-        <div class="modal-content direct-input-modal-content" style="max-width: 90%; max-height: 90vh; overflow-y: auto; background: white; border-radius: 8px; padding: 0;">
-            <div style="position: sticky; top: 0; background: white; padding: 1rem; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; z-index: 1;">
-                <h2 style="margin: 0; font-size: 1.5rem; color: #333;">名刺プレビュー</h2>
-                <button type="button" id="close-direct-input-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666; padding: 0.25rem 0.5rem;">&times;</button>
-            </div>
-            <div id="direct-input-preview-content" style="padding: 2rem;">
-                <p style="text-align: center; color: #666;">データを読み込み中...</p>
-            </div>
-        </div>
-    </div>
-
     <!-- Image Cropper Modal -->
     <div id="image-cropper-modal" class="modal-overlay" style="display: none; z-index: 10000; opacity: 1; visibility: visible;">
         <div class="modal-content" style="max-width: 90%; max-height: 90vh; overflow: auto; background: white; border-radius: 8px; padding: 0;">
@@ -812,398 +798,304 @@ $defaultGreetings = [
                     await showDirectInputModal();
                 });
             }
-
-            // Close modal handlers
-            const closeModalBtn = document.getElementById('close-direct-input-modal');
-            const directInputModal = document.getElementById('direct-input-modal');
-
-            if (closeModalBtn) {
-                closeModalBtn.addEventListener('click', function() {
-                    directInputModal.style.display = 'none';
-                });
-            }
-
-            if (directInputModal) {
-                directInputModal.addEventListener('click', function(e) {
-                    if (e.target === directInputModal) {
-                        directInputModal.style.display = 'none';
-                    }
-                });
-            }
         });
 
-        // Show Direct Input Preview Modal
-        async function showDirectInputModal() {
-            const modal = document.getElementById('direct-input-modal');
-            const previewContent = document.getElementById('direct-input-preview-content');
+        // Collect current form data from all forms
+        function collectCurrentFormData() {
+            const data = {};
 
-            if (!modal || !previewContent) return;
+            // Step 1: Header & Greeting form
+            const headerGreetingForm = document.getElementById('header-greeting-form');
+            if (headerGreetingForm) {
+                const formData = new FormData(headerGreetingForm);
+                for (let [key, value] of formData.entries()) {
+                    if (value) data[key] = value;
+                }
 
-            // Show modal
-            modal.style.display = 'flex';
-            previewContent.innerHTML = '<p style="text-align: center; color: #666;">データを読み込み中...</p>';
-
-            try {
-                // Load business card data
-                const response = await fetch('../backend/api/business-card/get.php', {
-                    method: 'GET',
-                    credentials: 'include'
+                // Collect greetings
+                const greetingItems = document.querySelectorAll('#greetings-list .greeting-item, #greetings-container .greeting-item');
+                const greetings = [];
+                greetingItems.forEach((item, index) => {
+                    if (item.dataset.cleared === 'true') return;
+                    const titleInput = item.querySelector('input[name="greeting_title[]"]') || item.querySelector('.greeting-title input');
+                    const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]') || item.querySelector('.greeting-content textarea');
+                    const title = titleInput ? (titleInput.value || '').trim() : '';
+                    const content = contentTextarea ? (contentTextarea.value || '').trim() : '';
+                    if (title || content) {
+                        greetings.push({
+                            title: title,
+                            content: content,
+                            display_order: index
+                        });
+                    }
                 });
-
-                if (!response.ok) {
-                    previewContent.innerHTML = '<p style="text-align: center; color: #dc3545;">データの取得に失敗しました</p>';
-                    return;
+                if (greetings.length > 0) {
+                    data.greetings = greetings;
                 }
 
-                const result = await response.json();
-                if (!result.success || !result.data) {
-                    previewContent.innerHTML = '<p style="text-align: center; color: #dc3545;">データが見つかりません</p>';
-                    return;
+                // Get logo and photo from preview or existing data
+                const logoPreview = document.querySelector('[data-upload-id="company_logo"] .upload-preview img');
+                if (logoPreview && logoPreview.src) {
+                    const logoPath = logoPreview.src.replace(window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/'), '');
+                    if (logoPath && !logoPath.startsWith('data:')) {
+                        data.company_logo = logoPath.replace(/^\.\.\//, '');
+                    }
                 }
-
-                const data = result.data;
-
-                // Render preview using card.php layout
-                previewContent.innerHTML = renderBusinessCardPreview(data);
-
-            } catch (error) {
-                console.error('Error loading business card data:', error);
-                previewContent.innerHTML = '<p style="text-align: center; color: #dc3545;">エラーが発生しました</p>';
+                const photoPreview = document.querySelector('[data-upload-id="profile_photo"] .upload-preview img');
+                if (photoPreview && photoPreview.src) {
+                    const photoPath = photoPreview.src.replace(window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/'), '');
+                    if (photoPath && !photoPath.startsWith('data:')) {
+                        data.profile_photo = photoPath.replace(/^\.\.\//, '');
+                    }
+                }
             }
+
+            // Step 2: Company Profile form
+            const companyProfileForm = document.getElementById('company-profile-form');
+            if (companyProfileForm) {
+                const formData = new FormData(companyProfileForm);
+                for (let [key, value] of formData.entries()) {
+                    if (value) {
+                        if (key === 'company_name_profile') {
+                            data.company_name = String(value).trim();
+                        } else {
+                            data[key] = value;
+                        }
+                    }
+                }
+            }
+
+            // Step 3: Personal Info form
+            const personalInfoForm = document.getElementById('personal-info-form');
+            if (personalInfoForm) {
+                const formData = new FormData(personalInfoForm);
+                for (let [key, value] of formData.entries()) {
+                    if (value) data[key] = value;
+                }
+
+                // Combine names
+                const lastName = data.last_name || '';
+                const firstName = data.first_name || '';
+                if (lastName || firstName) {
+                    data.name = (lastName + ' ' + firstName).trim();
+                }
+
+                const lastNameRomaji = data.last_name_romaji || '';
+                const firstNameRomaji = data.first_name_romaji || '';
+                if (lastNameRomaji || firstNameRomaji) {
+                    data.name_romaji = (lastNameRomaji + ' ' + firstNameRomaji).trim();
+                }
+            }
+
+            // Step 4: Tech Tools (checkboxes)
+            const techToolCheckboxes = document.querySelectorAll('#tech-tools-grid input[type="checkbox"]:checked');
+            if (techToolCheckboxes.length > 0) {
+                const techTools = [];
+                techToolCheckboxes.forEach((checkbox, index) => {
+                    techTools.push({
+                        tool_type: checkbox.value,
+                        display_order: index
+                    });
+                });
+                data.tech_tools = techTools;
+            }
+
+            // Step 5: Communication methods
+            const messageItems = document.querySelectorAll('#communication-messages .communication-item');
+            const messages = [];
+            messageItems.forEach((item, index) => {
+                const labelInput = item.querySelector('input[name="message_label[]"]');
+                const urlInput = item.querySelector('input[name="message_url[]"]');
+                const label = labelInput ? (labelInput.value || '').trim() : '';
+                const url = urlInput ? (urlInput.value || '').trim() : '';
+                if (label || url) {
+                    messages.push({
+                        label: label,
+                        url: url,
+                        display_order: index
+                    });
+                }
+            });
+            if (messages.length > 0) {
+                data.communication_methods = messages;
+            }
+
+            const snsItems = document.querySelectorAll('#communication-sns .communication-item');
+            const sns = [];
+            snsItems.forEach((item, index) => {
+                const labelInput = item.querySelector('input[name="sns_label[]"]');
+                const urlInput = item.querySelector('input[name="sns_url[]"]');
+                const label = labelInput ? (labelInput.value || '').trim() : '';
+                const url = urlInput ? (urlInput.value || '').trim() : '';
+                if (label || url) {
+                    sns.push({
+                        label: label,
+                        url: url,
+                        display_order: index
+                    });
+                }
+            });
+            if (sns.length > 0) {
+                if (!data.communication_methods) data.communication_methods = [];
+                data.communication_methods = data.communication_methods.concat(sns);
+            }
+
+            // Free input pairs
+            const freeInputPairs = document.querySelectorAll('.free-input-pair');
+            const freeInputs = [];
+            freeInputPairs.forEach((pair, index) => {
+                const textInput = pair.querySelector('textarea[name="free_text[]"]');
+                const imagePreview = pair.querySelector('.upload-preview img');
+                const text = textInput ? (textInput.value || '').trim() : '';
+                let imagePath = '';
+                if (imagePreview && imagePreview.src) {
+                    const path = imagePreview.src.replace(window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/'), '');
+                    if (path && !path.startsWith('data:')) {
+                        imagePath = path.replace(/^\.\.\//, '');
+                    }
+                }
+                if (text || imagePath) {
+                    freeInputs.push({
+                        text: text,
+                        image_path: imagePath,
+                        display_order: index
+                    });
+                }
+            });
+            if (freeInputs.length > 0) {
+                data.free_input = freeInputs;
+            }
+
+            return data;
         }
 
-        // Render business card preview (same layout as card.php)
-        function renderBusinessCardPreview(data) {
-            const BASE_URL = window.location.origin + window.location.pathname.split('/').slice(0, -1).join('/');
-
-            function resolveImagePath(path) {
-                if (!path) return '';
-                if (path.startsWith('http://') || path.startsWith('https://')) {
-                    return path;
-                }
-                return BASE_URL + '/' + ltrim(path, '/');
-            }
-
-            function ltrim(str, char) {
-                return str.replace(new RegExp('^' + char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '+'), '');
-            }
-
-            function escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-
-            let html = '<div class="card-container" style="max-width: 1000px; margin: 0 auto;">';
-            html += '<section class="card-section" style="background: #fff; border-radius: 16px; overflow: hidden; margin-bottom: 2rem;">';
-
-            // Header
-            html += '<div class="card-header" style="padding: 2rem; text-align: center; display: flex; justify-content: center; align-items: center; gap: 20px;">';
-            if (data.company_logo) {
-                const logoPath = resolveImagePath(data.company_logo);
-                html += `<img src="${escapeHtml(logoPath)}" alt="ロゴ" class="company-logo" style="max-width: 120px; max-height: 120px; border-radius: 8px;">`;
-            }
-            const companyName = data.company_name || '';
-            if (companyName) {
-                html += `<h1 class="company-name" style="font-size: 1.5rem; font-weight: 700; margin: 0;">${escapeHtml(companyName)}</h1>`;
-            }
-            html += '</div>';
-            html += '<hr>';
-
-            // Profile and Greeting
-            html += '<div class="card-body" style="padding: 1rem;">';
-            html += '<div class="profile-greeting-section" style="display: flex; gap: 2rem; align-items: center; justify-content: center;">';
-
-            if (data.profile_photo) {
-                const photoPath = resolveImagePath(data.profile_photo);
-                html += `<div class="profile-photo-container" style="flex-shrink: 0;">`;
-                html += `<img src="${escapeHtml(photoPath)}" alt="プロフィール写真" class="profile-photo" style="width: 200px; height: 200px; object-fit: cover;">`;
-                html += '</div>';
-            }
-
-            html += '<div class="greeting-content" style="flex: 1; min-width: 0;">';
-            if (data.greetings && data.greetings.length > 0) {
-                const firstGreeting = data.greetings[0];
-                html += '<div class="greeting-item">';
-                if (firstGreeting.title) {
-                    html += `<h3 class="greeting-title" style="font-size: 1.2rem; margin-bottom: 0.5rem;">${escapeHtml(firstGreeting.title)}</h3>`;
-                }
-                if (firstGreeting.content) {
-                    html += `<p class="greeting-text" style="line-height: 1.8;">${escapeHtml(firstGreeting.content).replace(/\n/g, '<br>')}</p>`;
-                }
-                html += '</div>';
-            }
-            html += '</div>';
-            html += '</div>';
-            html += '</div>';
-            html += '<hr>';
-
-            // Personal Information
-            html += '<div class="card-body" style="padding: 1rem;">';
-            html += '<div class="info-responsive-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">';
-
-            // Company name
-            if (companyName) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">会社名</h3>';
-                html += `<p style="color: #333;">${escapeHtml(companyName)}</p>`;
-                html += '</div>';
-            }
-
-            // Real estate license
-            if (data.real_estate_license_prefecture || data.real_estate_license_renewal_number || data.real_estate_license_registration_number) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">宅建業番号</h3>';
-                html += '<p style="color: #333;">';
-                if (data.real_estate_license_prefecture) {
-                    html += escapeHtml(data.real_estate_license_prefecture);
-                    if (data.real_estate_license_renewal_number) {
-                        html += '(' + escapeHtml(data.real_estate_license_renewal_number) + ')';
-                    }
-                    if (data.real_estate_license_registration_number) {
-                        html += '第' + escapeHtml(data.real_estate_license_registration_number) + '号';
-                    }
-                }
-                html += '</p>';
-                html += '</div>';
-            }
-
-            // Address
-            if (data.company_postal_code || data.company_address) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">所在地</h3>';
-                if (data.company_postal_code) {
-                    html += `<p style="color: #333;">〒${escapeHtml(data.company_postal_code)}</p>`;
-                }
-                if (data.company_address) {
-                    html += `<p style="color: #333;">${escapeHtml(data.company_address)}</p>`;
-                }
-                html += '</div>';
-            }
-
-            // Company phone
-            if (data.company_phone) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">会社電話番号</h3>';
-                html += `<p style="color: #333;">${escapeHtml(data.company_phone)}</p>`;
-                html += '</div>';
-            }
-
-            // Company website
-            if (data.company_website) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">HP</h3>';
-                html += `<p style="color: #333;"><a href="${escapeHtml(data.company_website)}" target="_blank">${escapeHtml(data.company_website)}</a></p>`;
-                html += '</div>';
-            }
-
-            // Department/Position
-            if (data.branch_department || data.position) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">部署 / 役職</h3>';
-                const deptPosition = [data.branch_department || '', data.position || ''].filter(Boolean);
-                html += `<p style="color: #333;">${escapeHtml(deptPosition.join(' / '))}</p>`;
-                html += '</div>';
-            }
-
-            // Name
-            if (data.name) {
-                html += '<div class="info-section person-name-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">名前</h3>';
-                html += '<p class="person-name-large" style="font-size: 1.5rem; font-weight: 700; color: #333;">';
-                html += escapeHtml(data.name);
-                if (data.name_romaji) {
-                    html += `<span class="name-romaji" style="font-size: 1rem; font-weight: normal; color: #666;"> (${escapeHtml(data.name_romaji)})</span>`;
-                }
-                html += '</p>';
-                html += '</div>';
-            }
-
-            // Mobile phone
-            if (data.mobile_phone) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">携帯番号</h3>';
-                html += `<p style="color: #333;">${escapeHtml(data.mobile_phone)}</p>`;
-                html += '</div>';
-            }
-
-            // Birth date
-            if (data.birth_date) {
-                const birthDate = new Date(data.birth_date);
-                const formattedDate = birthDate.getFullYear() + '年' + (birthDate.getMonth() + 1) + '月' + birthDate.getDate() + '日';
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">誕生日</h3>';
-                html += `<p style="color: #333;">${escapeHtml(formattedDate)}</p>`;
-                html += '</div>';
-            }
-
-            // Residence/Hometown
-            if (data.current_residence || data.hometown) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">現在の居住地 / 出身地</h3>';
-                const residenceParts = [data.current_residence || '', data.hometown || ''].filter(Boolean);
-                html += `<p style="color: #333;">${escapeHtml(residenceParts.join(' / '))}</p>`;
-                html += '</div>';
-            }
-
-            // Alma mater
-            if (data.alma_mater) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">出身大学</h3>';
-                html += `<p style="color: #333;">${escapeHtml(data.alma_mater).replace(/\n/g, '<br>')}</p>`;
-                html += '</div>';
-            }
-
-            // Qualifications
-            if (data.qualifications) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">資格</h3>';
-                html += `<p style="color: #333;">${escapeHtml(data.qualifications).replace(/\n/g, '<br>')}</p>`;
-                html += '</div>';
-            }
-
-            // Hobbies
-            if (data.hobbies) {
-                html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">趣味</h3>';
-                html += `<p style="color: #333;">${escapeHtml(data.hobbies).replace(/\n/g, '<br>')}</p>`;
-                html += '</div>';
-            }
-
-            // Free input
-            if (data.free_input) {
+        // Direct Input Modal - Display card.php in modal
+        async function showDirectInputModal() {
+            // Load saved business card data to get slug and check if data exists
+            let savedData = null;
+            if (typeof loadBusinessCardData === 'function') {
+                await loadBusinessCardData();
+                // Check both window.businessCardData and the global businessCardData from edit.js
+                savedData = window.businessCardData || (typeof businessCardData !== 'undefined' ? businessCardData : null);
+                                } else {
+                // Fallback: fetch data directly
                 try {
-                    const freeInputData = JSON.parse(data.free_input);
-                    if (freeInputData && (freeInputData.texts || freeInputData.images)) {
-                        html += '<div class="info-section" style="margin-bottom: 1rem;">';
-                        html += '<h3 style="font-size: 1rem; color: #666; margin-bottom: 0.5rem;">その他</h3>';
-                        html += '<div class="free-input-content" style="overflow-wrap: anywhere;">';
-
-                        if (freeInputData.texts && Array.isArray(freeInputData.texts)) {
-                            freeInputData.texts.forEach(text => {
-                                if (text && text.trim()) {
-                                    html += `<p class="free-input-text" style="margin-bottom: 1rem; line-height: 1.8;">${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
-                                }
-                            });
-                        }
-
-                        if (freeInputData.images && Array.isArray(freeInputData.images)) {
-                            freeInputData.images.forEach(imgData => {
-                                if (imgData.image) {
-                                    const imgPath = resolveImagePath(imgData.image);
-                                    html += '<div style="margin-bottom: 1rem;">';
-                                    if (imgData.link) {
-                                        html += `<a href="${escapeHtml(imgData.link)}" target="_blank">`;
-                                    }
-                                    html += `<img src="${escapeHtml(imgPath)}" alt="Free input image" style="max-width: 100%; height: auto; border-radius: 8px;">`;
-                                    if (imgData.link) {
-                                        html += '</a>';
-                                    }
-                                    html += '</div>';
-                                }
-                            });
-                        }
-
-                        html += '</div>';
-                        html += '</div>';
-                    }
-                } catch (e) {
-                    // Invalid JSON, skip
-                }
-            }
-
-            html += '</div>';
-            html += '</div>';
-
-            // Tech Tools
-            if (data.tech_tools && data.tech_tools.length > 0) {
-                const activeTechTools = data.tech_tools.filter(tool => tool.is_active);
-                if (activeTechTools.length > 0) {
-                    html += '<hr>';
-                    html += '<div class="card-body" style="padding: 1rem;">';
-                    html += '<h3 style="font-size: 1.2rem; margin-bottom: 1rem; color: #333;">テックツール</h3>';
-                    html += '<div class="tech-tools-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">';
-
-                    const toolNames = {
-                        'mdb': '全国マンションデータベース',
-                        'rlp': '物件提案ロボ',
-                        'llp': '土地情報ロボ',
-                        'ai': 'AIマンション査定',
-                        'slp': 'セルフィン',
-                        'olp': 'オーナーコネクト',
-                        'alp': '統合LP'
-                    };
-
-                    activeTechTools.forEach(tool => {
-                        const toolName = toolNames[tool.tool_type] || 'テックツール';
-                        html += '<div class="tech-tool-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">';
-                        html += `<h4 style="font-size: 1rem; margin-bottom: 0.5rem;">${escapeHtml(toolName)}</h4>`;
-                        if (tool.tool_url) {
-                            html += `<a href="${escapeHtml(tool.tool_url)}" target="_blank" style="color: #0066cc; text-decoration: none;">詳細はこちら</a>`;
-                        }
-                        html += '</div>';
+                    const response = await fetch('../backend/api/business-card/get.php', {
+                        method: 'GET',
+                        credentials: 'include'
                     });
-
-                    html += '</div>';
-                    html += '</div>';
-                }
-            }
-
-            // Communication Methods
-            if (data.communication_methods && data.communication_methods.length > 0) {
-                const activeCommMethods = data.communication_methods.filter(method => method.is_active);
-                if (activeCommMethods.length > 0) {
-                    const messageApps = activeCommMethods.filter(m => ['line', 'messenger', 'whatsapp', 'plus_message', 'chatwork', 'andpad'].includes(m.method_type));
-                    const snsApps = activeCommMethods.filter(m => ['instagram', 'facebook', 'twitter', 'youtube', 'tiktok', 'note', 'pinterest', 'threads'].includes(m.method_type));
-
-                    if (messageApps.length > 0 || snsApps.length > 0) {
-                        html += '<hr>';
-                        html += '<div class="card-body" style="padding: 1rem;">';
-                        html += '<h3 style="font-size: 1.2rem; margin-bottom: 1rem; color: #333;">コミュニケーション方法</h3>';
-
-                        if (messageApps.length > 0) {
-                            html += '<div class="communication-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem;">';
-                            messageApps.forEach(method => {
-                                const iconFile = method.method_type === 'plus_message' ? 'message' : method.method_type;
-                                const linkUrl = method.method_url || method.method_id || '';
-                                html += '<div class="comm-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">';
-                                html += `<div class="comm-logo" style="margin-bottom: 0.5rem;">`;
-                                html += `<img src="${BASE_URL}/frontend/assets/images/icons/${escapeHtml(iconFile)}.png" alt="${escapeHtml(method.method_name || '')}" style="width: 40px; height: 40px;" onerror="this.style.display='none';">`;
-                                html += '</div>';
-                                if (linkUrl) {
-                                    html += `<a href="${escapeHtml(linkUrl)}" target="_blank" style="color: #0066cc; text-decoration: none; font-size: 0.9rem;">詳細はこちら</a>`;
-                                }
-                                html += '</div>';
-                            });
-                            html += '</div>';
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success) {
+                            savedData = result.data;
                         }
-
-                        if (snsApps.length > 0) {
-                            html += '<div class="communication-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">';
-                            snsApps.forEach(method => {
-                                const iconFile = method.method_type;
-                                const linkUrl = method.method_url || method.method_id || '';
-                                html += '<div class="comm-card" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center;">';
-                                html += `<div class="comm-logo" style="margin-bottom: 0.5rem;">`;
-                                html += `<img src="${BASE_URL}/frontend/assets/images/icons/${escapeHtml(iconFile)}.png" alt="${escapeHtml(method.method_name || '')}" style="width: 40px; height: 40px;" onerror="this.style.display='none';">`;
-                                html += '</div>';
-                                if (linkUrl) {
-                                    html += `<a href="${escapeHtml(linkUrl)}" target="_blank" style="color: #0066cc; text-decoration: none; font-size: 0.9rem;">詳細はこちら</a>`;
-                                }
-                                html += '</div>';
-                            });
-                            html += '</div>';
-                        }
-
-                        html += '</div>';
                     }
+                } catch (error) {
+                    console.error('Error loading business card data:', error);
                 }
             }
 
-            html += '</section>';
-            html += '</div>';
+            // Check if we have any data to display
+            const hasData = savedData && (
+                savedData.company_name ||
+                savedData.name ||
+                (savedData.greetings && savedData.greetings.length > 0) ||
+                savedData.company_logo ||
+                savedData.profile_photo ||
+                savedData.real_estate_license_prefecture ||
+                savedData.company_address ||
+                Object.keys(savedData).length > 5 // More than just id, user_id, etc.
+            );
 
-            return html;
+            if (!hasData || !savedData || !savedData.url_slug) {
+                if (typeof showWarning === 'function') {
+                    showWarning('表示するデータがありません。まず情報を入力してください。');
+                } else {
+                    alert('表示するデータがありません。まず情報を入力してください。');
+                }
+                return;
+            }
+
+            // Get the URL slug
+            const urlSlug = savedData.url_slug;
+
+            // Create modal overlay
+            const modalOverlay = document.createElement('div');
+            modalOverlay.className = 'modal-overlay direct-input-modal';
+            modalOverlay.style.cssText = 'visibility: visible; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto;';
+
+            // Create modal content
+            const modalContent = document.createElement('div');
+            modalContent.className = 'direct-input-modal-content';
+            modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
+
+            // Create iframe to load card.php with preview mode
+            const iframe = document.createElement('iframe');
+            iframe.src = `card.php?slug=${encodeURIComponent(urlSlug)}&preview=1`;
+            iframe.style.cssText = 'width: 100%; height: 100%; border: none; flex: 1; min-height: 600px;';
+            iframe.setAttribute('frameborder', '0');
+            iframe.setAttribute('scrolling', 'yes');
+
+            // Close button
+            const closeButton = document.createElement('button');
+            closeButton.type = 'button';
+            closeButton.className = 'direct-input-modal-close';
+            closeButton.innerHTML = '×';
+            closeButton.style.cssText = 'position: absolute; top: 1rem; right: 1rem; background: #fff; border: 2px solid #ddd; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 1.5rem; line-height: 1; display: flex; align-items: center; justify-content: center; color: #666; transition: all 0.3s; z-index: 10001;';
+            closeButton.onmouseover = function() {
+                this.style.background = '#f0f0f0';
+                this.style.borderColor = '#999';
+            };
+            closeButton.onmouseout = function() {
+                this.style.background = '#fff';
+                this.style.borderColor = '#ddd';
+            };
+
+            modalContent.appendChild(iframe);
+            modalContent.appendChild(closeButton);
+            modalOverlay.appendChild(modalContent);
+            document.body.appendChild(modalOverlay);
+
+            // Show modal with animation
+            setTimeout(() => {
+                modalOverlay.style.opacity = '1';
+            }, 10);
+
+            // Close button handler
+            closeButton.addEventListener('click', () => {
+                    modalOverlay.style.opacity = '0';
+                    setTimeout(() => {
+                    if (document.body.contains(modalOverlay)) {
+                        document.body.removeChild(modalOverlay);
+                    }
+                    }, 300);
+                });
+
+            // Close on overlay click
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) {
+                    modalOverlay.style.opacity = '0';
+                    setTimeout(() => {
+                        if (document.body.contains(modalOverlay)) {
+                        document.body.removeChild(modalOverlay);
+                        }
+                    }, 300);
+                }
+            });
+
+            // Close on Escape key
+            const escapeHandler = (e) => {
+                if (e.key === 'Escape') {
+                    modalOverlay.style.opacity = '0';
+                    setTimeout(() => {
+                        if (document.body.contains(modalOverlay)) {
+                        document.body.removeChild(modalOverlay);
+                        }
+                    }, 300);
+                    document.removeEventListener('keydown', escapeHandler);
+                }
+            };
+            document.addEventListener('keydown', escapeHandler);
         }
 
         // Subscription cancellation handler for edit.php sidebar
@@ -1318,12 +1210,128 @@ $defaultGreetings = [
                     });
                     data.greetings = greetings;
                     
-                    // Handle logo and photo paths
-                    if (window.businessCardData) {
-                        if (window.businessCardData.company_logo && !data.company_logo) {
+                    // Helper function to convert data URL to blob
+                    function dataURLtoBlob(dataurl, filename) {
+                        const arr = dataurl.split(',');
+                        const match = arr[0].match(/:(.*?);/);
+                        const mime = match ? match[1] : 'image/png';
+                        const bstr = atob(arr[1]);
+                        let n = bstr.length;
+                        const u8arr = new Uint8Array(n);
+                        while (n--) {
+                            u8arr[n] = bstr.charCodeAt(n);
+                        }
+                        return new File([u8arr], filename, { type: mime });
+                    }
+
+                    // Helper function to upload image
+                    async function uploadImage(blobOrFile, fileType) {
+                        const uploadData = new FormData();
+                        uploadData.append('file', blobOrFile);
+                        uploadData.append('file_type', fileType);
+
+                        const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
+                            method: 'POST',
+                            body: uploadData,
+                            credentials: 'include'
+                        });
+
+                        const uploadResult = await uploadResponse.json();
+                        if (uploadResult.success) {
+                            // Extract relative path from absolute URL
+                            let relativePath = uploadResult.data.file_path;
+                            if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+                                const urlParts = relativePath.split('/');
+                                const backendIndex = urlParts.indexOf('backend');
+                                if (backendIndex !== -1) {
+                                    relativePath = urlParts.slice(backendIndex).join('/');
+                                } else {
+                                    const uploadsIndex = urlParts.indexOf('uploads');
+                                    if (uploadsIndex !== -1) {
+                                        relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
+                                    }
+                                }
+                            }
+                            return relativePath;
+                        } else {
+                            throw new Error(uploadResult.message || '画像のアップロードに失敗しました');
+                        }
+                    }
+
+                    // Upload logo if cropped or new file selected
+                    const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
+                    if (logoUploadArea) {
+                        if (logoUploadArea.dataset.croppedBlobData) {
+                            // Upload cropped image
+                            try {
+                                const blob = dataURLtoBlob(
+                                    logoUploadArea.dataset.croppedBlobData,
+                                    logoUploadArea.dataset.croppedFileName || 'logo.png'
+                                );
+                                data.company_logo = await uploadImage(blob, 'logo');
+                                logoUploadArea.dataset.uploadedPath = data.company_logo;
+                            } catch (error) {
+                                console.error('Logo upload error:', error);
+                                showError('ロゴのアップロードに失敗しました: ' + error.message);
+                                return;
+                            }
+                        } else if (logoUploadArea.dataset.originalFileData) {
+                            // Upload original file (no cropping)
+                            try {
+                                const fileInfo = JSON.parse(logoUploadArea.dataset.originalFile);
+                                const blob = dataURLtoBlob(
+                                    logoUploadArea.dataset.originalFileData,
+                                    fileInfo.name
+                                );
+                                data.company_logo = await uploadImage(blob, 'logo');
+                                logoUploadArea.dataset.uploadedPath = data.company_logo;
+                            } catch (error) {
+                                console.error('Logo upload error:', error);
+                                showError('ロゴのアップロードに失敗しました: ' + error.message);
+                                return;
+                            }
+                        } else if (logoUploadArea.dataset.uploadedPath) {
+                            data.company_logo = logoUploadArea.dataset.uploadedPath;
+                        } else if (window.businessCardData && window.businessCardData.company_logo) {
                             data.company_logo = window.businessCardData.company_logo;
                         }
-                        if (window.businessCardData.profile_photo && !data.profile_photo) {
+                    }
+
+                    // Upload profile photo if cropped or new file selected
+                    const photoUploadArea = document.querySelector('[data-upload-id="profile_photo"]');
+                    if (photoUploadArea) {
+                        if (photoUploadArea.dataset.croppedBlobData) {
+                            // Upload cropped image
+                            try {
+                                const blob = dataURLtoBlob(
+                                    photoUploadArea.dataset.croppedBlobData,
+                                    photoUploadArea.dataset.croppedFileName || 'photo.png'
+                                );
+                                data.profile_photo = await uploadImage(blob, 'photo');
+                                photoUploadArea.dataset.uploadedPath = data.profile_photo;
+                            } catch (error) {
+                                console.error('Photo upload error:', error);
+                                showError('プロフィール写真のアップロードに失敗しました: ' + error.message);
+                                return;
+                            }
+                        } else if (photoUploadArea.dataset.originalFileData) {
+                            // Upload original file (no cropping)
+                            try {
+                                const fileInfo = JSON.parse(photoUploadArea.dataset.originalFile);
+                                const blob = dataURLtoBlob(
+                                    photoUploadArea.dataset.originalFileData,
+                                    fileInfo.name
+                                );
+                                data.profile_photo = await uploadImage(blob, 'photo');
+                                photoUploadArea.dataset.uploadedPath = data.profile_photo;
+                            } catch (error) {
+                                console.error('Photo upload error:', error);
+                                showError('プロフィール写真のアップロードに失敗しました: ' + error.message);
+                                return;
+                            }
+                        } else if (photoUploadArea.dataset.uploadedPath) {
+                            data.profile_photo = photoUploadArea.dataset.uploadedPath;
+                        } else if (window.businessCardData && window.businessCardData.profile_photo) {
                             data.profile_photo = window.businessCardData.profile_photo;
                         }
                     }

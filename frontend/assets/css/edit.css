@@ -141,60 +141,6 @@ body {
     }
 }
 
-/* Direct Input Modal Styles */
-.direct-input-modal-content {
-    max-width: 90% !important;
-    max-height: 90vh !important;
-    overflow-y: auto !important;
-}
-
-#direct-input-preview-content {
-    padding: 2rem;
-}
-
-#direct-input-preview-content .card-container {
-    max-width: 1000px;
-    margin: 0 auto;
-}
-
-#direct-input-preview-content .card-section {
-    background: #fff;
-    border-radius: 16px;
-    overflow: hidden;
-    margin-bottom: 2rem;
-}
-
-#direct-input-preview-content hr {
-    border: none;
-    border-top: 1px solid #e0e0e0;
-    margin: 0;
-}
-
-@media (max-width: 768px) {
-    .direct-input-modal-content {
-        max-width: 95% !important;
-        max-height: 95vh !important;
-    }
-    
-    #direct-input-preview-content {
-        padding: 1rem;
-    }
-    
-    #direct-input-preview-content .profile-greeting-section {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    #direct-input-preview-content .profile-photo {
-        width: 150px;
-        height: 150px;
-    }
-    
-    #direct-input-preview-content .info-responsive-grid {
-        grid-template-columns: 1fr !important;
-    }
-}
-
 .btn-back {
     background: #fff;
     color: #0066cc;

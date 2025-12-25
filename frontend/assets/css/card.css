@@ -165,6 +165,7 @@ body {
 .communication-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap:10px;
 }
 
 /* Communication Card */
@@ -591,7 +592,6 @@ ease;
 
     .profile-photo-container {
         text-align: center;
-        width: 100%;
     }
 
     .profile-photo {
@@ -638,6 +638,7 @@ ease;
         font-size: 1rem;
         line-height: 1.4;
         float: none !important;
+        overflow-wrap: anywhere;
     }
 
     .person-name-section .person-name-large {
@@ -681,36 +682,67 @@ ease;
 
     /* Communication Section - Mobile */
     .communication-section {
-        padding: 1rem 0;
+        padding: 1.5rem 0;
         margin-top: 1rem;
+        margin-bottom: 1.5rem;
     }
 
     .communication-section h3 {
-        font-size: 1.1rem;
-        margin-bottom: 1rem;
+        font-size: 1.2rem;
+        margin-bottom: 1.5rem;
+        padding: 0 1rem;
     }
 
     .communication-grid {
         grid-template-columns: 1fr;
-        gap: 1rem;
-        padding: 0 0.5rem;
+        gap: 1.5rem;
+        padding: 0 1rem;
     }
 
     .comm-card {
-        padding: 1rem;
-        gap: 1rem;
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.5rem 1rem;
+        gap: 1.25rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+
+    .comm-card:active {
+        transform: scale(0.98);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
     }
 
     .comm-logo {
-        height: 80px;
+        height: 100px;
         max-width: 100%;
+        padding: 0.5rem;
+    }
+
+    .comm-logo img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        width: auto;
+        height: auto;
     }
 
     .comm-details-button {
-        max-width: 50%;
-        width: 50%;
-        padding: 0.75rem 1rem;
-        font-size: 0.9rem;
+        width: 100%;
+        max-width: 100%;
+        padding: 0.875rem 1.5rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        border-radius: 8px;
+        text-align: center;
+        display: block;
+        box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
+    }
+
+    .comm-details-button:active {
+        transform: translateY(1px);
+        box-shadow: 0 1px 2px rgba(220, 53, 69, 0.3);
     }
 
     /* Tech Tools Section - Mobile */
@@ -816,6 +848,36 @@ ease;
 
     .free-input-image {
         font-size: 1rem !important;
+    }
+
+    /* Communication Section - Very Small Screens */
+    .communication-section {
+        padding: 1rem 0;
+    }
+
+    .communication-section h3 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+        padding: 0 0.75rem;
+    }
+
+    .communication-grid {
+        gap: 1rem;
+        padding: 0 0.75rem;
+    }
+
+    .comm-card {
+        padding: 1.25rem 0.875rem;
+        gap: 1rem;
+    }
+
+    .comm-logo {
+        height: 90px;
+    }
+
+    .comm-details-button {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.9rem;
     }
 }
 

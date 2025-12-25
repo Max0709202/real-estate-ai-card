@@ -157,6 +157,66 @@ if ($isTokenBased) {
         </div>
 
     </section>
+
+    <!-- Philosophy Section: Two Faces of Digital Business Cards -->
+    <section class="philosophy-section">
+        <div class="container">
+            <!-- Odd-numbered images displayed horizontally side by side -->
+            <div class="philosophy-images-row">
+                <div class="philosophy-image-wrapper">
+                    <div class="philosophy-image-layer">
+                        <!-- Even image hidden beneath -->
+                        <img src="assets/images/lp/sec-2-2.png" alt="「つながり」を、成約へ。" class="philosophy-image-even" loading="lazy">
+                        <!-- Odd image on top -->
+                        <img src="assets/images/lp/sec-2-1.png" alt="デジタル名刺、2つの顔" class="philosophy-image-odd" loading="lazy">
+                    </div>
+                </div>
+                <div class="philosophy-image-wrapper">
+                    <div class="philosophy-image-layer">
+                        <!-- Even image hidden beneath -->
+                        <img src="assets/images/lp/sec-2-4.png" alt="紙の名刺からデジタル名刺への進化" class="philosophy-image-even" loading="lazy">
+                        <!-- Odd image on top -->
+                        <img src="assets/images/lp/sec-2-3.png" alt="「出会い」を、デザインする。" class="philosophy-image-odd" loading="lazy">
+                    </div>
+                </div>
+                <div class="philosophy-image-wrapper">
+                    <div class="philosophy-image-layer">
+                        <!-- Even image hidden beneath -->
+                        <img src="assets/images/lp/sec-2-6.png" alt="体験・表現・思想" class="philosophy-image-even" loading="lazy">
+                        <!-- Odd image on top -->
+                        <img src="assets/images/lp/sec-2-5.png" alt="デジタル名刺の進化" class="philosophy-image-odd" loading="lazy">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- DX Tool Integration Section -->
+    <section class="dx-integration-section">
+        <div class="container">
+            <div class="dx-integration-content">
+                <div class="dx-tagline">
+                    「名刺」+「営業支援ツール」+「業務 DX 機能」が一体になった
+                </div>
+                <h2 class="dx-main-title">"次世代型の営業起点ツール"</h2>
+                <p class="dx-subtitle">
+                    AI・ロボット・ビッグデータで不動産営業のDX化を強力にサポート！
+                </p>
+                <div class="dx-product-info">
+                    <div class="dx-logo-wrapper">
+                        <img src="assets/images/logo.png" alt="不動産AI名刺 ロゴ" class="dx-logo" loading="lazy">
+                    </div>
+                    <div class="dx-product-name-wrapper">
+                        <span class="dx-tool-label">DXツール付き</span>
+                        <h3 class="dx-product-name">
+                            不動産<span class="dx-ai-highlight">AI</span>名刺
+                        </h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Hero Section -->
     <section class="hero">
         <div class="container">
