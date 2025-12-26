@@ -105,8 +105,19 @@ body {
 
 /* PC: Full text visible */
 @media (min-width: 769px) {
-    .btn-direct-input {
+    /* Hide SP version button in header on PC */
+    .edit-header .btn-direct-input {
+        display: none;
+    }
+
+    /* Show and style PC version button in sidebar */
+    .btn-direct-input-pc {
         padding: 0.75rem 1.5rem;
+        /* position: fixed;
+        top: 80px;
+        right: 20px; */
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
     }
 
     .direct-text,
@@ -118,7 +129,13 @@ body {
 
 /* SP: Initially show only "直接", expand on hover by moving left */
 @media (max-width: 768px) {
-    .btn-direct-input {
+    /* Hide PC version button in sidebar on SP */
+    .btn-direct-input-pc {
+        display: none;
+    }
+
+    /* Show and style SP version button in header */
+    .edit-header .btn-direct-input {
         position: fixed;
         top: 50%;
         right: -45px;
@@ -130,6 +147,7 @@ body {
         width: auto;
         overflow: hidden;
         transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1), left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
     }
 
     .direct-input-text {
