@@ -358,63 +358,147 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                             <p><?php echo nl2br(htmlspecialchars($card['hobbies'])); ?></p>
                         </div>
                     <?php endif; ?>
-
+                </div>
                     <?php if ($card['free_input']): ?>
-                        <div class="info-section">
+                        <div class="info-section free-input-section">
                             <h3>その他</h3>
-                            <div class="free-input-content" style="overflow-wrap: anywhere;">
+                            <div class="free-input-content">
                                 <?php
                                 // Try to decode JSON
                                 $freeInputData = json_decode($card['free_input'], true);
 
                                 if (json_last_error() === JSON_ERROR_NONE && is_array($freeInputData)) {
-                                    // Valid JSON - display each field line by line
-                            
-                                    // Display text if exists
-                                    if (!empty($freeInputData['text'])) {
-                                        echo '<p class="free-input-text">' . nl2br(htmlspecialchars($freeInputData['text'])) . '</p>';
-                                    }
+                                    // Check for new format with texts and images arrays
+                                    if (isset($freeInputData['texts']) && isset($freeInputData['images'])) {
+                                        // New format: paired items
+                                        $texts = $freeInputData['texts'] ?? [];
+                                        $images = $freeInputData['images'] ?? [];
 
-                                    // Display embedded image if exists
-                                    if (!empty($freeInputData['image'])) {
-                                        echo '<div class="free-input-image">';
-                                        $imagePath = $freeInputData['image'];
-                                        // Add BASE_URL if the path doesn't start with http
-                                        if (!preg_match('/^https?:\/\//', $imagePath)) {
-                                            $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
+                                        // Get the maximum count to handle all pairs
+                                        $pairCount = max(count($texts), count($images));
+
+                                        // Display each pair
+                                        for ($i = 0; $i < $pairCount; $i++) {
+                                            $text = isset($texts[$i]) ? trim($texts[$i]) : '';
+                                            $imageData = isset($images[$i]) ? $images[$i] : ['image' => '', 'link' => ''];
+                                            $imagePath = $imageData['image'] ?? '';
+                                            $imageLink = $imageData['link'] ?? '';
+
+                                            // Skip if both text and image are empty
+                                            if (empty($text) && empty($imagePath) && empty($imageLink)) {
+                                                continue;
+                                            }
+
+                                            echo '<div class="free-input-pair">';
+
+                                            // Display text if exists
+                                            if (!empty($text)) {
+                                                echo '<div class="free-input-text-wrapper">';
+                                                echo '<p class="free-input-text">' . nl2br(htmlspecialchars($text)) . '</p>';
+                                                echo '</div>';
+                                            }
+
+                                            // Display image if exists
+                                            if (!empty($imagePath)) {
+                                                echo '<div class="free-input-image-wrapper">';
+                                                // Add BASE_URL if the path doesn't start with http
+                                                if (!preg_match('/^https?:\/\//', $imagePath)) {
+                                                    $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
+                                                }
+
+                                                // If there's a link, wrap image in anchor tag
+                                                if (!empty($imageLink)) {
+                                                    echo '<a href="' . htmlspecialchars($imageLink) . '" target="_blank" rel="noopener noreferrer" class="free-input-image-link">';
+                                                }
+
+                                                echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" class="free-input-image">';
+
+                                                if (!empty($imageLink)) {
+                                                    echo '</a>';
+                                                }
+
+                                                echo '</div>';
+                                            }
+
+                                            // Display image_link if exists (and image is not set)
+                                            if (empty($imagePath) && !empty($imageLink)) {
+                                                echo '<div class="free-input-link-wrapper">';
+                                                echo '<a href="' . htmlspecialchars($imageLink) . '" target="_blank" rel="noopener noreferrer" class="free-input-link">';
+
+                                                // Check if it's an image URL to display thumbnail
+                                                $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                                                $urlExtension = strtolower(pathinfo(parse_url($imageLink, PHP_URL_PATH), PATHINFO_EXTENSION));
+
+                                                if (in_array($urlExtension, $imageExtensions)) {
+                                                    echo htmlspecialchars($imageLink);
+                                                } else {
+                                                    echo htmlspecialchars($imageLink);
+                                                }
+
+                                                echo '</a>';
+                                                echo '</div>';
+                                            }
+
+                                            echo '</div>';
                                         }
-                                        echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" style="max-width: 100%; height: auto; border-radius: 4px; margin: 0.5rem 0; display: block;">';
+                                    } else {
+                                        // Old format: single text, image, and image_link
+                                        echo '<div class="free-input-pair">';
+
+                                        // Display text if exists
+                                        if (!empty($freeInputData['text'])) {
+                                            echo '<div class="free-input-text-wrapper">';
+                                            echo '<p class="free-input-text">' . nl2br(htmlspecialchars($freeInputData['text'])) . '</p>';
+                                            echo '</div>';
+                                        }
+
+                                        // Display embedded image if exists
+                                        if (!empty($freeInputData['image'])) {
+                                            echo '<div class="free-input-image-wrapper">';
+                                            $imagePath = $freeInputData['image'];
+                                            // Add BASE_URL if the path doesn't start with http
+                                            if (!preg_match('/^https?:\/\//', $imagePath)) {
+                                                $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
+                                            }
+                                            echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" class="free-input-image">';
+                                            echo '</div>';
+                                        }
+
+                                        // Display image_link if exists
+                                        if (!empty($freeInputData['image_link'])) {
+                                            echo '<div class="free-input-link-wrapper">';
+                                            echo '<a href="' . htmlspecialchars($freeInputData['image_link']) . '" target="_blank" rel="noopener noreferrer" class="free-input-link">';
+
+                                            // Check if it's an image URL to display thumbnail
+                                            $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                                            $urlExtension = strtolower(pathinfo(parse_url($freeInputData['image_link'], PHP_URL_PATH), PATHINFO_EXTENSION));
+
+                                            if (in_array($urlExtension, $imageExtensions)) {
+                                                echo htmlspecialchars($freeInputData['image_link']);
+                                            } else {
+                                                echo htmlspecialchars($freeInputData['image_link']);
+                                            }
+
+                                            echo '</a>';
+                                            echo '</div>';
+                                        }
+
                                         echo '</div>';
-                                    }
-
-                                    // Display image_link if exists
-                                    if (!empty($freeInputData['image_link'])) {
-                                        echo '<p class="free-input-link">';
-                                        echo '<a href="' . htmlspecialchars($freeInputData['image_link']) . '" target="_blank" rel="noopener noreferrer">';
-
-                                        // Check if it's an image URL to display thumbnail
-                                        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-                                        $urlExtension = strtolower(pathinfo(parse_url($freeInputData['image_link'], PHP_URL_PATH), PATHINFO_EXTENSION));
-
-                                        if (in_array($urlExtension, $imageExtensions)) {
-                                            echo $freeInputData['image_link'];
-                                        } else {
-                                            echo htmlspecialchars($freeInputData['image_link']);
-                                        }
-
-                                        echo '</a>';
-                                        echo '</p>';
                                     }
 
                                 } else {
                                     // Not JSON or invalid JSON - display as plain text
-                                    echo '<p>' . nl2br(htmlspecialchars($card['free_input'])) . '</p>';
+                                    echo '<div class="free-input-pair">';
+                                    echo '<div class="free-input-text-wrapper">';
+                                    echo '<p class="free-input-text">' . nl2br(htmlspecialchars($card['free_input'])) . '</p>';
+                                    echo '</div>';
+                                    echo '</div>';
                                 }
                                 ?>
                             </div>
                         </div>
                     <?php endif; ?>
-                </div>
+
                 <hr>
 
                 <!-- テックツール部 -->

@@ -36,6 +36,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Auto-capitalize first letter of romaji input fields
     setupRomajiAutoCapitalize();
     
+    // Check URL parameter for step navigation (e.g., ?step=6 for payment)
+    const urlParams = new URLSearchParams(window.location.search);
+    const stepParam = urlParams.get('step');
+    if (stepParam) {
+        const stepNumber = parseInt(stepParam);
+        if (stepNumber >= 1 && stepNumber <= 6) {
+            // Navigate to the specified step
+            setTimeout(() => {
+                goToStep(stepNumber, true);
+            }, 100);
+        }
+    }
+    
     // Make step indicators clickable
     const stepItems = document.querySelectorAll('.step-indicator .step');
     stepItems.forEach(stepItem => {
@@ -469,6 +482,11 @@ function populateRegistrationForms(data) {
                     initializeDragAndDropForUploadAreaForRegister(uploadArea);
                 }
             }
+            
+            // Initialize drag and drop for reordering after all items are loaded
+            setTimeout(() => {
+                initializeFreeInputPairDragAndDropForRegister();
+            }, 100);
         } catch (e) {
             console.error('Error parsing free_input:', e);
         }
@@ -782,6 +800,13 @@ async function goToStep(step, skipSave = false) {
                 }
             }
         }, 100);
+    }
+    
+    // Initialize free input pair drag and drop when step 3 becomes active
+    if (step === 3) {
+        setTimeout(() => {
+            initializeFreeInputPairDragAndDropForRegister();
+        }, 200);
     }
     
     // Generate and display QR code when reaching step 6 (payment step)
@@ -3030,6 +3055,9 @@ function addFreeInputPairForRegister() {
         initializeDragAndDropForUploadAreaForRegister(uploadArea);
     }
     
+    // Initialize drag and drop for reordering
+    initializeFreeInputPairDragAndDropForRegister();
+    
     // Show delete buttons if there are multiple items
     updateFreeInputPairDeleteButtonsForRegister();
 }
@@ -3049,6 +3077,8 @@ function removeFreeInputPairForRegister(button) {
     if (item) {
         item.remove();
         updateFreeInputPairDeleteButtonsForRegister();
+        // Reinitialize drag and drop after removal
+        initializeFreeInputPairDragAndDropForRegister();
     }
 }
 
@@ -3070,6 +3100,107 @@ function updateFreeInputPairDeleteButtonsForRegister() {
 // Legacy function kept for backwards compatibility
 function removeFreeInputTextForRegister(button) {
     removeFreeInputPairForRegister(button);
+}
+
+// Initialize free input pair drag and drop for reordering (register page)
+function initializeFreeInputPairDragAndDropForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+
+    let draggedElement = null;
+    let isInitializing = false;
+
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+
+        attachDragListeners();
+        isInitializing = false;
+    }
+
+    function attachDragListeners() {
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll('.free-input-pair-item').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+                return false;
+            });
+
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (draggedElement !== this && draggedElement !== null) {
+                    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+                    const targetIndex = items.indexOf(this);
+                    const draggedIndexCurrent = items.indexOf(draggedElement);
+
+                    if (draggedIndexCurrent < targetIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+
+                    draggedElement.dataset.dragInitialized = 'false';
+                    this.dataset.dragInitialized = 'false';
+
+                    // Update borders and spacing after reorder
+                    updateFreeInputPairBordersForRegister();
+                    attachDragListeners();
+                }
+            });
+        });
+    }
+
+    function updateFreeInputPairBordersForRegister() {
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item, index) => {
+            if (index === 0) {
+                item.style.marginTop = '';
+                item.style.paddingTop = '';
+                item.style.borderTop = '';
+            } else {
+                item.style.marginTop = '2rem';
+                item.style.paddingTop = '2rem';
+                item.style.borderTop = '1px solid #e0e0e0';
+            }
+        });
+    }
+
+    makeItemsDraggable();
+    updateFreeInputPairBordersForRegister();
 }
 
 // Legacy function kept for backwards compatibility
@@ -3248,6 +3379,11 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // Initialize drag and drop for greeting items
     initializeGreetingDragAndDrop();
+    
+    // Initialize free input pair drag and drop
+    setTimeout(() => {
+        initializeFreeInputPairDragAndDropForRegister();
+    }, 200);
     
     // Initialize tech tool drag and drop
     setTimeout(() => {

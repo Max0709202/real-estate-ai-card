@@ -849,6 +849,147 @@ ease;
     .free-input-image {
         font-size: 1rem !important;
     }
+}
+
+/* Free Input Section - Enhanced UI/UX */
+.free-input-section {
+    text-align: center !important;
+}
+
+.free-input-content {
+    margin-top: 1rem;
+    overflow-wrap: anywhere;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4rem;
+    padding-inline: 5rem !important;
+}
+
+.free-input-pair {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 0.75rem;
+    border: 1px solid #e9ecef;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.free-input-pair:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border-color: #dee2e6;
+}
+
+.free-input-text-wrapper {
+    margin-bottom: 0.5rem;
+    flex: 1;
+}
+
+.free-input-text-wrapper:last-child {
+    margin-bottom: 0;
+}
+
+.free-input-text {
+    color: #333;
+    line-height: 1.5;
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 400;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.free-input-image-wrapper {
+    margin: 0.5rem 0 0 0;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.free-input-image-wrapper:first-child {
+    margin-top: 0;
+}
+
+.free-input-image-wrapper:last-child {
+    margin-bottom: 0;
+}
+
+.free-input-image-link {
+    display: block;
+    transition: opacity 0.3s ease;
+}
+
+.free-input-image-link:hover {
+    opacity: 0.9;
+}
+
+.free-input-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 6px;
+    object-fit: cover;
+}
+
+.free-input-link-wrapper {
+    margin: 0.5rem 0 0 0;
+}
+
+.free-input-link-wrapper:first-child {
+    margin-top: 0;
+}
+
+.free-input-link-wrapper:last-child {
+    margin-bottom: 0;
+}
+
+.free-input-link {
+    color: #0066cc;
+    text-decoration: none;
+    font-size: 0.8rem;
+    word-break: break-all;
+    display: inline-block;
+    padding: 0.3rem 0.6rem;
+    background: #f0f7ff;
+    border-radius: 3px;
+    border: 1px solid #cce5ff;
+    transition: all 0.3s ease;
+}
+
+.free-input-link:hover {
+    background: #e6f2ff;
+    border-color: #99ccff;
+    color: #0052a3;
+    text-decoration: none;
+}
+
+/* Mobile Responsive for Free Input */
+@media (max-width: 768px) {
+    .free-input-content {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .free-input-pair {
+        padding: 0.6rem;
+        border-radius: 4px;
+    }
+
+    .free-input-text {
+        font-size: 0.8rem;
+        line-height: 1.5;
+    }
+
+    .free-input-image-wrapper {
+        margin: 0.4rem 0 0 0;
+        border-radius: 3px;
+    }
+
+    .free-input-link {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
 
     /* Communication Section - Very Small Screens */
     .communication-section {

@@ -530,6 +530,27 @@ body {
     background: #e6f2ff;
 }
 
+/* Free Input Pair Item - Drag and Drop */
+.free-input-pair-item {
+    cursor: move;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.free-input-pair-item:hover {
+    border-color: #0066cc;
+}
+
+.free-input-pair-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.free-input-pair-item.drag-over {
+    border-color: #0066cc;
+    border-style: dashed;
+    background: #e6f2ff;
+}
+
 .greeting-header {
     display: flex;
     justify-content: space-between;
