@@ -1272,51 +1272,94 @@
         animation: fadeInUp 0.6s ease-out 0.3s both;
     }
 
-    /* DX Integration Section - Mobile */
+    /* DX Integration Section - Mobile (SP) */
     .dx-integration-section {
-        padding: 3.5rem 0;
+        padding: 3rem 0;
+        background: linear-gradient(to bottom, #ffffff 0%, #fafafa 100%);
+        position: relative;
+    }
+
+    .dx-integration-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
     }
 
     .dx-integration-content {
-        padding: 0 1rem;
+        padding: 0 1.25rem;
+        max-width: 100%;
     }
 
     .dx-tagline {
-        font-size: 0.95rem;
-        margin-bottom: 1.25rem;
-        line-height: 1.7;
-        padding: 0 0.5rem;
+        font-size: 1.15rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.6;
+        padding: 0;
+        text-align: center;
+        color: #333;
+        font-weight: 500;
+        letter-spacing: 0.01em;
     }
 
     .dx-main-title {
-        font-size: 1.75rem;
-        margin-bottom: 1.25rem;
-        line-height: 1.3;
-        padding: 0 0.5rem;
+        font-size: 2.4rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.2;
+        padding: 0;
+        text-align: center;
+        color: #e91e63;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-shadow: 0 2px 4px rgba(233, 30, 99, 0.15);
+        word-break: keep-all;
+        overflow-wrap: break-word;
     }
 
     .dx-subtitle {
-        font-size: 1rem;
-        margin-bottom: 2.5rem;
-        line-height: 1.7;
-        padding: 0 0.5rem;
+        font-size: 1.15rem;
+        margin-bottom: 2rem;
+        line-height: 1.6;
+        padding: 0;
+        text-align: center;
+        color: #333;
+        font-weight: 500;
     }
 
     .dx-product-info {
         flex-direction: column;
-        gap: 1.25rem;
-        padding: 2rem 1rem;
-        border-top: 2px solid #e0e0e0;
-        border-bottom: 2px solid #e0e0e0;
+        gap: 0;
+        /* padding: 1.5rem 0 0; */
+        border: none;
+        align-items: center;
+        justify-content: center;
     }
 
     .dx-logo-wrapper {
         order: 1;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
     }
 
     .dx-logo {
-        width: 70px;
-        height: 70px;
+        width: 100%;
+        max-width: 280px;
+        height: auto;
+        object-fit: contain;
+        display: block;
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+        transition: transform 0.3s ease, filter 0.3s ease;
+    }
+
+    .dx-logo:active {
+        transform: scale(0.98);
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
     }
 
     .dx-product-name-wrapper {
@@ -1590,29 +1633,90 @@
         padding: 0 1.5rem;
     }
 
+    /* DX Integration Section - Tablet */
+    .dx-integration-section {
+        padding: 4rem 0;
+        background: linear-gradient(to bottom, #ffffff 0%, #fafafa 100%);
+        position: relative;
+    }
+
+    .dx-integration-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+    }
+
+    .dx-integration-content {
+        padding: 0 2rem;
+        max-width: 100%;
+    }
+
     .dx-tagline {
-        font-size: 1.05rem;
-        margin-bottom: 1.5rem;
+        font-size: 1.35rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.6;
+        text-align: center;
+        color: #333;
+        font-weight: 500;
+        letter-spacing: 0.01em;
     }
 
     .dx-main-title {
-        font-size: 2.25rem;
-        margin-bottom: 1.5rem;
+        font-size: 3.2rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.2;
+        padding: 0;
+        text-align: center;
+        color: #e91e63;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-shadow: 0 2px 4px rgba(233, 30, 99, 0.15);
+        word-break: keep-all;
+        overflow-wrap: break-word;
     }
 
     .dx-subtitle {
-        font-size: 1.1rem;
-        margin-bottom: 2.75rem;
+        font-size: 1.35rem;
+        margin-bottom: 2.5rem;
+        line-height: 1.6;
+        text-align: center;
+        color: #333;
+        font-weight: 500;
     }
 
     .dx-product-info {
-        gap: 1.5rem;
-        padding: 2.5rem 1.5rem;
+        gap: 0;
+        /* padding: 1.5rem 0 0; */
+        border: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .dx-logo-wrapper {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
     }
 
     .dx-logo {
-        width: 75px;
-        height: 75px;
+        width: 100%;
+        max-width: 400px;
+        height: auto;
+        object-fit: contain;
+        display: block;
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+        transition: transform 0.3s ease, filter 0.3s ease;
+    }
+
+    .dx-logo:hover {
+        transform: scale(1.02);
+        filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15));
     }
 
     .dx-product-name {
@@ -2278,42 +2382,45 @@
 
     /* DX Integration Section - Very Small Screens */
     .dx-integration-section {
-        padding: 3rem 0;
+        padding: 2.5rem 0;
     }
 
     .dx-integration-content {
-        padding: 0 0.75rem;
+        padding: 0 1rem;
     }
 
     .dx-tagline {
-        font-size: 0.9rem;
-        margin-bottom: 1rem;
-        line-height: 1.6;
+        font-size: 1.05rem;
+        margin-bottom: 0.4rem;
+        line-height: 1.5;
         padding: 0;
     }
 
     .dx-main-title {
-        font-size: 1.5rem;
-        margin-bottom: 1rem;
-        line-height: 1.25;
+        font-size: 2rem;
+        margin-bottom: 0.4rem;
+        line-height: 1.2;
         padding: 0;
     }
 
     .dx-subtitle {
-        font-size: 0.95rem;
-        margin-bottom: 2rem;
-        line-height: 1.6;
+        font-size: 1.05rem;
+        margin-bottom: 1.75rem;
+        line-height: 1.5;
         padding: 0;
+    }
+
+    .dx-logo {
+        max-width: 240px;
     }
 
     .dx-product-info {
         gap: 1rem;
-        padding: 1.75rem 0.75rem;
+        /* padding: 1.75rem 0.75rem; */
     }
 
     .dx-logo {
-        width: 60px;
-        height: 60px;
+        width: 30rem;
     }
 
     .dx-tool-label {
