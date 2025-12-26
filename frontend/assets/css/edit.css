@@ -61,11 +61,30 @@ body {
     align-items: center;
     justify-content: center;
     box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
+    animation: blinkButton 2s ease-in-out infinite;
+}
+
+@keyframes blinkButton {
+    0%, 100% {
+        background-color: #017a1c;
+    }
+    50% {
+        background-color: #05d93a;
+    }
 }
 
 .btn-direct-input:hover {
-    background: #03b129;
     box-shadow: 0 4px 8px rgba(0, 102, 204, 0.3);
+    animation: blinkButtonHover 1.5s ease-in-out infinite;
+}
+
+@keyframes blinkButtonHover {
+    0%, 100% {
+        background-color: #05d93a;
+    }
+    50% {
+        background-color: #06f044;
+    }
 }
 
 .direct-input-text {

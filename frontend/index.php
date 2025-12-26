@@ -206,17 +206,55 @@ if ($isTokenBased) {
                     <div class="dx-logo-wrapper">
                         <img src="assets/images/logo.png" alt="不動産AI名刺 ロゴ" class="dx-logo" loading="lazy">
                     </div>
-                    <div class="dx-product-name-wrapper">
+                    <!-- <div class="dx-product-name-wrapper">
                         <span class="dx-tool-label">DXツール付き</span>
                         <h3 class="dx-product-name">
                             不動産<span class="dx-ai-highlight">AI</span>名刺
                         </h3>
-                    </div>
+                    </div> -->
                 </div>
             </div>
         </div>
     </section>
 
+    <!-- Problems Section -->
+    <section class="problems-section">
+        <div class="container">
+            <h2 class="problems-title">こんなお悩みありませんか?</h2>
+            <div class="problems-grid">
+                <div class="problem-card">
+                    <div class="problem-icon">
+                        <span>!</span>
+                    </div>
+                    <h3 class="problem-title">名刺交換後、連絡が途絶える</h3>
+                    <p class="problem-description">
+                        せっかく出会った見込み客と、その後のコミュニケーションが取れない
+                    </p>
+                </div>
+                
+                <div class="problem-card">
+                    <div class="problem-icon">
+                        <span>!</span>
+                    </div>
+                    <h3 class="problem-title">他社との差別化ができない</h3>
+                    <p class="problem-description">
+                        競合エージェントとの違いを明確に示せず、選ばれる理由が弱い
+                    </p>
+                </div>
+                
+                <div class="problem-card">
+                    <div class="problem-icon">
+                        <span>!</span>
+                    </div>
+                    <h3 class="problem-title">顧客への情報提供が不十分</h3>
+                    <p class="problem-description">
+                        物件情報や市場データを効果的に共有できず、信頼構築に時間がかかる
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
     <!-- Hero Section -->
     <section class="hero">
         <div class="container">

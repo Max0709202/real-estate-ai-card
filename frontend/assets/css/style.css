@@ -498,29 +498,29 @@ body {
 }
 
 .dx-tagline {
-    font-size: 1.1rem;
+    font-size: 1.4rem;
     color: #333;
-    margin-bottom: 1.5rem;
-    line-height: 1.8;
+    /* margin-bottom: 0.5rem; */
+    line-height: 1.6;
     font-weight: 500;
     letter-spacing: 0.02em;
 }
 
 .dx-main-title {
-    font-size: 2.5rem;
+    font-size: 3.5rem;
     font-weight: 700;
     color: #e91e63;
-    margin-bottom: 1.5rem;
-    line-height: 1.3;
+    /* margin-bottom: 0.5rem; */
+    line-height: 1.2;
     letter-spacing: 0.05em;
     text-shadow: 0 2px 4px rgba(233, 30, 99, 0.1);
 }
 
 .dx-subtitle {
-    font-size: 1.15rem;
+    font-size: 1.4rem;
     color: #333;
     margin-bottom: 3rem;
-    line-height: 1.8;
+    line-height: 1.6;
     font-weight: 500;
 }
 
@@ -530,9 +530,9 @@ body {
     justify-content: center;
     gap: 2rem;
     flex-wrap: wrap;
-    padding: 2.5rem 0;
-    border-top: 2px solid #e0e0e0;
-    border-bottom: 2px solid #e0e0e0;
+    /* padding: 2.5rem 0; */
+    /* border-top: 2px solid #e0e0e0;
+    border-bottom: 2px solid #e0e0e0; */
 }
 
 .dx-logo-wrapper {
@@ -543,8 +543,8 @@ body {
 }
 
 .dx-logo {
-    width: 80px;
-    height: 80px;
+    width: 30rem;
+    /* height: 80px; */
     object-fit: contain;
     display: block;
     transition: transform 0.3s ease;
