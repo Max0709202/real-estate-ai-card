@@ -36,6 +36,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Auto-capitalize first letter of romaji input fields
     setupRomajiAutoCapitalize();
     
+    // Check URL parameter for step navigation (e.g., ?step=6 for payment)
+    const urlParams = new URLSearchParams(window.location.search);
+    const stepParam = urlParams.get('step');
+    if (stepParam) {
+        const stepNumber = parseInt(stepParam);
+        if (stepNumber >= 1 && stepNumber <= 6) {
+            // Navigate to the specified step
+            setTimeout(() => {
+                goToStep(stepNumber, true);
+            }, 100);
+        }
+    }
+    
     // Make step indicators clickable
     const stepItems = document.querySelectorAll('.step-indicator .step');
     stepItems.forEach(stepItem => {

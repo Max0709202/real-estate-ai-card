@@ -179,6 +179,9 @@ if ($isLoggedIn) {
                         <a href="edit.php" class="dropdown-item">
                             <span>マイページ</span>
                         </a>
+                        <a href="register.php?step=6" class="dropdown-item" id="payment-list-link">
+                            <span>お支払い一覧</span>
+                        </a>
                         <a href="#" id="logout-link" class="dropdown-item">
                             <span>ログアウト</span>
                         </a>
