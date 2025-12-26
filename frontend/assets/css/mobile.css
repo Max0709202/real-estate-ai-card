@@ -1136,11 +1136,12 @@
         border-radius: 12px;
     }
 
-    /* Philosophy Section - Mobile */
+    /* Philosophy Section - Mobile (SP) */
     .philosophy-section {
-        padding: 3rem 0;
+        padding: 3.5rem 0;
         background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
         position: relative;
+        overflow: hidden;
     }
 
     .philosophy-section::before {
@@ -1150,29 +1151,48 @@
         left: 0;
         right: 0;
         height: 1px;
-        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.1), transparent);
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+        z-index: 1;
+    }
+
+    .philosophy-section::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+        z-index: 1;
     }
 
     .philosophy-section .container {
-        padding: 0 1rem;
+        padding: 0 1.25rem;
         position: relative;
+        z-index: 2;
     }
 
     .philosophy-images-row {
         grid-template-columns: 1fr;
-        gap: 1.5rem;
+        gap: 1.75rem;
         padding: 0;
         margin-bottom: 0;
+        max-width: 100%;
     }
 
     .philosophy-image-wrapper {
-        border-radius: 16px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
-                    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 18px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12),
+                    0 4px 8px rgba(0, 0, 0, 0.08);
+        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.3s ease;
         overflow: hidden;
         background: #fff;
         position: relative;
+        margin: 0 auto;
+        max-width: 100%;
+        width: 100%;
     }
 
     .philosophy-image-wrapper::after {
@@ -1182,30 +1202,34 @@
         left: 0;
         right: 0;
         bottom: 0;
-        border-radius: 16px;
-        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+        border-radius: 18px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8),
+                    inset 0 0 0 1px rgba(0, 0, 0, 0.03);
         pointer-events: none;
+        z-index: 1;
     }
 
     .philosophy-image-wrapper:active {
-        transform: scale(0.97);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        transform: scale(0.98) translateY(2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15),
+                    0 2px 6px rgba(0, 0, 0, 0.1);
     }
 
     .philosophy-image-layer {
         padding-top: 75%;
-        border-radius: 16px;
+        border-radius: 18px;
         overflow: hidden;
         position: relative;
-        background: #f5f5f5;
+        background: linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%);
     }
 
     .philosophy-image-odd,
     .philosophy-image-even {
-        border-radius: 16px;
+        border-radius: 18px;
         transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         image-rendering: -webkit-optimize-contrast;
         image-rendering: crisp-edges;
+        backface-visibility: hidden;
     }
 
     /* Ensure smooth animation on mobile */
@@ -1220,6 +1244,32 @@
         backface-visibility: hidden;
         -webkit-transform: translateZ(0);
         transform: translateZ(0);
+        -webkit-perspective: 1000px;
+        perspective: 1000px;
+    }
+
+    /* Add subtle entrance animation */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .philosophy-image-wrapper:nth-child(1) {
+        animation: fadeInUp 0.6s ease-out 0.1s both;
+    }
+
+    .philosophy-image-wrapper:nth-child(2) {
+        animation: fadeInUp 0.6s ease-out 0.2s both;
+    }
+
+    .philosophy-image-wrapper:nth-child(3) {
+        animation: fadeInUp 0.6s ease-out 0.3s both;
     }
 
     /* DX Integration Section - Mobile */
@@ -1408,18 +1458,116 @@
 @media (min-width: 481px) and (max-width: 1024px) {
     /* Philosophy Section - Tablet */
     .philosophy-section {
-        padding: 3rem 0;
+        padding: 4rem 0;
+        background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .philosophy-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+        z-index: 1;
+    }
+
+    .philosophy-section::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+        z-index: 1;
+    }
+
+    .philosophy-section .container {
+        position: relative;
+        z-index: 2;
     }
 
     .philosophy-images-row {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1.5rem;
-        padding: 0 1.5rem;
-        margin-bottom: 2.5rem;
+        grid-template-columns: 1fr;
+        gap: 1.75rem;
+        padding: 0 2rem;
+        margin-bottom: 0;
+        max-width: 100%;
+    }
+
+    .philosophy-image-wrapper {
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1),
+                    0 3px 6px rgba(0, 0, 0, 0.06);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        background: #fff;
+        position: relative;
+        max-width: 600px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    .philosophy-image-wrapper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 16px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8),
+                    inset 0 0 0 1px rgba(0, 0, 0, 0.03);
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    .philosophy-image-wrapper:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15),
+                    0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .philosophy-image-wrapper:active {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
+                    0 3px 6px rgba(0, 0, 0, 0.08);
     }
 
     .philosophy-image-layer {
-        padding-top: 70%;
+        padding-top: 75%;
+        border-radius: 16px;
+        overflow: hidden;
+        position: relative;
+        background: linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%);
+    }
+
+    .philosophy-image-odd,
+    .philosophy-image-even {
+        border-radius: 16px;
+        transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+        backface-visibility: hidden;
+    }
+
+    /* Ensure smooth animation on tablet */
+    .philosophy-image-wrapper:nth-child(1) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(1) .philosophy-image-even,
+    .philosophy-image-wrapper:nth-child(2) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(2) .philosophy-image-even,
+    .philosophy-image-wrapper:nth-child(3) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(3) .philosophy-image-even {
+        will-change: opacity;
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
     }
 
     .philosophy-grid {
@@ -2096,35 +2244,36 @@
 @media (max-width: 480px) {
     /* Philosophy Section - Very Small Screens */
     .philosophy-section {
-        padding: 2.5rem 0;
+        padding: 3rem 0;
     }
 
     .philosophy-section .container {
-        padding: 0 0.875rem;
+        padding: 0 1rem;
     }
 
     .philosophy-images-row {
-        gap: 1.25rem;
+        gap: 1.5rem;
         margin-bottom: 0;
     }
 
     .philosophy-image-wrapper {
-        border-radius: 14px;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
+                    0 3px 6px rgba(0, 0, 0, 0.08);
     }
 
     .philosophy-image-wrapper::after {
-        border-radius: 14px;
+        border-radius: 16px;
     }
 
     .philosophy-image-layer {
-        padding-top: 70%;
-        border-radius: 14px;
+        padding-top: 75%;
+        border-radius: 16px;
     }
 
     .philosophy-image-odd,
     .philosophy-image-even {
-        border-radius: 14px;
+        border-radius: 16px;
     }
 
     /* DX Integration Section - Very Small Screens */
