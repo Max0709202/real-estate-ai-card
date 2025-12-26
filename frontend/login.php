@@ -104,7 +104,7 @@ startSessionIfNotStarted();
 <body>
     <div class="login-container">
         <div class="login-box">
-            <h1>ログイン</h1>
+            <h1>不動産AI名刺<br>ログイン</h1>
             <form id="login-form">
                 <div class="form-group">
                     <label>メールアドレス</label>

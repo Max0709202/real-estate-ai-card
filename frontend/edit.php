@@ -129,9 +129,9 @@ $defaultGreetings = [
     ?>
     
     <div class="edit-container">
-        <header class="edit-header">
+        <header class="edit-header" style="padding-top: 3rem;">
             <div class="edit-header-content">
-                <h1>デジタル名刺作成・編集</h1>
+                <h1>マイページ（デジタル名刺作成・編集）</h1>
             </div>
             <button type="button" id="direct-input-btn" class="btn-direct-input">
                 <span class="direct-input-text">
@@ -718,11 +718,16 @@ $defaultGreetings = [
 
             <div class="edit-sidebar-actions">
                 <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column; padding-inline: 10px;">
+                    <button type="button" id="direct-input-btn-pc" class="btn-direct-input btn-direct-input-pc">
+                        <span class="direct-input-text">
+                            <span class="direct-text">プレビュー</span>
+                        </span>
+                    </button>
                     <a href="auth/forgot-password.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">パスワードリセット</a>
                     <a href="auth/reset-email.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">メールアドレスリセット</a>
                     <?php if ($hasActiveSubscription): ?>
-                    <button type="button" id="cancel-subscription-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer; background: #dc3545; color: #fff; border: none;">
-                        サブスクリプションをキャンセル
+                    <button type="button" id="cancel-subscription-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer;">
+                        利用を停止する
                     </button>
                     <?php endif; ?>
                 </div>
@@ -784,19 +789,30 @@ $defaultGreetings = [
     <script>
         // Direct Input button handler and mobile touch support
         document.addEventListener('DOMContentLoaded', function() {
+            // SP version button (in header)
             const directInputBtn = document.getElementById('direct-input-btn');
+            // PC version button (in sidebar)
+            const directInputBtnPc = document.getElementById('direct-input-btn-pc');
+
+            // Function to handle button click
+            function handleDirectInputClick() {
+                if (typeof showDirectInputModal === 'function') {
+                    showDirectInputModal();
+                }
+            }
+
             if (directInputBtn) {
+                directInputBtn.addEventListener('click', handleDirectInputClick);
                 // Mobile: Add 'touched' class on first tap to keep expanded state
                 if (window.innerWidth <= 768) {
                     directInputBtn.addEventListener('touchstart', function() {
                         this.classList.add('touched');
                     }, { once: true });
                 }
+            }
 
-                // Handle click action - show preview modal
-                directInputBtn.addEventListener('click', async function() {
-                    await showDirectInputModal();
-                });
+            if (directInputBtnPc) {
+                directInputBtnPc.addEventListener('click', handleDirectInputClick);
             }
         });
 
@@ -1103,7 +1119,7 @@ $defaultGreetings = [
             const cancelBtn = document.getElementById('cancel-subscription-btn');
             if (cancelBtn) {
                 cancelBtn.addEventListener('click', async function() {
-                    if (!confirm('サブスクリプションをキャンセルしますか？\n\n期間終了時にキャンセルされます。即座にキャンセルする場合は「OK」を押した後、確認画面で選択してください。')) {
+                    if (!confirm('利用を停止しますか？\n\n期間終了時に停止されます。即座に停止する場合は「OK」を押した後、確認画面で選択してください。')) {
                         return;
                     }
 
@@ -1128,9 +1144,9 @@ $defaultGreetings = [
 
                         if (result.success) {
                             if (typeof showSuccess === 'function') {
-                                showSuccess(result.message || 'サブスクリプションをキャンセルしました', { autoClose: 5000 });
+                                showSuccess(result.message || '利用を停止しました', { autoClose: 5000 });
                             } else {
-                                alert(result.message || 'サブスクリプションをキャンセルしました');
+                                alert(result.message || '利用を停止しました');
                             }
 
                             const statusEl = document.getElementById('subscription-status');
@@ -1146,12 +1162,12 @@ $defaultGreetings = [
                             }, 3000);
                         } else {
                             if (typeof showError === 'function') {
-                                showError(result.message || 'サブスクリプションのキャンセルに失敗しました');
+                                showError(result.message || '利用停止に失敗しました');
                             } else {
-                                alert(result.message || 'サブスクリプションのキャンセルに失敗しました');
+                                alert(result.message || '利用停止に失敗しました');
                             }
                             cancelBtn.disabled = false;
-                            cancelBtn.textContent = 'サブスクリプションをキャンセル';
+                            cancelBtn.textContent = '利用を停止する';
                         }
                     } catch (error) {
                         console.error('Error canceling subscription:', error);

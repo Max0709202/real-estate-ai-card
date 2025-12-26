@@ -1362,6 +1362,59 @@
         filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
     }
 
+    /* Automation Process Section - Mobile */
+    .automation-section {
+        padding: 3.5rem 0;
+        background: #faf8f5;
+    }
+
+    .automation-title {
+        font-size: 1.75rem;
+        margin-bottom: 2.5rem;
+        padding-bottom: 0.75rem;
+    }
+
+    .automation-title::after {
+        width: 120px;
+        height: 2px;
+    }
+
+    .automation-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        padding: 0 1rem;
+    }
+
+    .automation-card {
+        padding: 2rem 1.5rem;
+        border-radius: 12px;
+        max-width: 100%;
+    }
+
+    .automation-card:hover {
+        transform: translateY(-3px);
+    }
+
+    .automation-icon {
+        width: 80px;
+        height: 80px;
+        margin-bottom: 1.25rem;
+    }
+
+    .automation-card-title {
+        font-size: 1.3rem;
+        margin-bottom: 0.875rem;
+    }
+
+    .automation-subtitle {
+        font-size: 0.9rem;
+    }
+
+    .automation-description {
+        font-size: 0.95rem;
+        line-height: 1.7;
+    }
+
     .dx-product-name-wrapper {
         order: 2;
         flex-direction: column;
@@ -1721,6 +1774,104 @@
 
     .dx-product-name {
         font-size: 1.9rem;
+    }
+
+    /* Automation Process Section - Tablet */
+    .automation-section {
+        padding: 4rem 0;
+        background: #faf8f5;
+    }
+
+    .automation-title {
+        font-size: 2.2rem;
+        margin-bottom: 3rem;
+        padding-bottom: 0.875rem;
+    }
+
+    .automation-title::after {
+        width: 160px;
+        height: 2px;
+    }
+
+    .automation-grid {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
+        padding: 0 2rem;
+    }
+
+    .automation-card {
+        padding: 2.25rem 2rem;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .automation-icon {
+        width: 90px;
+        height: 90px;
+        margin-bottom: 1.5rem;
+    }
+
+    .automation-card-title {
+        font-size: 1.4rem;
+        margin-bottom: 1rem;
+    }
+
+    .automation-subtitle {
+        font-size: 0.95rem;
+    }
+
+    .automation-description {
+        font-size: 1.05rem;
+        line-height: 1.75;
+    }
+
+    /* Automation Process Section - Tablet */
+    .automation-section {
+        padding: 4rem 0;
+        background: #faf8f5;
+    }
+
+    .automation-title {
+        font-size: 2.2rem;
+        margin-bottom: 3rem;
+        padding-bottom: 0.875rem;
+    }
+
+    .automation-title::after {
+        width: 160px;
+        height: 2px;
+    }
+
+    .automation-grid {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
+        padding: 0 2rem;
+    }
+
+    .automation-card {
+        padding: 2.25rem 2rem;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .automation-icon {
+        width: 90px;
+        height: 90px;
+        margin-bottom: 1.5rem;
+    }
+
+    .automation-card-title {
+        font-size: 1.4rem;
+        margin-bottom: 1rem;
+    }
+
+    .automation-subtitle {
+        font-size: 0.95rem;
+    }
+
+    .automation-description {
+        font-size: 1.05rem;
+        line-height: 1.75;
     }
 
     /* Communication section - Tablet */
@@ -2421,6 +2572,50 @@
 
     .dx-logo {
         width: 30rem;
+    }
+
+    /* Automation Process Section - Very Small Screens */
+    .automation-section {
+        padding: 3rem 0;
+    }
+
+    .automation-title {
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+        padding-bottom: 0.625rem;
+    }
+
+    .automation-title::after {
+        width: 100px;
+    }
+
+    .automation-grid {
+        gap: 1.75rem;
+        padding: 0 0.875rem;
+    }
+
+    .automation-card {
+        padding: 1.75rem 1.25rem;
+    }
+
+    .automation-icon {
+        width: 70px;
+        height: 70px;
+        margin-bottom: 1rem;
+    }
+
+    .automation-card-title {
+        font-size: 1.2rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .automation-subtitle {
+        font-size: 0.85rem;
+    }
+
+    .automation-description {
+        font-size: 0.9rem;
+        line-height: 1.6;
     }
 
     .dx-tool-label {
