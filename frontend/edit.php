@@ -416,10 +416,10 @@ $defaultGreetings = [
                                         <!-- Text Input -->
                                         <div class="form-group">
                                             <label>テキスト</label>
-                                        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
-                                    </div>
+                                            <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+                                        </div>
                                         <!-- Image/Banner Input -->
-                            <div class="form-group">
+                                        <div class="form-group">
                                             <label>画像・バナー（リンク付き画像）</label>
                                         <div class="upload-area" data-upload-id="free_image_0">
                                             <input type="file" name="free_image[]" accept="image/*" style="display: none;">

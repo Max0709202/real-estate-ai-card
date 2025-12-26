@@ -501,6 +501,11 @@ function populateEditForms(data) {
                             initializeDragAndDropForUploadArea(uploadArea);
                         }
                 }
+                
+                // Initialize drag and drop for reordering after all items are loaded
+                setTimeout(() => {
+                    initializeFreeInputPairDragAndDrop();
+                }, 100);
                 }
             } catch (e) {
                 console.error('Error parsing free_input:', e);
@@ -940,6 +945,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Setup communication checkboxes
     setupCommunicationCheckboxes();
+    
+    // Initialize free input pair drag and drop
+    setTimeout(() => {
+        initializeFreeInputPairDragAndDrop();
+    }, 200);
 });
 
 // Greeting functions for edit page
@@ -1426,6 +1436,9 @@ function addFreeInputPair() {
     // Initialize drag and drop for the new upload area
     initializeDragAndDropForUploadArea(pairItem.querySelector('.upload-area'));
     
+    // Initialize drag and drop for reordering
+    initializeFreeInputPairDragAndDrop();
+    
     // Update delete button visibility
     const allPairs = container.querySelectorAll('.free-input-pair-item');
     allPairs.forEach((pair, index) => {
@@ -1459,6 +1472,110 @@ function removeFreeInputPair(button) {
             deleteBtn.style.display = remainingPairs.length > 1 ? 'block' : 'none';
         }
     });
+    
+    // Reinitialize drag and drop after removal
+    initializeFreeInputPairDragAndDrop();
+}
+
+// Initialize free input pair drag and drop for reordering
+function initializeFreeInputPairDragAndDrop() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+
+    let draggedElement = null;
+    let isInitializing = false;
+
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+
+        attachDragListeners();
+        isInitializing = false;
+    }
+
+    function attachDragListeners() {
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll('.free-input-pair-item').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+                return false;
+            });
+
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (draggedElement !== this && draggedElement !== null) {
+                    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+                    const targetIndex = items.indexOf(this);
+                    const draggedIndexCurrent = items.indexOf(draggedElement);
+
+                    if (draggedIndexCurrent < targetIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+
+                    draggedElement.dataset.dragInitialized = 'false';
+                    this.dataset.dragInitialized = 'false';
+
+                    // Update borders and spacing after reorder
+                    updateFreeInputPairBorders();
+                    attachDragListeners();
+                }
+            });
+        });
+    }
+
+    function updateFreeInputPairBorders() {
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item, index) => {
+            if (index === 0) {
+                item.style.marginTop = '';
+                item.style.paddingTop = '';
+                item.style.borderTop = '';
+            } else {
+                item.style.marginTop = '2rem';
+                item.style.paddingTop = '2rem';
+                item.style.borderTop = '1px solid #e0e0e0';
+            }
+        });
+    }
+
+    makeItemsDraggable();
+    updateFreeInputPairBorders();
 }
 
 // Initialize file upload handler for free image items in edit page (stores file, uploads on form save)
