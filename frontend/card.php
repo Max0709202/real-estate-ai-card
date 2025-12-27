@@ -104,10 +104,24 @@ $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $stmt = $db->prepare("INSERT INTO access_logs (business_card_id, ip_address, user_agent) VALUES (?, ?, ?)");
 $stmt->execute([$card['id'], $ipAddress, $userAgent]);
 
-// 挨拶文取得
+// 挨拶文取得（ユーザーが入力した順序で取得）
 $stmt = $db->prepare("SELECT title, content FROM greeting_messages WHERE business_card_id = ? ORDER BY display_order ASC");
 $stmt->execute([$card['id']]);
 $greetings = $stmt->fetchAll();
+
+// ページネーション設定
+$greetingsPerPage = 1; // 1ページあたりの挨拶文数
+$currentPage = isset($_GET['greeting_page']) ? max(1, intval($_GET['greeting_page'])) : 1;
+$totalGreetings = count($greetings);
+$totalPages = $totalGreetings > 0 ? ceil($totalGreetings / $greetingsPerPage) : 1;
+$currentPage = min($currentPage, $totalPages); // 最大ページ数を超えないように
+
+// 現在のページに表示する挨拶文を取得
+$greetingsForCurrentPage = [];
+if ($totalGreetings > 0) {
+    $startIndex = ($currentPage - 1) * $greetingsPerPage;
+    $greetingsForCurrentPage = array_slice($greetings, $startIndex, $greetingsPerPage);
+}
 
 // テックツール取得
 $stmt = $db->prepare("SELECT tool_type, tool_url FROM tech_tool_selections WHERE business_card_id = ? AND is_active = 1 ORDER BY display_order ASC");
@@ -228,17 +242,41 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                     <?php endif; ?>
 
                     <div class="greeting-content">
-                        <?php if (!empty($greetings)): ?>
-                            <?php foreach ($greetings as $greeting): ?>
-                                <div class="greeting-item">
-                                    <?php if (!empty($greeting['title'])): ?>
-                                        <h3 class="greeting-title"><?php echo htmlspecialchars($greeting['title']); ?></h3>
-                                    <?php endif; ?>
-                                    <?php if (!empty($greeting['content'])): ?>
-                                        <p class="greeting-text"><?php echo nl2br(htmlspecialchars($greeting['content'])); ?></p>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endforeach; ?>
+                        <?php if (!empty($greetingsForCurrentPage)): ?>
+                            <div class="greeting-pagination-container" data-total-pages="<?php echo $totalPages; ?>" data-current-page="<?php echo $currentPage; ?>">
+                                <?php foreach ($greetingsForCurrentPage as $greeting): ?>
+                                    <div class="greeting-item greeting-page-item">
+                                        <?php if (!empty($greeting['title'])): ?>
+                                            <h3 class="greeting-title"><?php echo htmlspecialchars($greeting['title']); ?></h3>
+                                        <?php endif; ?>
+                                        <?php if (!empty($greeting['content'])): ?>
+                                            <p class="greeting-text"><?php echo nl2br(htmlspecialchars($greeting['content'])); ?></p>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+
+                                <?php if ($totalPages > 1): ?>
+                                    <div class="greeting-pagination-controls">
+                                        <button type="button" class="greeting-pagination-btn greeting-prev-btn"
+                                                <?php echo $currentPage <= 1 ? 'disabled' : ''; ?>
+                                                data-page="<?php echo $currentPage - 1; ?>">
+                                            <span>‹</span> 前へ
+                                        </button>
+
+                                        <div class="greeting-pagination-info">
+                                            <span class="greeting-page-number"><?php echo $currentPage; ?></span>
+                                            <span class="greeting-page-separator">/</span>
+                                            <span class="greeting-total-pages"><?php echo $totalPages; ?></span>
+                                        </div>
+
+                                        <button type="button" class="greeting-pagination-btn greeting-next-btn"
+                                                <?php echo $currentPage >= $totalPages ? 'disabled' : ''; ?>
+                                                data-page="<?php echo $currentPage + 1; ?>">
+                                            次へ <span>›</span>
+                                        </button>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -732,6 +770,84 @@ $communicationMethods = array_merge($messageApps, $snsApps);
             <a href="<?php echo BASE_URL; ?>/frontend/edit.php">不動産AI名刺の編集はこちら</a>
         </div>
     </div>
+    <script>
+        // Greeting pagination functionality
+        (function() {
+            const container = document.querySelector('.greeting-pagination-container');
+            if (!container) return;
+
+            const prevBtn = container.querySelector('.greeting-prev-btn');
+            const nextBtn = container.querySelector('.greeting-next-btn');
+            const currentPage = parseInt(container.dataset.currentPage) || 1;
+            const totalPages = parseInt(container.dataset.totalPages) || 1;
+
+            // Function to navigate to a specific page
+            function goToPage(page) {
+                if (page < 1 || page > totalPages) return;
+
+                const url = new URL(window.location.href);
+                url.searchParams.set('greeting_page', page);
+                window.location.href = url.toString();
+            }
+
+            // Previous button
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function() {
+                    if (!this.disabled && currentPage > 1) {
+                        goToPage(currentPage - 1);
+                    }
+                });
+            }
+
+            // Next button
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function() {
+                    if (!this.disabled && currentPage < totalPages) {
+                        goToPage(currentPage + 1);
+                    }
+                });
+            }
+
+            // Keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                if (e.key === 'ArrowLeft' && currentPage > 1) {
+                    goToPage(currentPage - 1);
+                } else if (e.key === 'ArrowRight' && currentPage < totalPages) {
+                    goToPage(currentPage + 1);
+                }
+            });
+
+            // Touch swipe support for mobile
+            let touchStartX = 0;
+            let touchEndX = 0;
+
+            container.addEventListener('touchstart', function(e) {
+                touchStartX = e.changedTouches[0].screenX;
+            }, { passive: true });
+
+            container.addEventListener('touchend', function(e) {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
+            }, { passive: true });
+
+            function handleSwipe() {
+                const swipeThreshold = 50; // Minimum swipe distance
+                const diff = touchStartX - touchEndX;
+
+                if (Math.abs(diff) > swipeThreshold) {
+                    if (diff > 0 && currentPage < totalPages) {
+                        // Swipe left - next page
+                        goToPage(currentPage + 1);
+                    } else if (diff < 0 && currentPage > 1) {
+                        // Swipe right - previous page
+                        goToPage(currentPage - 1);
+                    }
+                }
+            }
+        })();
+    </script>
 </body>
 
 </html>
