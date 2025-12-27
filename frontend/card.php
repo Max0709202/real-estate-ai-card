@@ -181,15 +181,23 @@ $communicationMethods = array_merge($messageApps, $snsApps);
         <!-- 名刺部 -->
         <section class="card-section">
             <div class="card-header">
-                <?php if ($card['company_logo']): ?>
-                    <?php 
-                    $logoPath = $card['company_logo'];
+                <?php if (!empty($card['company_logo'])): ?>
+                    <?php
+                    $logoPath = trim($card['company_logo']);
                     // Add BASE_URL if path doesn't start with http
-                    if (!preg_match('/^https?:\/\//', $logoPath)) {
-                        $logoPath = BASE_URL . '/' . ltrim($logoPath, '/');
+                    if (!empty($logoPath) && !preg_match('/^https?:\/\//', $logoPath)) {
+                        // Remove BASE_URL if already included to avoid duplication
+                        $baseUrlPattern = preg_quote(BASE_URL, '/');
+                        if (preg_match('/^' . $baseUrlPattern . '/i', $logoPath)) {
+                            // Already contains BASE_URL, use as is
+                        } else {
+                            $logoPath = BASE_URL . '/' . ltrim($logoPath, '/');
+                        }
                     }
                     ?>
-                    <img src="<?php echo htmlspecialchars($logoPath); ?>" alt="ロゴ" class="company-logo">
+                    <?php if (!empty($logoPath)): ?>
+                        <img src="<?php echo htmlspecialchars($logoPath); ?>" alt="ロゴ" class="company-logo" onerror="this.style.display='none';">
+                    <?php endif; ?>
                 <?php endif; ?>
                 <h1 class="company-name"><?php echo htmlspecialchars($card['company_name'] ?? ''); ?></h1>
             </div>
@@ -198,16 +206,24 @@ $communicationMethods = array_merge($messageApps, $snsApps);
             <div class="card-body">
                 <!-- プロフィール写真と挨拶文のセクション -->
                 <div class="profile-greeting-section">
-                    <?php if ($card['profile_photo']): ?>
+                    <?php if (!empty($card['profile_photo'])): ?>
                         <div class="profile-photo-container">
-                            <?php 
-                            $photoPath = $card['profile_photo'];
+                            <?php
+                            $photoPath = trim($card['profile_photo']);
                             // Add BASE_URL if path doesn't start with http
-                            if (!preg_match('/^https?:\/\//', $photoPath)) {
-                                $photoPath = BASE_URL . '/' . ltrim($photoPath, '/');
+                            if (!empty($photoPath) && !preg_match('/^https?:\/\//', $photoPath)) {
+                                // Remove BASE_URL if already included to avoid duplication
+                                $baseUrlPattern = preg_quote(BASE_URL, '/');
+                                if (preg_match('/^' . $baseUrlPattern . '/i', $photoPath)) {
+                                    // Already contains BASE_URL, use as is
+                                } else {
+                                    $photoPath = BASE_URL . '/' . ltrim($photoPath, '/');
+                                }
                             }
                             ?>
-                            <img src="<?php echo htmlspecialchars($photoPath); ?>" alt="プロフィール写真" class="profile-photo">
+                            <?php if (!empty($photoPath)): ?>
+                                <img src="<?php echo htmlspecialchars($photoPath); ?>" alt="プロフィール写真" class="profile-photo" onerror="this.style.display='none';">
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
 

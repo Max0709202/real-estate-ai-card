@@ -782,6 +782,10 @@ $defaultGreetings = [
     </div>
 
     <!-- Cropper.js -->
+    <script>
+        // Make BASE_URL available to JavaScript
+        window.BASE_URL = <?php echo json_encode(BASE_URL); ?>;
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
     <script src="assets/js/auto-save.js"></script>
     <script src="assets/js/edit.js"></script>
@@ -1268,6 +1272,25 @@ $defaultGreetings = [
                                     }
                                 }
                             }
+
+                            // Update preview after successful upload
+                            const uploadArea = document.querySelector(`[data-upload-id="${fileType === 'logo' ? 'company_logo' : 'profile_photo'}"]`);
+                            if (uploadArea) {
+                                const preview = uploadArea.querySelector('.upload-preview');
+                                if (preview) {
+                                    // Construct full URL for display
+                                    let displayPath = relativePath;
+                                    if (!displayPath.startsWith('http')) {
+                                        if (typeof window !== 'undefined' && window.BASE_URL) {
+                                            displayPath = window.BASE_URL + '/' + displayPath.replace(/^\/+/, '');
+                                        } else {
+                                            displayPath = '../' + displayPath;
+                                        }
+                                    }
+                                    preview.innerHTML = `<img src="${displayPath}" alt="${fileType === 'logo' ? 'ロゴ' : 'プロフィール写真'}" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                                }
+                            }
+
                             return relativePath;
                         } else {
                             throw new Error(uploadResult.message || '画像のアップロードに失敗しました');
