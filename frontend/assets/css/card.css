@@ -119,6 +119,11 @@ body {
 .greeting-item {
     background: #fff;
     padding: 0;
+    margin-bottom: 1.5rem;
+}
+
+.greeting-item:last-child {
+    margin-bottom: 0;
 }
 
 .greeting-title {

@@ -213,16 +213,16 @@ $communicationMethods = array_merge($messageApps, $snsApps);
 
                     <div class="greeting-content">
                         <?php if (!empty($greetings)): ?>
-                            <?php $firstGreeting = $greetings[0]; ?>
-                            <div class="greeting-item">
-                                <?php if (!empty($firstGreeting['title'])): ?>
-                                    <h3 class="greeting-title"><?php echo htmlspecialchars($firstGreeting['title']); ?></h3>
-                                <?php endif; ?>
-                                <?php if (!empty($firstGreeting['content'])): ?>
-                                    <p class="greeting-text"><?php echo nl2br(htmlspecialchars($firstGreeting['content'])); ?>
-                                    </p>
-                                <?php endif; ?>
-                            </div>
+                            <?php foreach ($greetings as $greeting): ?>
+                                <div class="greeting-item">
+                                    <?php if (!empty($greeting['title'])): ?>
+                                        <h3 class="greeting-title"><?php echo htmlspecialchars($greeting['title']); ?></h3>
+                                    <?php endif; ?>
+                                    <?php if (!empty($greeting['content'])): ?>
+                                        <p class="greeting-text"><?php echo nl2br(htmlspecialchars($greeting['content'])); ?></p>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
                         <?php endif; ?>
                     </div>
                 </div>
