@@ -116,6 +116,11 @@ body {
     margin-bottom: 2rem;
 }
 
+.greeting-pagination-container {
+    position: relative;
+    min-height: 200px;
+}
+
 .greeting-item {
     background: #fff;
     padding: 0;
@@ -124,6 +129,22 @@ body {
 
 .greeting-item:last-child {
     margin-bottom: 0;
+}
+
+.greeting-page-item {
+    margin-bottom: 2rem;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .greeting-title {
@@ -151,6 +172,85 @@ body {
     color: #555;
     line-height: 1.8;
     font-size: 0.95rem;
+}
+
+/* Greeting Pagination Controls */
+.greeting-pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.greeting-pagination-btn {
+    background: #0066cc;
+    color: #fff;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 100px;
+    justify-content: center;
+}
+
+.greeting-pagination-btn:hover:not(:disabled) {
+    background: #0052a3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 102, 204, 0.3);
+}
+
+.greeting-pagination-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
+}
+
+.greeting-pagination-btn:disabled {
+    background: #ccc;
+    color: #999;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.greeting-pagination-btn span {
+    font-size: 1.2rem;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.greeting-pagination-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    color: #333;
+    font-weight: 500;
+}
+
+.greeting-page-number {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #0066cc;
+    min-width: 1.5rem;
+    text-align: center;
+}
+
+.greeting-page-separator {
+    color: #999;
+    font-weight: 400;
+}
+
+.greeting-total-pages {
+    color: #666;
+    font-weight: 400;
 }
 
 /* Communication Section */

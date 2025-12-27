@@ -230,47 +230,81 @@ function populateEditForms(data) {
     
     // Logo preview
     if (data.company_logo) {
-        const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
+        // Try multiple selectors to find the upload area
+        let logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
+        if (!logoUploadArea) {
+            // Fallback: try to find by ID
+            const logoInput = document.getElementById('company_logo');
+            if (logoInput) {
+                logoUploadArea = logoInput.closest('.upload-area');
+            }
+        }
+        
         if (logoUploadArea) {
             const logoPreview = logoUploadArea.querySelector('.upload-preview');
             if (logoPreview) {
-                // Construct correct image path
+                // Construct correct image path using BASE_URL
                 let logoPath = data.company_logo;
                 if (!logoPath.startsWith('http')) {
-                    // If path starts with backend/, add ../ prefix
-                    if (logoPath.startsWith('backend/')) {
-                        logoPath = '../' + logoPath;
-                    } else if (!logoPath.startsWith('../')) {
-                        // Otherwise, assume it's relative to frontend directory
-                        logoPath = '../' + logoPath;
+                    // Use BASE_URL if available, otherwise construct relative path
+                    if (typeof window !== 'undefined' && window.BASE_URL) {
+                        logoPath = window.BASE_URL + '/' + logoPath.replace(/^\/+/, '');
+                    } else {
+                        // Fallback: If path starts with backend/, add ../ prefix
+                        if (logoPath.startsWith('backend/')) {
+                            logoPath = '../' + logoPath;
+                        } else if (!logoPath.startsWith('../')) {
+                            logoPath = '../' + logoPath;
+                        }
                     }
                 }
-                logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
                 logoUploadArea.dataset.existingImage = data.company_logo;
+            } else {
+                console.warn('Logo preview element not found');
             }
+        } else {
+            console.warn('Logo upload area not found');
         }
     }
         
     // Profile photo preview
     if (data.profile_photo) {
-        const photoUploadArea = document.querySelector('[data-upload-id="profile_photo"]');
+        // Try multiple selectors to find the upload area
+        let photoUploadArea = document.querySelector('[data-upload-id="profile_photo"]');
+        if (!photoUploadArea) {
+            // Fallback: try to find by ID
+            const photoInput = document.getElementById('profile_photo');
+            if (photoInput) {
+                photoUploadArea = photoInput.closest('.upload-area');
+            }
+        }
+        
         if (photoUploadArea) {
             const photoPreview = photoUploadArea.querySelector('.upload-preview');
             if (photoPreview) {
-                // Construct correct image path
+                // Construct correct image path using BASE_URL
                 let photoPath = data.profile_photo;
                 if (!photoPath.startsWith('http')) {
-                    // If path starts with backend/, add ../ prefix
-                    if (photoPath.startsWith('backend/')) {
-                        photoPath = '../' + photoPath;
-                    } else if (!photoPath.startsWith('../')) {
-                        // Otherwise, assume it's relative to frontend directory
-                        photoPath = '../' + photoPath;
+                    // Use BASE_URL if available, otherwise construct relative path
+                    if (typeof window !== 'undefined' && window.BASE_URL) {
+                        photoPath = window.BASE_URL + '/' + photoPath.replace(/^\/+/, '');
+                    } else {
+                        // Fallback: If path starts with backend/, add ../ prefix
+                        if (photoPath.startsWith('backend/')) {
+                            photoPath = '../' + photoPath;
+                        } else if (!photoPath.startsWith('../')) {
+                            photoPath = '../' + photoPath;
+                        }
                     }
                 }
-                photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
                 photoUploadArea.dataset.existingImage = data.profile_photo;
+            } else {
+                console.warn('Profile photo preview element not found');
             }
+        } else {
+            console.warn('Profile photo upload area not found');
         }
     }
         
@@ -464,10 +498,16 @@ function populateEditForms(data) {
                                     if (!imgData.image) return '';
                                     let imgPath = imgData.image;
                                     if (!imgPath.startsWith('http')) {
-                                        if (imgPath.startsWith('backend/')) {
-                                            imgPath = '../' + imgPath;
-                                        } else if (!imgPath.startsWith('../')) {
-                                            imgPath = '../' + imgPath;
+                                        // Use BASE_URL if available
+                                        if (typeof window !== 'undefined' && window.BASE_URL) {
+                                            imgPath = window.BASE_URL + '/' + imgPath.replace(/^\/+/, '');
+                                        } else {
+                                            // Fallback: If path starts with backend/, add ../ prefix
+                                            if (imgPath.startsWith('backend/')) {
+                                                imgPath = '../' + imgPath;
+                                            } else if (!imgPath.startsWith('../')) {
+                                                imgPath = '../' + imgPath;
+                                            }
                                         }
                                     }
                                     return `<img src="${imgPath}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
@@ -932,7 +972,10 @@ function setupCommunicationCheckboxes() {
 // Initialize communication drag and drop on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Load existing business card data
-    loadExistingBusinessCardData();
+    // Use setTimeout to ensure all DOM elements are ready
+    setTimeout(() => {
+        loadExistingBusinessCardData();
+    }, 100);
     
     // Initialize for both message apps and SNS
         setTimeout(() => {

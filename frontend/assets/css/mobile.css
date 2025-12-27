@@ -2416,6 +2416,34 @@
         line-height: 1.7;
     }
 
+    /* Greeting Pagination - Mobile */
+    .greeting-pagination-container {
+        min-height: 150px;
+    }
+
+    .greeting-pagination-controls {
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        padding-top: 1.25rem;
+    }
+
+    .greeting-pagination-btn {
+        padding: 0.875rem 1.25rem;
+        font-size: 0.9rem;
+        min-width: 90px;
+        min-height: 44px; /* Touch-friendly */
+    }
+
+    .greeting-pagination-info {
+        font-size: 0.95rem;
+        gap: 0.4rem;
+    }
+
+    .greeting-page-number {
+        font-size: 1.1rem;
+    }
+
     /* Communication section */
     .communication-section h3 {
         font-size: 1.2rem;
