@@ -134,7 +134,7 @@ if ($isTokenBased) {
                 <div class="swiper-pagination"></div>
             </div>
             <div class="hero-cta">
-                <a href="new_register.php" class="btn-primary btn-large">不動産 AI 名刺とは？！</a>
+                <a href="#price" class="btn-primary btn-large">不動産 AI 名刺とは？！</a>
                 <!-- <span class="hero-cta-text">※3分で完成</span> -->
             </div>
         </div>
@@ -313,13 +313,212 @@ if ($isTokenBased) {
                         </svg>
                     </div>
                     <h3 class="automation-card-title">顧客育成 <span class="automation-subtitle">(Lead Nurturing)</span></h3>
-                    <p class="automation-description">
+                    <p class="automation-description" id="price">
                         AIが顧客の希望条件に合う物件情報を毎日自動配信。常に顧客の第一想起を維持し、エンゲージメントを高めます。
                     </p>
                 </div>
             </div>
         </div>
     </section>
+    
+    <div class="container">
+        <h2 class="section-title" style="text-align:center;font-size:2.2rem;color:#0066cc;font-weight:700;margin:2.5rem 0 1.5rem 0;letter-spacing:0.05em; margin-bottom: 0;">『不動産 AI 名刺』の機能と料金について</h2>
+    </div>
+
+    <!-- Feature 01: LINE Integration -->
+    <section class="feature-section feature-01">
+        <div class="container">
+            <div class="feature-content">
+                <div class="feature-visual">
+                    <div class="feature-image-wrapper line-feature">
+                        <div id="communication-alternate" style="width:100%;" class="crossfade-container">
+                            <div class="communication-category" id="comm-category-1">
+                                <h4 class="category-title">メッセージアプリ</h4>
+                                <p class="category-note">一番簡単につながる方法を教えてください。ここが重要になります。</p>
+                                <ul class="communication-list">
+                                    <li><img src="assets/images/icons/line.png" alt="LINE"></li>
+                                    <li><img src="assets/images/icons/messenger.png" alt="Messenger"></li>
+                                    <li><img src="assets/images/icons/whatsapp.png" alt="WhatsApp"></li>
+                                    <li><img src="assets/images/icons/message.png" alt="+メッセージ"></li>
+                                    <li><img src="assets/images/icons/chatwork.png" alt="Chatwork"></li>
+                                    <li><img src="assets/images/icons/andpad.png" alt="Andpad"></li>
+                                </ul>
+                                <p class="category-future">※近い将来、「不動産MYページ」という独自コミュニケーションツールをリリースし、追加する予定です。</p>
+                            </div>
+                            <div class="communication-category" id="comm-category-2">
+                                <h4 class="category-title">SNS</h4>
+                                <p class="category-note">リンク先を入力できるようにする</p>
+                                <ul class="communication-list">
+                                    <li><img src="assets/images/icons/instagram.png" alt="Instagram"></li>
+                                    <li><img src="assets/images/icons/facebook.png" alt="Facebook"></li>
+                                    <li><img src="assets/images/icons/twitter.png" alt="X (Twitter)"></li>
+                                    <li><img src="assets/images/icons/youtube.png" alt="YouTube"></li>
+                                    <li><img src="assets/images/icons/tiktok.png" alt="TikTok"></li>
+                                    <li><img src="assets/images/icons/note.png" alt="note"></li>
+                                    <li><img src="assets/images/icons/pinterest.png" alt="Pinterest"></li>
+                                    <li><img src="assets/images/icons/threads.png" alt="Threads"></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="feature-text">
+                    <div class="feature-badge">機能01</div>
+                    <h2 class="feature-title">ワンタップで<br>SNS連携完了</h2>
+                    <p class="feature-description">
+                        QRコードを読み込むだけで、その場で顧客とつながれます。名刺交換後の失注を防ぎ、確実なコミュニケーション手段を確立します。
+                    </p>
+                    <ul class="feature-list">
+                        <li><span class="check-icon">✓</span> LINE、Messenger、WhatsAppなど主要メッセージアプリに対応</li>
+                        <li><span class="check-icon">✓</span> 顧客の連絡先を自動保存可能</li>
+                        <li><span class="check-icon">✓</span> SNSアカウントも同時に共有できる</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Feature 02: 7 Real Estate Tech Tools -->
+    <section class="feature-section feature-02">
+        <div class="container">
+            <div class="feature-content reverse">
+                <div class="feature-text">
+                    <div class="feature-badge">機能02</div>
+                    <h2 class="feature-title">６つの不動産テックツールで
+                    情報武装</h2>
+                    <p class="feature-description">
+                        顧客に無料で提供できる不動産テックツールで、他社との圧倒的な差別化を実現。情報武装した顧客は、あなたを信頼し、選びます。
+                    </p>
+                    <ul class="feature-list yellow-bullets">
+                        <li>全国マンションデータベース</li>
+                        <li>物件提案ロボ(AI評価付き)</li>
+                        <li>土地情報ロボ</li>
+                        <li>AIマンション査定</li>
+                        <li>セルフィン(物件自動判定)</li>
+                        <li>オーナーコネクト</li>
+                    </ul>
+                </div>
+                <div class="feature-visual">
+                    <img src="assets/images/6-tech-tools.png" alt="６つの不動産テックツール" class="feature-image">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Feature 03: 3 Minutes to Complete -->
+    <section class="feature-section feature-03">
+        <div class="container">
+            <div class="feature-content">
+                <div class="feature-visual">
+                    <img src="assets/images/sec-3.jpg" alt="Phone" class="feature-image">
+                    <!-- <div class="feature-image-wrapper phone">
+                        <div class="phone-placeholder">
+                            <div class="phone-screen">
+                                <div class="phone-header">Create Card</div>
+                                <div class="phone-card-preview"></div>
+                                <div class="phone-form">
+                                    <div class="form-field"></div>
+                                    <div class="form-field"></div>
+                                    <div class="form-field"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div> -->
+                </div>
+                <div class="feature-text">
+                    <div class="feature-badge">機能03</div>
+                    <h2 class="feature-title"><span class="text-blue">3分で完成</span>、即日利用開始</h2>
+                    <p class="feature-description">
+                        必要な情報を入力するだけで、プロフェッショナルなAI名刺が完成。リアルタイムでプレビューを確認しながら、いつでも編集可能です。
+                    </p>
+                    <div class="steps-box">
+                        <div class="step-item">
+                            <div class="step-icon">1</div>
+                            <div class="step-text">アカウント登録(SMS認証)</div>
+                        </div>
+                        <div class="step-item">
+                            <div class="step-icon">2</div>
+                            <div class="step-text">会社・個人情報を入力</div>
+                        </div>
+                        <div class="step-item">
+                            <div class="step-icon">3</div>
+                            <div class="step-text">即日利用開始</div>
+                        </div>
+                    </div>
+                    <p class="feature-note">
+                        ※6つの不動産テックツールとの連携は、お申し込みから1週間以内に接続されます。<br>
+                        接続先は、あなた独自のページとなります。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials Two Column Section -->
+    <section class="testimonials-two-column-section">
+        <div class="container">
+            <div class="testimonials-two-column-grid">
+                <!-- Left Column -->
+                <div class="testimonials-column">
+                    <h2 class="testimonials-column-title">この一枚が、会話のきっかけになる。</h2>
+                    <div class="testimonials-column-content">
+                        <div class="testimonial-block">
+                            <div class="testimonial-portrait">
+                                <img src="assets/images/testimonials/brand-builder.png" alt="The Brand Builder">
+                            </div>
+                            <div class="testimonial-content">
+                                <h3 class="testimonial-english-title">The Brand Builder</h3>
+                                <p class="testimonial-japanese-text">
+                                    相手に興味を持ってもらえたり、覚えてもらう、この体験はセルフブランディングの一環として、他の人と違う演出に役立っていますね。
+                                </p>
+                            </div>
+                        </div>
+                        <div class="testimonial-block">
+                            <div class="testimonial-portrait">
+                                <img src="assets/images/testimonials/creator.jpg" alt="The Creator">
+                            </div>
+                            <div class="testimonial-content">
+                                <h3 class="testimonial-english-title">The Creator</h3>
+                                <p class="testimonial-japanese-text">
+                                    自分の活動内容やスキル、SNSアカウントなどを自由に掲載できますし、デザインもカスタマイズできます。まさに、私が求めていた理想の名刺でしたね。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right Column -->
+                <div class="testimonials-column">
+                    <h2 class="testimonials-column-title">営業活動を、劇的に変える。</h2>
+                    <div class="testimonials-column-content">
+                        <div class="testimonial-block">
+                            <div class="testimonial-portrait">
+                                <img src="assets/images/testimonials/efficiency-expert.jpg" alt="The Efficiency Expert">
+                            </div>
+                            <div class="testimonial-content">
+                                <h3 class="testimonial-english-title">The Efficiency Expert</h3>
+                                <p class="testimonial-japanese-text">
+                                    名刺交換後の失注が激減。顧客との信頼関係構築が圧倒的に早くなりました。
+                                </p>
+                            </div>
+                        </div>
+                        <div class="testimonial-block">
+                            <div class="testimonial-portrait">
+                                <img src="assets/images/testimonials/trusted-advisor.jpg" alt="The Trusted Advisor">
+                            </div>
+                            <div class="testimonial-content">
+                                <h3 class="testimonial-english-title">The Trusted Advisor</h3>
+                                <p class="testimonial-japanese-text">
+                                    AI査定ツールのおかげで、顧客との会話がスムーズになり、信頼を得やすくなりました。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     
     <!-- Hero Section -->
     <section class="hero">
@@ -668,6 +867,62 @@ if ($isTokenBased) {
     <script src="assets/js/mobile-menu.js"></script>
     <script src="assets/js/modal.js"></script>
     <script src="assets/js/lp.js"></script>
+    <script>
+        (function() {
+            var cat1 = document.getElementById('comm-category-1');
+            var cat2 = document.getElementById('comm-category-2');
+            var container = document.getElementById('communication-alternate');
+            if (!cat1 || !cat2 || !container) return;
+            
+            // Set container height to accommodate both elements
+            function setContainerHeight() {
+                // Temporarily show both to measure max height
+                cat1.style.position = 'relative';
+                cat1.style.opacity = '1';
+                cat1.style.visibility = 'visible';
+                cat2.style.position = 'relative';
+                cat2.style.opacity = '1';
+                cat2.style.visibility = 'visible';
+                
+                var height1 = cat1.offsetHeight;
+                var height2 = cat2.offsetHeight;
+                var maxHeight = Math.max(height1, height2);
+                
+                // Reset styles
+                cat1.style.position = '';
+                cat1.style.opacity = '';
+                cat1.style.visibility = '';
+                cat2.style.position = '';
+                cat2.style.opacity = '';
+                cat2.style.visibility = '';
+                
+                container.style.minHeight = maxHeight + 'px';
+            }
+            
+            // Initialize: show first category
+            cat1.classList.add('active');
+            cat2.classList.remove('active');
+            
+            // Set initial height after a brief delay to ensure elements are rendered
+            setTimeout(setContainerHeight, 100);
+            
+            var showingFirst = true;
+            setInterval(function() {
+                if (showingFirst) {
+                    cat1.classList.remove('active');
+                    setTimeout(function() {
+                        cat2.classList.add('active');
+                    }, 50);
+                } else {
+                    cat2.classList.remove('active');
+                    setTimeout(function() {
+                        cat1.classList.add('active');
+                    }, 50);
+                }
+                showingFirst = !showingFirst;
+            }, 4000);
+        })();
+    </script>
     <?php if ($isTokenBased && !$tokenValid): ?>
     <script>
         // Show error if token is invalid

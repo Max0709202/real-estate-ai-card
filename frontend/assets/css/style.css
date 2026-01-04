@@ -1155,11 +1155,30 @@ body {
     margin-top: 2rem;
 }
 
+/* Crossfade container for smooth transitions */
+.crossfade-container {
+    position: relative;
+    width: 100%;
+    min-height: 400px;
+}
+
 .communication-category {
     background: #f9f9f9;
     padding: 2rem;
     border-radius: 8px;
     border: 1px solid #e0e0e0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.8s ease-in-out, visibility 0.8s ease-in-out;
+}
+
+.communication-category.active {
+    opacity: 1;
+    visibility: visible;
 }
 
 .comm-icon-img {
