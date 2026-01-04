@@ -260,11 +260,11 @@
     }
     
     .mobile-payment-btn.available {
-        background: #28a745;
+        background: #0066cc;
     }
     
     .mobile-payment-btn.available:hover {
-        background: #218838;
+        background: #0052a3;
     }
 
     /* Show mobile-only dropdown items on mobile/tablet */

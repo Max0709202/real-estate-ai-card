@@ -128,7 +128,9 @@ body {
     color: #0066cc;
 }
 
-.user-menu:hover .user-dropdown,
+/* Show dropdown only when hovering over user-icon or the dropdown itself (PC) */
+.user-icon:hover ~ .user-dropdown,
+.user-dropdown:hover,
 .user-menu.active .user-dropdown {
     opacity: 1;
     visibility: visible;
