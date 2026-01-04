@@ -108,6 +108,8 @@ if ($isLoggedIn) {
 <link rel="stylesheet" href="assets/css/mobile.css">
 <!-- Modal Notification CSS -->
 <link rel="stylesheet" href="assets/css/modal.css">
+<!-- Modal Notification Script (load early so functions are available) -->
+<script src="assets/js/modal.js"></script>
 
 <!-- Header -->
 <header class="header">
@@ -119,12 +121,6 @@ if ($isLoggedIn) {
                 </a>
             </div>
             <nav class="nav">
-                <?php if ($showNavLinks): ?>
-                <a href="index.php#features">機能</a>
-                <a href="index.php#pricing">動画</a>
-                <a href="index.php#howto">使い方</a>
-                <a href="index.php#tools">ツール</a>
-                <?php endif; ?>
 
                 <?php if ($isLoggedIn): ?>
                 <!-- User Menu (Person Icon with Dropdown) -->
@@ -226,7 +222,7 @@ if ($isLoggedIn) {
                             <?php endif; ?>
                         </div>
                         <?php endif; ?>
-                        <button type="button" id="header-cancel-subscription-btn" class="dropdown-item dropdown-button" style="color: #dc3545; cursor: pointer; width: 100%; text-align: left; background: none; border: none; padding: 0.75rem 1.25rem;">
+                        <button type="button" class="dropdown-item dropdown-button cancel-subscription-btn" style="color: #dc3545; cursor: pointer; width: 100%; text-align: left; background: none; border: none; padding: 0.75rem 1.25rem;">
                             <span>サブスクリプションをキャンセル</span>
                         </button>
                         <?php endif; ?>
@@ -259,146 +255,162 @@ if ($isLoggedIn) {
 </header>
 
 <script>
-// User menu functionality
 (function() {
+  function initHeaderScripts() {
     const userIcon = document.getElementById('user-icon');
     const userMenu = document.querySelector('.user-menu');
     const logoutLink = document.getElementById('logout-link');
 
-    // Toggle dropdown on click (for mobile/touch devices)
+    // Toggle dropdown on click
     if (userIcon && userMenu) {
-        userIcon.addEventListener('click', function(e) {
-            e.stopPropagation();
-            userMenu.classList.toggle('active');
-        });
+      userIcon.addEventListener('click', function(e) {
+        e.stopPropagation();
+        userMenu.classList.toggle('active');
+      });
 
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!userMenu.contains(e.target)) {
-                userMenu.classList.remove('active');
-            }
-        });
+      document.addEventListener('click', function(e) {
+        if (!userMenu.contains(e.target)) {
+          userMenu.classList.remove('active');
+        }
+      });
     }
 
-    // Subscription cancellation handler for header dropdown
-    const headerCancelBtn = document.getElementById('header-cancel-subscription-btn');
-    if (headerCancelBtn) {
-        headerCancelBtn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+    // Get all cancel subscription buttons by class (handles multiple buttons with same class)
+    const cancelSubscriptionBtns = document.querySelectorAll('.cancel-subscription-btn');
 
-            // Build detailed confirmation message
-            const headerEndDateText = <?php echo json_encode($headerEndDate ?? '未設定'); ?>;
-            const headerEndDateDisplay = headerEndDateText !== '未設定' ? headerEndDateText : '（未設定）';
+    async function processHeaderCancellation(cancelBtn, cancelImmediately) {
+      if (!cancelBtn) return;
 
-            const headerConfirmMessage =
-                '・停止されても、マイページで作って頂いたAI名刺はアカウントに残っています。\n\n' +
-                '・マイページからお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
-                '・不動産DXツールをご利用いただいているお客様からの反響は配信されなくなります。\n\n' +
-                '・期間終了時（' + headerEndDateDisplay + '）に不動産AI名刺がご利用いただけなくなります。\n\n' +
-                '・即座に停止する場合は「OK」ボタンを押した後、確認画面で選択してください。\n\n\n' +
-                '利用を停止しますか？（次回のご請求はございません。）';
+      cancelBtn.disabled = true;
 
-            // Show modal confirmation
-            showConfirm(headerConfirmMessage, async () => {
-                // Second confirmation for immediate cancellation
-                showConfirm('即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル', async () => {
-                    // User chose immediate cancellation
-                    await processHeaderCancellation(true);
-                }, async () => {
-                    // User chose cancel at period end
-                    await processHeaderCancellation(false);
-                }, '即座にキャンセル');
-            }, null, '利用を停止しますか？');
+      const span = cancelBtn.querySelector('span');
+      const originalText = span?.textContent || cancelBtn.textContent || 'サブスクリプションをキャンセル';
 
-            // Process cancellation
-            async function processHeaderCancellation(cancelImmediately) {
-                headerCancelBtn.disabled = true;
-                const originalText = headerCancelBtn.querySelector('span')?.textContent || 'サブスクリプションをキャンセル';
-                if (headerCancelBtn.querySelector('span')) {
-                    headerCancelBtn.querySelector('span').textContent = '処理中...';
-                } else {
-                    headerCancelBtn.textContent = '処理中...';
-                }
+      if (span) span.textContent = '処理中...';
+      else cancelBtn.textContent = '処理中...';
 
-                try {
-                    const response = await fetch('../backend/api/mypage/cancel.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        credentials: 'include',
-                        body: JSON.stringify({
-                            cancel_immediately: cancelImmediately
-                        })
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        if (typeof showSuccess === 'function') {
-                            showSuccess(result.message || 'サブスクリプションをキャンセルしました', { autoClose: 5000 });
-                        } else {
-                            alert(result.message || 'サブスクリプションをキャンセルしました');
-                        }
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 2000);
-                    } else {
-                        if (typeof showError === 'function') {
-                            showError(result.message || 'サブスクリプションのキャンセルに失敗しました');
-                        } else {
-                            alert(result.message || 'サブスクリプションのキャンセルに失敗しました');
-                        }
-                        headerCancelBtn.disabled = false;
-                        if (headerCancelBtn.querySelector('span')) {
-                            headerCancelBtn.querySelector('span').textContent = originalText;
-                        } else {
-                            headerCancelBtn.textContent = originalText;
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error canceling subscription:', error);
-                    if (typeof showError === 'function') {
-                        showError('エラーが発生しました');
-                    } else {
-                        alert('エラーが発生しました');
-                    }
-                    headerCancelBtn.disabled = false;
-                    if (headerCancelBtn.querySelector('span')) {
-                        headerCancelBtn.querySelector('span').textContent = originalText;
-                    } else {
-                        headerCancelBtn.textContent = originalText;
-                    }
-                }
-            }
+      try {
+        const response = await fetch('../backend/api/mypage/cancel.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ cancel_immediately: cancelImmediately })
         });
+
+        const result = await response.json();
+
+        if (result.success) {
+          if (typeof window.showSuccess === 'function') {
+            window.showSuccess(result.message || 'サブスクリプションをキャンセルしました', { autoClose: 5000 });
+          } else {
+            alert(result.message || 'サブスクリプションをキャンセルしました');
+          }
+          setTimeout(() => window.location.reload(), 2000);
+        } else {
+          if (typeof window.showError === 'function') {
+            window.showError(result.message || 'サブスクリプションのキャンセルに失敗しました');
+          } else {
+            alert(result.message || 'サブスクリプションのキャンセルに失敗しました');
+          }
+
+          cancelBtn.disabled = false;
+          if (span) span.textContent = originalText;
+          else cancelBtn.textContent = originalText;
+        }
+      } catch (error) {
+        console.error('Error canceling subscription:', error);
+
+        if (typeof window.showError === 'function') window.showError('エラーが発生しました');
+        else alert('エラーが発生しました');
+
+        cancelBtn.disabled = false;
+        if (span) span.textContent = originalText;
+        else cancelBtn.textContent = originalText;
+      }
     }
 
-    // Logout functionality
+    // Add event listeners to all cancel subscription buttons
+    if (cancelSubscriptionBtns.length > 0) {
+      cancelSubscriptionBtns.forEach(function(cancelBtn) {
+        cancelBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('clicked');
+
+
+         // ✅ Always use window.showConfirm (global) safely
+         const showConfirmFn = (typeof window.showConfirm === 'function')
+           ? window.showConfirm
+           : (typeof showConfirm === 'function' ? showConfirm : null);
+
+        const headerEndDateText = <?php echo json_encode($headerEndDate ?? '未設定'); ?>;
+        const headerEndDateDisplay = headerEndDateText !== '未設定' ? headerEndDateText : '（未設定）';
+
+        const headerConfirmMessage =
+          '・停止されても、マイページで作って頂いたAI名刺はアカウントに残っています。\n\n' +
+          '・マイページからお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
+          '・不動産DXツールをご利用いただいているお客様からの反響は配信されなくなります。\n\n' +
+          '・期間終了時（' + headerEndDateDisplay + '）に不動産AI名刺がご利用いただけなくなります。\n\n' +
+          '・即座に停止する場合は「OK」ボタンを押した後、確認画面で選択してください。\n\n\n' +
+          '利用を停止しますか？（次回のご請求はございません。）';
+
+        // ✅ If showConfirm is missing, fallback to native confirm so it still works
+        if (!showConfirmFn) {
+          console.error('showConfirm is not available (not global / different name / overwritten). Using fallback confirm().');
+
+          const ok1 = confirm(headerConfirmMessage);
+          if (!ok1) return;
+
+          const ok2 = confirm('即座にキャンセルしますか？\n\nOK: 即座にキャンセル\nキャンセル: 期間終了時にキャンセル');
+          processHeaderCancellation(cancelBtn, ok2);
+          return;
+        }
+
+        // ✅ Normal modal flow
+        showConfirmFn(headerConfirmMessage, async () => {
+          showConfirmFn(
+            '即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル',
+            async () => { await processHeaderCancellation(cancelBtn, true); },
+            async () => { await processHeaderCancellation(cancelBtn, false); },
+            '即座にキャンセル'
+          );
+        }, null, '利用を停止しますか？');
+        });
+      });
+    } else {
+      console.warn('cancelSubscriptionBtns not found in DOM (.cancel-subscription-btn)');
+    }
+
+    // Logout
     if (logoutLink) {
-        logoutLink.addEventListener('click', async (e) => {
-            e.preventDefault();
-            try {
-                const response = await fetch('../backend/api/auth/logout.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include'
-                });
-                const result = await response.json();
-                window.location.href = 'index.php';
-            } catch (error) {
-                console.error('Error:', error);
-                window.location.href = 'index.php';
-            }
-        });
+      logoutLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+          await fetch('../backend/api/auth/logout.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include'
+          });
+          window.location.href = 'index.php';
+        } catch (error) {
+          console.error('Error:', error);
+          window.location.href = 'index.php';
+        }
+      });
     }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initHeaderScripts);
+  } else {
+    initHeaderScripts();
+  }
 })();
 </script>
 
+
+
 <!-- Mobile Menu Script -->
 <script src="assets/js/mobile-menu.js"></script>
-<!-- Modal Notification Script -->
-<script src="assets/js/modal.js"></script>
 
 

@@ -886,9 +886,9 @@ $defaultGreetings = [
     <!-- Cropper.js -->
     <script>
         // Make BASE_URL available to JavaScript
-        window.BASE_URL = <?php echo json_encode(BASE_URL); ?>;
+        window.BASE_URL = <?php echo json_encode(BASE_URL ?? ''); ?>;
         // Make user type and account status available
-        window.userType = <?php echo json_encode($userType ?? 'new'); ?>;
+        window.userType = <?php echo json_encode($userType ?? 'new', JSON_UNESCAPED_UNICODE); ?>;
         window.isCanceledAccount = <?php echo json_encode($isCanceledAccount ?? false); ?>;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
@@ -1224,93 +1224,96 @@ $defaultGreetings = [
         }
 
         // Subscription cancellation handler for edit.php sidebar
-        document.addEventListener('DOMContentLoaded', function() {
-            const cancelBtn = document.getElementById('cancel-subscription-btn');
-            if (cancelBtn) {
-                cancelBtn.addEventListener('click', async function() {
-                    // Build detailed confirmation message
-                    const endDateText = <?php echo json_encode($endDate ?? '未設定'); ?>;
-                    const endDateDisplay = endDateText !== '未設定' ? endDateText : '（未設定）';
+        document.addEventListener('DOMContentLoaded', function () {
+  const cancelBtn = document.getElementById('cancel-subscription-btn');
+  if (!cancelBtn) return;
 
-                    const confirmMessage =
-                        '・停止されても、マイページで作って頂いたAI名刺はアカウントに残っています。\n\n' +
-                        '・マイページからお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
-                        '・不動産DXツールをご利用いただいているお客様からの反響は配信されなくなります。\n\n' +
-                        '・期間終了時（' + endDateDisplay + '）に不動産AI名刺がご利用いただけなくなります。\n\n' +
-                        '・即座に停止する場合は「OK」ボタンを押した後、確認画面で選択してください。\n\n\n' +
-                        '利用を停止しますか？（次回のご請求はございません。）';
+  // ✅ define function OUTSIDE click handler (safer)
+  async function processCancellation(cancelImmediately) {
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = '処理中...';
 
-                    // Show modal confirmation
-                    showConfirm(confirmMessage, async () => {
-                        // Second confirmation for immediate cancellation
-                        showConfirm('即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル', async () => {
-                            // User chose immediate cancellation
-                            await processCancellation(true);
-                        }, async () => {
-                            // User chose cancel at period end
-                            await processCancellation(false);
-                        }, '即座にキャンセル');
-                    }, null, '利用を停止しますか？');
+    try {
+      const response = await fetch('../backend/api/mypage/cancel.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ cancel_immediately: cancelImmediately })
+      });
 
-                    // Process cancellation
-                    async function processCancellation(cancelImmediately) {
-                        cancelBtn.disabled = true;
-                        cancelBtn.textContent = '処理中...';
+      const result = await response.json();
 
-                    try {
-                        const response = await fetch('../backend/api/mypage/cancel.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            credentials: 'include',
-                            body: JSON.stringify({
-                                cancel_immediately: cancelImmediately
-                            })
-                        });
+      if (result.success) {
+        if (typeof window.showSuccess === 'function') {
+          window.showSuccess(result.message || '利用を停止しました', { autoClose: 5000 });
+        } else {
+          alert(result.message || '利用を停止しました');
+        }
 
-                        const result = await response.json();
+        const statusEl = document.getElementById('subscription-status');
+        if (statusEl) {
+          statusEl.textContent = 'キャンセル済み';
+          statusEl.style.color = '#dc3545';
+        }
 
-                        if (result.success) {
-                            if (typeof showSuccess === 'function') {
-                                showSuccess(result.message || '利用を停止しました', { autoClose: 5000 });
-                            } else {
-                                alert(result.message || '利用を停止しました');
-                            }
+        cancelBtn.style.display = 'none';
+        setTimeout(() => window.location.reload(), 3000);
+      } else {
+        if (typeof window.showError === 'function') {
+          window.showError(result.message || '利用停止に失敗しました');
+        } else {
+          alert(result.message || '利用停止に失敗しました');
+        }
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = '利用を停止する';
+      }
+    } catch (error) {
+      console.error('Error canceling subscription:', error);
 
-                            const statusEl = document.getElementById('subscription-status');
-                            if (statusEl) {
-                                statusEl.textContent = 'キャンセル済み';
-                                statusEl.style.color = '#dc3545';
-                            }
+      if (typeof window.showError === 'function') {
+        window.showError('エラーが発生しました');
+      } else {
+        alert('エラーが発生しました');
+      }
 
-                            cancelBtn.style.display = 'none';
+      cancelBtn.disabled = false;
+      cancelBtn.textContent = 'サブスクリプションをキャンセル';
+    }
+  }
 
-                            setTimeout(() => {
-                                window.location.reload();
-                            }, 3000);
-                        } else {
-                            if (typeof showError === 'function') {
-                                showError(result.message || '利用停止に失敗しました');
-                            } else {
-                                alert(result.message || '利用停止に失敗しました');
-                            }
-                            cancelBtn.disabled = false;
-                            cancelBtn.textContent = '利用を停止する';
-                        }
-                    } catch (error) {
-                        console.error('Error canceling subscription:', error);
-                        if (typeof showError === 'function') {
-                            showError('エラーが発生しました');
-                        } else {
-                            alert('エラーが発生しました');
-                        }
-                        cancelBtn.disabled = false;
-                        cancelBtn.textContent = 'サブスクリプションをキャンセル';
-                    }
-                });
-            }
-        });
+  cancelBtn.addEventListener('click', async function () {
+    // Build detailed confirmation message
+    const endDateText = <?php echo json_encode($endDate ?? '未設定', JSON_UNESCAPED_UNICODE); ?>;
+    const endDateDisplay = endDateText !== '未設定' ? endDateText : '（未設定）';
+
+    const confirmMessage =
+      '・停止されても、マイページで作って頂いたAI名刺はアカウントに残っています。\n\n' +
+      '・マイページからお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
+      '・不動産DXツールをご利用いただいているお客様からの反響は配信されなくなります。\n\n' +
+      '・期間終了時（' + endDateDisplay + '）に不動産AI名刺がご利用いただけなくなります。\n\n' +
+      '・即座に停止する場合は「OK」ボタンを押した後、確認画面で選択してください。\n\n\n' +
+      '利用を停止しますか？（次回のご請求はございません。）';
+
+    // ✅ Use modal if available, fallback if not
+    if (typeof window.showConfirm === 'function') {
+      window.showConfirm(confirmMessage, async () => {
+        window.showConfirm(
+          '即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル',
+          async () => { await processCancellation(true); },
+          async () => { await processCancellation(false); },
+          '即座にキャンセル'
+        );
+      }, null, '利用を停止しますか？');
+    } else {
+      if (confirm(confirmMessage)) {
+        const cancelImmediately = confirm(
+          '即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル'
+        );
+        await processCancellation(cancelImmediately);
+      }
+    }
+  });
+});
     </script>
     <script>
         // Step 1: Header & Greeting form submission

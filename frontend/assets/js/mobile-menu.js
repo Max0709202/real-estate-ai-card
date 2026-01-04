@@ -76,8 +76,9 @@
                 const userMenuSection = document.createElement('div');
                 userMenuSection.className = 'mobile-user-menu-section';
                 
-                // Clone existing dropdown items (マイ名刺、マイページ、ログアウト)
+                // Clone existing dropdown items (all items including email/password reset)
                 const dropdownItems = userDropdown.querySelectorAll('.dropdown-item');
+
                 dropdownItems.forEach(item => {
                     const clonedItem = item.cloneNode(true);
                     // Update "お支払い一覧" to "お支払い画面"
@@ -88,43 +89,14 @@
                     userMenuSection.appendChild(clonedItem);
                 });
                 
-                // Add email reset link (before logout)
-                const emailResetLink = document.createElement('a');
-                emailResetLink.href = 'auth/reset-email.php';
-                emailResetLink.className = 'dropdown-item';
-                emailResetLink.innerHTML = '<span>メールアドレスリセット</span>';
-                emailResetLink.addEventListener('click', () => {
-                    closeMobileMenu();
-                });
-                
-                // Add password reset link (before logout)
-                const passwordResetLink = document.createElement('a');
-                passwordResetLink.href = 'auth/forgot-password.php';
-                passwordResetLink.className = 'dropdown-item';
-                passwordResetLink.innerHTML = '<span>パスワードリセット</span>';
-                passwordResetLink.addEventListener('click', () => {
-                    closeMobileMenu();
-                });
-                
-                // Insert email reset and password reset before logout
-                const logoutLink = userMenuSection.querySelector('#logout-link');
-                if (logoutLink) {
-                    userMenuSection.insertBefore(emailResetLink, logoutLink);
-                    userMenuSection.insertBefore(passwordResetLink, logoutLink);
-                    
-                    // Add subscription cancel button (before logout, if user has active subscription)
-                    if (window.hasActiveSubscription) {
-                        const cancelBtn = createSubscriptionCancelButton();
-                        userMenuSection.insertBefore(cancelBtn, logoutLink);
-                    }
-                } else {
-                    // If logout link not found, append to end
-                    userMenuSection.appendChild(emailResetLink);
-                    userMenuSection.appendChild(passwordResetLink);
-                    if (window.hasActiveSubscription) {
-                        const cancelBtn = createSubscriptionCancelButton();
-                        userMenuSection.appendChild(cancelBtn);
-                    }
+                // Add subscription cancel button (before logout, if user has active subscription)
+                const clonedLogoutLink = userMenuSection.querySelector('#logout-link');
+                if (clonedLogoutLink && window.hasActiveSubscription) {
+                    const cancelBtn = createSubscriptionCancelButton();
+                    userMenuSection.insertBefore(cancelBtn, clonedLogoutLink);
+                } else if (window.hasActiveSubscription) {
+                    const cancelBtn = createSubscriptionCancelButton();
+                    userMenuSection.appendChild(cancelBtn);
                 }
                 
                 menuNav.appendChild(userMenuSection);
@@ -135,7 +107,7 @@
         function createSubscriptionCancelButton() {
             const cancelBtn = document.createElement('a');
             cancelBtn.type = 'button';
-            cancelBtn.className = 'dropdown-item';
+            cancelBtn.className = 'dropdown-item cancel-subscription-btn';
             cancelBtn.innerHTML = '<span>利用を停止する</span>';
             
             cancelBtn.addEventListener('click', async (e) => {
