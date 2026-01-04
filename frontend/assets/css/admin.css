@@ -120,6 +120,7 @@ body {
     cursor: pointer;
     transition: background 0.3s;
     width: 100%;
+    max-width: 200px;
 }
 
 .btn-primary:hover {
