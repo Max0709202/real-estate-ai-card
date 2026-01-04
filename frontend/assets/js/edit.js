@@ -496,6 +496,14 @@ function populateEditForms(data) {
                     }
 
                     pairItem.innerHTML = `
+                        <div class="free-input-pair-header">
+                            <span class="free-input-pair-number">${i + 1}</span>
+                            <div class="free-input-pair-actions">
+                                <button type="button" class="btn-move-up" onclick="moveFreeInputPair(${i}, 'up')" ${i === 0 ? 'disabled' : ''}>↑</button>
+                                <button type="button" class="btn-move-down" onclick="moveFreeInputPair(${i}, 'down')" ${i === pairCount - 1 ? 'disabled' : ''}>↓</button>
+                            </div>
+                            <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
+                        </div>
                         <!-- Text Input -->
                         <div class="form-group">
                             <label>テキスト</label>
@@ -534,7 +542,6 @@ function populateEditForms(data) {
                                 <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com" value="${escapeHtml(imgData.link || '')}">
                             </div>
                         </div>
-                        <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
                         `;
 
                     container.appendChild(pairItem);
@@ -557,6 +564,8 @@ function populateEditForms(data) {
                 // Initialize drag and drop for reordering after all items are loaded
                 setTimeout(() => {
                     initializeFreeInputPairDragAndDrop();
+                    updateFreeInputPairButtons();
+                    updateFreeInputPairNumbers();
                 }, 100);
                 }
             } catch (e) {
@@ -1532,6 +1541,9 @@ function removeFreeInputPair(button) {
     
     // Reinitialize drag and drop after removal
     initializeFreeInputPairDragAndDrop();
+    updateFreeInputPairButtons();
+    updateFreeInputPairNumbers();
+    updateFreeInputPairBorders();
 }
 
 // Initialize free input pair drag and drop for reordering
@@ -1633,6 +1645,65 @@ function initializeFreeInputPairDragAndDrop() {
 
     makeItemsDraggable();
     updateFreeInputPairBorders();
+}
+
+// Move free input pair up/down using arrows
+function moveFreeInputPair(index, direction) {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateFreeInputPairButtons();
+        updateFreeInputPairNumbers();
+        updateFreeInputPairBorders();
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateFreeInputPairButtons();
+        updateFreeInputPairNumbers();
+        updateFreeInputPairBorders();
+    }
+}
+
+// Update free input pair arrow buttons state
+function updateFreeInputPairButtons() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveFreeInputPair(${index}, 'up')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveFreeInputPair(${index}, 'down')`);
+        }
+    });
+}
+
+// Update free input pair numbers
+function updateFreeInputPairNumbers() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-input-pair-item');
+    items.forEach((item, index) => {
+        const numberSpan = item.querySelector('.free-input-pair-number');
+        if (numberSpan) {
+            numberSpan.textContent = index + 1;
+        }
+    });
 }
 
 // Initialize file upload handler for free image items in edit page (stores file, uploads on form save)

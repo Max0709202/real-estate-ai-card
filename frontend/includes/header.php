@@ -321,10 +321,10 @@ if ($isLoggedIn) {
                 mobilePaymentBtn.style.color = '#fff';
             }
         }
-        
+
         // Initial update
         updateMobilePaymentButton();
-        
+
         // Also update when window.isPaymentCompleted changes (if set later)
         // Use a MutationObserver or check periodically
         let checkCount = 0;
@@ -348,7 +348,7 @@ if ($isLoggedIn) {
     window.hasActiveSubscription = <?php echo json_encode($hasActiveSubscriptionForMobile); ?>;
     // Pass payment status to JavaScript
     window.isPaymentCompleted = <?php echo json_encode($isPaymentCompleted ?? false); ?>;
-    
+
     // Update mobile payment button after window.isPaymentCompleted is set
     // Use DOMContentLoaded to ensure button exists
     document.addEventListener('DOMContentLoaded', function() {
