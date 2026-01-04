@@ -151,16 +151,41 @@ try {
             if ($payment) {
                         $newPaymentStatus = ($payment['payment_method'] === 'credit_card') ? 'CR' : 'BANK_PAID';
 
+                        // 停止されたアカウントの復活処理を確認
+                        $stmt = $db->prepare("
+                            SELECT card_status, payment_status
+                            FROM business_cards
+                            WHERE id = ?
+                        ");
+                        $stmt->execute([$payment['business_card_id']]);
+                        $bcStatus = $stmt->fetch();
+                        $isReactivation = ($bcStatus && ($bcStatus['card_status'] === 'canceled'));
+
                         $stmt = $db->prepare("
                             UPDATE business_cards
                             SET payment_status = ?,
                                 card_status = 'active',
+                                is_published = ?,
                                 updated_at = NOW()
                             WHERE id = ? AND user_id = ?
                         ");
-                        $stmt->execute([$newPaymentStatus, $payment['business_card_id'], $payment['user_id']]);
+                        // 復活の場合、is_publishedを1に設定（新規登録と同じ扱い）
+                        $isPublished = $isReactivation ? 1 : 0;
+                        $stmt->execute([$newPaymentStatus, $isPublished, $payment['business_card_id'], $payment['user_id']]);
 
                         enforceOpenPaymentStatusRule($db, $payment['business_card_id'], $newPaymentStatus);
+                        
+                        // 停止されたアカウントの復活：サブスクリプションの状態も更新
+                        if ($isReactivation) {
+                            $stmt = $db->prepare("
+                                UPDATE subscriptions
+                                SET status = 'active',
+                                    cancelled_at = NULL,
+                                    updated_at = NOW()
+                                WHERE user_id = ? AND business_card_id = ?
+                            ");
+                            $stmt->execute([$payment['user_id'], $payment['business_card_id']]);
+                        }
 
                         // For new users, ensure subscription exists after payment
                         if ($payment['user_type'] === 'new' && $payment['stripe_customer_id']) {
@@ -414,16 +439,41 @@ try {
                 if ($payment) {
                     $newPaymentStatus = ($payment['payment_method'] === 'credit_card') ? 'CR' : 'BANK_PAID';
 
+                    // 停止されたアカウントの復活処理を確認
+                    $stmt = $db->prepare("
+                        SELECT card_status, payment_status
+                        FROM business_cards
+                        WHERE id = ?
+                    ");
+                    $stmt->execute([$payment['business_card_id']]);
+                    $bcStatus = $stmt->fetch();
+                    $isReactivation = ($bcStatus && ($bcStatus['card_status'] === 'canceled'));
+
                     $stmt = $db->prepare("
                         UPDATE business_cards
                         SET payment_status = ?,
                             card_status = 'active',
+                            is_published = ?,
                             updated_at = NOW()
                         WHERE id = ? AND user_id = ?
                     ");
-                    $stmt->execute([$newPaymentStatus, $payment['business_card_id'], $payment['user_id']]);
+                    // 復活の場合、is_publishedを1に設定（新規登録と同じ扱い）
+                    $isPublished = $isReactivation ? 1 : 0;
+                    $stmt->execute([$newPaymentStatus, $isPublished, $payment['business_card_id'], $payment['user_id']]);
 
                     enforceOpenPaymentStatusRule($db, $payment['business_card_id'], $newPaymentStatus);
+                    
+                    // 停止されたアカウントの復活：サブスクリプションの状態も更新
+                    if ($isReactivation) {
+                        $stmt = $db->prepare("
+                            UPDATE subscriptions
+                            SET status = 'active',
+                                cancelled_at = NULL,
+                                updated_at = NOW()
+                            WHERE user_id = ? AND business_card_id = ?
+                        ");
+                        $stmt->execute([$payment['user_id'], $payment['business_card_id']]);
+                    }
 
                     // For new users, ensure subscription exists after payment
                     if ($payment['user_type'] === 'new' && $payment['stripe_customer_id']) {

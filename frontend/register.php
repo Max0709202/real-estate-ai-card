@@ -17,6 +17,43 @@ $isTokenBased = !empty($invitationToken);
 $tokenValid = false;
 $tokenData = null;
 
+// 停止されたアカウントの検出
+$isCanceledAccount = false;
+if ($isLoggedIn) {
+    try {
+        require_once __DIR__ . '/../backend/config/database.php';
+        $database = new Database();
+        $db = $database->getConnection();
+
+        $userId = $_SESSION['user_id'];
+
+        // 停止されたサブスクリプションまたはビジネスカードを検出
+        $stmt = $db->prepare("
+            SELECT s.status as subscription_status, bc.card_status, bc.payment_status
+            FROM users u
+            LEFT JOIN subscriptions s ON u.id = s.user_id
+            LEFT JOIN business_cards bc ON u.id = bc.user_id
+            WHERE u.id = ?
+            ORDER BY s.created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        $accountStatus = $stmt->fetch();
+
+        if ($accountStatus) {
+            // サブスクリプションが停止されている、またはビジネスカードが停止されている場合
+            if (($accountStatus['subscription_status'] === 'canceled') ||
+                ($accountStatus['card_status'] === 'canceled')) {
+                $isCanceledAccount = true;
+                // 停止されたアカウントの場合、新規ユーザーとして扱う（初期費用含む会費を請求）
+                $userType = 'new';
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error checking account status: " . $e->getMessage());
+    }
+}
+
 // Validate token if provided with enhanced security
 if ($isTokenBased) {
     try {
@@ -837,9 +874,12 @@ $prefectures = [
                     </div>
 
                     <div class="payment-amount">
-                        <?php if ($userType === 'new'): ?>
+                        <?php if ($userType === 'new' || $isCanceledAccount): ?>
                         <p>初期費用: ¥30,000（税別）</p>
                         <p>月額費用: ¥500（税別）</p>
+                        <?php if ($isCanceledAccount): ?>
+                        <p style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">※停止されたアカウントの復活には、新規登録と同じ初期費用と月額費用がかかります。</p>
+                        <?php endif; ?>
                         <?php elseif ($userType === 'existing'): ?>
                         <p>初期費用: ¥20,000（税別）</p>
                         <?php else: ?>
@@ -909,6 +949,7 @@ $prefectures = [
         window.isTokenBased = <?php echo json_encode($isTokenBased); ?>;
         window.tokenValid = <?php echo json_encode($tokenValid); ?>;
         window.tokenData = <?php echo json_encode($tokenData); ?>;
+        window.isCanceledAccount = <?php echo json_encode($isCanceledAccount); ?>;
 
         // Helper function to build URLs with token and type parameters
         function buildUrlWithToken(baseUrl) {

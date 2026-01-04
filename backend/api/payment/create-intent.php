@@ -35,12 +35,16 @@ try {
     $database = new Database();
     $db = $database->getConnection();
 
-    // ユーザー情報取得
+    // ユーザー情報取得（停止されたアカウントの検出も含む）
     $stmt = $db->prepare("
-        SELECT u.user_type, u.email, u.phone_number, bc.id as business_card_id
+        SELECT u.user_type, u.email, u.phone_number, bc.id as business_card_id,
+               s.status as subscription_status, bc.card_status
         FROM users u
         LEFT JOIN business_cards bc ON u.id = bc.user_id
+        LEFT JOIN subscriptions s ON u.id = s.user_id
         WHERE u.id = ?
+        ORDER BY s.created_at DESC
+        LIMIT 1
     ");
     $stmt->execute([$userId]);
     $userInfo = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -52,6 +56,15 @@ try {
     // Business card must exist for payment
     if (empty($userInfo['business_card_id'])) {
         sendErrorResponse('ビジネスカードが作成されていません。先にビジネスカード情報を登録してください。', 400);
+    }
+
+    // 停止されたアカウントの検出（復活処理）
+    $isCanceledAccount = false;
+    if (($userInfo['subscription_status'] === 'canceled') || 
+        ($userInfo['card_status'] === 'canceled')) {
+        $isCanceledAccount = true;
+        // 停止されたアカウントの場合、新規ユーザーとして扱う（初期費用含む会費を請求）
+        $userType = 'new';
     }
 
     // 価格計算
@@ -293,8 +306,8 @@ try {
         }
     }
 
-    // 新規ユーザーの場合、サブスクリプションも作成
-    if (($paymentType === 'new_user' || $userType === 'new') && $paymentMethod === 'credit_card') {
+    // 新規ユーザーまたは停止されたアカウントの復活の場合、サブスクリプションも作成
+    if (($paymentType === 'new_user' || $userType === 'new' || $isCanceledAccount) && $paymentMethod === 'credit_card') {
         try {
             // まずProductを検索または作成
             $products = Product::search([
@@ -353,15 +366,17 @@ try {
             $stmt = $db->prepare("UPDATE payments SET stripe_subscription_id = ? WHERE id = ?");
             $stmt->execute([$stripeSubscriptionId, $paymentId]);
 
-            // subscriptionsテーブルにも保存
+            // subscriptionsテーブルにも保存（停止されたアカウントの復活も含む）
             $stmt = $db->prepare("
-                INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, status, amount, billing_cycle, next_billing_date)
-                VALUES (?, ?, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH))
+                INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, status, amount, billing_cycle, next_billing_date, cancelled_at)
+                VALUES (?, ?, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH), NULL)
                 ON DUPLICATE KEY UPDATE
                     stripe_subscription_id = VALUES(stripe_subscription_id),
                     status = 'active',
                     amount = VALUES(amount),
-                    next_billing_date = DATE_ADD(NOW(), INTERVAL 1 MONTH)
+                    next_billing_date = DATE_ADD(NOW(), INTERVAL 1 MONTH),
+                    cancelled_at = NULL,
+                    updated_at = NOW()
             ");
             $stmt->execute([
                 $userId,
@@ -369,6 +384,18 @@ try {
                 $stripeSubscriptionId,
                 $monthlyAmount
             ]);
+
+            // 停止されたアカウントの復活処理：ビジネスカードの状態を更新
+            if ($isCanceledAccount) {
+                $stmt = $db->prepare("
+                    UPDATE business_cards
+                    SET card_status = 'active',
+                        is_published = 1,
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$userInfo['business_card_id']]);
+            }
         } catch (\Exception $e) {
             // サブスクリプション作成に失敗しても決済は続行
             error_log("Subscription creation failed: " . $e->getMessage());
