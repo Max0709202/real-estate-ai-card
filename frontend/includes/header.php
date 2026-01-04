@@ -165,6 +165,20 @@ if ($isLoggedIn) {
                                 ");
                                 $stmt->execute([$_SESSION['user_id']]);
                                 $headerSubscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                                // Calculate end date for header
+                                $headerEndDate = null;
+                                if ($headerSubscriptionInfo) {
+                                    if ($headerSubscriptionInfo['next_billing_date']) {
+                                        $nextBilling = new DateTime($headerSubscriptionInfo['next_billing_date']);
+                                        $nextBilling->modify('-1 day');
+                                        $headerEndDate = $nextBilling->format('Y年n月j日');
+                                    } elseif ($headerSubscriptionInfo['cancelled_at']) {
+                                        $cancelled = new DateTime($headerSubscriptionInfo['cancelled_at']);
+                                        $headerEndDate = $cancelled->format('Y年n月j日');
+                                    }
+                                }
+
                                 if ($headerSubscriptionInfo && in_array($headerSubscriptionInfo['status'], ['active', 'trialing', 'past_due', 'incomplete'])) {
                                     $headerHasActiveSubscription = true;
                                 } elseif (!$headerSubscriptionInfo) {
@@ -270,54 +284,89 @@ if ($isLoggedIn) {
             e.preventDefault();
             e.stopPropagation();
 
-            if (!confirm('サブスクリプションをキャンセルしますか？\n\n期間終了時にキャンセルされます。即座にキャンセルする場合は「OK」を押した後、確認画面で選択してください。')) {
-                return;
-            }
+            // Build detailed confirmation message
+            const headerEndDateText = <?php echo json_encode($headerEndDate ?? '未設定'); ?>;
+            const headerEndDateDisplay = headerEndDateText !== '未設定' ? headerEndDateText : '（未設定）';
 
-            const cancelImmediately = confirm('即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル');
+            const headerConfirmMessage =
+                '・停止されても、マイページで作って頂いたAI名刺はアカウントに残っています。\n\n' +
+                '・マイページからお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
+                '・不動産DXツールをご利用いただいているお客様からの反響は配信されなくなります。\n\n' +
+                '・期間終了時（' + headerEndDateDisplay + '）に不動産AI名刺がご利用いただけなくなります。\n\n' +
+                '・即座に停止する場合は「OK」ボタンを押した後、確認画面で選択してください。\n\n\n' +
+                '利用を停止しますか？（次回のご請求はございません。）';
 
-            headerCancelBtn.disabled = true;
-            const originalText = headerCancelBtn.querySelector('span')?.textContent || 'サブスクリプションをキャンセル';
-            if (headerCancelBtn.querySelector('span')) {
-                headerCancelBtn.querySelector('span').textContent = '処理中...';
-            } else {
-                headerCancelBtn.textContent = '処理中...';
-            }
+            // Show modal confirmation
+            showConfirm(headerConfirmMessage, async () => {
+                // Second confirmation for immediate cancellation
+                showConfirm('即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル', async () => {
+                    // User chose immediate cancellation
+                    await processHeaderCancellation(true);
+                }, async () => {
+                    // User chose cancel at period end
+                    await processHeaderCancellation(false);
+                }, '即座にキャンセル');
+            }, null, '利用を停止しますか？');
 
-            try {
-                const response = await fetch('../backend/api/mypage/cancel.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                        cancel_immediately: cancelImmediately
-                    })
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    alert(result.message || 'サブスクリプションをキャンセルしました');
-                    window.location.reload();
+            // Process cancellation
+            async function processHeaderCancellation(cancelImmediately) {
+                headerCancelBtn.disabled = true;
+                const originalText = headerCancelBtn.querySelector('span')?.textContent || 'サブスクリプションをキャンセル';
+                if (headerCancelBtn.querySelector('span')) {
+                    headerCancelBtn.querySelector('span').textContent = '処理中...';
                 } else {
-                    alert(result.message || 'サブスクリプションのキャンセルに失敗しました');
+                    headerCancelBtn.textContent = '処理中...';
+                }
+
+                try {
+                    const response = await fetch('../backend/api/mypage/cancel.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            cancel_immediately: cancelImmediately
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        if (typeof showSuccess === 'function') {
+                            showSuccess(result.message || 'サブスクリプションをキャンセルしました', { autoClose: 5000 });
+                        } else {
+                            alert(result.message || 'サブスクリプションをキャンセルしました');
+                        }
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        if (typeof showError === 'function') {
+                            showError(result.message || 'サブスクリプションのキャンセルに失敗しました');
+                        } else {
+                            alert(result.message || 'サブスクリプションのキャンセルに失敗しました');
+                        }
+                        headerCancelBtn.disabled = false;
+                        if (headerCancelBtn.querySelector('span')) {
+                            headerCancelBtn.querySelector('span').textContent = originalText;
+                        } else {
+                            headerCancelBtn.textContent = originalText;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error canceling subscription:', error);
+                    if (typeof showError === 'function') {
+                        showError('エラーが発生しました');
+                    } else {
+                        alert('エラーが発生しました');
+                    }
                     headerCancelBtn.disabled = false;
                     if (headerCancelBtn.querySelector('span')) {
                         headerCancelBtn.querySelector('span').textContent = originalText;
                     } else {
                         headerCancelBtn.textContent = originalText;
                     }
-                }
-            } catch (error) {
-                console.error('Error canceling subscription:', error);
-                alert('エラーが発生しました');
-                headerCancelBtn.disabled = false;
-                if (headerCancelBtn.querySelector('span')) {
-                    headerCancelBtn.querySelector('span').textContent = originalText;
-                } else {
-                    headerCancelBtn.textContent = originalText;
                 }
             }
         });

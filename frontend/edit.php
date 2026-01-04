@@ -36,6 +36,21 @@ try {
     $stmt->execute([$userId]);
     $subscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
 
+    // Calculate end date (period end date)
+    $endDate = null;
+    if ($subscriptionInfo) {
+        if ($subscriptionInfo['next_billing_date']) {
+            // End date is the day before next billing date (last day of current period)
+            $nextBilling = new DateTime($subscriptionInfo['next_billing_date']);
+            $nextBilling->modify('-1 day');
+            $endDate = $nextBilling->format('Y年n月j日');
+        } elseif ($subscriptionInfo['cancelled_at']) {
+            // If already cancelled, use cancelled_at date
+            $cancelled = new DateTime($subscriptionInfo['cancelled_at']);
+            $endDate = $cancelled->format('Y年n月j日');
+        }
+    }
+
     // Also check if user has completed payment (for cases where subscription might not exist yet)
     $hasCompletedPayment = false;
     if (!$subscriptionInfo) {
@@ -786,14 +801,34 @@ $defaultGreetings = [
             const cancelBtn = document.getElementById('cancel-subscription-btn');
             if (cancelBtn) {
                 cancelBtn.addEventListener('click', async function() {
-                    if (!confirm('サブスクリプションをキャンセルしますか？\n\n期間終了時にキャンセルされます。即座にキャンセルする場合は「OK」を押した後、確認画面で選択してください。')) {
-                        return;
-                    }
+                    // Build detailed confirmation message
+                    const endDateText = <?php echo json_encode($endDate ?? '未設定'); ?>;
+                    const endDateDisplay = endDateText !== '未設定' ? endDateText : '（未設定）';
 
-                    const cancelImmediately = confirm('即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル');
+                    const confirmMessage =
+                        '・停止されても、マイページで作って頂いたAI名刺はアカウントに残っています。\n\n' +
+                        '・マイページからお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
+                        '・不動産DXツールをご利用いただいているお客様からの反響は配信されなくなります。\n\n' +
+                        '・期間終了時（' + endDateDisplay + '）に不動産AI名刺がご利用いただけなくなります。\n\n' +
+                        '・即座に停止する場合は「OK」ボタンを押した後、確認画面で選択してください。\n\n\n' +
+                        '利用を停止しますか？（次回のご請求はございません。）';
 
-                    cancelBtn.disabled = true;
-                    cancelBtn.textContent = '処理中...';
+                    // Show modal confirmation
+                    showConfirm(confirmMessage, async () => {
+                        // Second confirmation for immediate cancellation
+                        showConfirm('即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル', async () => {
+                            // User chose immediate cancellation
+                            await processCancellation(true);
+                        }, async () => {
+                            // User chose cancel at period end
+                            await processCancellation(false);
+                        }, '即座にキャンセル');
+                    }, null, '利用を停止しますか？');
+
+                    // Process cancellation
+                    async function processCancellation(cancelImmediately) {
+                        cancelBtn.disabled = true;
+                        cancelBtn.textContent = '処理中...';
 
                     try {
                         const response = await fetch('../backend/api/mypage/cancel.php', {
