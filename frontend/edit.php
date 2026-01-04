@@ -66,8 +66,23 @@ try {
             $hasActiveSubscription = true; // Show button even if subscription not found (will be created)
         }
     }
+
+    // Get user type and account status for payment section
+    $stmt = $db->prepare("SELECT user_type FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    $userType = $stmt->fetchColumn() ?: 'new';
+
+    // Check if account is canceled
+    $isCanceledAccount = false;
+    if ($subscriptionInfo && $subscriptionInfo['status'] === 'canceled') {
+        $isCanceledAccount = true;
+    } elseif ($subscriptionInfo && $subscriptionInfo['card_status'] === 'canceled') {
+        $isCanceledAccount = true;
+    }
 } catch (Exception $e) {
     error_log("Error fetching subscription info: " . $e->getMessage());
+    $userType = 'new';
+    $isCanceledAccount = false;
 }
 
 // Default greeting messages
@@ -144,24 +159,28 @@ $defaultGreetings = [
             <div class="edit-sidebar">
                 <nav class="edit-nav">
                     <a href="#header-greeting" class="nav-item active" data-step="1" data-section="header-greeting-section">
-                        <span class="step-number">1/5</span>
+                        <span class="step-number">1/6</span>
                         <span class="step-label">ヘッダー・挨拶</span>
                     </a>
                     <a href="#company-profile" class="nav-item" data-step="2" data-section="company-profile-section">
-                        <span class="step-number">2/5</span>
+                        <span class="step-number">2/6</span>
                         <span class="step-label">会社プロフィール</span>
                     </a>
                     <a href="#personal-info" class="nav-item" data-step="3" data-section="personal-info-section">
-                        <span class="step-number">3/5</span>
+                        <span class="step-number">3/6</span>
                         <span class="step-label">個人情報</span>
                     </a>
                     <a href="#tech-tools" class="nav-item" data-step="4" data-section="tech-tools-section">
-                        <span class="step-number">4/5</span>
+                        <span class="step-number">4/6</span>
                         <span class="step-label">テックツール</span>
                     </a>
                     <a href="#communication" class="nav-item" data-step="5" data-section="communication-section">
-                        <span class="step-number">5/5</span>
+                        <span class="step-number">5/6</span>
                         <span class="step-label">コミュニケーション</span>
+                    </a>
+                    <a href="#payment" class="nav-item" data-step="6" data-section="payment-section">
+                        <span class="step-number">6/6</span>
+                        <span class="step-label">決済</span>
                     </a>
                 </nav>
             </div>
@@ -232,7 +251,9 @@ $defaultGreetings = [
                             </div>
                         </div>
 
-                        <button type="submit" class="btn-primary">保存して次へ</button>
+                        <div style="text-align: center; margin-top: 2rem;">
+                            <button type="submit" class="btn-primary">保存して次へ</button>
+                        </div>
                     </form>
                 </div>
 
@@ -308,7 +329,9 @@ $defaultGreetings = [
                             <input type="url" name="company_website" class="form-control" placeholder="https://example.com">
                         </div>
 
-                        <button type="submit" class="btn-primary">保存して次へ</button>
+                        <div style="text-align: center; margin-top: 2rem;">
+                            <button type="submit" class="btn-primary">保存して次へ</button>
+                        </div>
                     </form>
                 </div>
 
@@ -440,7 +463,9 @@ $defaultGreetings = [
                             </div>
                         </div>
 
-                        <button type="submit" class="btn-primary">保存して次へ</button>
+                        <div style="text-align: center; margin-top: 2rem;">
+                            <button type="submit" class="btn-primary">保存して次へ</button>
+                        </div>
                     </form>
                 </div>
 
@@ -450,7 +475,7 @@ $defaultGreetings = [
                     <p class="step-description">表示させるテックツールを選択してください（最低2つ以上）</p>
                     <div id="tech-tools-list" class="tech-tools-grid">
                     </div>
-                    <div class="form-actions">
+                    <div style="text-align: center; margin-top: 2rem;">
                         <button type="button" class="btn-primary" onclick="saveTechTools()">保存して次へ</button>
                     </div>
                 </div>
@@ -712,7 +737,49 @@ $defaultGreetings = [
                         </div>
                     </div>
                     
-                    <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存して次へ</button>
+                    <div style="text-align: center; margin-top: 2rem;">
+                        <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存して次へ</button>
+                    </div>
+                </div>
+                <!-- Step 6: Payment -->
+                <div id="payment-section" class="edit-section">
+                    <h2>決済</h2>
+                    <p class="step-description">お支払い方法を選択してください</p>
+
+                    <div class="payment-section">
+                        <h3>お支払方法</h3>
+                        <div class="payment-options">
+                            <label class="payment-option">
+                                <input type="radio" name="payment_method" value="credit_card" checked>
+                                <span>クレジットカード決済</span>
+                            </label>
+                            <?php if ($userType !== 'free'): ?>
+                            <label class="payment-option">
+                                <input type="radio" name="payment_method" value="bank_transfer">
+                                <span>お振込み</span>
+                            </label>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="payment-amount">
+                            <?php if ($userType === 'new' || $isCanceledAccount): ?>
+                            <p>初期費用: ¥30,000（税別）</p>
+                            <p>月額費用: ¥500（税別）</p>
+                            <?php if ($isCanceledAccount): ?>
+                            <p style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">※停止されたアカウントの復活には、新規登録と同じ初期費用と月額費用がかかります。</p>
+                            <?php endif; ?>
+                            <?php elseif ($userType === 'existing'): ?>
+                            <p>初期費用: ¥20,000（税別）</p>
+                            <?php else: ?>
+                            <p>無料</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="goToEditSection('communication-section')">戻る</button>
+                        <button type="button" id="submit-payment-edit" class="btn-primary">この内容で進める</button>
+                    </div>
                 </div>
             </div>
 
@@ -785,6 +852,9 @@ $defaultGreetings = [
     <script>
         // Make BASE_URL available to JavaScript
         window.BASE_URL = <?php echo json_encode(BASE_URL); ?>;
+        // Make user type and account status available
+        window.userType = <?php echo json_encode($userType ?? 'new'); ?>;
+        window.isCanceledAccount = <?php echo json_encode($isCanceledAccount ?? false); ?>;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
     <script src="assets/js/auto-save.js"></script>
@@ -1903,6 +1973,75 @@ $defaultGreetings = [
                     }
                 });
             });
+        });
+
+        // Payment handling for edit page
+        document.addEventListener('DOMContentLoaded', function() {
+            const submitPaymentBtn = document.getElementById('submit-payment-edit');
+            if (submitPaymentBtn) {
+                submitPaymentBtn.addEventListener('click', async () => {
+                    const paymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value;
+
+                    if (!paymentMethod) {
+                        if (typeof showWarning === 'function') {
+                            showWarning('支払方法を選択してください');
+                        } else {
+                            alert('支払方法を選択してください');
+                        }
+                        return;
+                    }
+
+                    // Create payment intent
+                    try {
+                        const response = await fetch('../backend/api/payment/create-intent.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                payment_method: paymentMethod,
+                                payment_type: (typeof window !== 'undefined' && window.isCanceledAccount) ? 'new' : (window.userType || 'new')
+                            }),
+                            credentials: 'include'
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            if (paymentMethod === 'credit_card') {
+                                // Redirect to payment page with payment_id and client_secret
+                                const params = new URLSearchParams({
+                                    payment_id: result.data.payment_id,
+                                    client_secret: result.data.client_secret || ''
+                                });
+                                const paymentUrl = 'payment.php?' + params.toString();
+                                window.location.href = paymentUrl;
+                            } else {
+                                // Bank transfer - redirect to bank transfer info page
+                                const params = new URLSearchParams({
+                                    payment_id: result.data.payment_id,
+                                    pi: result.data.stripe_payment_intent_id || ''
+                                });
+                                const bankTransferUrl = 'bank-transfer-info.php?' + params.toString();
+                                window.location.href = bankTransferUrl;
+                            }
+                        } else {
+                            if (typeof showError === 'function') {
+                                showError(result.message || '決済処理に失敗しました');
+                            } else {
+                                alert(result.message || '決済処理に失敗しました');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        if (typeof showError === 'function') {
+                            showError('エラーが発生しました');
+                        } else {
+                            alert('エラーが発生しました');
+                        }
+                    }
+                });
+            }
         });
 
     </script>

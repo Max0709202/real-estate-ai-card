@@ -947,6 +947,8 @@ async function saveCommunicationMethods() {
             // Update business card data without reloading
             await loadBusinessCardData();
             showSuccess('保存しました');
+            // Navigate to payment section
+            goToEditSection('payment-section');
         } else {
             showError('保存に失敗しました: ' + result.message);
         }
@@ -1723,23 +1725,8 @@ function initializeDragAndDropForUploadArea(uploadArea) {
     });
 }
 
-// Navigate to next step (called after saving)
-window.goToNextStep = function(currentStep) {
-    const nextStep = currentStep + 1;
-    const sectionMap = {
-        1: 'header-greeting-section',
-        2: 'company-profile-section',
-        3: 'personal-info-section',
-        4: 'tech-tools-section',
-        5: 'communication-section'
-    };
-    
-    const targetSectionId = sectionMap[nextStep];
-    if (!targetSectionId) {
-        console.log('No next step available');
-        return;
-    }
-    
+// Navigate to specific edit section
+window.goToEditSection = function(sectionId) {
     // Hide all sections
     document.querySelectorAll('.edit-section').forEach(section => {
         section.classList.remove('active');
@@ -1747,7 +1734,7 @@ window.goToNextStep = function(currentStep) {
     });
     
     // Show target section
-    const targetSection = document.getElementById(targetSectionId);
+    const targetSection = document.getElementById(sectionId);
     if (targetSection) {
         targetSection.classList.add('active');
         targetSection.style.display = 'block';
@@ -1759,7 +1746,7 @@ window.goToNextStep = function(currentStep) {
         // Find and activate the corresponding nav item
         const targetNavItem = Array.from(navItems).find(item => {
             const section = item.getAttribute('data-section');
-            return section === targetSectionId;
+            return section === sectionId;
         });
         
         if (targetNavItem) {
@@ -1771,6 +1758,27 @@ window.goToNextStep = function(currentStep) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }, 100);
     }
+};
+
+// Navigate to next step (called after saving)
+window.goToNextStep = function(currentStep) {
+    const nextStep = currentStep + 1;
+    const sectionMap = {
+        1: 'header-greeting-section',
+        2: 'company-profile-section',
+        3: 'personal-info-section',
+        4: 'tech-tools-section',
+        5: 'communication-section',
+        6: 'payment-section'
+    };
+    
+    const targetSectionId = sectionMap[nextStep];
+    if (!targetSectionId) {
+        console.log('No next step available');
+        return;
+    }
+    
+    goToEditSection(targetSectionId);
 };
 
 // Navigation functionality for edit page
