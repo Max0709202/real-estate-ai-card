@@ -475,7 +475,34 @@
         const previewContainer = document.querySelector(`[data-file-preview="${fieldName}"]`);
         if (!previewContainer) {
             // Create preview container if it doesn't exist
-            const fileInput = document.querySelector(`input[type="file"][name="${fieldName}"], input[type="file"]#${fieldName}`);
+            // Escape special characters in fieldName for CSS selector (especially brackets)
+            const escapedFieldName = fieldName.replace(/[\[\]\\]/g, '\\$&');
+            let fileInput = null;
+            
+            // Try with escaped name attribute
+            try {
+                fileInput = document.querySelector(`input[type="file"][name="${escapedFieldName}"]`);
+            } catch (e) {
+                // If querySelector fails, use alternative method
+            }
+            
+            // If not found, try with ID selector (no escaping needed for ID)
+            if (!fileInput) {
+                try {
+                    fileInput = document.querySelector(`input[type="file"]#${fieldName}`);
+                } catch (e) {
+                    // If querySelector fails, use alternative method
+                }
+            }
+            
+            // If still not found, find by iterating through all file inputs
+            if (!fileInput) {
+                const allFileInputs = document.querySelectorAll('input[type="file"]');
+                fileInput = Array.from(allFileInputs).find(input => {
+                    return (input.name === fieldName) || (input.id === fieldName);
+                });
+            }
+            
             if (fileInput) {
                 const container = document.createElement('div');
                 container.setAttribute('data-file-preview', fieldName);
@@ -611,9 +638,19 @@
                 }
 
                 // Update preview with uploaded image
-                const imagePath = result.data.file_path.startsWith('http')
-                    ? result.data.file_path
-                    : '../' + result.data.file_path;
+                let imagePath = result.data.file_path;
+                // Remove BASE_URL if already included to avoid duplication
+                if (typeof window !== 'undefined' && window.BASE_URL && imagePath.startsWith(window.BASE_URL)) {
+                    imagePath = imagePath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                }
+                // Construct full URL
+                if (!imagePath.startsWith('http')) {
+                    if (typeof window !== 'undefined' && window.BASE_URL) {
+                        imagePath = window.BASE_URL + '/' + imagePath.replace(/^\/+/, '');
+                    } else {
+                        imagePath = '../' + imagePath;
+                    }
+                }
 
                 // Build resize info message
                 let resizeInfo = '';

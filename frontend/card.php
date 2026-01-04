@@ -6,6 +6,7 @@ require_once __DIR__ . '/../backend/config/config.php';
 require_once __DIR__ . '/../backend/config/database.php';
 
 $slug = $_GET['slug'] ?? '';
+$preview = isset($_GET['preview']) && $_GET['preview'] === '1';
 
 if (empty($slug)) {
     header('HTTP/1.0 404 Not Found');
@@ -32,7 +33,8 @@ if (!$card) {
 
 // Check payment status and publication status
 // Card can only be viewed if payment_status is CR or BANK_PAID, and is_published is 1
-if ($card['payment_status'] !== 'CR' && $card['payment_status'] !== 'BANK_PAID' || $card['is_published'] == 0) {
+// However, allow preview mode when preview=1 parameter is set (for edit page)
+if (!$preview && ($card['payment_status'] !== 'CR' && $card['payment_status'] !== 'BANK_PAID' || $card['is_published'] == 0)) {
     // Display custom message instead of 404
     ?>
 <!DOCTYPE html>
@@ -102,10 +104,24 @@ $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $stmt = $db->prepare("INSERT INTO access_logs (business_card_id, ip_address, user_agent) VALUES (?, ?, ?)");
 $stmt->execute([$card['id'], $ipAddress, $userAgent]);
 
-// 挨拶文取得
+// 挨拶文取得（ユーザーが入力した順序で取得）
 $stmt = $db->prepare("SELECT title, content FROM greeting_messages WHERE business_card_id = ? ORDER BY display_order ASC");
 $stmt->execute([$card['id']]);
 $greetings = $stmt->fetchAll();
+
+// ページネーション設定
+$greetingsPerPage = 1; // 1ページあたりの挨拶文数
+$currentPage = isset($_GET['greeting_page']) ? max(1, intval($_GET['greeting_page'])) : 1;
+$totalGreetings = count($greetings);
+$totalPages = $totalGreetings > 0 ? ceil($totalGreetings / $greetingsPerPage) : 1;
+$currentPage = min($currentPage, $totalPages); // 最大ページ数を超えないように
+
+// 現在のページに表示する挨拶文を取得
+$greetingsForCurrentPage = [];
+if ($totalGreetings > 0) {
+    $startIndex = ($currentPage - 1) * $greetingsPerPage;
+    $greetingsForCurrentPage = array_slice($greetings, $startIndex, $greetingsPerPage);
+}
 
 // テックツール取得
 $stmt = $db->prepare("SELECT tool_type, tool_url FROM tech_tool_selections WHERE business_card_id = ? AND is_active = 1 ORDER BY display_order ASC");
@@ -179,15 +195,23 @@ $communicationMethods = array_merge($messageApps, $snsApps);
         <!-- 名刺部 -->
         <section class="card-section">
             <div class="card-header">
-                <?php if ($card['company_logo']): ?>
+                <?php if (!empty($card['company_logo'])): ?>
                     <?php 
-                    $logoPath = $card['company_logo'];
+                    $logoPath = trim($card['company_logo']);
                     // Add BASE_URL if path doesn't start with http
-                    if (!preg_match('/^https?:\/\//', $logoPath)) {
+                    if (!empty($logoPath) && !preg_match('/^https?:\/\//', $logoPath)) {
+                        // Remove BASE_URL if already included to avoid duplication
+                        $baseUrlPattern = preg_quote(BASE_URL, '/');
+                        if (preg_match('/^' . $baseUrlPattern . '/i', $logoPath)) {
+                            // Already contains BASE_URL, use as is
+                        } else {
                         $logoPath = BASE_URL . '/' . ltrim($logoPath, '/');
+                        }
                     }
                     ?>
-                    <img src="<?php echo htmlspecialchars($logoPath); ?>" alt="ロゴ" class="company-logo">
+                    <?php if (!empty($logoPath)): ?>
+                        <img src="<?php echo htmlspecialchars($logoPath); ?>" alt="ロゴ" class="company-logo" onerror="this.style.display='none';">
+                    <?php endif; ?>
                 <?php endif; ?>
                 <h1 class="company-name"><?php echo htmlspecialchars($card['company_name'] ?? ''); ?></h1>
             </div>
@@ -196,29 +220,61 @@ $communicationMethods = array_merge($messageApps, $snsApps);
             <div class="card-body">
                 <!-- プロフィール写真と挨拶文のセクション -->
                 <div class="profile-greeting-section">
-                    <?php if ($card['profile_photo']): ?>
+                    <?php if (!empty($card['profile_photo'])): ?>
                         <div class="profile-photo-container">
                             <?php 
-                            $photoPath = $card['profile_photo'];
+                            $photoPath = trim($card['profile_photo']);
                             // Add BASE_URL if path doesn't start with http
-                            if (!preg_match('/^https?:\/\//', $photoPath)) {
+                            if (!empty($photoPath) && !preg_match('/^https?:\/\//', $photoPath)) {
+                                // Remove BASE_URL if already included to avoid duplication
+                                $baseUrlPattern = preg_quote(BASE_URL, '/');
+                                if (preg_match('/^' . $baseUrlPattern . '/i', $photoPath)) {
+                                    // Already contains BASE_URL, use as is
+                                } else {
                                 $photoPath = BASE_URL . '/' . ltrim($photoPath, '/');
+                                }
                             }
                             ?>
-                            <img src="<?php echo htmlspecialchars($photoPath); ?>" alt="プロフィール写真" class="profile-photo">
+                            <?php if (!empty($photoPath)): ?>
+                                <img src="<?php echo htmlspecialchars($photoPath); ?>" alt="プロフィール写真" class="profile-photo" onerror="this.style.display='none';">
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
 
                     <div class="greeting-content">
-                        <?php if (!empty($greetings)): ?>
-                            <?php $firstGreeting = $greetings[0]; ?>
-                            <div class="greeting-item">
-                                <?php if (!empty($firstGreeting['title'])): ?>
-                                    <h3 class="greeting-title"><?php echo htmlspecialchars($firstGreeting['title']); ?></h3>
+                        <?php if (!empty($greetingsForCurrentPage)): ?>
+                            <div class="greeting-pagination-container" data-total-pages="<?php echo $totalPages; ?>" data-current-page="<?php echo $currentPage; ?>">
+                                <?php foreach ($greetingsForCurrentPage as $greeting): ?>
+                                    <div class="greeting-item greeting-page-item">
+                                        <?php if (!empty($greeting['title'])): ?>
+                                            <h3 class="greeting-title"><?php echo htmlspecialchars($greeting['title']); ?></h3>
+                                        <?php endif; ?>
+                                        <?php if (!empty($greeting['content'])): ?>
+                                            <p class="greeting-text"><?php echo nl2br(htmlspecialchars($greeting['content'])); ?></p>
                                 <?php endif; ?>
-                                <?php if (!empty($firstGreeting['content'])): ?>
-                                    <p class="greeting-text"><?php echo nl2br(htmlspecialchars($firstGreeting['content'])); ?>
-                                    </p>
+                                    </div>
+                                <?php endforeach; ?>
+
+                                <?php if ($totalPages > 1): ?>
+                                    <div class="greeting-pagination-controls">
+                                        <button type="button" class="greeting-pagination-btn greeting-prev-btn"
+                                                <?php echo $currentPage <= 1 ? 'disabled' : ''; ?>
+                                                data-page="<?php echo $currentPage - 1; ?>">
+                                            <span>‹</span> 前へ
+                                        </button>
+
+                                        <div class="greeting-pagination-info">
+                                            <span class="greeting-page-number"><?php echo $currentPage; ?></span>
+                                            <span class="greeting-page-separator">/</span>
+                                            <span class="greeting-total-pages"><?php echo $totalPages; ?></span>
+                                        </div>
+
+                                        <button type="button" class="greeting-pagination-btn greeting-next-btn"
+                                                <?php echo $currentPage >= $totalPages ? 'disabled' : ''; ?>
+                                                data-page="<?php echo $currentPage + 1; ?>">
+                                            次へ <span>›</span>
+                                        </button>
+                                    </div>
                                 <?php endif; ?>
                             </div>
                         <?php endif; ?>
@@ -356,63 +412,147 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                             <p><?php echo nl2br(htmlspecialchars($card['hobbies'])); ?></p>
                         </div>
                     <?php endif; ?>
-
+                </div>
                     <?php if ($card['free_input']): ?>
-                        <div class="info-section">
+                        <div class="info-section free-input-section">
                             <h3>その他</h3>
-                            <div class="free-input-content" style="overflow-wrap: anywhere;">
+                            <div class="free-input-content">
                                 <?php
                                 // Try to decode JSON
                                 $freeInputData = json_decode($card['free_input'], true);
 
                                 if (json_last_error() === JSON_ERROR_NONE && is_array($freeInputData)) {
-                                    // Valid JSON - display each field line by line
+                                    // Check for new format with texts and images arrays
+                                    if (isset($freeInputData['texts']) && isset($freeInputData['images'])) {
+                                        // New format: paired items
+                                        $texts = $freeInputData['texts'] ?? [];
+                                        $images = $freeInputData['images'] ?? [];
+
+                                        // Get the maximum count to handle all pairs
+                                        $pairCount = max(count($texts), count($images));
+
+                                        // Display each pair
+                                        for ($i = 0; $i < $pairCount; $i++) {
+                                            $text = isset($texts[$i]) ? trim($texts[$i]) : '';
+                                            $imageData = isset($images[$i]) ? $images[$i] : ['image' => '', 'link' => ''];
+                                            $imagePath = $imageData['image'] ?? '';
+                                            $imageLink = $imageData['link'] ?? '';
+
+                                            // Skip if both text and image are empty
+                                            if (empty($text) && empty($imagePath) && empty($imageLink)) {
+                                                continue;
+                                            }
+
+                                            echo '<div class="free-input-pair">';
+
+                                            // Display text if exists
+                                            if (!empty($text)) {
+                                                echo '<div class="free-input-text-wrapper">';
+                                                echo '<p class="free-input-text">' . nl2br(htmlspecialchars($text)) . '</p>';
+                                                echo '</div>';
+                                            }
+
+                                            // Display image if exists
+                                            if (!empty($imagePath)) {
+                                                echo '<div class="free-input-image-wrapper">';
+                                                // Add BASE_URL if the path doesn't start with http
+                                                if (!preg_match('/^https?:\/\//', $imagePath)) {
+                                                    $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
+                                                }
+
+                                                // If there's a link, wrap image in anchor tag
+                                                if (!empty($imageLink)) {
+                                                    echo '<a href="' . htmlspecialchars($imageLink) . '" target="_blank" rel="noopener noreferrer" class="free-input-image-link">';
+                                                }
+
+                                                echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" class="free-input-image">';
+
+                                                if (!empty($imageLink)) {
+                                                    echo '</a>';
+                                                }
+
+                                                echo '</div>';
+                                            }
+
+                                            // Display image_link if exists (and image is not set)
+                                            if (empty($imagePath) && !empty($imageLink)) {
+                                                echo '<div class="free-input-link-wrapper">';
+                                                echo '<a href="' . htmlspecialchars($imageLink) . '" target="_blank" rel="noopener noreferrer" class="free-input-link">';
+
+                                                // Check if it's an image URL to display thumbnail
+                                                $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                                                $urlExtension = strtolower(pathinfo(parse_url($imageLink, PHP_URL_PATH), PATHINFO_EXTENSION));
+
+                                                if (in_array($urlExtension, $imageExtensions)) {
+                                                    echo htmlspecialchars($imageLink);
+                                                } else {
+                                                    echo htmlspecialchars($imageLink);
+                                                }
+
+                                                echo '</a>';
+                                                echo '</div>';
+                                            }
+
+                                            echo '</div>';
+                                        }
+                                    } else {
+                                        // Old format: single text, image, and image_link
+                                        echo '<div class="free-input-pair">';
                             
                                     // Display text if exists
                                     if (!empty($freeInputData['text'])) {
+                                            echo '<div class="free-input-text-wrapper">';
                                         echo '<p class="free-input-text">' . nl2br(htmlspecialchars($freeInputData['text'])) . '</p>';
+                                            echo '</div>';
                                     }
 
                                     // Display embedded image if exists
                                     if (!empty($freeInputData['image'])) {
-                                        echo '<div class="free-input-image">';
+                                            echo '<div class="free-input-image-wrapper">';
                                         $imagePath = $freeInputData['image'];
                                         // Add BASE_URL if the path doesn't start with http
                                         if (!preg_match('/^https?:\/\//', $imagePath)) {
                                             $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
                                         }
-                                        echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" style="max-width: 100%; height: auto; border-radius: 4px; margin: 0.5rem 0; display: block;">';
+                                            echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" class="free-input-image">';
                                         echo '</div>';
                                     }
 
                                     // Display image_link if exists
                                     if (!empty($freeInputData['image_link'])) {
-                                        echo '<p class="free-input-link">';
-                                        echo '<a href="' . htmlspecialchars($freeInputData['image_link']) . '" target="_blank" rel="noopener noreferrer">';
+                                            echo '<div class="free-input-link-wrapper">';
+                                            echo '<a href="' . htmlspecialchars($freeInputData['image_link']) . '" target="_blank" rel="noopener noreferrer" class="free-input-link">';
 
                                         // Check if it's an image URL to display thumbnail
                                         $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
                                         $urlExtension = strtolower(pathinfo(parse_url($freeInputData['image_link'], PHP_URL_PATH), PATHINFO_EXTENSION));
 
                                         if (in_array($urlExtension, $imageExtensions)) {
-                                            echo $freeInputData['image_link'];
+                                                echo htmlspecialchars($freeInputData['image_link']);
                                         } else {
                                             echo htmlspecialchars($freeInputData['image_link']);
                                         }
 
                                         echo '</a>';
-                                        echo '</p>';
+                                            echo '</div>';
+                                        }
+
+                                        echo '</div>';
                                     }
 
                                 } else {
                                     // Not JSON or invalid JSON - display as plain text
-                                    echo '<p>' . nl2br(htmlspecialchars($card['free_input'])) . '</p>';
+                                    echo '<div class="free-input-pair">';
+                                    echo '<div class="free-input-text-wrapper">';
+                                    echo '<p class="free-input-text">' . nl2br(htmlspecialchars($card['free_input'])) . '</p>';
+                                    echo '</div>';
+                                    echo '</div>';
                                 }
                                 ?>
                             </div>
                         </div>
                     <?php endif; ?>
-                </div>
+
                 <hr>
 
                 <!-- テックツール部 -->
@@ -498,92 +638,118 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                         </div>
                     </section>
                 <?php endif; ?>
-                <hr>
                 <!-- コミュニケーション方法 -->
-                <?php if (!empty($messageApps) || !empty($snsApps)): ?>
+                <?php
+                // Helper function to get link URL for message apps
+                function getMessageAppLinkUrl($method) {
+                    $linkUrl = '';
+                    // For message apps, prefer method_id if it's a URL, otherwise use method_url
+                    if (!empty($method['method_id']) && (strpos($method['method_id'], 'http://') === 0 || strpos($method['method_id'], 'https://') === 0)) {
+                        $linkUrl = trim($method['method_id']);
+                    } elseif (!empty($method['method_url'])) {
+                        $linkUrl = trim($method['method_url']);
+                    } elseif (!empty($method['method_id'])) {
+                        // method_id might be an ID that needs to be formatted
+                        $linkUrl = trim($method['method_id']);
+                    }
+                    return $linkUrl;
+                }
+
+                // Helper function to get link URL for SNS apps
+                function getSnsAppLinkUrl($method) {
+                    $linkUrl = '';
+                    // For SNS apps, use method_url
+                    if (!empty($method['method_url'])) {
+                        $linkUrl = trim($method['method_url']);
+                    } elseif (!empty($method['method_id'])) {
+                        $linkUrl = trim($method['method_id']);
+                    }
+                    return $linkUrl;
+                }
+
+                // Filter out empty methods and collect valid ones (only those with non-empty URLs)
+                $validMessageApps = [];
+                foreach ($messageApps as $method) {
+                    $linkUrl = getMessageAppLinkUrl($method);
+                    // Only include if linkUrl is not empty after trimming
+                    if (!empty($linkUrl)) {
+                        $validMessageApps[] = $method;
+                    }
+                }
+
+                $validSnsApps = [];
+                foreach ($snsApps as $method) {
+                    $linkUrl = getSnsAppLinkUrl($method);
+                    // Only include if linkUrl is not empty after trimming
+                    if (!empty($linkUrl)) {
+                        $validSnsApps[] = $method;
+                    }
+                }
+
+                // Only show section if there are valid communication methods
+                if (!empty($validMessageApps) || !empty($validSnsApps)):
+                ?>
+                    <hr>
                     <div class="communication-section">
                         <h3>コミュニケーション方法</h3>
                         
-                        <!-- Message Apps Section (displayed first) -->
-                        <?php if (!empty($messageApps)): ?>
+                        <!-- Combined Message Apps and SNS Section -->
                             <div class="communication-grid">
-                                <?php foreach ($messageApps as $method): ?>
-                                    <?php if ($method['method_url'] || $method['method_id']): ?>
+                            <!-- Message Apps (displayed first) -->
+                            <?php foreach ($validMessageApps as $method): ?>
+                                <?php $linkUrl = getMessageAppLinkUrl($method); ?>
+                                <?php if (!empty($linkUrl)): ?>
                                         <div class="comm-card">
                                             <!-- Message App Logo -->
                                             <div class="comm-logo">
                                                 <?php $iconFile = getIconFilename($method['method_type'], $iconMapping); ?>
                                                 <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($iconFile); ?>.png"
                                                      alt="<?php echo htmlspecialchars($method['method_name']); ?>"
-                                                     onerror="this.style.display='none'; this.parentElement.innerHTML='<?php echo htmlspecialchars($method['method_name']); ?>';">
+                                                 loading="lazy"
+                                                 onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=\'font-size: 1.2rem; font-weight: 600; color: #333;\'><?php echo htmlspecialchars($method['method_name']); ?></span>';">
                                             </div>
 
                                             <!-- Details Button -->
-                                            <?php 
-                                            $linkUrl = '';
-                                            // For message apps, prefer method_id if it's a URL, otherwise use method_url
-                                            if (!empty($method['method_id']) && (strpos($method['method_id'], 'http://') === 0 || strpos($method['method_id'], 'https://') === 0)) {
-                                                $linkUrl = $method['method_id'];
-                                            } elseif (!empty($method['method_url'])) {
-                                                $linkUrl = $method['method_url'];
-                                            } elseif (!empty($method['method_id'])) {
-                                                // method_id might be an ID that needs to be formatted
-                                                $linkUrl = $method['method_id'];
-                                            }
-                                            ?>
-                                            <?php if ($linkUrl): ?>
                                                 <a href="<?php echo htmlspecialchars($linkUrl); ?>" 
                                                    class="comm-details-button" 
-                                                   target="_blank">
+                                           target="_blank"
+                                           rel="noopener noreferrer">
                                                     詳細はこちら
                                                 </a>
-                                            <?php endif; ?>
                                         </div>
                                     <?php endif; ?>
                                 <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
                         
-                        <!-- SNS Section (displayed second) -->
-                        <?php if (!empty($snsApps)): ?>
-                            <div class="communication-grid">
-                                <?php foreach ($snsApps as $method): ?>
-                                    <?php if ($method['method_url'] || $method['method_id']): ?>
+                            <!-- SNS Apps (displayed second) -->
+                            <?php foreach ($validSnsApps as $method): ?>
+                                <?php $linkUrl = getSnsAppLinkUrl($method); ?>
+                                <?php if (!empty($linkUrl)): ?>
                                         <div class="comm-card">
                                             <!-- SNS Logo -->
                                             <div class="comm-logo">
                                                 <?php $iconFile = getIconFilename($method['method_type'], $iconMapping); ?>
                                                 <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($iconFile); ?>.png"
                                                      alt="<?php echo htmlspecialchars($method['method_name']); ?>"
-                                                     onerror="this.style.display='none'; this.parentElement.innerHTML='<?php echo htmlspecialchars($method['method_name']); ?>';">
+                                                 loading="lazy"
+                                                 onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=\'font-size: 1.2rem; font-weight: 600; color: #333;\'><?php echo htmlspecialchars($method['method_name']); ?></span>';">
                                             </div>
 
                                             <!-- Details Button -->
-                                            <?php 
-                                            $linkUrl = '';
-                                            // For SNS apps, use method_url
-                                            if (!empty($method['method_url'])) {
-                                                $linkUrl = $method['method_url'];
-                                            } elseif (!empty($method['method_id'])) {
-                                                $linkUrl = $method['method_id'];
-                                            }
-                                            ?>
-                                            <?php if ($linkUrl): ?>
                                                 <a href="<?php echo htmlspecialchars($linkUrl); ?>" 
                                                    class="comm-details-button" 
-                                                   target="_blank">
+                                           target="_blank"
+                                           rel="noopener noreferrer">
                                                     詳細はこちら
                                                 </a>
-                                            <?php endif; ?>
                                         </div>
                                     <?php endif; ?>
                                 <?php endforeach; ?>
                             </div>
-                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
             </div>
         </section>
+        <?php if (!$preview): ?>
         <hr>
         <!-- QRコード -->
         <?php if (!empty($card['qr_code']) && $card['qr_code_issued']): ?>
@@ -598,13 +764,90 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                 </div>
             </div>
         <?php endif; ?>
+        <?php endif; ?>
         <!-- 編集リンク（管理者のみ） -->
         <div class="edit-link">
             <a href="<?php echo BASE_URL; ?>/frontend/edit.php">不動産AI名刺の編集はこちら</a>
         </div>
     </div>
+    <script>
+        // Greeting pagination functionality
+        (function() {
+            const container = document.querySelector('.greeting-pagination-container');
+            if (!container) return;
 
-    <script src="assets/js/card.js"></script>
+            const prevBtn = container.querySelector('.greeting-prev-btn');
+            const nextBtn = container.querySelector('.greeting-next-btn');
+            const currentPage = parseInt(container.dataset.currentPage) || 1;
+            const totalPages = parseInt(container.dataset.totalPages) || 1;
+
+            // Function to navigate to a specific page
+            function goToPage(page) {
+                if (page < 1 || page > totalPages) return;
+
+                const url = new URL(window.location.href);
+                url.searchParams.set('greeting_page', page);
+                window.location.href = url.toString();
+            }
+
+            // Previous button
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function() {
+                    if (!this.disabled && currentPage > 1) {
+                        goToPage(currentPage - 1);
+                    }
+                });
+            }
+
+            // Next button
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function() {
+                    if (!this.disabled && currentPage < totalPages) {
+                        goToPage(currentPage + 1);
+                    }
+                });
+            }
+
+            // Keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                if (e.key === 'ArrowLeft' && currentPage > 1) {
+                    goToPage(currentPage - 1);
+                } else if (e.key === 'ArrowRight' && currentPage < totalPages) {
+                    goToPage(currentPage + 1);
+                }
+            });
+
+            // Touch swipe support for mobile
+            let touchStartX = 0;
+            let touchEndX = 0;
+
+            container.addEventListener('touchstart', function(e) {
+                touchStartX = e.changedTouches[0].screenX;
+            }, { passive: true });
+
+            container.addEventListener('touchend', function(e) {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
+            }, { passive: true });
+
+            function handleSwipe() {
+                const swipeThreshold = 50; // Minimum swipe distance
+                const diff = touchStartX - touchEndX;
+
+                if (Math.abs(diff) > swipeThreshold) {
+                    if (diff > 0 && currentPage < totalPages) {
+                        // Swipe left - next page
+                        goToPage(currentPage + 1);
+                    } else if (diff < 0 && currentPage > 1) {
+                        // Swipe right - previous page
+                        goToPage(currentPage - 1);
+                    }
+                }
+            }
+        })();
+    </script>
 </body>
 
 </html>

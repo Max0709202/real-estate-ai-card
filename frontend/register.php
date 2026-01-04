@@ -17,6 +17,43 @@ $isTokenBased = !empty($invitationToken);
 $tokenValid = false;
 $tokenData = null;
 
+// 停止されたアカウントの検出
+$isCanceledAccount = false;
+if ($isLoggedIn) {
+    try {
+        require_once __DIR__ . '/../backend/config/database.php';
+        $database = new Database();
+        $db = $database->getConnection();
+
+        $userId = $_SESSION['user_id'];
+
+        // 停止されたサブスクリプションまたはビジネスカードを検出
+        $stmt = $db->prepare("
+            SELECT s.status as subscription_status, bc.card_status, bc.payment_status
+            FROM users u
+            LEFT JOIN subscriptions s ON u.id = s.user_id
+            LEFT JOIN business_cards bc ON u.id = bc.user_id
+            WHERE u.id = ?
+            ORDER BY s.created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        $accountStatus = $stmt->fetch();
+
+        if ($accountStatus) {
+            // サブスクリプションが停止されている、またはビジネスカードが停止されている場合
+            if (($accountStatus['subscription_status'] === 'canceled') ||
+                ($accountStatus['card_status'] === 'canceled')) {
+                $isCanceledAccount = true;
+                // 停止されたアカウントの場合、新規ユーザーとして扱う（初期費用含む会費を請求）
+                $userType = 'new';
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error checking account status: " . $e->getMessage());
+    }
+}
+
 // Validate token if provided with enhanced security
 if ($isTokenBased) {
     try {
@@ -334,12 +371,12 @@ $prefectures = [
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>ローマ字姓</label>
+                            <label>姓（ローマ字）</label>
                             <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                             <input type="text" name="last_name_romaji" id="last_name_romaji" class="form-control" placeholder="例：Yamada" inputmode="latin" autocomplete="family-name" autocapitalize="words" spellcheck="false">
                         </div>
                         <div class="form-group">
-                            <label>ローマ字名</label>
+                            <label>名（ローマ字）</label>
                             <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                             <input type="text" name="first_name_romaji" id="first_name_romaji" class="form-control" placeholder="例：Taro" inputmode="latin" autocomplete="given-name" autocapitalize="words" spellcheck="false">
                         </div>
@@ -415,6 +452,14 @@ $prefectures = [
                             <label>テキスト・画像セット <button type="button" class="btn-add-small" onclick="addFreeInputPairForRegister()">追加</button></label>
                             <div id="free-input-pairs-container">
                                 <div class="free-input-pair-item">
+                                    <div class="free-input-pair-header">
+                                        <span class="free-input-pair-number">1</span>
+                                        <div class="free-input-pair-actions">
+                                            <button type="button" class="btn-move-up" onclick="moveFreeInputPairForRegister(0, 'up')" disabled>↑</button>
+                                            <button type="button" class="btn-move-down" onclick="moveFreeInputPairForRegister(0, 'down')" disabled>↓</button>
+                                        </div>
+                                        <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)" style="display: none;">削除</button>
+                                    </div>
                                     <!-- Text Input -->
                                     <div class="form-group">
                                         <label>テキスト</label>
@@ -436,7 +481,6 @@ $prefectures = [
                                             <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
                                         </div>
                                     </div>
-                                    <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)" style="display: none;">削除</button>
                                 </div>
                             </div>
                         </div>
@@ -837,9 +881,12 @@ $prefectures = [
                     </div>
 
                     <div class="payment-amount">
-                        <?php if ($userType === 'new'): ?>
+                        <?php if ($userType === 'new' || $isCanceledAccount): ?>
                         <p>初期費用: ¥30,000（税別）</p>
                         <p>月額費用: ¥500（税別）</p>
+                        <?php if ($isCanceledAccount): ?>
+                        <p style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">※停止されたアカウントの復活には、新規登録と同じ初期費用と月額費用がかかります。</p>
+                        <?php endif; ?>
                         <?php elseif ($userType === 'existing'): ?>
                         <p>初期費用: ¥20,000（税別）</p>
                         <?php else: ?>
@@ -895,6 +942,10 @@ $prefectures = [
     <script src="assets/js/modal.js"></script>
     <!-- Cropper.js -->
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
+    <script>
+        // Make BASE_URL available to JavaScript
+        window.BASE_URL = <?php echo json_encode(BASE_URL); ?>;
+    </script>
     <script src="assets/js/auto-save.js"></script>
     <script src="assets/js/register.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
@@ -905,6 +956,7 @@ $prefectures = [
         window.isTokenBased = <?php echo json_encode($isTokenBased); ?>;
         window.tokenValid = <?php echo json_encode($tokenValid); ?>;
         window.tokenData = <?php echo json_encode($tokenData); ?>;
+        window.isCanceledAccount = <?php echo json_encode($isCanceledAccount); ?>;
 
         // Helper function to build URLs with token and type parameters
         function buildUrlWithToken(baseUrl) {
@@ -983,7 +1035,11 @@ $prefectures = [
                             const event = new Event('change', { bubbles: true });
                             fileInput.dispatchEvent(event);
                         } else {
-                            showWarning('画像ファイルを選択してください');
+                            if (typeof showWarning === 'function') {
+                                showWarning('画像ファイルを選択してください');
+                            } else {
+                                alert('画像ファイルを選択してください');
+                            }
                         }
                     }
                 });
@@ -1033,14 +1089,14 @@ $prefectures = [
                 return '';
             }
 
-            // 姓の入力時にローマ字姓を自動入力
+            // 姓の入力時に姓（ローマ字）を自動入力
             if (lastNameInput && lastNameRomajiInput) {
                 let lastNameTimeout;
                 lastNameInput.addEventListener('input', function() {
                     clearTimeout(lastNameTimeout);
                     const value = this.value.trim();
 
-                    // ローマ字姓が空の場合のみ自動入力
+                    // 姓（ローマ字）が空の場合のみ自動入力
                     if (!lastNameRomajiInput.value.trim() && value) {
                         lastNameTimeout = setTimeout(function() {
                             const romaji = convertToRomaji(value);
@@ -1052,14 +1108,14 @@ $prefectures = [
                 });
             }
 
-            // 名の入力時にローマ字名を自動入力
+            // 名の入力時に名（ローマ字）を自動入力
             if (firstNameInput && firstNameRomajiInput) {
                 let firstNameTimeout;
                 firstNameInput.addEventListener('input', function() {
                     clearTimeout(firstNameTimeout);
                     const value = this.value.trim();
 
-                    // ローマ字名が空の場合のみ自動入力
+                    // 名（ローマ字）が空の場合のみ自動入力
                     if (!firstNameRomajiInput.value.trim() && value) {
                         firstNameTimeout = setTimeout(function() {
                             const romaji = convertToRomaji(value);

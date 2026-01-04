@@ -81,8 +81,23 @@ try {
             $hasActiveSubscription = true; // Show button even if subscription not found (will be created)
         }
     }
+
+    // Get user type and account status for payment section
+    $stmt = $db->prepare("SELECT user_type FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    $userType = $stmt->fetchColumn() ?: 'new';
+
+    // Check if account is canceled
+    $isCanceledAccount = false;
+    if ($subscriptionInfo && $subscriptionInfo['status'] === 'canceled') {
+        $isCanceledAccount = true;
+    } elseif ($subscriptionInfo && $subscriptionInfo['card_status'] === 'canceled') {
+        $isCanceledAccount = true;
+    }
 } catch (Exception $e) {
     error_log("Error fetching subscription info: " . $e->getMessage());
+    $userType = 'new';
+    $isCanceledAccount = false;
 }
 
 // Default greeting messages
@@ -135,6 +150,16 @@ $defaultGreetings = [
         .btn-secondary:hover {
             background: #5a6268;
         }
+        .btn-payment-red {
+            background: #dc3545;
+            color: #fff;
+            border: none;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        .btn-payment-red:hover {
+            background: #c82333;
+        }
     </style>
 </head>
 <body>
@@ -144,71 +169,45 @@ $defaultGreetings = [
     ?>
     
     <div class="edit-container">
-        <header class="edit-header">
-            <h1>デジタル名刺作成・編集</h1>
+        <header class="edit-header" style="padding-top: 3rem;">
+            <div class="edit-header-content">
+                <h1>マイページ（デジタル名刺作成・編集）</h1>
+            </div>
+            <button type="button" id="direct-input-btn" class="btn-direct-input">
+                <span class="direct-input-text">
+                    <span class="direct-text">プレビュー</span>
+                    <!-- <span class="input-text">入力</span> -->
+                </span>
+            </button>
         </header>
         <div class="edit-content">
             <div class="edit-sidebar">
                 <nav class="edit-nav">
                     <a href="#header-greeting" class="nav-item active" data-step="1" data-section="header-greeting-section">
-                        <span class="step-number">1/5</span>
+                        <span class="step-number">1/6</span>
                         <span class="step-label">ヘッダー・挨拶</span>
                     </a>
                     <a href="#company-profile" class="nav-item" data-step="2" data-section="company-profile-section">
-                        <span class="step-number">2/5</span>
+                        <span class="step-number">2/6</span>
                         <span class="step-label">会社プロフィール</span>
                     </a>
                     <a href="#personal-info" class="nav-item" data-step="3" data-section="personal-info-section">
-                        <span class="step-number">3/5</span>
+                        <span class="step-number">3/6</span>
                         <span class="step-label">個人情報</span>
                     </a>
                     <a href="#tech-tools" class="nav-item" data-step="4" data-section="tech-tools-section">
-                        <span class="step-number">4/5</span>
+                        <span class="step-number">4/6</span>
                         <span class="step-label">テックツール</span>
                     </a>
                     <a href="#communication" class="nav-item" data-step="5" data-section="communication-section">
-                        <span class="step-number">5/5</span>
+                        <span class="step-number">5/6</span>
                         <span class="step-label">コミュニケーション</span>
                     </a>
+                    <a href="#payment" class="nav-item" data-step="6" data-section="payment-section">
+                        <span class="step-number">6/6</span>
+                        <span class="step-label">決済</span>
+                    </a>
                 </nav>
-                <div class="edit-sidebar-actions" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #ddd;">
-                    <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column; padding-inline: 10px;">
-                        <a href="auth/forgot-password.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">パスワードリセット</a>
-                        <a href="auth/reset-email.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">メールアドレスリセット</a>
-                        <?php if ($hasActiveSubscription): ?>
-                        <button type="button" id="cancel-subscription-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer; background: #dc3545; color: #fff; border: none;">
-                            サブスクリプションをキャンセル
-                        </button>
-                        <?php endif; ?>
-                    </div>
-                    <?php if ($subscriptionInfo || (isset($hasCompletedPayment) && $hasCompletedPayment)): ?>
-                    <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; font-size: 0.875rem;">
-                        <div style="margin-bottom: 0.5rem;"><strong>サブスクリプション状況</strong></div>
-                        <?php if ($subscriptionInfo): ?>
-                        <div>ステータス: <span id="subscription-status"><?php
-                            $statusLabels = [
-                                'active' => 'アクティブ',
-                                'trialing' => 'トライアル中',
-                                'past_due' => '延滞中',
-                                'incomplete' => '未完了',
-                                'incomplete_expired' => '期限切れ',
-                                'canceled' => 'キャンセル済み',
-                                'unpaid' => '未払い'
-                            ];
-                            echo htmlspecialchars($statusLabels[$subscriptionInfo['status']] ?? $subscriptionInfo['status']);
-                        ?></span></div>
-                        <?php if ($subscriptionInfo['next_billing_date']): ?>
-                        <div>次回請求日: <?php echo htmlspecialchars($subscriptionInfo['next_billing_date']); ?></div>
-                        <?php endif; ?>
-                        <?php if ($subscriptionInfo['cancelled_at']): ?>
-                        <div style="color: #dc3545; margin-top: 0.5rem;">キャンセル予定: <?php echo htmlspecialchars($subscriptionInfo['cancelled_at']); ?></div>
-                        <?php endif; ?>
-                        <?php else: ?>
-                        <div>ステータス: <span id="subscription-status">支払い完了（サブスクリプション作成中）</span></div>
-                        <?php endif; ?>
-                    </div>
-                    <?php endif; ?>
-                </div>
             </div>
 
             <div class="edit-main">
@@ -277,7 +276,9 @@ $defaultGreetings = [
                             </div>
                         </div>
 
-                        <button type="submit" class="btn-primary">保存して次へ</button>
+                        <div style="text-align: center; margin-top: 2rem;">
+                            <button type="submit" class="btn-primary">保存して次へ</button>
+                        </div>
                     </form>
                 </div>
 
@@ -353,7 +354,9 @@ $defaultGreetings = [
                             <input type="url" name="company_website" class="form-control" placeholder="https://example.com">
                         </div>
 
-                        <button type="submit" class="btn-primary">保存して次へ</button>
+                        <div style="text-align: center; margin-top: 2rem;">
+                            <button type="submit" class="btn-primary">保存して次へ</button>
+                        </div>
                     </form>
                 </div>
 
@@ -386,12 +389,12 @@ $defaultGreetings = [
 
                         <div class="form-row">
                             <div class="form-group">
-                                <label>ローマ字姓</label>
+                                <label>姓（ローマ字）</label>
                                 <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                                 <input type="text" name="last_name_romaji" id="edit_last_name_romaji" class="form-control" placeholder="例：Yamada" inputmode="latin" autocomplete="family-name" autocapitalize="words" spellcheck="false">
                             </div>
                             <div class="form-group">
-                                <label>ローマ字名</label>
+                                <label>名（ローマ字）</label>
                                 <small style="display: block; color: #666; margin-bottom: 0.5rem; font-size: 0.875rem;">最初の文字が小文字の場合は、自動的に大文字に変換されます。</small>
                                 <input type="text" name="first_name_romaji" id="edit_first_name_romaji" class="form-control" placeholder="例：Taro" inputmode="latin" autocomplete="given-name" autocapitalize="words" spellcheck="false">
                             </div>
@@ -458,6 +461,14 @@ $defaultGreetings = [
                                 <label>テキスト・画像セット <button type="button" class="btn-add-small" onclick="addFreeInputPair()">追加</button></label>
                                 <div id="free-input-pairs-container">
                                     <div class="free-input-pair-item">
+                                        <div class="free-input-pair-header">
+                                            <span class="free-input-pair-number">1</span>
+                                            <div class="free-input-pair-actions">
+                                                <button type="button" class="btn-move-up" onclick="moveFreeInputPair(0, 'up')" disabled>↑</button>
+                                                <button type="button" class="btn-move-down" onclick="moveFreeInputPair(0, 'down')" disabled>↓</button>
+                                            </div>
+                                            <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" style="display: none;">削除</button>
+                                        </div>
                                         <!-- Text Input -->
                                         <div class="form-group">
                                             <label>テキスト</label>
@@ -479,13 +490,14 @@ $defaultGreetings = [
                                             <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
                                         </div>
                                         </div>
-                                        <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" style="display: none;">削除</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <button type="submit" class="btn-primary">保存して次へ</button>
+                        <div style="text-align: center; margin-top: 2rem;">
+                            <button type="submit" class="btn-primary">保存して次へ</button>
+                        </div>
                     </form>
                 </div>
 
@@ -495,7 +507,7 @@ $defaultGreetings = [
                     <p class="step-description">表示させるテックツールを選択してください（最低2つ以上）</p>
                     <div id="tech-tools-list" class="tech-tools-grid">
                     </div>
-                    <div class="form-actions">
+                    <div style="text-align: center; margin-top: 2rem;">
                         <button type="button" class="btn-primary" onclick="saveTechTools()">保存して次へ</button>
                     </div>
                 </div>
@@ -757,15 +769,97 @@ $defaultGreetings = [
                         </div>
                     </div>
                     
-                    <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存して次へ</button>
+                    <div style="text-align: center; margin-top: 2rem;">
+                        <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存して次へ</button>
+                    </div>
+                </div>
+                <!-- Step 6: Payment -->
+                <div id="payment-section" class="edit-section">
+                    <h2>決済</h2>
+                    <p class="step-description">お支払い方法を選択してください</p>
+
+                    <div class="payment-section">
+                        <h3>お支払方法</h3>
+                        <div class="payment-options">
+                            <label class="payment-option">
+                                <input type="radio" name="payment_method" value="credit_card" checked>
+                                <span>クレジットカード決済</span>
+                            </label>
+                            <?php if ($userType !== 'free'): ?>
+                            <label class="payment-option">
+                                <input type="radio" name="payment_method" value="bank_transfer">
+                                <span>お振込み</span>
+                            </label>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="payment-amount">
+                            <?php if ($userType === 'new' || $isCanceledAccount): ?>
+                            <p>初期費用: ¥30,000（税別）</p>
+                            <p>月額費用: ¥500（税別）</p>
+                            <?php if ($isCanceledAccount): ?>
+                            <p style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">※停止されたアカウントの復活には、新規登録と同じ初期費用と月額費用がかかります。</p>
+                            <?php endif; ?>
+                            <?php elseif ($userType === 'existing'): ?>
+                            <p>初期費用: ¥20,000（税別）</p>
+                            <?php else: ?>
+                            <p>無料</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="goToEditSection('communication-section')">戻る</button>
+                        <button type="button" id="submit-payment-edit" class="btn-primary">この内容で進める</button>
+                    </div>
                 </div>
             </div>
 
-            <div class="edit-preview">
-                <h3>プレビュー</h3>
-                <div id="preview-content">
-                    <p>プレビューを読み込み中...</p>
+            <div class="edit-sidebar-actions">
+                <div style="display: flex; gap: 1rem; justify-content: center; flex-direction: column; padding-inline: 10px;">
+                    <button type="button" id="direct-input-btn-pc" class="btn-direct-input btn-direct-input-pc">
+                        <span class="direct-input-text">
+                            <span class="direct-text">プレビュー</span>
+                        </span>
+                    </button>
+                    <a href="auth/forgot-password.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">パスワードリセット</a>
+                    <a href="auth/reset-email.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">メールアドレスリセット</a>
+                    <button type="button" id="go-to-payment-btn" class="btn-payment-red" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer; background: #dc3545; color: #fff; border: none; font-weight: 500; transition: background 0.3s;">
+                        お支払いへ進む
+                    </button>
+                    <?php if ($hasActiveSubscription): ?>
+                    <button type="button" id="cancel-subscription-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer;">
+                        利用を停止する
+                    </button>
+                    <?php endif; ?>
                 </div>
+                <?php if ($subscriptionInfo || (isset($hasCompletedPayment) && $hasCompletedPayment)): ?>
+                <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; font-size: 0.875rem;">
+                    <div style="margin-bottom: 0.5rem;"><strong>サブスクリプション状況</strong></div>
+                    <?php if ($subscriptionInfo): ?>
+                    <div>ステータス: <span id="subscription-status"><?php
+                        $statusLabels = [
+                            'active' => 'アクティブ',
+                            'trialing' => 'トライアル中',
+                            'past_due' => '延滞中',
+                            'incomplete' => '未完了',
+                            'incomplete_expired' => '期限切れ',
+                            'canceled' => 'キャンセル済み',
+                            'unpaid' => '未払い'
+                        ];
+                        echo htmlspecialchars($statusLabels[$subscriptionInfo['status']] ?? $subscriptionInfo['status']);
+                    ?></span></div>
+                    <?php if ($subscriptionInfo['next_billing_date']): ?>
+                    <div>次回請求日: <?php echo htmlspecialchars($subscriptionInfo['next_billing_date']); ?></div>
+                    <?php endif; ?>
+                    <?php if ($subscriptionInfo['cancelled_at']): ?>
+                    <div style="color: #dc3545; margin-top: 0.5rem;">キャンセル予定: <?php echo htmlspecialchars($subscriptionInfo['cancelled_at']); ?></div>
+                    <?php endif; ?>
+                    <?php else: ?>
+                    <div>ステータス: <span id="subscription-status">支払い完了（サブスクリプション作成中）</span></div>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -789,13 +883,346 @@ $defaultGreetings = [
         </div>
     </div>
 
-    <script src="assets/js/modal.js"></script>
     <!-- Cropper.js -->
+    <script>
+        // Make BASE_URL available to JavaScript
+        window.BASE_URL = <?php echo json_encode(BASE_URL); ?>;
+        // Make user type and account status available
+        window.userType = <?php echo json_encode($userType ?? 'new'); ?>;
+        window.isCanceledAccount = <?php echo json_encode($isCanceledAccount ?? false); ?>;
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
     <script src="assets/js/auto-save.js"></script>
     <script src="assets/js/edit.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script>
+        // Direct Input button handler and mobile touch support
+        document.addEventListener('DOMContentLoaded', function() {
+            // SP version button (in header)
+            const directInputBtn = document.getElementById('direct-input-btn');
+            // PC version button (in sidebar)
+            const directInputBtnPc = document.getElementById('direct-input-btn-pc');
+
+            // Function to handle button click
+            function handleDirectInputClick() {
+                if (typeof showDirectInputModal === 'function') {
+                    showDirectInputModal();
+                }
+            }
+
+            if (directInputBtn) {
+                directInputBtn.addEventListener('click', handleDirectInputClick);
+                // Mobile: Add 'touched' class on first tap to keep expanded state
+                if (window.innerWidth <= 768) {
+                    directInputBtn.addEventListener('touchstart', function() {
+                        this.classList.add('touched');
+                    }, { once: true });
+                }
+            }
+
+            if (directInputBtnPc) {
+                directInputBtnPc.addEventListener('click', handleDirectInputClick);
+            }
+        });
+
+        // Collect current form data from all forms
+        function collectCurrentFormData() {
+            const data = {};
+
+            // Step 1: Header & Greeting form
+            const headerGreetingForm = document.getElementById('header-greeting-form');
+            if (headerGreetingForm) {
+                const formData = new FormData(headerGreetingForm);
+                for (let [key, value] of formData.entries()) {
+                    if (value) data[key] = value;
+                }
+
+                // Collect greetings
+                const greetingItems = document.querySelectorAll('#greetings-list .greeting-item, #greetings-container .greeting-item');
+                const greetings = [];
+                greetingItems.forEach((item, index) => {
+                    if (item.dataset.cleared === 'true') return;
+                    const titleInput = item.querySelector('input[name="greeting_title[]"]') || item.querySelector('.greeting-title input');
+                    const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]') || item.querySelector('.greeting-content textarea');
+                    const title = titleInput ? (titleInput.value || '').trim() : '';
+                    const content = contentTextarea ? (contentTextarea.value || '').trim() : '';
+                    if (title || content) {
+                        greetings.push({
+                            title: title,
+                            content: content,
+                            display_order: index
+                        });
+                    }
+                });
+                if (greetings.length > 0) {
+                    data.greetings = greetings;
+                }
+
+                // Get logo and photo from preview or existing data
+                const logoPreview = document.querySelector('[data-upload-id="company_logo"] .upload-preview img');
+                if (logoPreview && logoPreview.src) {
+                    const logoPath = logoPreview.src.replace(window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/'), '');
+                    if (logoPath && !logoPath.startsWith('data:')) {
+                        data.company_logo = logoPath.replace(/^\.\.\//, '');
+                    }
+                }
+                const photoPreview = document.querySelector('[data-upload-id="profile_photo"] .upload-preview img');
+                if (photoPreview && photoPreview.src) {
+                    const photoPath = photoPreview.src.replace(window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/'), '');
+                    if (photoPath && !photoPath.startsWith('data:')) {
+                        data.profile_photo = photoPath.replace(/^\.\.\//, '');
+                    }
+                }
+            }
+
+            // Step 2: Company Profile form
+            const companyProfileForm = document.getElementById('company-profile-form');
+            if (companyProfileForm) {
+                const formData = new FormData(companyProfileForm);
+                for (let [key, value] of formData.entries()) {
+                    if (value) {
+                        if (key === 'company_name_profile') {
+                            data.company_name = String(value).trim();
+                        } else {
+                            data[key] = value;
+                        }
+                    }
+                }
+            }
+
+            // Step 3: Personal Info form
+            const personalInfoForm = document.getElementById('personal-info-form');
+            if (personalInfoForm) {
+                const formData = new FormData(personalInfoForm);
+                for (let [key, value] of formData.entries()) {
+                    if (value) data[key] = value;
+                }
+
+                // Combine names
+                const lastName = data.last_name || '';
+                const firstName = data.first_name || '';
+                if (lastName || firstName) {
+                    data.name = (lastName + ' ' + firstName).trim();
+                }
+
+                const lastNameRomaji = data.last_name_romaji || '';
+                const firstNameRomaji = data.first_name_romaji || '';
+                if (lastNameRomaji || firstNameRomaji) {
+                    data.name_romaji = (lastNameRomaji + ' ' + firstNameRomaji).trim();
+                }
+            }
+
+            // Step 4: Tech Tools (checkboxes)
+            const techToolCheckboxes = document.querySelectorAll('#tech-tools-grid input[type="checkbox"]:checked');
+            if (techToolCheckboxes.length > 0) {
+                const techTools = [];
+                techToolCheckboxes.forEach((checkbox, index) => {
+                    techTools.push({
+                        tool_type: checkbox.value,
+                        display_order: index
+                    });
+                });
+                data.tech_tools = techTools;
+            }
+
+            // Step 5: Communication methods
+            const messageItems = document.querySelectorAll('#communication-messages .communication-item');
+            const messages = [];
+            messageItems.forEach((item, index) => {
+                const labelInput = item.querySelector('input[name="message_label[]"]');
+                const urlInput = item.querySelector('input[name="message_url[]"]');
+                const label = labelInput ? (labelInput.value || '').trim() : '';
+                const url = urlInput ? (urlInput.value || '').trim() : '';
+                if (label || url) {
+                    messages.push({
+                        label: label,
+                        url: url,
+                        display_order: index
+                    });
+                }
+            });
+            if (messages.length > 0) {
+                data.communication_methods = messages;
+            }
+
+            const snsItems = document.querySelectorAll('#communication-sns .communication-item');
+            const sns = [];
+            snsItems.forEach((item, index) => {
+                const labelInput = item.querySelector('input[name="sns_label[]"]');
+                const urlInput = item.querySelector('input[name="sns_url[]"]');
+                const label = labelInput ? (labelInput.value || '').trim() : '';
+                const url = urlInput ? (urlInput.value || '').trim() : '';
+                if (label || url) {
+                    sns.push({
+                        label: label,
+                        url: url,
+                        display_order: index
+                    });
+                }
+            });
+            if (sns.length > 0) {
+                if (!data.communication_methods) data.communication_methods = [];
+                data.communication_methods = data.communication_methods.concat(sns);
+            }
+
+            // Free input pairs
+            const freeInputPairs = document.querySelectorAll('.free-input-pair');
+            const freeInputs = [];
+            freeInputPairs.forEach((pair, index) => {
+                const textInput = pair.querySelector('textarea[name="free_text[]"]');
+                const imagePreview = pair.querySelector('.upload-preview img');
+                const text = textInput ? (textInput.value || '').trim() : '';
+                let imagePath = '';
+                if (imagePreview && imagePreview.src) {
+                    const path = imagePreview.src.replace(window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/'), '');
+                    if (path && !path.startsWith('data:')) {
+                        imagePath = path.replace(/^\.\.\//, '');
+                    }
+                }
+                if (text || imagePath) {
+                    freeInputs.push({
+                        text: text,
+                        image_path: imagePath,
+                        display_order: index
+                    });
+                }
+            });
+            if (freeInputs.length > 0) {
+                data.free_input = freeInputs;
+            }
+
+            return data;
+        }
+
+        // Direct Input Modal - Display card.php in modal
+        async function showDirectInputModal() {
+            // Load saved business card data to get slug and check if data exists
+            let savedData = null;
+            if (typeof loadBusinessCardData === 'function') {
+                await loadBusinessCardData();
+                // Check both window.businessCardData and the global businessCardData from edit.js
+                savedData = window.businessCardData || (typeof businessCardData !== 'undefined' ? businessCardData : null);
+                                } else {
+                // Fallback: fetch data directly
+                try {
+                    const response = await fetch('../backend/api/business-card/get.php', {
+                        method: 'GET',
+                        credentials: 'include'
+                    });
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success) {
+                            savedData = result.data;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading business card data:', error);
+                }
+            }
+
+            // Check if we have any data to display
+            const hasData = savedData && (
+                savedData.company_name ||
+                savedData.name ||
+                (savedData.greetings && savedData.greetings.length > 0) ||
+                savedData.company_logo ||
+                savedData.profile_photo ||
+                savedData.real_estate_license_prefecture ||
+                savedData.company_address ||
+                Object.keys(savedData).length > 5 // More than just id, user_id, etc.
+            );
+
+            if (!hasData || !savedData || !savedData.url_slug) {
+                if (typeof showWarning === 'function') {
+                    showWarning('表示するデータがありません。まず情報を入力してください。');
+                } else {
+                    alert('表示するデータがありません。まず情報を入力してください。');
+                }
+                return;
+            }
+
+            // Get the URL slug
+            const urlSlug = savedData.url_slug;
+
+            // Create modal overlay
+            const modalOverlay = document.createElement('div');
+            modalOverlay.className = 'modal-overlay direct-input-modal';
+            modalOverlay.style.cssText = 'visibility: visible; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto;';
+
+            // Create modal content
+            const modalContent = document.createElement('div');
+            modalContent.className = 'direct-input-modal-content';
+            modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
+
+            // Create iframe to load card.php with preview mode
+            const iframe = document.createElement('iframe');
+            iframe.src = `card.php?slug=${encodeURIComponent(urlSlug)}&preview=1`;
+            iframe.style.cssText = 'width: 100%; height: 100%; border: none; flex: 1; min-height: 600px;';
+            iframe.setAttribute('frameborder', '0');
+            iframe.setAttribute('scrolling', 'yes');
+
+            // Close button
+            const closeButton = document.createElement('button');
+            closeButton.type = 'button';
+            closeButton.className = 'direct-input-modal-close';
+            closeButton.innerHTML = '×';
+            closeButton.style.cssText = 'position: absolute; top: 1rem; right: 1rem; background: #fff; border: 2px solid #ddd; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 1.5rem; line-height: 1; display: flex; align-items: center; justify-content: center; color: #666; transition: all 0.3s; z-index: 10001;';
+            closeButton.onmouseover = function() {
+                this.style.background = '#f0f0f0';
+                this.style.borderColor = '#999';
+            };
+            closeButton.onmouseout = function() {
+                this.style.background = '#fff';
+                this.style.borderColor = '#ddd';
+            };
+
+            modalContent.appendChild(iframe);
+            modalContent.appendChild(closeButton);
+            modalOverlay.appendChild(modalContent);
+            document.body.appendChild(modalOverlay);
+
+            // Show modal with animation
+            setTimeout(() => {
+                modalOverlay.style.opacity = '1';
+            }, 10);
+
+            // Close button handler
+            closeButton.addEventListener('click', () => {
+                    modalOverlay.style.opacity = '0';
+                    setTimeout(() => {
+                    if (document.body.contains(modalOverlay)) {
+                        document.body.removeChild(modalOverlay);
+                    }
+                    }, 300);
+                });
+
+            // Close on overlay click
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) {
+                    modalOverlay.style.opacity = '0';
+                    setTimeout(() => {
+                        if (document.body.contains(modalOverlay)) {
+                        document.body.removeChild(modalOverlay);
+                        }
+                    }, 300);
+                }
+            });
+
+            // Close on Escape key
+            const escapeHandler = (e) => {
+                if (e.key === 'Escape') {
+                    modalOverlay.style.opacity = '0';
+                    setTimeout(() => {
+                        if (document.body.contains(modalOverlay)) {
+                        document.body.removeChild(modalOverlay);
+                        }
+                    }, 300);
+                    document.removeEventListener('keydown', escapeHandler);
+                }
+            };
+            document.addEventListener('keydown', escapeHandler);
+        }
+
         // Subscription cancellation handler for edit.php sidebar
         document.addEventListener('DOMContentLoaded', function() {
             const cancelBtn = document.getElementById('cancel-subscription-btn');
@@ -846,9 +1273,9 @@ $defaultGreetings = [
 
                         if (result.success) {
                             if (typeof showSuccess === 'function') {
-                                showSuccess(result.message || 'サブスクリプションをキャンセルしました', { autoClose: 5000 });
+                                showSuccess(result.message || '利用を停止しました', { autoClose: 5000 });
                             } else {
-                                alert(result.message || 'サブスクリプションをキャンセルしました');
+                                alert(result.message || '利用を停止しました');
                             }
 
                             const statusEl = document.getElementById('subscription-status');
@@ -864,12 +1291,12 @@ $defaultGreetings = [
                             }, 3000);
                         } else {
                             if (typeof showError === 'function') {
-                                showError(result.message || 'サブスクリプションのキャンセルに失敗しました');
+                                showError(result.message || '利用停止に失敗しました');
                             } else {
-                                alert(result.message || 'サブスクリプションのキャンセルに失敗しました');
+                                alert(result.message || '利用停止に失敗しました');
                             }
                             cancelBtn.disabled = false;
-                            cancelBtn.textContent = 'サブスクリプションをキャンセル';
+                            cancelBtn.textContent = '利用を停止する';
                         }
                     } catch (error) {
                         console.error('Error canceling subscription:', error);
@@ -928,12 +1355,155 @@ $defaultGreetings = [
                     });
                     data.greetings = greetings;
                     
-                    // Handle logo and photo paths
-                    if (window.businessCardData) {
-                        if (window.businessCardData.company_logo && !data.company_logo) {
+                    // Helper function to convert data URL to blob
+                    function dataURLtoBlob(dataurl, filename) {
+                        const arr = dataurl.split(',');
+                        const match = arr[0].match(/:(.*?);/);
+                        const mime = match ? match[1] : 'image/png';
+                        const bstr = atob(arr[1]);
+                        let n = bstr.length;
+                        const u8arr = new Uint8Array(n);
+                        while (n--) {
+                            u8arr[n] = bstr.charCodeAt(n);
+                        }
+                        return new File([u8arr], filename, { type: mime });
+                    }
+
+                    // Helper function to upload image
+                    async function uploadImage(blobOrFile, fileType) {
+                        const uploadData = new FormData();
+                        uploadData.append('file', blobOrFile);
+                        uploadData.append('file_type', fileType);
+
+                        const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
+                            method: 'POST',
+                            body: uploadData,
+                            credentials: 'include'
+                        });
+
+                        const uploadResult = await uploadResponse.json();
+                        if (uploadResult.success) {
+                            // Extract relative path from absolute URL
+                            let relativePath = uploadResult.data.file_path;
+                            if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+                                const urlParts = relativePath.split('/');
+                                const backendIndex = urlParts.indexOf('backend');
+                                if (backendIndex !== -1) {
+                                    relativePath = urlParts.slice(backendIndex).join('/');
+                                } else {
+                                    const uploadsIndex = urlParts.indexOf('uploads');
+                                    if (uploadsIndex !== -1) {
+                                        relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
+                                    }
+                                }
+                            }
+
+                            // Update preview after successful upload
+                            const uploadArea = document.querySelector(`[data-upload-id="${fileType === 'logo' ? 'company_logo' : 'profile_photo'}"]`);
+                            if (uploadArea) {
+                                const preview = uploadArea.querySelector('.upload-preview');
+                                if (preview) {
+                                    // Construct full URL for display
+                                    let displayPath = relativePath;
+                                    // Remove BASE_URL if already included to avoid duplication
+                                    if (typeof window !== 'undefined' && window.BASE_URL && displayPath.startsWith(window.BASE_URL)) {
+                                        displayPath = displayPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                                    }
+                                    // Construct full URL
+                                    if (!displayPath.startsWith('http')) {
+                                        if (typeof window !== 'undefined' && window.BASE_URL) {
+                                            displayPath = window.BASE_URL + '/' + displayPath.replace(/^\/+/, '');
+                                        } else {
+                                            displayPath = '../' + displayPath;
+                                        }
+                                    }
+                                    preview.innerHTML = `<img src="${displayPath}" alt="${fileType === 'logo' ? 'ロゴ' : 'プロフィール写真'}" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none';">`;
+                                    // Store the relative path for later use
+                                    uploadArea.dataset.existingImage = relativePath;
+                                    uploadArea.dataset.uploadedPath = relativePath;
+                                }
+                            }
+
+                            return relativePath;
+                        } else {
+                            throw new Error(uploadResult.message || '画像のアップロードに失敗しました');
+                        }
+                    }
+
+                    // Upload logo if cropped or new file selected
+                    const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
+                    if (logoUploadArea) {
+                        if (logoUploadArea.dataset.croppedBlobData) {
+                            // Upload cropped image
+                            try {
+                                const blob = dataURLtoBlob(
+                                    logoUploadArea.dataset.croppedBlobData,
+                                    logoUploadArea.dataset.croppedFileName || 'logo.png'
+                                );
+                                data.company_logo = await uploadImage(blob, 'logo');
+                                logoUploadArea.dataset.uploadedPath = data.company_logo;
+                            } catch (error) {
+                                console.error('Logo upload error:', error);
+                                showError('ロゴのアップロードに失敗しました: ' + error.message);
+                                return;
+                            }
+                        } else if (logoUploadArea.dataset.originalFileData) {
+                            // Upload original file (no cropping)
+                            try {
+                                const fileInfo = JSON.parse(logoUploadArea.dataset.originalFile);
+                                const blob = dataURLtoBlob(
+                                    logoUploadArea.dataset.originalFileData,
+                                    fileInfo.name
+                                );
+                                data.company_logo = await uploadImage(blob, 'logo');
+                                logoUploadArea.dataset.uploadedPath = data.company_logo;
+                            } catch (error) {
+                                console.error('Logo upload error:', error);
+                                showError('ロゴのアップロードに失敗しました: ' + error.message);
+                                return;
+                            }
+                        } else if (logoUploadArea.dataset.uploadedPath) {
+                            data.company_logo = logoUploadArea.dataset.uploadedPath;
+                        } else if (window.businessCardData && window.businessCardData.company_logo) {
                             data.company_logo = window.businessCardData.company_logo;
                         }
-                        if (window.businessCardData.profile_photo && !data.profile_photo) {
+                    }
+
+                    // Upload profile photo if cropped or new file selected
+                    const photoUploadArea = document.querySelector('[data-upload-id="profile_photo"]');
+                    if (photoUploadArea) {
+                        if (photoUploadArea.dataset.croppedBlobData) {
+                            // Upload cropped image
+                            try {
+                                const blob = dataURLtoBlob(
+                                    photoUploadArea.dataset.croppedBlobData,
+                                    photoUploadArea.dataset.croppedFileName || 'photo.png'
+                                );
+                                data.profile_photo = await uploadImage(blob, 'photo');
+                                photoUploadArea.dataset.uploadedPath = data.profile_photo;
+                            } catch (error) {
+                                console.error('Photo upload error:', error);
+                                showError('プロフィール写真のアップロードに失敗しました: ' + error.message);
+                                return;
+                            }
+                        } else if (photoUploadArea.dataset.originalFileData) {
+                            // Upload original file (no cropping)
+                            try {
+                                const fileInfo = JSON.parse(photoUploadArea.dataset.originalFile);
+                                const blob = dataURLtoBlob(
+                                    photoUploadArea.dataset.originalFileData,
+                                    fileInfo.name
+                                );
+                                data.profile_photo = await uploadImage(blob, 'photo');
+                                photoUploadArea.dataset.uploadedPath = data.profile_photo;
+                            } catch (error) {
+                                console.error('Photo upload error:', error);
+                                showError('プロフィール写真のアップロードに失敗しました: ' + error.message);
+                                return;
+                            }
+                        } else if (photoUploadArea.dataset.uploadedPath) {
+                            data.profile_photo = photoUploadArea.dataset.uploadedPath;
+                        } else if (window.businessCardData && window.businessCardData.profile_photo) {
                             data.profile_photo = window.businessCardData.profile_photo;
                         }
                     }
@@ -1298,6 +1868,83 @@ $defaultGreetings = [
                 return '';
             }
             
+            // ローマ字入力フィールドの最初の文字を大文字に変換する関数
+            function capitalizeFirstLetterForEdit(input) {
+                if (!input || !input.value) return;
+                
+                let value = input.value.trim();
+                
+                if (value.length > 0) {
+                    // 最初の文字が小文字（a-z）の場合は大文字に変換
+                    const firstChar = value.charAt(0);
+                    if (firstChar >= 'a' && firstChar <= 'z') {
+                        const cursorPosition = input.selectionStart || input.value.length;
+                        value = firstChar.toUpperCase() + value.slice(1);
+                        input.value = value;
+                        // カーソル位置を復元
+                        const newCursorPos = cursorPosition > 0 ? cursorPosition : value.length;
+                        try {
+                            input.setSelectionRange(newCursorPos, newCursorPos);
+                        } catch (e) {
+                            // Some browsers may not support setSelectionRange on all input types
+                        }
+                    }
+                }
+            }
+            
+            // ローマ字入力フィールドの大文字化機能を設定
+            function setupRomajiAutoCapitalizeForEdit() {
+                const romajiFields = [lastNameRomajiInput, firstNameRomajiInput];
+                
+                romajiFields.forEach(field => {
+                    if (field) {
+                        let isComposing = false; // Track IME composition state
+                        
+                        // Track composition start (IME input started)
+                        field.addEventListener('compositionstart', function() {
+                            isComposing = true;
+                        });
+                        
+                        // Track composition end (IME input finished)
+                        field.addEventListener('compositionend', function(e) {
+                            isComposing = false;
+                            // Apply capitalization after composition ends
+                            setTimeout(() => capitalizeFirstLetterForEdit(e.target), 0);
+                        });
+                        
+                        // Handle input event - skip during IME composition
+                        field.addEventListener('input', function(e) {
+                            // Skip if IME is composing or if event has isComposing flag
+                            if (isComposing || e.isComposing) {
+                                return;
+                            }
+                            // Use setTimeout to ensure the value is updated before capitalization
+                            setTimeout(() => capitalizeFirstLetterForEdit(e.target), 0);
+                        });
+                        
+                        // Handle keyup for more reliable capitalization on PC
+                        field.addEventListener('keyup', function(e) {
+                            // Skip during IME composition
+                            if (isComposing || e.isComposing) {
+                                return;
+                            }
+                            // Only capitalize on regular character keys (not special keys)
+                            if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+                                setTimeout(() => capitalizeFirstLetterForEdit(e.target), 0);
+                            }
+                        });
+                        
+                        // Also apply on blur (when field loses focus)
+                        field.addEventListener('blur', function(e) {
+                            capitalizeFirstLetterForEdit(e.target);
+                        });
+                    }
+                });
+            }
+            
+            // ローマ字入力フィールドの大文字化機能を初期化
+            setupRomajiAutoCapitalizeForEdit();
+            
             if (lastNameInput && lastNameRomajiInput) {
                 let lastNameTimeout;
                 lastNameInput.addEventListener('input', function() {
@@ -1308,6 +1955,8 @@ $defaultGreetings = [
                             const romaji = convertToRomaji(value);
                             if (romaji) {
                                 lastNameRomajiInput.value = romaji;
+                                // 自動変換された値も大文字化する
+                                capitalizeFirstLetterForEdit(lastNameRomajiInput);
                             }
                         }, 500);
                     }
@@ -1324,6 +1973,8 @@ $defaultGreetings = [
                             const romaji = convertToRomaji(value);
                             if (romaji) {
                                 firstNameRomajiInput.value = romaji;
+                                // 自動変換された値も大文字化する
+                                capitalizeFirstLetterForEdit(firstNameRomajiInput);
                             }
                         }, 500);
                     }
@@ -1368,7 +2019,11 @@ $defaultGreetings = [
                             const event = new Event('change', { bubbles: true });
                             fileInput.dispatchEvent(event);
                         } else {
-                            showWarning('画像ファイルを選択してください');
+                            if (typeof showWarning === 'function') {
+                                showWarning('画像ファイルを選択してください');
+                            } else {
+                                alert('画像ファイルを選択してください');
+                            }
                         }
                     }
                 });
@@ -1381,6 +2036,91 @@ $defaultGreetings = [
                     }
                 });
             });
+        });
+
+        // Payment handling for edit page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Go to payment button handler
+            const goToPaymentBtn = document.getElementById('go-to-payment-btn');
+            if (goToPaymentBtn) {
+                goToPaymentBtn.addEventListener('click', function() {
+                    if (typeof goToEditSection === 'function') {
+                        goToEditSection('payment-section');
+                    } else {
+                        // Fallback: scroll to payment section
+                        const paymentSection = document.getElementById('payment-section');
+                        if (paymentSection) {
+                            paymentSection.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }
+                });
+            }
+            
+            const submitPaymentBtn = document.getElementById('submit-payment-edit');
+            if (submitPaymentBtn) {
+                submitPaymentBtn.addEventListener('click', async () => {
+                    const paymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value;
+
+                    if (!paymentMethod) {
+                        if (typeof showWarning === 'function') {
+                            showWarning('支払方法を選択してください');
+                        } else {
+                            alert('支払方法を選択してください');
+                        }
+                        return;
+                    }
+
+                    // Create payment intent
+                    try {
+                        const response = await fetch('../backend/api/payment/create-intent.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                payment_method: paymentMethod,
+                                payment_type: (typeof window !== 'undefined' && window.isCanceledAccount) ? 'new' : (window.userType || 'new')
+                            }),
+                            credentials: 'include'
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            if (paymentMethod === 'credit_card') {
+                                // Redirect to payment page with payment_id and client_secret
+                                const params = new URLSearchParams({
+                                    payment_id: result.data.payment_id,
+                                    client_secret: result.data.client_secret || ''
+                                });
+                                const paymentUrl = 'payment.php?' + params.toString();
+                                window.location.href = paymentUrl;
+                            } else {
+                                // Bank transfer - redirect to bank transfer info page
+                                const params = new URLSearchParams({
+                                    payment_id: result.data.payment_id,
+                                    pi: result.data.stripe_payment_intent_id || ''
+                                });
+                                const bankTransferUrl = 'bank-transfer-info.php?' + params.toString();
+                                window.location.href = bankTransferUrl;
+                            }
+                        } else {
+                            if (typeof showError === 'function') {
+                                showError(result.message || '決済処理に失敗しました');
+                            } else {
+                                alert(result.message || '決済処理に失敗しました');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        if (typeof showError === 'function') {
+                            showError('エラーが発生しました');
+                        } else {
+                            alert('エラーが発生しました');
+                        }
+                    }
+                });
+            }
         });
 
     </script>

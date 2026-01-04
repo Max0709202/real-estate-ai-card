@@ -27,14 +27,155 @@ body {
     justify-content: space-between;
     align-items: center;
     position: sticky;
+    padding-top: 3rem;
     top: 0;
     z-index: 10;
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.edit-header-content {
+    flex: 1;
 }
 
 .edit-header h1 {
     font-size: 1.5rem;
     color: #333;
     font-weight: 600;
+}
+
+/* Direct Input Button */
+.btn-direct-input {
+    background: #019b23;
+    color: #fff;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
+    animation: blinkButton 2s ease-in-out infinite;
+}
+
+@keyframes blinkButton {
+    0%, 100% {
+        background-color: #017a1c;
+    }
+    50% {
+        background-color: #05d93a;
+    }
+}
+
+.btn-direct-input:hover {
+    box-shadow: 0 4px 8px rgba(0, 102, 204, 0.3);
+    animation: blinkButtonHover 1.5s ease-in-out infinite;
+}
+
+@keyframes blinkButtonHover {
+    0%, 100% {
+        background-color: #05d93a;
+    }
+    50% {
+        background-color: #06f044;
+    }
+}
+
+.direct-input-text {
+    display: inline-block;
+    overflow: hidden;
+}
+
+.direct-text {
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+
+.input-text {
+    display: inline-block;
+    transition: all 0.3s ease;
+    margin-left: 0.25rem;
+}
+
+/* PC: Full text visible */
+@media (min-width: 769px) {
+    /* Hide SP version button in header on PC */
+    .edit-header .btn-direct-input {
+        display: none;
+    }
+
+    /* Show and style PC version button in sidebar */
+    .btn-direct-input-pc {
+        padding: 0.75rem 1.5rem;
+        /* position: fixed;
+        top: 80px;
+        right: 20px; */
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+    }
+
+    .direct-text,
+    .input-text {
+        opacity: 1;
+        width: auto;
+    }
+}
+
+/* SP: Initially show only "直接", expand on hover by moving left */
+@media (max-width: 768px) {
+    /* Hide PC version button in sidebar on SP */
+    .btn-direct-input-pc {
+        display: none;
+    }
+
+    /* Show and style SP version button in header */
+    .edit-header .btn-direct-input {
+        position: fixed;
+        top: 50%;
+        right: -45px;
+        transform: translateY(-50%);
+        padding: 0.5rem 0.75rem;
+        border-radius: 3px;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+        width: auto;
+        overflow: hidden;
+        transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1), left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+    }
+
+    .direct-input-text {
+        white-space: nowrap;
+        display: inline-block;
+    }
+
+    .direct-text,
+    .input-text {
+        display: inline-block;
+        line-height: 1.5;
+        vertical-align: middle;
+    }
+
+    .input-text {
+        margin-left: 0.25rem;
+    }
+
+    .btn-direct-input:hover,
+    .btn-direct-input:active {
+        right: -5px;
+        /* left: 1rem; */
+    }
+
+    /* Touch device support - move left after first tap */
+    .btn-direct-input.touched {
+        right: -5px;
+    }
 }
 
 .btn-back {
@@ -66,12 +207,29 @@ body {
     flex: 1;
 }
 
+/* PC: Three column layout - Nav (left), Main (center), Actions (right) */
+@media (min-width: 769px) {
+    .edit-content {
+        grid-template-columns: 250px 1fr 280px;
+    }
+}
+
 /* Edit Sidebar */
 .edit-sidebar {
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     padding: 1.5rem 0;
+    height: fit-content;
+    position: sticky;
+    top: 100px;
+}
+
+.edit-sidebar-actions {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    padding: 1.5rem;
     height: fit-content;
     position: sticky;
     top: 100px;
@@ -372,6 +530,27 @@ body {
     background: #e6f2ff;
 }
 
+/* Free Input Pair Item - Drag and Drop */
+.free-input-pair-item {
+    cursor: move;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.free-input-pair-item:hover {
+    border-color: #0066cc;
+}
+
+.free-input-pair-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.free-input-pair-item.drag-over {
+    border-color: #0066cc;
+    border-style: dashed;
+    background: #e6f2ff;
+}
+
 .greeting-header {
     display: flex;
     justify-content: space-between;
@@ -383,6 +562,29 @@ body {
     font-weight: bold;
     color: #0066cc;
     font-size: 1.1rem;
+}
+
+/* Free input pair header (similar to greeting header) */
+.free-input-pair-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.free-input-pair-number {
+    font-weight: bold;
+    color: #0066cc;
+    font-size: 1.1rem;
+}
+
+.free-input-pair-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
+    margin-right: 1rem;
 }
 
 .greeting-actions {

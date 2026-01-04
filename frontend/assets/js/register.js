@@ -36,6 +36,26 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Auto-capitalize first letter of romaji input fields
     setupRomajiAutoCapitalize();
     
+    // Check URL parameter for step navigation (e.g., ?step=6 for payment)
+    const urlParams = new URLSearchParams(window.location.search);
+    const stepParam = urlParams.get('step');
+    if (stepParam) {
+        const stepNumber = parseInt(stepParam);
+        if (stepNumber >= 1 && stepNumber <= 6) {
+            // Navigate to the specified step
+            setTimeout(() => {
+                goToStep(stepNumber, true);
+            }, 100);
+        }
+    }
+
+    // 停止されたアカウントの場合、決済画面（step-6）に自動誘導
+    if (typeof window !== 'undefined' && window.isCanceledAccount) {
+        setTimeout(() => {
+            goToStep(6);
+        }, 500);
+    }
+    
     // Make step indicators clickable
     const stepItems = document.querySelectorAll('.step-indicator .step');
     stepItems.forEach(stepItem => {
@@ -73,7 +93,7 @@ function setupRomajiAutoCapitalize() {
             field.addEventListener('compositionend', function(e) {
                 isComposing = false;
                 // Apply capitalization after composition ends
-                capitalizeFirstLetterForRegister(e.target);
+                setTimeout(() => capitalizeFirstLetterForRegister(e.target), 0);
             });
             
             // Handle input event - skip during IME composition
@@ -82,7 +102,20 @@ function setupRomajiAutoCapitalize() {
                 if (isComposing || e.isComposing) {
                     return;
                 }
-                capitalizeFirstLetterForRegister(e.target);
+                // Use setTimeout to ensure the value is updated before capitalization
+                setTimeout(() => capitalizeFirstLetterForRegister(e.target), 0);
+            });
+            
+            // Handle keyup for more reliable capitalization on PC
+            field.addEventListener('keyup', function(e) {
+                // Skip during IME composition
+                if (isComposing || e.isComposing) {
+                    return;
+                }
+                // Only capitalize on regular character keys (not special keys)
+                if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+                    setTimeout(() => capitalizeFirstLetterForRegister(e.target), 0);
+                }
             });
             
             // Also apply on blur (when field loses focus)
@@ -97,17 +130,24 @@ function setupRomajiAutoCapitalize() {
 
 // Capitalize first letter helper function for register page
 function capitalizeFirstLetterForRegister(input) {
-    let value = input.value;
+    if (!input || !input.value) return;
+    
+    let value = input.value.trim();
     
     if (value.length > 0) {
         // 最初の文字が小文字（a-z）の場合は大文字に変換
         const firstChar = value.charAt(0);
         if (firstChar >= 'a' && firstChar <= 'z') {
-            const cursorPosition = input.selectionStart;
+            const cursorPosition = input.selectionStart || input.value.length;
             value = firstChar.toUpperCase() + value.slice(1);
             input.value = value;
-            // カーソル位置を復元
-            input.setSelectionRange(cursorPosition, cursorPosition);
+            // カーソル位置を復元（ただし、先頭に挿入された場合は調整）
+            const newCursorPos = cursorPosition > 0 ? cursorPosition : value.length;
+            try {
+                input.setSelectionRange(newCursorPos, newCursorPos);
+            } catch (e) {
+                // Some browsers may not support setSelectionRange on all input types
+            }
         }
     }
 }
@@ -173,8 +213,32 @@ function populateRegistrationForms(data) {
     if (data.company_logo) {
         const logoPreview = document.querySelector('#logo-upload .upload-preview');
         if (logoPreview) {
-            const logoPath = data.company_logo.startsWith('http') ? data.company_logo : '../' + data.company_logo;
-            logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+            // Construct correct image path using BASE_URL
+            let logoPath = data.company_logo;
+            // Remove BASE_URL if already included to avoid duplication
+            if (typeof window !== 'undefined' && window.BASE_URL && logoPath.startsWith(window.BASE_URL)) {
+                logoPath = logoPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+            }
+            // Construct full URL
+            if (!logoPath.startsWith('http')) {
+                // Use BASE_URL if available, otherwise construct relative path
+                if (typeof window !== 'undefined' && window.BASE_URL) {
+                    logoPath = window.BASE_URL + '/' + logoPath.replace(/^\/+/, '');
+                } else {
+                    // Fallback: If path starts with backend/, add ../ prefix
+                    if (logoPath.startsWith('backend/')) {
+                        logoPath = '../' + logoPath;
+                    } else if (!logoPath.startsWith('../')) {
+                        logoPath = '../' + logoPath;
+                    }
+                }
+            }
+            logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px;" onerror="this.style.display='none';">`;
+            // Store existing image path for later use
+            const logoUploadArea = document.querySelector('#logo-upload');
+            if (logoUploadArea) {
+                logoUploadArea.dataset.existingImage = data.company_logo;
+            }
         }
     }
     
@@ -182,8 +246,32 @@ function populateRegistrationForms(data) {
     if (data.profile_photo) {
         const photoPreview = document.querySelector('#photo-upload-header .upload-preview');
         if (photoPreview) {
-            const photoPath = data.profile_photo.startsWith('http') ? data.profile_photo : '../' + data.profile_photo;
-            photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+            // Construct correct image path using BASE_URL
+            let photoPath = data.profile_photo;
+            // Remove BASE_URL if already included to avoid duplication
+            if (typeof window !== 'undefined' && window.BASE_URL && photoPath.startsWith(window.BASE_URL)) {
+                photoPath = photoPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+            }
+            // Construct full URL
+            if (!photoPath.startsWith('http')) {
+                // Use BASE_URL if available, otherwise construct relative path
+                if (typeof window !== 'undefined' && window.BASE_URL) {
+                    photoPath = window.BASE_URL + '/' + photoPath.replace(/^\/+/, '');
+                } else {
+                    // Fallback: If path starts with backend/, add ../ prefix
+                    if (photoPath.startsWith('backend/')) {
+                        photoPath = '../' + photoPath;
+                    } else if (!photoPath.startsWith('../')) {
+                        photoPath = '../' + photoPath;
+                    }
+                }
+            }
+            photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px;" onerror="this.style.display='none';">`;
+            // Store existing image path for later use
+            const photoUploadArea = document.querySelector('#photo-upload-header');
+            if (photoUploadArea) {
+                photoUploadArea.dataset.existingImage = data.profile_photo;
+            }
         }
     }
     
@@ -367,29 +455,53 @@ function populateRegistrationForms(data) {
                     pairItem.style.borderTop = '1px solid #e0e0e0';
                 }
 
-                pairItem.innerHTML = `
-                    <!-- Text Input -->
-                    <div class="form-group">
-                        <label>テキスト</label>
-                        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx">${escapeHtml(text)}</textarea>
-                    </div>
-                    <!-- Image/Banner Input -->
-                    <div class="form-group">
-                        <label>画像・バナー（リンク付き画像）</label>
-                        <div class="upload-area" data-upload-id="free_image_${i}">
-                            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
-                            <div class="upload-preview">${imgData.image ? `<img src="${imgData.image.startsWith('http') ? imgData.image : '../' + imgData.image}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">` : ''}</div>
-                            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
-                                画像をアップロード
-                            </button>
-                            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                    pairItem.innerHTML = `
+                        <div class="free-input-pair-header">
+                            <span class="free-input-pair-number">${i + 1}</span>
+                            <div class="free-input-pair-actions">
+                                <button type="button" class="btn-move-up" onclick="moveFreeInputPairForRegister(${i}, 'up')" ${i === 0 ? 'disabled' : ''}>↑</button>
+                                <button type="button" class="btn-move-down" onclick="moveFreeInputPairForRegister(${i}, 'down')" ${i === pairCount - 1 ? 'disabled' : ''}>↓</button>
+                            </div>
+                            <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
                         </div>
-                        <div class="form-group" style="margin-top: 0.5rem;">
-                            <label>画像のリンク先URL（任意）</label>
-                            <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com" value="${escapeHtml(imgData.link || '')}">
+                        <!-- Text Input -->
+                        <div class="form-group">
+                            <label>テキスト</label>
+                            <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx">${escapeHtml(text)}</textarea>
                         </div>
-                    </div>
-                    <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
+                        <!-- Image/Banner Input -->
+                        <div class="form-group">
+                            <label>画像・バナー（リンク付き画像）</label>
+                            <div class="upload-area" data-upload-id="free_image_${i}">
+                                <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                                <div class="upload-preview">${(() => {
+                                    if (!imgData.image) return '';
+                                    let imgPath = imgData.image;
+                                    if (!imgPath.startsWith('http')) {
+                                        // Use BASE_URL if available
+                                        if (typeof window !== 'undefined' && window.BASE_URL) {
+                                            imgPath = window.BASE_URL + '/' + imgPath.replace(/^\/+/, '');
+                                        } else {
+                                            // Fallback: If path starts with backend/, add ../ prefix
+                                            if (imgPath.startsWith('backend/')) {
+                                                imgPath = '../' + imgPath;
+                                            } else if (!imgPath.startsWith('../')) {
+                                                imgPath = '../' + imgPath;
+                                            }
+                                        }
+                                    }
+                                    return `<img src="${imgPath}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                                })()}</div>
+                                <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
+                                    画像をアップロード
+                                </button>
+                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                            </div>
+                            <div class="form-group" style="margin-top: 0.5rem;">
+                                <label>画像のリンク先URL（任意）</label>
+                                <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com" value="${escapeHtml(imgData.link || '')}">
+                            </div>
+                        </div>
                     `;
 
                 container.appendChild(pairItem);
@@ -401,20 +513,81 @@ function populateRegistrationForms(data) {
                     
                     // Initialize file upload handler
                 initializeFreeImageUploadForRegister(pairItem);
+                
+                // Initialize drag and drop for upload area
+                const uploadArea = pairItem.querySelector('.upload-area');
+                if (uploadArea) {
+                    initializeDragAndDropForUploadAreaForRegister(uploadArea);
+                }
             }
+            
+            // Initialize drag and drop for reordering after all items are loaded
+            setTimeout(() => {
+                initializeFreeInputPairDragAndDropForRegister();
+                updateFreeInputPairButtonsForRegister();
+                updateFreeInputPairNumbersForRegister();
+            }, 100);
         } catch (e) {
             console.error('Error parsing free_input:', e);
         }
     }
     
-    // Step 4: Tech Tools
-    if (data.tech_tools && Array.isArray(data.tech_tools)) {
-        data.tech_tools.forEach(tool => {
-            if (tool.is_active) {
-                const checkbox = document.querySelector(`input[name="tech_tools[]"][value="${tool.tool_type}"]`);
-                if (checkbox) checkbox.checked = true;
-            }
+    // Step 4: Tech Tools - Reorder based on display_order from database
+    if (data.tech_tools && Array.isArray(data.tech_tools) && data.tech_tools.length > 0) {
+        // Sort saved tech tools by display_order
+        const sortedSavedTools = [...data.tech_tools].sort((a, b) => {
+            const orderA = a.display_order !== undefined ? parseInt(a.display_order) : 999;
+            const orderB = b.display_order !== undefined ? parseInt(b.display_order) : 999;
+            return orderA - orderB;
         });
+        
+        // Get all tech tool cards from the grid
+        const grid = document.getElementById('tech-tools-grid');
+        if (grid) {
+            const allCards = Array.from(grid.querySelectorAll('.tech-tool-banner-card'));
+            const cardMap = {};
+            allCards.forEach(card => {
+                cardMap[card.dataset.toolType] = card;
+            });
+            
+            // Create ordered list: selected tools first (in display_order), then unselected tools
+            const selectedToolTypes = sortedSavedTools.map(tool => tool.tool_type);
+            const defaultOrder = ['mdb', 'rlp', 'llp', 'ai', 'slp', 'olp', 'alp'];
+            const unselectedToolTypes = defaultOrder.filter(toolType => 
+                !selectedToolTypes.includes(toolType) && cardMap[toolType]
+            );
+            const finalOrder = [...selectedToolTypes, ...unselectedToolTypes];
+            
+            // Reorder cards in DOM
+            finalOrder.forEach(toolType => {
+                if (cardMap[toolType]) {
+                    grid.appendChild(cardMap[toolType]);
+                }
+            });
+            
+            // Check checkboxes for active tools
+            sortedSavedTools.forEach(tool => {
+                if (tool.is_active) {
+                    const checkbox = cardMap[tool.tool_type]?.querySelector(`input[name="tech_tools[]"][value="${tool.tool_type}"]`);
+                    if (checkbox) checkbox.checked = true;
+                    const card = cardMap[tool.tool_type];
+                    if (card) card.classList.add('selected');
+                }
+            });
+            
+            // Update button indices after reordering
+            setTimeout(() => {
+                updateTechToolButtonsForRegister();
+            }, 100);
+        } else {
+            // Fallback: just check checkboxes if grid not found
+            data.tech_tools.forEach(tool => {
+                if (tool.is_active) {
+                    const checkbox = document.querySelector(`input[name="tech_tools[]"][value="${tool.tool_type}"]`);
+                    if (checkbox) checkbox.checked = true;
+                }
+            });
+        }
     }
     
     // Step 5: Communication Methods
@@ -667,6 +840,13 @@ async function goToStep(step, skipSave = false) {
                 }
             }
         }, 100);
+    }
+    
+    // Initialize free input pair drag and drop when step 3 becomes active
+    if (step === 3) {
+        setTimeout(() => {
+            initializeFreeInputPairDragAndDropForRegister();
+        }, 200);
     }
     
     // Generate and display QR code when reaching step 6 (payment step)
@@ -1251,6 +1431,31 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
                 }
                 data.company_logo = relativePath;
                 console.log('Logo uploaded and saved to database:', relativePath);
+                // Update preview after successful upload
+                const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
+                if (logoUploadArea) {
+                    const preview = logoUploadArea.querySelector('.upload-preview');
+                    if (preview) {
+                        // Construct full URL for display
+                        let displayPath = relativePath;
+                        // Remove BASE_URL if already included to avoid duplication
+                        if (typeof window !== 'undefined' && window.BASE_URL && displayPath.startsWith(window.BASE_URL)) {
+                            displayPath = displayPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                        }
+                        // Construct full URL
+                        if (!displayPath.startsWith('http')) {
+                            if (typeof window !== 'undefined' && window.BASE_URL) {
+                                displayPath = window.BASE_URL + '/' + displayPath.replace(/^\/+/, '');
+                            } else {
+                                displayPath = '../' + displayPath;
+                            }
+                        }
+                        preview.innerHTML = `<img src="${displayPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none';">`;
+                        // Store the relative path for later use
+                        logoUploadArea.dataset.existingImage = relativePath;
+                        logoUploadArea.dataset.uploadedPath = relativePath;
+                    }
+                }
                 // Log resize info
                 if (uploadResult.data.was_resized) {
                     console.log('Logo auto-resized:', uploadResult.data);
@@ -1324,6 +1529,31 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
                 }
                 data.profile_photo = relativePath;
                 console.log('Profile photo uploaded and saved to database:', relativePath);
+                // Update preview after successful upload
+                const photoUploadAreaForPreview = document.querySelector('[data-upload-id="profile_photo_header"]');
+                if (photoUploadAreaForPreview) {
+                    const preview = photoUploadAreaForPreview.querySelector('.upload-preview');
+                    if (preview) {
+                        // Construct full URL for display
+                        let displayPath = relativePath;
+                        // Remove BASE_URL if already included to avoid duplication
+                        if (typeof window !== 'undefined' && window.BASE_URL && displayPath.startsWith(window.BASE_URL)) {
+                            displayPath = displayPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                        }
+                        // Construct full URL
+                        if (!displayPath.startsWith('http')) {
+                            if (typeof window !== 'undefined' && window.BASE_URL) {
+                                displayPath = window.BASE_URL + '/' + displayPath.replace(/^\/+/, '');
+                            } else {
+                                displayPath = '../' + displayPath;
+                            }
+                        }
+                        preview.innerHTML = `<img src="${displayPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none';">`;
+                        // Store the relative path for later use
+                        photoUploadAreaForPreview.dataset.existingImage = relativePath;
+                        photoUploadAreaForPreview.dataset.uploadedPath = relativePath;
+                    }
+                }
                 // Log resize info
                 if (uploadResult.data.was_resized) {
                     console.log('Profile photo auto-resized:', uploadResult.data);
@@ -1822,7 +2052,7 @@ document.getElementById('submit-payment')?.addEventListener('click', async () =>
             },
             body: JSON.stringify({
                 payment_method: paymentMethod,
-                payment_type: formData.user_type
+                payment_type: (typeof window !== 'undefined' && window.isCanceledAccount) ? 'new' : (formData.user_type || window.userType)
             }),
             credentials: 'include'
         });
@@ -2865,11 +3095,18 @@ function addFreeInputPairForRegister() {
     const itemCount = container.querySelectorAll('.free-input-pair-item').length;
     const newPairItem = document.createElement('div');
     newPairItem.className = 'free-input-pair-item';
-    newPairItem.style.marginTop = '2rem';
-    newPairItem.style.paddingTop = '2rem';
-    newPairItem.style.borderTop = '1px solid #e0e0e0';
+    // No border/margin on new item (it's at the top)
 
+    const currentCount = container.querySelectorAll('.free-input-pair-item').length;
     newPairItem.innerHTML = `
+        <div class="free-input-pair-header">
+            <span class="free-input-pair-number">${currentCount + 1}</span>
+            <div class="free-input-pair-actions">
+                <button type="button" class="btn-move-up" onclick="moveFreeInputPairForRegister(${currentCount}, 'up')">↑</button>
+                <button type="button" class="btn-move-down" onclick="moveFreeInputPairForRegister(${currentCount}, 'down')">↓</button>
+            </div>
+            <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)">削除</button>
+        </div>
         <!-- Text Input -->
         <div class="form-group">
             <label>テキスト</label>
@@ -2891,13 +3128,37 @@ function addFreeInputPairForRegister() {
                 <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
             </div>
         </div>
-        <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)">削除</button>
     `;
     
-    container.appendChild(newPairItem);
+    // Insert at the top of the container (before the first child, or append if no children exist)
+    if (container.firstChild) {
+        container.insertBefore(newPairItem, container.firstChild);
+        // Add border to the second item (previously first) if it exists
+        const nextItem = newPairItem.nextElementSibling;
+        if (nextItem && nextItem.classList.contains('free-input-pair-item')) {
+            nextItem.style.marginTop = '2rem';
+            nextItem.style.paddingTop = '2rem';
+            nextItem.style.borderTop = '1px solid #e0e0e0';
+        }
+    } else {
+        container.appendChild(newPairItem);
+    }
 
     // Initialize file input handler for the new item
     initializeFreeImageUploadForRegister(newPairItem);
+    
+    // Initialize drag and drop for the new upload area
+    const uploadArea = newPairItem.querySelector('.upload-area');
+    if (uploadArea) {
+        initializeDragAndDropForUploadAreaForRegister(uploadArea);
+    }
+    
+    // Initialize drag and drop for reordering
+    initializeFreeInputPairDragAndDropForRegister();
+    
+    // Update buttons and numbers
+    updateFreeInputPairButtonsForRegister();
+    updateFreeInputPairNumbersForRegister();
     
     // Show delete buttons if there are multiple items
     updateFreeInputPairDeleteButtonsForRegister();
@@ -2918,6 +3179,10 @@ function removeFreeInputPairForRegister(button) {
     if (item) {
         item.remove();
         updateFreeInputPairDeleteButtonsForRegister();
+        // Reinitialize drag and drop after removal
+        initializeFreeInputPairDragAndDropForRegister();
+        updateFreeInputPairButtonsForRegister();
+        updateFreeInputPairNumbersForRegister();
     }
 }
 
@@ -2939,6 +3204,166 @@ function updateFreeInputPairDeleteButtonsForRegister() {
 // Legacy function kept for backwards compatibility
 function removeFreeInputTextForRegister(button) {
     removeFreeInputPairForRegister(button);
+}
+
+// Initialize free input pair drag and drop for reordering (register page)
+function initializeFreeInputPairDragAndDropForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+
+    let draggedElement = null;
+    let isInitializing = false;
+
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+
+        attachDragListeners();
+        isInitializing = false;
+    }
+
+    function attachDragListeners() {
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll('.free-input-pair-item').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+                return false;
+            });
+
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (draggedElement !== this && draggedElement !== null) {
+                    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+                    const targetIndex = items.indexOf(this);
+                    const draggedIndexCurrent = items.indexOf(draggedElement);
+
+                    if (draggedIndexCurrent < targetIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+
+                    draggedElement.dataset.dragInitialized = 'false';
+                    this.dataset.dragInitialized = 'false';
+
+                    // Update borders and spacing after reorder
+                    updateFreeInputPairBordersForRegister();
+                    attachDragListeners();
+                }
+            });
+        });
+    }
+
+    function updateFreeInputPairBordersForRegister() {
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item, index) => {
+            if (index === 0) {
+                item.style.marginTop = '';
+                item.style.paddingTop = '';
+                item.style.borderTop = '';
+            } else {
+                item.style.marginTop = '2rem';
+                item.style.paddingTop = '2rem';
+                item.style.borderTop = '1px solid #e0e0e0';
+            }
+        });
+    }
+
+    makeItemsDraggable();
+    updateFreeInputPairBordersForRegister();
+    updateFreeInputPairButtonsForRegister();
+    updateFreeInputPairNumbersForRegister();
+}
+
+// Move free input pair up/down using arrows (register page)
+function moveFreeInputPairForRegister(index, direction) {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateFreeInputPairButtonsForRegister();
+        updateFreeInputPairNumbersForRegister();
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateFreeInputPairButtonsForRegister();
+        updateFreeInputPairNumbersForRegister();
+    }
+}
+
+// Update free input pair arrow buttons state (register page)
+function updateFreeInputPairButtonsForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveFreeInputPairForRegister(${index}, 'up')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveFreeInputPairForRegister(${index}, 'down')`);
+        }
+    });
+}
+
+// Update free input pair numbers (register page)
+function updateFreeInputPairNumbersForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-input-pair-item');
+    items.forEach((item, index) => {
+        const numberSpan = item.querySelector('.free-input-pair-number');
+        if (numberSpan) {
+            numberSpan.textContent = index + 1;
+        }
+    });
 }
 
 // Legacy function kept for backwards compatibility
@@ -3040,6 +3465,65 @@ function initializeFreeImageUploadForRegister(item) {
     });
 }
 
+// Initialize drag and drop for a specific upload area (register page)
+function initializeDragAndDropForUploadAreaForRegister(uploadArea) {
+    if (!uploadArea) return;
+    
+    const fileInput = uploadArea.querySelector('input[type="file"]');
+    if (!fileInput) return;
+    
+    // Check if already initialized to avoid duplicate listeners
+    if (uploadArea.dataset.dragInitialized === 'true') return;
+    uploadArea.dataset.dragInitialized = 'true';
+    
+    // ドラッグオーバー時の処理
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.add('drag-over');
+    });
+    
+    // ドラッグリーブ時の処理
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('drag-over');
+    });
+    
+    // ドロップ時の処理
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            // 画像ファイルかチェック
+            if (file.type.startsWith('image/')) {
+                fileInput.files = files;
+                // ファイル選択イベントをトリガー
+                const event = new Event('change', { bubbles: true });
+                fileInput.dispatchEvent(event);
+            } else {
+                if (typeof showWarning === 'function') {
+                    showWarning('画像ファイルを選択してください');
+                } else {
+                    alert('画像ファイルを選択してください');
+                }
+            }
+        }
+    });
+    
+    // クリックでファイル選択も可能
+    uploadArea.addEventListener('click', function(e) {
+        // ボタンやプレビュー画像をクリックした場合は除外
+        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'IMG') {
+            fileInput.click();
+        }
+    });
+}
+
 // Initialize from session storage
 window.addEventListener('DOMContentLoaded', () => {
     const savedData = sessionStorage.getItem('registerData');
@@ -3058,6 +3542,11 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // Initialize drag and drop for greeting items
     initializeGreetingDragAndDrop();
+    
+    // Initialize free input pair drag and drop
+    setTimeout(() => {
+        initializeFreeInputPairDragAndDropForRegister();
+    }, 200);
     
     // Initialize tech tool drag and drop
     setTimeout(() => {

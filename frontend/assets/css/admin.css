@@ -120,6 +120,7 @@ body {
     cursor: pointer;
     transition: background 0.3s;
     width: 100%;
+    max-width: 200px;
 }
 
 .btn-primary:hover {
@@ -707,9 +708,6 @@ body {
     background: var(--bg-secondary);
     color: var(--text-primary);
     border-color: var(--border-color);
-}
-    background: #ffc107;
-    color: #333;
 }
 
 /* Action Buttons */

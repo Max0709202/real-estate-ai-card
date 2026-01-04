@@ -939,6 +939,27 @@ input.form-control {
     background: #e6f2ff;
 }
 
+/* Free Input Pair Item - Drag and Drop */
+.free-input-pair-item {
+    cursor: move;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.free-input-pair-item:hover {
+    border-color: #0066cc;
+}
+
+.free-input-pair-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.free-input-pair-item.drag-over {
+    border-color: #0066cc;
+    border-style: dashed;
+    background: #e6f2ff;
+}
+
 .greeting-header {
     display: flex;
     justify-content: space-between;
@@ -950,6 +971,29 @@ input.form-control {
     font-weight: bold;
     color: #0066cc;
     font-size: 1.1rem;
+}
+
+/* Free input pair header (similar to greeting header) */
+.free-input-pair-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.free-input-pair-number {
+    font-weight: bold;
+    color: #0066cc;
+    font-size: 1.1rem;
+}
+
+.free-input-pair-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
+    margin-right: 1rem;
 }
 
 .greeting-actions {

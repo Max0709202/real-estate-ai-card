@@ -157,6 +157,170 @@ if ($isTokenBased) {
         </div>
 
     </section>
+
+    <!-- Philosophy Section: Two Faces of Digital Business Cards -->
+    <section class="philosophy-section">
+        <div class="container">
+            <!-- Odd-numbered images displayed horizontally side by side -->
+            <div class="philosophy-images-row">
+                <div class="philosophy-image-wrapper">
+                    <div class="philosophy-image-layer">
+                        <!-- Even image hidden beneath -->
+                        <img src="assets/images/lp/sec-2-2.png" alt="「つながり」を、成約へ。" class="philosophy-image-even" loading="lazy">
+                        <!-- Odd image on top -->
+                        <img src="assets/images/lp/sec-2-1.png" alt="デジタル名刺、2つの顔" class="philosophy-image-odd" loading="lazy">
+                    </div>
+                </div>
+                <div class="philosophy-image-wrapper">
+                    <div class="philosophy-image-layer">
+                        <!-- Even image hidden beneath -->
+                        <img src="assets/images/lp/sec-2-4.png" alt="紙の名刺からデジタル名刺への進化" class="philosophy-image-even" loading="lazy">
+                        <!-- Odd image on top -->
+                        <img src="assets/images/lp/sec-2-3.png" alt="「出会い」を、デザインする。" class="philosophy-image-odd" loading="lazy">
+                    </div>
+                </div>
+                <div class="philosophy-image-wrapper">
+                    <div class="philosophy-image-layer">
+                        <!-- Even image hidden beneath -->
+                        <img src="assets/images/lp/sec-2-6.png" alt="体験・表現・思想" class="philosophy-image-even" loading="lazy">
+                        <!-- Odd image on top -->
+                        <img src="assets/images/lp/sec-2-5.png" alt="デジタル名刺の進化" class="philosophy-image-odd" loading="lazy">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- DX Tool Integration Section -->
+    <section class="dx-integration-section">
+        <div class="container">
+            <div class="dx-integration-content">
+                <div class="dx-tagline">
+                    「名刺」+「営業支援ツール」+「業務 DX 機能」が一体になった
+                </div>
+                <h2 class="dx-main-title">"次世代型の営業起点ツール"</h2>
+                <p class="dx-subtitle">
+                    AI・ロボット・ビッグデータで不動産営業のDX化を強力にサポート！
+                </p>
+                <div class="dx-product-info">
+                    <div class="dx-logo-wrapper">
+                        <img src="assets/images/logo.png" alt="不動産AI名刺 ロゴ" class="dx-logo" loading="lazy">
+                    </div>
+                    <!-- <div class="dx-product-name-wrapper">
+                        <span class="dx-tool-label">DXツール付き</span>
+                        <h3 class="dx-product-name">
+                            不動産<span class="dx-ai-highlight">AI</span>名刺
+                        </h3>
+                    </div> -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Problems Section -->
+    <section class="problems-section">
+        <div class="container">
+            <h2 class="problems-title">こんなお悩みありませんか?</h2>
+            <div class="problems-grid">
+                <div class="problem-card">
+                    <div class="problem-icon">
+                        <span>!</span>
+                    </div>
+                    <h3 class="problem-title">名刺交換後、連絡が途絶える</h3>
+                    <p class="problem-description">
+                        せっかく出会った見込み客と、その後のコミュニケーションが取れない
+                    </p>
+                </div>
+                
+                <div class="problem-card">
+                    <div class="problem-icon">
+                        <span>!</span>
+                    </div>
+                    <h3 class="problem-title">他社との差別化ができない</h3>
+                    <p class="problem-description">
+                        競合エージェントとの違いを明確に示せず、選ばれる理由が弱い
+                    </p>
+                </div>
+                
+                <div class="problem-card">
+                    <div class="problem-icon">
+                        <span>!</span>
+                    </div>
+                    <h3 class="problem-title">顧客への情報提供が不十分</h3>
+                    <p class="problem-description">
+                        物件情報や市場データを効果的に共有できず、信頼構築に時間がかかる
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Automation Process Section -->
+    <section class="automation-section">
+        <div class="container">
+            <h2 class="automation-title">営業プロセスを「自動化」する。</h2>
+            <div class="automation-grid">
+                <div class="automation-card">
+                    <div class="automation-icon">
+                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <!-- U-shaped magnet with customer icon and lightning -->
+                            <path d="M 30 20 Q 30 10 40 10 L 60 10 Q 70 10 70 20 L 70 50 Q 70 60 60 60 L 40 60 Q 30 60 30 50 Z"
+                                  fill="none" stroke="#0066cc" stroke-width="3"/>
+                            <circle cx="50" cy="35" r="8" fill="none" stroke="#0066cc" stroke-width="2"/>
+                            <path d="M 50 43 L 50 55" stroke="#0066cc" stroke-width="2"/>
+                            <path d="M 45 50 L 55 50" stroke="#0066cc" stroke-width="2"/>
+                            <!-- Lightning bolts -->
+                            <path d="M 75 25 L 80 35 L 77 35 L 82 45" stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
+                            <path d="M 25 25 L 20 35 L 23 35 L 18 45" stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="automation-card-title">顧客獲得 <span class="automation-subtitle">(Lead Capture)</span></h3>
+                    <p class="automation-description">
+                        ワンタップでLINE連携完了。QRコードを読み込むだけで、その場で顧客とつながり、失注を防ぎます。
+                    </p>
+                </div>
+
+                <div class="automation-card">
+                    <div class="automation-icon">
+                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Shield with briefcase -->
+                            <path d="M 50 15 L 25 25 L 25 60 Q 25 75 50 85 Q 75 75 75 60 L 75 25 Z"
+                                  fill="none" stroke="#0066cc" stroke-width="3"/>
+                            <rect x="35" y="40" width="30" height="20" rx="2" fill="none" stroke="#0066cc" stroke-width="2"/>
+                            <path d="M 40 40 L 40 35 L 60 35 L 60 40" stroke="#0066cc" stroke-width="2" fill="none"/>
+                            <path d="M 45 50 L 55 50" stroke="#0066cc" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h3 class="automation-card-title">価値提供 <span class="automation-subtitle">(Value Proposition)</span></h3>
+                    <p class="automation-description">
+                        顧客に6つの強力な不動産テックツールを無料で提供。情報武装で他社を圧倒し、信頼を勝ち取ります。
+                    </p>
+                </div>
+
+                <div class="automation-card">
+                    <div class="automation-icon">
+                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Robot head with growth arrow -->
+                            <rect x="30" y="25" width="40" height="35" rx="5" fill="none" stroke="#0066cc" stroke-width="3"/>
+                            <circle cx="40" cy="38" r="3" fill="#0066cc"/>
+                            <circle cx="60" cy="38" r="3" fill="#0066cc"/>
+                            <path d="M 40 48 Q 50 52 60 48" stroke="#0066cc" stroke-width="2" fill="none"/>
+                            <rect x="35" y="20" width="30" height="8" rx="2" fill="none" stroke="#0066cc" stroke-width="2"/>
+                            <!-- Growth arrow graph -->
+                            <path d="M 20 70 L 30 65 L 40 60 L 50 55 L 60 50 L 70 45 L 80 40"
+                                  stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
+                            <path d="M 75 42 L 80 40 L 75 38" stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <h3 class="automation-card-title">顧客育成 <span class="automation-subtitle">(Lead Nurturing)</span></h3>
+                    <p class="automation-description">
+                        AIが顧客の希望条件に合う物件情報を毎日自動配信。常に顧客の第一想起を維持し、エンゲージメントを高めます。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
     <!-- Hero Section -->
     <section class="hero">
         <div class="container">

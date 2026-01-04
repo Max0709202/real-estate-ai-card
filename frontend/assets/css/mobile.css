@@ -226,6 +226,9 @@
     /* User menu adjustments */
     .user-menu {
         order: 2;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
 
     .user-dropdown {
@@ -233,6 +236,35 @@
         left: auto;
         min-width: 180px;
         box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+    
+    /* Mobile payment button */
+    .mobile-payment-btn {
+        display: inline-block !important;
+        background: #dc3545;
+        color: #fff;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        font-weight: 500;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: background 0.3s;
+        white-space: nowrap;
+        min-height: 40px;
+        line-height: 1.2;
+    }
+    
+    .mobile-payment-btn:hover {
+        background: #c82333;
+    }
+    
+    .mobile-payment-btn.available {
+        background: #0066cc;
+    }
+    
+    .mobile-payment-btn.available:hover {
+        background: #0052a3;
     }
 
     /* Show mobile-only dropdown items on mobile/tablet */
@@ -1136,6 +1168,305 @@
         border-radius: 12px;
     }
 
+    /* Philosophy Section - Mobile (SP) */
+    .philosophy-section {
+        padding: 3.5rem 0;
+        background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .philosophy-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+        z-index: 1;
+    }
+
+    .philosophy-section::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+        z-index: 1;
+    }
+
+    .philosophy-section .container {
+        padding: 0 1.25rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .philosophy-images-row {
+        grid-template-columns: 1fr;
+        gap: 1.75rem;
+        padding: 0;
+        margin-bottom: 0;
+        max-width: 100%;
+    }
+
+    .philosophy-image-wrapper {
+        border-radius: 18px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12),
+                    0 4px 8px rgba(0, 0, 0, 0.08);
+        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.3s ease;
+        overflow: hidden;
+        background: #fff;
+        position: relative;
+        margin: 0 auto;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .philosophy-image-wrapper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 18px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8),
+                    inset 0 0 0 1px rgba(0, 0, 0, 0.03);
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    .philosophy-image-wrapper:active {
+        transform: scale(0.98) translateY(2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15),
+                    0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .philosophy-image-layer {
+        padding-top: 75%;
+        border-radius: 18px;
+        overflow: hidden;
+        position: relative;
+        background: linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%);
+    }
+
+    .philosophy-image-odd,
+    .philosophy-image-even {
+        border-radius: 18px;
+        transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+        backface-visibility: hidden;
+    }
+
+    /* Ensure smooth animation on mobile */
+    .philosophy-image-wrapper:nth-child(1) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(1) .philosophy-image-even,
+    .philosophy-image-wrapper:nth-child(2) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(2) .philosophy-image-even,
+    .philosophy-image-wrapper:nth-child(3) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(3) .philosophy-image-even {
+        will-change: opacity;
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+        -webkit-perspective: 1000px;
+        perspective: 1000px;
+    }
+
+    /* Add subtle entrance animation */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .philosophy-image-wrapper:nth-child(1) {
+        animation: fadeInUp 0.6s ease-out 0.1s both;
+    }
+
+    .philosophy-image-wrapper:nth-child(2) {
+        animation: fadeInUp 0.6s ease-out 0.2s both;
+    }
+
+    .philosophy-image-wrapper:nth-child(3) {
+        animation: fadeInUp 0.6s ease-out 0.3s both;
+    }
+
+    /* DX Integration Section - Mobile (SP) */
+    .dx-integration-section {
+        padding: 3rem 0;
+        background: linear-gradient(to bottom, #ffffff 0%, #fafafa 100%);
+        position: relative;
+    }
+
+    .dx-integration-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+    }
+
+    .dx-integration-content {
+        padding: 0 1.25rem;
+        max-width: 100%;
+    }
+
+    .dx-tagline {
+        font-size: 1.15rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.6;
+        padding: 0;
+        text-align: center;
+        color: #333;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+    }
+
+    .dx-main-title {
+        font-size: 2.4rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.2;
+        padding: 0;
+        text-align: center;
+        color: #e91e63;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-shadow: 0 2px 4px rgba(233, 30, 99, 0.15);
+        word-break: keep-all;
+        overflow-wrap: break-word;
+    }
+
+    .dx-subtitle {
+        font-size: 1.15rem;
+        margin-bottom: 2rem;
+        line-height: 1.6;
+        padding: 0;
+        text-align: center;
+        color: #333;
+        font-weight: 500;
+    }
+
+    .dx-product-info {
+        flex-direction: column;
+        gap: 0;
+        /* padding: 1.5rem 0 0; */
+        border: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .dx-logo-wrapper {
+        order: 1;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+    }
+
+    .dx-logo {
+        width: 100%;
+        max-width: 280px;
+        height: auto;
+        object-fit: contain;
+        display: block;
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+        transition: transform 0.3s ease, filter 0.3s ease;
+    }
+
+    .dx-logo:active {
+        transform: scale(0.98);
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+    }
+
+    /* Automation Process Section - Mobile */
+    .automation-section {
+        padding: 3.5rem 0;
+        background: #faf8f5;
+    }
+
+    .automation-title {
+        font-size: 1.75rem;
+        margin-bottom: 2.5rem;
+        padding-bottom: 0.75rem;
+    }
+
+    .automation-title::after {
+        width: 120px;
+        height: 2px;
+    }
+
+    .automation-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        padding: 0 1rem;
+    }
+
+    .automation-card {
+        padding: 2rem 1.5rem;
+        border-radius: 12px;
+        max-width: 100%;
+    }
+
+    .automation-card:hover {
+        transform: translateY(-3px);
+    }
+
+    .automation-icon {
+        width: 80px;
+        height: 80px;
+        margin-bottom: 1.25rem;
+    }
+
+    .automation-card-title {
+        font-size: 1.3rem;
+        margin-bottom: 0.875rem;
+    }
+
+    .automation-subtitle {
+        font-size: 0.9rem;
+    }
+
+    .automation-description {
+        font-size: 0.95rem;
+        line-height: 1.7;
+    }
+
+    .dx-product-name-wrapper {
+        order: 2;
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .dx-tool-label {
+        font-size: 0.9rem;
+    }
+
+    .dx-product-name {
+        font-size: 1.65rem;
+        line-height: 1.3;
+    }
+
+    .dx-ai-highlight::after {
+        height: 2px;
+    }
+
     /* Tools section */
     .tools-grid {
         grid-template-columns: 1fr;
@@ -1253,6 +1584,328 @@
    TABLET OPTIMIZATIONS (481px - 1024px)
    ============================================ */
 @media (min-width: 481px) and (max-width: 1024px) {
+    /* Philosophy Section - Tablet */
+    .philosophy-section {
+        padding: 4rem 0;
+        background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .philosophy-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+        z-index: 1;
+    }
+
+    .philosophy-section::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+        z-index: 1;
+    }
+
+    .philosophy-section .container {
+        position: relative;
+        z-index: 2;
+    }
+
+    .philosophy-images-row {
+        grid-template-columns: 1fr;
+        gap: 1.75rem;
+        padding: 0 2rem;
+        margin-bottom: 0;
+        max-width: 100%;
+    }
+
+    .philosophy-image-wrapper {
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1),
+                    0 3px 6px rgba(0, 0, 0, 0.06);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        background: #fff;
+        position: relative;
+        max-width: 600px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    .philosophy-image-wrapper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 16px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8),
+                    inset 0 0 0 1px rgba(0, 0, 0, 0.03);
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    .philosophy-image-wrapper:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15),
+                    0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .philosophy-image-wrapper:active {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
+                    0 3px 6px rgba(0, 0, 0, 0.08);
+    }
+
+    .philosophy-image-layer {
+        padding-top: 75%;
+        border-radius: 16px;
+        overflow: hidden;
+        position: relative;
+        background: linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%);
+    }
+
+    .philosophy-image-odd,
+    .philosophy-image-even {
+        border-radius: 16px;
+        transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+        backface-visibility: hidden;
+    }
+
+    /* Ensure smooth animation on tablet */
+    .philosophy-image-wrapper:nth-child(1) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(1) .philosophy-image-even,
+    .philosophy-image-wrapper:nth-child(2) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(2) .philosophy-image-even,
+    .philosophy-image-wrapper:nth-child(3) .philosophy-image-odd,
+    .philosophy-image-wrapper:nth-child(3) .philosophy-image-even {
+        will-change: opacity;
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+    }
+
+    .philosophy-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        padding: 0 1.5rem;
+    }
+
+    .philosophy-card {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    /* DX Integration Section - Tablet */
+    .dx-integration-section {
+        padding: 4rem 0;
+    }
+
+    .dx-integration-content {
+        padding: 0 1.5rem;
+    }
+
+    /* DX Integration Section - Tablet */
+    .dx-integration-section {
+        padding: 4rem 0;
+        background: linear-gradient(to bottom, #ffffff 0%, #fafafa 100%);
+        position: relative;
+    }
+
+    .dx-integration-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.08), transparent);
+    }
+
+    .dx-integration-content {
+        padding: 0 2rem;
+        max-width: 100%;
+    }
+
+    .dx-tagline {
+        font-size: 1.35rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.6;
+        text-align: center;
+        color: #333;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+    }
+
+    .dx-main-title {
+        font-size: 3.2rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.2;
+        padding: 0;
+        text-align: center;
+        color: #e91e63;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-shadow: 0 2px 4px rgba(233, 30, 99, 0.15);
+        word-break: keep-all;
+        overflow-wrap: break-word;
+    }
+
+    .dx-subtitle {
+        font-size: 1.35rem;
+        margin-bottom: 2.5rem;
+        line-height: 1.6;
+        text-align: center;
+        color: #333;
+        font-weight: 500;
+    }
+
+    .dx-product-info {
+        gap: 0;
+        /* padding: 1.5rem 0 0; */
+        border: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .dx-logo-wrapper {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+    }
+
+    .dx-logo {
+        width: 100%;
+        max-width: 400px;
+        height: auto;
+        object-fit: contain;
+        display: block;
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+        transition: transform 0.3s ease, filter 0.3s ease;
+    }
+
+    .dx-logo:hover {
+        transform: scale(1.02);
+        filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15));
+    }
+
+    .dx-product-name {
+        font-size: 1.9rem;
+    }
+
+    /* Automation Process Section - Tablet */
+    .automation-section {
+        padding: 4rem 0;
+        background: #faf8f5;
+    }
+
+    .automation-title {
+        font-size: 2.2rem;
+        margin-bottom: 3rem;
+        padding-bottom: 0.875rem;
+    }
+
+    .automation-title::after {
+        width: 160px;
+        height: 2px;
+    }
+
+    .automation-grid {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
+        padding: 0 2rem;
+    }
+
+    .automation-card {
+        padding: 2.25rem 2rem;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .automation-icon {
+        width: 90px;
+        height: 90px;
+        margin-bottom: 1.5rem;
+    }
+
+    .automation-card-title {
+        font-size: 1.4rem;
+        margin-bottom: 1rem;
+    }
+
+    .automation-subtitle {
+        font-size: 0.95rem;
+    }
+
+    .automation-description {
+        font-size: 1.05rem;
+        line-height: 1.75;
+    }
+
+    /* Automation Process Section - Tablet */
+    .automation-section {
+        padding: 4rem 0;
+        background: #faf8f5;
+    }
+
+    .automation-title {
+        font-size: 2.2rem;
+        margin-bottom: 3rem;
+        padding-bottom: 0.875rem;
+    }
+
+    .automation-title::after {
+        width: 160px;
+        height: 2px;
+    }
+
+    .automation-grid {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
+        padding: 0 2rem;
+    }
+
+    .automation-card {
+        padding: 2.25rem 2rem;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .automation-icon {
+        width: 90px;
+        height: 90px;
+        margin-bottom: 1.5rem;
+    }
+
+    .automation-card-title {
+        font-size: 1.4rem;
+        margin-bottom: 1rem;
+    }
+
+    .automation-subtitle {
+        font-size: 0.95rem;
+    }
+
+    .automation-description {
+        font-size: 1.05rem;
+        line-height: 1.75;
+    }
+
     /* Communication section - Tablet */
     .communication-grid {
         grid-template-columns: repeat(3, 1fr);
@@ -1512,7 +2165,7 @@
     }
 
     .communication-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(1, 1fr);
         gap: 0.75rem;
     }
 
@@ -1795,6 +2448,34 @@
         line-height: 1.7;
     }
 
+    /* Greeting Pagination - Mobile */
+    .greeting-pagination-container {
+        min-height: 150px;
+    }
+
+    .greeting-pagination-controls {
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        padding-top: 1.25rem;
+    }
+
+    .greeting-pagination-btn {
+        padding: 0.875rem 1.25rem;
+        font-size: 0.9rem;
+        min-width: 90px;
+        min-height: 44px; /* Touch-friendly */
+    }
+
+    .greeting-pagination-info {
+        font-size: 0.95rem;
+        gap: 0.4rem;
+    }
+
+    .greeting-page-number {
+        font-size: 1.1rem;
+    }
+
     /* Communication section */
     .communication-section h3 {
         font-size: 1.2rem;
@@ -1876,6 +2557,135 @@
 
 /* Very small screens */
 @media (max-width: 480px) {
+    /* Philosophy Section - Very Small Screens */
+    .philosophy-section {
+        padding: 3rem 0;
+    }
+
+    .philosophy-section .container {
+        padding: 0 1rem;
+    }
+
+    .philosophy-images-row {
+        gap: 1.5rem;
+        margin-bottom: 0;
+    }
+
+    .philosophy-image-wrapper {
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
+                    0 3px 6px rgba(0, 0, 0, 0.08);
+    }
+
+    .philosophy-image-wrapper::after {
+        border-radius: 16px;
+    }
+
+    .philosophy-image-layer {
+        padding-top: 75%;
+        border-radius: 16px;
+    }
+
+    .philosophy-image-odd,
+    .philosophy-image-even {
+        border-radius: 16px;
+    }
+
+    /* DX Integration Section - Very Small Screens */
+    .dx-integration-section {
+        padding: 2.5rem 0;
+    }
+
+    .dx-integration-content {
+        padding: 0 1rem;
+    }
+
+    .dx-tagline {
+        font-size: 1.05rem;
+        margin-bottom: 0.4rem;
+        line-height: 1.5;
+        padding: 0;
+    }
+
+    .dx-main-title {
+        font-size: 2rem;
+        margin-bottom: 0.4rem;
+        line-height: 1.2;
+        padding: 0;
+    }
+
+    .dx-subtitle {
+        font-size: 1.05rem;
+        margin-bottom: 1.75rem;
+        line-height: 1.5;
+        padding: 0;
+    }
+
+    .dx-logo {
+        max-width: 240px;
+    }
+
+    .dx-product-info {
+        gap: 1rem;
+        /* padding: 1.75rem 0.75rem; */
+    }
+
+    .dx-logo {
+        width: 30rem;
+    }
+
+    /* Automation Process Section - Very Small Screens */
+    .automation-section {
+        padding: 3rem 0;
+    }
+
+    .automation-title {
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+        padding-bottom: 0.625rem;
+    }
+
+    .automation-title::after {
+        width: 100px;
+    }
+
+    .automation-grid {
+        gap: 1.75rem;
+        padding: 0 0.875rem;
+    }
+
+    .automation-card {
+        padding: 1.75rem 1.25rem;
+    }
+
+    .automation-icon {
+        width: 70px;
+        height: 70px;
+        margin-bottom: 1rem;
+    }
+
+    .automation-card-title {
+        font-size: 1.2rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .automation-subtitle {
+        font-size: 0.85rem;
+    }
+
+    .automation-description {
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+
+    .dx-tool-label {
+        font-size: 0.85rem;
+    }
+
+    .dx-product-name {
+        font-size: 1.5rem;
+    }
+
     .card-container {
         padding: 0.25rem;
     }
