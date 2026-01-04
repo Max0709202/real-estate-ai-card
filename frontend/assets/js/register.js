@@ -48,6 +48,13 @@ document.addEventListener('DOMContentLoaded', async function() {
             }, 100);
         }
     }
+
+    // 停止されたアカウントの場合、決済画面（step-6）に自動誘導
+    if (typeof window !== 'undefined' && window.isCanceledAccount) {
+        setTimeout(() => {
+            goToStep(6);
+        }, 500);
+    }
     
     // Make step indicators clickable
     const stepItems = document.querySelectorAll('.step-indicator .step');
@@ -1976,7 +1983,7 @@ document.getElementById('submit-payment')?.addEventListener('click', async () =>
             },
             body: JSON.stringify({
                 payment_method: paymentMethod,
-                payment_type: formData.user_type
+                payment_type: (typeof window !== 'undefined' && window.isCanceledAccount) ? 'new' : (formData.user_type || window.userType)
             }),
             credentials: 'include'
         });

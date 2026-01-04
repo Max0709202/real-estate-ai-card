@@ -189,7 +189,7 @@ if ($isLoggedIn) {
                 </div>
                 <?php else: ?>
                 <!-- Login Button (when not logged in) -->
-                <a href="login.php" class="btn-secondary">ログイン</a>
+                <a href="login.php" class="btn-primary">ログイン</a>
                 <?php endif; ?>
 
                 <?php if ($showNavLinks): ?>
