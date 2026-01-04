@@ -709,9 +709,6 @@ body {
     color: var(--text-primary);
     border-color: var(--border-color);
 }
-    background: #ffc107;
-    color: #333;
-}
 
 /* Action Buttons */
 .btn-action {

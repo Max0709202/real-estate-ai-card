@@ -973,6 +973,29 @@ input.form-control {
     font-size: 1.1rem;
 }
 
+/* Free input pair header (similar to greeting header) */
+.free-input-pair-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.free-input-pair-number {
+    font-weight: bold;
+    color: #0066cc;
+    font-size: 1.1rem;
+}
+
+.free-input-pair-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
+    margin-right: 1rem;
+}
+
 .greeting-actions {
     display: flex;
     gap: 0.5rem;

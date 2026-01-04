@@ -455,46 +455,53 @@ function populateRegistrationForms(data) {
                     pairItem.style.borderTop = '1px solid #e0e0e0';
                 }
 
-                pairItem.innerHTML = `
-                    <!-- Text Input -->
-                    <div class="form-group">
-                        <label>テキスト</label>
-                        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx">${escapeHtml(text)}</textarea>
-                    </div>
-                    <!-- Image/Banner Input -->
-                    <div class="form-group">
-                        <label>画像・バナー（リンク付き画像）</label>
-                        <div class="upload-area" data-upload-id="free_image_${i}">
-                            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
-                            <div class="upload-preview">${(() => {
-                                if (!imgData.image) return '';
-                                let imgPath = imgData.image;
-                                if (!imgPath.startsWith('http')) {
-                                    // Use BASE_URL if available
-                                    if (typeof window !== 'undefined' && window.BASE_URL) {
-                                        imgPath = window.BASE_URL + '/' + imgPath.replace(/^\/+/, '');
-                                    } else {
-                                        // Fallback: If path starts with backend/, add ../ prefix
-                                        if (imgPath.startsWith('backend/')) {
-                                            imgPath = '../' + imgPath;
-                                        } else if (!imgPath.startsWith('../')) {
-                                            imgPath = '../' + imgPath;
+                    pairItem.innerHTML = `
+                        <div class="free-input-pair-header">
+                            <span class="free-input-pair-number">${i + 1}</span>
+                            <div class="free-input-pair-actions">
+                                <button type="button" class="btn-move-up" onclick="moveFreeInputPairForRegister(${i}, 'up')" ${i === 0 ? 'disabled' : ''}>↑</button>
+                                <button type="button" class="btn-move-down" onclick="moveFreeInputPairForRegister(${i}, 'down')" ${i === pairCount - 1 ? 'disabled' : ''}>↓</button>
+                            </div>
+                            <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
+                        </div>
+                        <!-- Text Input -->
+                        <div class="form-group">
+                            <label>テキスト</label>
+                            <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx">${escapeHtml(text)}</textarea>
+                        </div>
+                        <!-- Image/Banner Input -->
+                        <div class="form-group">
+                            <label>画像・バナー（リンク付き画像）</label>
+                            <div class="upload-area" data-upload-id="free_image_${i}">
+                                <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                                <div class="upload-preview">${(() => {
+                                    if (!imgData.image) return '';
+                                    let imgPath = imgData.image;
+                                    if (!imgPath.startsWith('http')) {
+                                        // Use BASE_URL if available
+                                        if (typeof window !== 'undefined' && window.BASE_URL) {
+                                            imgPath = window.BASE_URL + '/' + imgPath.replace(/^\/+/, '');
+                                        } else {
+                                            // Fallback: If path starts with backend/, add ../ prefix
+                                            if (imgPath.startsWith('backend/')) {
+                                                imgPath = '../' + imgPath;
+                                            } else if (!imgPath.startsWith('../')) {
+                                                imgPath = '../' + imgPath;
+                                            }
                                         }
                                     }
-                                }
-                                return `<img src="${imgPath}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
-                            })()}</div>
-                            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
-                                画像をアップロード
-                            </button>
-                            <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                                    return `<img src="${imgPath}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                                })()}</div>
+                                <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
+                                    画像をアップロード
+                                </button>
+                                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                            </div>
+                            <div class="form-group" style="margin-top: 0.5rem;">
+                                <label>画像のリンク先URL（任意）</label>
+                                <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com" value="${escapeHtml(imgData.link || '')}">
+                            </div>
                         </div>
-                        <div class="form-group" style="margin-top: 0.5rem;">
-                            <label>画像のリンク先URL（任意）</label>
-                            <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com" value="${escapeHtml(imgData.link || '')}">
-                        </div>
-                    </div>
-                    <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
                     `;
 
                 container.appendChild(pairItem);
@@ -517,6 +524,8 @@ function populateRegistrationForms(data) {
             // Initialize drag and drop for reordering after all items are loaded
             setTimeout(() => {
                 initializeFreeInputPairDragAndDropForRegister();
+                updateFreeInputPairButtonsForRegister();
+                updateFreeInputPairNumbersForRegister();
             }, 100);
         } catch (e) {
             console.error('Error parsing free_input:', e);
@@ -3088,7 +3097,16 @@ function addFreeInputPairForRegister() {
     newPairItem.className = 'free-input-pair-item';
     // No border/margin on new item (it's at the top)
 
+    const currentCount = container.querySelectorAll('.free-input-pair-item').length;
     newPairItem.innerHTML = `
+        <div class="free-input-pair-header">
+            <span class="free-input-pair-number">${currentCount + 1}</span>
+            <div class="free-input-pair-actions">
+                <button type="button" class="btn-move-up" onclick="moveFreeInputPairForRegister(${currentCount}, 'up')">↑</button>
+                <button type="button" class="btn-move-down" onclick="moveFreeInputPairForRegister(${currentCount}, 'down')">↓</button>
+            </div>
+            <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)">削除</button>
+        </div>
         <!-- Text Input -->
         <div class="form-group">
             <label>テキスト</label>
@@ -3110,7 +3128,6 @@ function addFreeInputPairForRegister() {
                 <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
             </div>
         </div>
-        <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)">削除</button>
     `;
     
     // Insert at the top of the container (before the first child, or append if no children exist)
@@ -3139,6 +3156,10 @@ function addFreeInputPairForRegister() {
     // Initialize drag and drop for reordering
     initializeFreeInputPairDragAndDropForRegister();
     
+    // Update buttons and numbers
+    updateFreeInputPairButtonsForRegister();
+    updateFreeInputPairNumbersForRegister();
+    
     // Show delete buttons if there are multiple items
     updateFreeInputPairDeleteButtonsForRegister();
 }
@@ -3160,6 +3181,8 @@ function removeFreeInputPairForRegister(button) {
         updateFreeInputPairDeleteButtonsForRegister();
         // Reinitialize drag and drop after removal
         initializeFreeInputPairDragAndDropForRegister();
+        updateFreeInputPairButtonsForRegister();
+        updateFreeInputPairNumbersForRegister();
     }
 }
 
@@ -3282,6 +3305,65 @@ function initializeFreeInputPairDragAndDropForRegister() {
 
     makeItemsDraggable();
     updateFreeInputPairBordersForRegister();
+    updateFreeInputPairButtonsForRegister();
+    updateFreeInputPairNumbersForRegister();
+}
+
+// Move free input pair up/down using arrows (register page)
+function moveFreeInputPairForRegister(index, direction) {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateFreeInputPairButtonsForRegister();
+        updateFreeInputPairNumbersForRegister();
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateFreeInputPairButtonsForRegister();
+        updateFreeInputPairNumbersForRegister();
+    }
+}
+
+// Update free input pair arrow buttons state (register page)
+function updateFreeInputPairButtonsForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveFreeInputPairForRegister(${index}, 'up')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveFreeInputPairForRegister(${index}, 'down')`);
+        }
+    });
+}
+
+// Update free input pair numbers (register page)
+function updateFreeInputPairNumbersForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-input-pair-item');
+    items.forEach((item, index) => {
+        const numberSpan = item.querySelector('.free-input-pair-number');
+        if (numberSpan) {
+            numberSpan.textContent = index + 1;
+        }
+    });
 }
 
 // Legacy function kept for backwards compatibility

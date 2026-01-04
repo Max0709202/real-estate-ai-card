@@ -446,6 +446,14 @@ $defaultGreetings = [
                                 <label>テキスト・画像セット <button type="button" class="btn-add-small" onclick="addFreeInputPair()">追加</button></label>
                                 <div id="free-input-pairs-container">
                                     <div class="free-input-pair-item">
+                                        <div class="free-input-pair-header">
+                                            <span class="free-input-pair-number">1</span>
+                                            <div class="free-input-pair-actions">
+                                                <button type="button" class="btn-move-up" onclick="moveFreeInputPair(0, 'up')" disabled>↑</button>
+                                                <button type="button" class="btn-move-down" onclick="moveFreeInputPair(0, 'down')" disabled>↓</button>
+                                            </div>
+                                            <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" style="display: none;">削除</button>
+                                        </div>
                                         <!-- Text Input -->
                                         <div class="form-group">
                                             <label>テキスト</label>
@@ -467,7 +475,6 @@ $defaultGreetings = [
                                             <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
                                         </div>
                                         </div>
-                                        <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" style="display: none;">削除</button>
                                     </div>
                                 </div>
                             </div>
