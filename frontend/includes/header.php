@@ -88,7 +88,7 @@ if ($isLoggedIn) {
 
         // Check if user has completed payment and has QR code
         $stmt = $db->prepare("
-            SELECT bc.url_slug, bc.qr_code_issued, p.payment_status
+            SELECT bc.url_slug, bc.qr_code_issued, bc.payment_status, bc.card_status, bc.is_published, p.payment_status as payment_status_from_payments
             FROM business_cards bc
             LEFT JOIN payments p ON bc.id = p.business_card_id AND p.payment_status = 'completed'
             WHERE bc.user_id = ?
@@ -98,9 +98,20 @@ if ($isLoggedIn) {
         $stmt->execute([$_SESSION['user_id']]);
         $cardData = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($cardData && $cardData['qr_code_issued'] && $cardData['payment_status'] === 'completed') {
+        if ($cardData && $cardData['qr_code_issued'] && ($cardData['payment_status'] === 'completed' || in_array($cardData['payment_status'], ['CR', 'BANK_PAID']))) {
             $showMyCard = true;
             $cardSlug = $cardData['url_slug'];
+        }
+        
+        // Check payment status for mobile payment button
+        $isPaymentCompleted = false;
+        if ($cardData) {
+            $paymentStatus = $cardData['payment_status'] ?? null;
+            $isPaymentCompleted = (
+                in_array($paymentStatus, ['CR', 'BANK_PAID']) ||
+                ($cardData['card_status'] === 'active' && $cardData['is_published'] == 1) ||
+                ($cardData['payment_status_from_payments'] === 'completed')
+            );
         }
         
         // Check subscription status for mobile menu
@@ -170,6 +181,10 @@ if ($isLoggedIn) {
                             <path d="M20.59 22C20.59 18.13 16.74 15 12 15C7.26 15 3.41 18.13 3.41 22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </div>
+                    <!-- Mobile Payment Button (visible only on mobile, next to user icon) -->
+                    <button type="button" id="mobile-payment-btn" class="mobile-payment-btn" style="display: none; background: #dc3545; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 500; font-size: 0.875rem; cursor: pointer; margin-left: 0.5rem; transition: background 0.3s;">
+                        <?php echo $isPaymentCompleted ? '利用可能' : 'お支払いへ進む'; ?>
+                    </button>
                     <div class="user-dropdown" id="user-dropdown">
                         <?php if ($showMyCard): ?>
                         <a href="card.php?slug=<?php echo htmlspecialchars($cardSlug); ?>" class="dropdown-item" target="_blank">
@@ -180,7 +195,7 @@ if ($isLoggedIn) {
                             <span>マイページ</span>
                         </a>
                         <a href="register.php?step=6" class="dropdown-item" id="payment-list-link">
-                            <span>お支払い一覧</span>
+                            <span>お支払い画面</span>
                         </a>
                         <a href="#" id="logout-link" class="dropdown-item">
                             <span>ログアウト</span>
@@ -240,6 +255,61 @@ if ($isLoggedIn) {
             }
         });
     }
+    
+    // Mobile payment button functionality
+    const mobilePaymentBtn = document.getElementById('mobile-payment-btn');
+    if (mobilePaymentBtn) {
+        // Show button only on mobile
+        function updateMobilePaymentButtonVisibility() {
+            if (window.innerWidth <= 768) {
+                mobilePaymentBtn.style.display = 'inline-block';
+            } else {
+                mobilePaymentBtn.style.display = 'none';
+            }
+        }
+        
+        // Initial check
+        updateMobilePaymentButtonVisibility();
+        
+        // Update on resize
+        window.addEventListener('resize', updateMobilePaymentButtonVisibility);
+        
+        // Button click handler
+        mobilePaymentBtn.addEventListener('click', function() {
+            if (window.isPaymentCompleted) {
+                // If payment is completed, show message or navigate to card
+                if (typeof showSuccess === 'function') {
+                    showSuccess('利用可能です');
+                } else {
+                    alert('利用可能です');
+                }
+            } else {
+                // Navigate to payment section
+                if (window.location.pathname.includes('edit.php')) {
+                    // If on edit page, navigate to payment section
+                    if (typeof goToEditSection === 'function') {
+                        goToEditSection('payment-section');
+                    } else {
+                        window.location.href = 'edit.php#payment-section';
+                    }
+                } else {
+                    // Otherwise, go to register page payment step
+                    window.location.href = 'register.php?step=6';
+                }
+            }
+        });
+        
+        // Update button text and class based on payment status
+        if (window.isPaymentCompleted) {
+            mobilePaymentBtn.textContent = '利用可能';
+            mobilePaymentBtn.classList.add('available');
+            mobilePaymentBtn.style.background = '#28a745';
+        } else {
+            mobilePaymentBtn.textContent = 'お支払いへ進む';
+            mobilePaymentBtn.classList.remove('available');
+            mobilePaymentBtn.style.background = '#dc3545';
+        }
+    }
 })();
 </script>
 
@@ -247,6 +317,8 @@ if ($isLoggedIn) {
 <script>
     // Pass subscription status to mobile menu
     window.hasActiveSubscription = <?php echo json_encode($hasActiveSubscriptionForMobile); ?>;
+    // Pass payment status to JavaScript
+    window.isPaymentCompleted = <?php echo json_encode($isPaymentCompleted ?? false); ?>;
 </script>
 <script src="assets/js/mobile-menu.js"></script>
 <!-- Modal Notification Script -->

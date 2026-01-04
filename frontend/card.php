@@ -196,7 +196,7 @@ $communicationMethods = array_merge($messageApps, $snsApps);
         <section class="card-section">
             <div class="card-header">
                 <?php if (!empty($card['company_logo'])): ?>
-                    <?php
+                    <?php 
                     $logoPath = trim($card['company_logo']);
                     // Add BASE_URL if path doesn't start with http
                     if (!empty($logoPath) && !preg_match('/^https?:\/\//', $logoPath)) {
@@ -205,7 +205,7 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                         if (preg_match('/^' . $baseUrlPattern . '/i', $logoPath)) {
                             // Already contains BASE_URL, use as is
                         } else {
-                            $logoPath = BASE_URL . '/' . ltrim($logoPath, '/');
+                        $logoPath = BASE_URL . '/' . ltrim($logoPath, '/');
                         }
                     }
                     ?>
@@ -222,7 +222,7 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                 <div class="profile-greeting-section">
                     <?php if (!empty($card['profile_photo'])): ?>
                         <div class="profile-photo-container">
-                            <?php
+                            <?php 
                             $photoPath = trim($card['profile_photo']);
                             // Add BASE_URL if path doesn't start with http
                             if (!empty($photoPath) && !preg_match('/^https?:\/\//', $photoPath)) {
@@ -231,7 +231,7 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                                 if (preg_match('/^' . $baseUrlPattern . '/i', $photoPath)) {
                                     // Already contains BASE_URL, use as is
                                 } else {
-                                    $photoPath = BASE_URL . '/' . ltrim($photoPath, '/');
+                                $photoPath = BASE_URL . '/' . ltrim($photoPath, '/');
                                 }
                             }
                             ?>
@@ -251,7 +251,7 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                                         <?php endif; ?>
                                         <?php if (!empty($greeting['content'])): ?>
                                             <p class="greeting-text"><?php echo nl2br(htmlspecialchars($greeting['content'])); ?></p>
-                                        <?php endif; ?>
+                                <?php endif; ?>
                                     </div>
                                 <?php endforeach; ?>
 
@@ -498,42 +498,42 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                                     } else {
                                         // Old format: single text, image, and image_link
                                         echo '<div class="free-input-pair">';
-
-                                        // Display text if exists
-                                        if (!empty($freeInputData['text'])) {
+                            
+                                    // Display text if exists
+                                    if (!empty($freeInputData['text'])) {
                                             echo '<div class="free-input-text-wrapper">';
-                                            echo '<p class="free-input-text">' . nl2br(htmlspecialchars($freeInputData['text'])) . '</p>';
+                                        echo '<p class="free-input-text">' . nl2br(htmlspecialchars($freeInputData['text'])) . '</p>';
                                             echo '</div>';
-                                        }
+                                    }
 
-                                        // Display embedded image if exists
-                                        if (!empty($freeInputData['image'])) {
+                                    // Display embedded image if exists
+                                    if (!empty($freeInputData['image'])) {
                                             echo '<div class="free-input-image-wrapper">';
-                                            $imagePath = $freeInputData['image'];
-                                            // Add BASE_URL if the path doesn't start with http
-                                            if (!preg_match('/^https?:\/\//', $imagePath)) {
-                                                $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
-                                            }
-                                            echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" class="free-input-image">';
-                                            echo '</div>';
+                                        $imagePath = $freeInputData['image'];
+                                        // Add BASE_URL if the path doesn't start with http
+                                        if (!preg_match('/^https?:\/\//', $imagePath)) {
+                                            $imagePath = BASE_URL . '/' . ltrim($imagePath, '/');
                                         }
+                                            echo '<img src="' . htmlspecialchars($imagePath) . '" alt="アップロード画像" class="free-input-image">';
+                                        echo '</div>';
+                                    }
 
-                                        // Display image_link if exists
-                                        if (!empty($freeInputData['image_link'])) {
+                                    // Display image_link if exists
+                                    if (!empty($freeInputData['image_link'])) {
                                             echo '<div class="free-input-link-wrapper">';
                                             echo '<a href="' . htmlspecialchars($freeInputData['image_link']) . '" target="_blank" rel="noopener noreferrer" class="free-input-link">';
 
-                                            // Check if it's an image URL to display thumbnail
-                                            $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-                                            $urlExtension = strtolower(pathinfo(parse_url($freeInputData['image_link'], PHP_URL_PATH), PATHINFO_EXTENSION));
+                                        // Check if it's an image URL to display thumbnail
+                                        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                                        $urlExtension = strtolower(pathinfo(parse_url($freeInputData['image_link'], PHP_URL_PATH), PATHINFO_EXTENSION));
 
-                                            if (in_array($urlExtension, $imageExtensions)) {
+                                        if (in_array($urlExtension, $imageExtensions)) {
                                                 echo htmlspecialchars($freeInputData['image_link']);
-                                            } else {
-                                                echo htmlspecialchars($freeInputData['image_link']);
-                                            }
+                                        } else {
+                                            echo htmlspecialchars($freeInputData['image_link']);
+                                        }
 
-                                            echo '</a>';
+                                        echo '</a>';
                                             echo '</div>';
                                         }
 
@@ -692,59 +692,59 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                     <hr>
                     <div class="communication-section">
                         <h3>コミュニケーション方法</h3>
-
+                        
                         <!-- Combined Message Apps and SNS Section -->
-                        <div class="communication-grid">
+                            <div class="communication-grid">
                             <!-- Message Apps (displayed first) -->
                             <?php foreach ($validMessageApps as $method): ?>
                                 <?php $linkUrl = getMessageAppLinkUrl($method); ?>
                                 <?php if (!empty($linkUrl)): ?>
-                                    <div class="comm-card">
-                                        <!-- Message App Logo -->
-                                        <div class="comm-logo">
-                                            <?php $iconFile = getIconFilename($method['method_type'], $iconMapping); ?>
-                                            <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($iconFile); ?>.png"
-                                                 alt="<?php echo htmlspecialchars($method['method_name']); ?>"
+                                        <div class="comm-card">
+                                            <!-- Message App Logo -->
+                                            <div class="comm-logo">
+                                                <?php $iconFile = getIconFilename($method['method_type'], $iconMapping); ?>
+                                                <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($iconFile); ?>.png"
+                                                     alt="<?php echo htmlspecialchars($method['method_name']); ?>"
                                                  loading="lazy"
                                                  onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=\'font-size: 1.2rem; font-weight: 600; color: #333;\'><?php echo htmlspecialchars($method['method_name']); ?></span>';">
-                                        </div>
+                                            </div>
 
-                                        <!-- Details Button -->
-                                        <a href="<?php echo htmlspecialchars($linkUrl); ?>"
-                                           class="comm-details-button"
+                                            <!-- Details Button -->
+                                                <a href="<?php echo htmlspecialchars($linkUrl); ?>" 
+                                                   class="comm-details-button" 
                                            target="_blank"
                                            rel="noopener noreferrer">
-                                            詳細はこちら
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-
+                                                    詳細はこちら
+                                                </a>
+                                        </div>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                        
                             <!-- SNS Apps (displayed second) -->
                             <?php foreach ($validSnsApps as $method): ?>
                                 <?php $linkUrl = getSnsAppLinkUrl($method); ?>
                                 <?php if (!empty($linkUrl)): ?>
-                                    <div class="comm-card">
-                                        <!-- SNS Logo -->
-                                        <div class="comm-logo">
-                                            <?php $iconFile = getIconFilename($method['method_type'], $iconMapping); ?>
-                                            <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($iconFile); ?>.png"
-                                                 alt="<?php echo htmlspecialchars($method['method_name']); ?>"
+                                        <div class="comm-card">
+                                            <!-- SNS Logo -->
+                                            <div class="comm-logo">
+                                                <?php $iconFile = getIconFilename($method['method_type'], $iconMapping); ?>
+                                                <img src="<?php echo BASE_URL; ?>/frontend/assets/images/icons/<?php echo htmlspecialchars($iconFile); ?>.png"
+                                                     alt="<?php echo htmlspecialchars($method['method_name']); ?>"
                                                  loading="lazy"
                                                  onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=\'font-size: 1.2rem; font-weight: 600; color: #333;\'><?php echo htmlspecialchars($method['method_name']); ?></span>';">
-                                        </div>
+                                            </div>
 
-                                        <!-- Details Button -->
-                                        <a href="<?php echo htmlspecialchars($linkUrl); ?>"
-                                           class="comm-details-button"
+                                            <!-- Details Button -->
+                                                <a href="<?php echo htmlspecialchars($linkUrl); ?>" 
+                                                   class="comm-details-button" 
                                            target="_blank"
                                            rel="noopener noreferrer">
-                                            詳細はこちら
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        </div>
+                                                    詳細はこちら
+                                                </a>
+                                        </div>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </div>
                     </div>
                 <?php endif; ?>
             </div>

@@ -135,6 +135,16 @@ $defaultGreetings = [
         .btn-secondary:hover {
             background: #5a6268;
         }
+        .btn-payment-red {
+            background: #dc3545;
+            color: #fff;
+            border: none;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        .btn-payment-red:hover {
+            background: #c82333;
+        }
     </style>
 </head>
 <body>
@@ -792,6 +802,9 @@ $defaultGreetings = [
                     </button>
                     <a href="auth/forgot-password.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">パスワードリセット</a>
                     <a href="auth/reset-email.php" class="btn-secondary" style="text-align: center; padding: 0.75rem; text-decoration: none; display: inline-block; border-radius: 4px;">メールアドレスリセット</a>
+                    <button type="button" id="go-to-payment-btn" class="btn-payment-red" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer; background: #dc3545; color: #fff; border: none; font-weight: 500; transition: background 0.3s;">
+                        お支払いへ進む
+                    </button>
                     <?php if ($hasActiveSubscription): ?>
                     <button type="button" id="cancel-subscription-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer;">
                         利用を停止する
@@ -1350,6 +1363,11 @@ $defaultGreetings = [
                                 if (preview) {
                                     // Construct full URL for display
                                     let displayPath = relativePath;
+                                    // Remove BASE_URL if already included to avoid duplication
+                                    if (typeof window !== 'undefined' && window.BASE_URL && displayPath.startsWith(window.BASE_URL)) {
+                                        displayPath = displayPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                                    }
+                                    // Construct full URL
                                     if (!displayPath.startsWith('http')) {
                                         if (typeof window !== 'undefined' && window.BASE_URL) {
                                             displayPath = window.BASE_URL + '/' + displayPath.replace(/^\/+/, '');
@@ -1357,7 +1375,10 @@ $defaultGreetings = [
                                             displayPath = '../' + displayPath;
                                         }
                                     }
-                                    preview.innerHTML = `<img src="${displayPath}" alt="${fileType === 'logo' ? 'ロゴ' : 'プロフィール写真'}" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                                    preview.innerHTML = `<img src="${displayPath}" alt="${fileType === 'logo' ? 'ロゴ' : 'プロフィール写真'}" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none';">`;
+                                    // Store the relative path for later use
+                                    uploadArea.dataset.existingImage = relativePath;
+                                    uploadArea.dataset.uploadedPath = relativePath;
                                 }
                             }
 
@@ -1977,6 +1998,22 @@ $defaultGreetings = [
 
         // Payment handling for edit page
         document.addEventListener('DOMContentLoaded', function() {
+            // Go to payment button handler
+            const goToPaymentBtn = document.getElementById('go-to-payment-btn');
+            if (goToPaymentBtn) {
+                goToPaymentBtn.addEventListener('click', function() {
+                    if (typeof goToEditSection === 'function') {
+                        goToEditSection('payment-section');
+                    } else {
+                        // Fallback: scroll to payment section
+                        const paymentSection = document.getElementById('payment-section');
+                        if (paymentSection) {
+                            paymentSection.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }
+                });
+            }
+            
             const submitPaymentBtn = document.getElementById('submit-payment-edit');
             if (submitPaymentBtn) {
                 submitPaymentBtn.addEventListener('click', async () => {

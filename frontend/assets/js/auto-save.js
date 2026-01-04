@@ -638,9 +638,19 @@
                 }
 
                 // Update preview with uploaded image
-                const imagePath = result.data.file_path.startsWith('http')
-                    ? result.data.file_path
-                    : '../' + result.data.file_path;
+                let imagePath = result.data.file_path;
+                // Remove BASE_URL if already included to avoid duplication
+                if (typeof window !== 'undefined' && window.BASE_URL && imagePath.startsWith(window.BASE_URL)) {
+                    imagePath = imagePath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                }
+                // Construct full URL
+                if (!imagePath.startsWith('http')) {
+                    if (typeof window !== 'undefined' && window.BASE_URL) {
+                        imagePath = window.BASE_URL + '/' + imagePath.replace(/^\/+/, '');
+                    } else {
+                        imagePath = '../' + imagePath;
+                    }
+                }
 
                 // Build resize info message
                 let resizeInfo = '';

@@ -245,6 +245,11 @@ function populateEditForms(data) {
             if (logoPreview) {
                 // Construct correct image path using BASE_URL
                 let logoPath = data.company_logo;
+                // Remove BASE_URL if already included to avoid duplication
+                if (typeof window !== 'undefined' && window.BASE_URL && logoPath.startsWith(window.BASE_URL)) {
+                    logoPath = logoPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                }
+                // Construct full URL
                 if (!logoPath.startsWith('http')) {
                     // Use BASE_URL if available, otherwise construct relative path
                     if (typeof window !== 'undefined' && window.BASE_URL) {
@@ -258,7 +263,8 @@ function populateEditForms(data) {
                         }
                     }
                 }
-                logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
+                logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none';">`;
+                // Store the original relative path from database
                 logoUploadArea.dataset.existingImage = data.company_logo;
             } else {
                 console.warn('Logo preview element not found');
@@ -285,6 +291,11 @@ function populateEditForms(data) {
             if (photoPreview) {
                 // Construct correct image path using BASE_URL
                 let photoPath = data.profile_photo;
+                // Remove BASE_URL if already included to avoid duplication
+                if (typeof window !== 'undefined' && window.BASE_URL && photoPath.startsWith(window.BASE_URL)) {
+                    photoPath = photoPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                }
+                // Construct full URL
                 if (!photoPath.startsWith('http')) {
                     // Use BASE_URL if available, otherwise construct relative path
                     if (typeof window !== 'undefined' && window.BASE_URL) {
@@ -298,7 +309,8 @@ function populateEditForms(data) {
                         }
                     }
                 }
-                photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
+                photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none';">`;
+                // Store the original relative path from database
                 photoUploadArea.dataset.existingImage = data.profile_photo;
             } else {
                 console.warn('Profile photo preview element not found');
