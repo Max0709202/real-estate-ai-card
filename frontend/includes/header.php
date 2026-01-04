@@ -104,12 +104,17 @@ if ($isLoggedIn) {
         }
         
         // Check payment status for mobile payment button
+        // Payment is completed when: payment_status is CR or BANK_PAID AND admin checked OK (is_published == 1)
         $isPaymentCompleted = false;
         if ($cardData) {
             $paymentStatus = $cardData['payment_status'] ?? null;
+            $isPublished = $cardData['is_published'] ?? 0;
+            
+            // Payment is completed if:
+            // 1. Payment status is CR or BANK_PAID AND admin checked OK (is_published == 1)
+            // 2. OR payment_status_from_payments is 'completed' (for direct payment confirmations)
             $isPaymentCompleted = (
-                in_array($paymentStatus, ['CR', 'BANK_PAID']) ||
-                ($cardData['card_status'] === 'active' && $cardData['is_published'] == 1) ||
+                (in_array($paymentStatus, ['CR', 'BANK_PAID']) && $isPublished == 1) ||
                 ($cardData['payment_status_from_payments'] === 'completed')
             );
         }
@@ -182,7 +187,7 @@ if ($isLoggedIn) {
                         </svg>
                     </div>
                     <!-- Mobile Payment Button (visible only on mobile, next to user icon) -->
-                    <button type="button" id="mobile-payment-btn" class="mobile-payment-btn" style="display: none; background: #dc3545; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 500; font-size: 0.875rem; cursor: pointer; margin-left: 0.5rem; transition: background 0.3s;">
+                    <button type="button" id="mobile-payment-btn" class="mobile-payment-btn" style="display: none; background: <?php echo $isPaymentCompleted ? '#0066cc' : '#dc3545'; ?>; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 500; font-size: 0.875rem; cursor: pointer; margin-left: 0.5rem; transition: background 0.3s;">
                         <?php echo $isPaymentCompleted ? '利用可能' : 'お支払いへ進む'; ?>
                     </button>
                     <div class="user-dropdown" id="user-dropdown">
@@ -299,16 +304,40 @@ if ($isLoggedIn) {
             }
         });
         
-        // Update button text and class based on payment status
-        if (window.isPaymentCompleted) {
-            mobilePaymentBtn.textContent = '利用可能';
-            mobilePaymentBtn.classList.add('available');
-            mobilePaymentBtn.style.background = '#28a745';
-        } else {
-            mobilePaymentBtn.textContent = 'お支払いへ進む';
-            mobilePaymentBtn.classList.remove('available');
-            mobilePaymentBtn.style.background = '#dc3545';
+        // Function to update button appearance based on payment status
+        function updateMobilePaymentButton() {
+            // Check payment status - use window.isPaymentCompleted or check again
+            const isCompleted = window.isPaymentCompleted === true;
+            
+            if (isCompleted) {
+                mobilePaymentBtn.textContent = '利用可能';
+                mobilePaymentBtn.classList.add('available');
+                mobilePaymentBtn.style.background = '#0066cc';
+                mobilePaymentBtn.style.color = '#fff';
+            } else {
+                mobilePaymentBtn.textContent = 'お支払いへ進む';
+                mobilePaymentBtn.classList.remove('available');
+                mobilePaymentBtn.style.background = '#dc3545';
+                mobilePaymentBtn.style.color = '#fff';
+            }
         }
+        
+        // Initial update
+        updateMobilePaymentButton();
+        
+        // Also update when window.isPaymentCompleted changes (if set later)
+        // Use a MutationObserver or check periodically
+        let checkCount = 0;
+        const checkInterval = setInterval(function() {
+            if (window.isPaymentCompleted !== undefined) {
+                updateMobilePaymentButton();
+                checkCount++;
+                // Stop checking after 5 attempts (2.5 seconds)
+                if (checkCount >= 5) {
+                    clearInterval(checkInterval);
+                }
+            }
+        }, 500);
     }
 })();
 </script>
@@ -319,6 +348,31 @@ if ($isLoggedIn) {
     window.hasActiveSubscription = <?php echo json_encode($hasActiveSubscriptionForMobile); ?>;
     // Pass payment status to JavaScript
     window.isPaymentCompleted = <?php echo json_encode($isPaymentCompleted ?? false); ?>;
+    
+    // Update mobile payment button after window.isPaymentCompleted is set
+    // Use DOMContentLoaded to ensure button exists
+    document.addEventListener('DOMContentLoaded', function() {
+        const mobilePaymentBtn = document.getElementById('mobile-payment-btn');
+        if (mobilePaymentBtn) {
+            // Force update button appearance
+            const isCompleted = window.isPaymentCompleted === true;
+            console.log('Updating mobile payment button. isPaymentCompleted:', window.isPaymentCompleted, 'isCompleted:', isCompleted);
+            
+            if (isCompleted) {
+                mobilePaymentBtn.textContent = '利用可能';
+                mobilePaymentBtn.classList.add('available');
+                mobilePaymentBtn.style.background = '#0066cc';
+                mobilePaymentBtn.style.color = '#fff';
+                console.log('Button updated to: 利用可能 (blue)');
+            } else {
+                mobilePaymentBtn.textContent = 'お支払いへ進む';
+                mobilePaymentBtn.classList.remove('available');
+                mobilePaymentBtn.style.background = '#dc3545';
+                mobilePaymentBtn.style.color = '#fff';
+                console.log('Button updated to: お支払いへ進む (red)');
+            }
+        }
+    });
 </script>
 <script src="assets/js/mobile-menu.js"></script>
 <!-- Modal Notification Script -->
