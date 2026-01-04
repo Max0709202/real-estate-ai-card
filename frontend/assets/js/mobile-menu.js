@@ -80,6 +80,11 @@
                 const dropdownItems = userDropdown.querySelectorAll('.dropdown-item');
                 dropdownItems.forEach(item => {
                     const clonedItem = item.cloneNode(true);
+                    // Update "お支払い一覧" to "お支払い画面"
+                    const span = clonedItem.querySelector('span');
+                    if (span && span.textContent === 'お支払い一覧') {
+                        span.textContent = 'お支払い画面';
+                    }
                     userMenuSection.appendChild(clonedItem);
                 });
                 

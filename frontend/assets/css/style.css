@@ -67,7 +67,14 @@ body {
 /* User Menu */
 .user-menu {
     position: relative;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Hide mobile payment button on desktop */
+.mobile-payment-btn {
+    display: none;
 }
 
 .user-icon {
