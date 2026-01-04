@@ -215,6 +215,11 @@ function populateRegistrationForms(data) {
         if (logoPreview) {
             // Construct correct image path using BASE_URL
             let logoPath = data.company_logo;
+            // Remove BASE_URL if already included to avoid duplication
+            if (typeof window !== 'undefined' && window.BASE_URL && logoPath.startsWith(window.BASE_URL)) {
+                logoPath = logoPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+            }
+            // Construct full URL
             if (!logoPath.startsWith('http')) {
                 // Use BASE_URL if available, otherwise construct relative path
                 if (typeof window !== 'undefined' && window.BASE_URL) {
@@ -228,7 +233,7 @@ function populateRegistrationForms(data) {
                     }
                 }
             }
-            logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+            logoPreview.innerHTML = `<img src="${logoPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px;" onerror="this.style.display='none';">`;
             // Store existing image path for later use
             const logoUploadArea = document.querySelector('#logo-upload');
             if (logoUploadArea) {
@@ -243,6 +248,11 @@ function populateRegistrationForms(data) {
         if (photoPreview) {
             // Construct correct image path using BASE_URL
             let photoPath = data.profile_photo;
+            // Remove BASE_URL if already included to avoid duplication
+            if (typeof window !== 'undefined' && window.BASE_URL && photoPath.startsWith(window.BASE_URL)) {
+                photoPath = photoPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+            }
+            // Construct full URL
             if (!photoPath.startsWith('http')) {
                 // Use BASE_URL if available, otherwise construct relative path
                 if (typeof window !== 'undefined' && window.BASE_URL) {
@@ -256,7 +266,7 @@ function populateRegistrationForms(data) {
                     }
                 }
             }
-            photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+            photoPreview.innerHTML = `<img src="${photoPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px;" onerror="this.style.display='none';">`;
             // Store existing image path for later use
             const photoUploadArea = document.querySelector('#photo-upload-header');
             if (photoUploadArea) {
@@ -1412,6 +1422,31 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
                 }
                 data.company_logo = relativePath;
                 console.log('Logo uploaded and saved to database:', relativePath);
+                // Update preview after successful upload
+                const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
+                if (logoUploadArea) {
+                    const preview = logoUploadArea.querySelector('.upload-preview');
+                    if (preview) {
+                        // Construct full URL for display
+                        let displayPath = relativePath;
+                        // Remove BASE_URL if already included to avoid duplication
+                        if (typeof window !== 'undefined' && window.BASE_URL && displayPath.startsWith(window.BASE_URL)) {
+                            displayPath = displayPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                        }
+                        // Construct full URL
+                        if (!displayPath.startsWith('http')) {
+                            if (typeof window !== 'undefined' && window.BASE_URL) {
+                                displayPath = window.BASE_URL + '/' + displayPath.replace(/^\/+/, '');
+                            } else {
+                                displayPath = '../' + displayPath;
+                            }
+                        }
+                        preview.innerHTML = `<img src="${displayPath}" alt="ロゴ" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none';">`;
+                        // Store the relative path for later use
+                        logoUploadArea.dataset.existingImage = relativePath;
+                        logoUploadArea.dataset.uploadedPath = relativePath;
+                    }
+                }
                 // Log resize info
                 if (uploadResult.data.was_resized) {
                     console.log('Logo auto-resized:', uploadResult.data);
@@ -1485,6 +1520,31 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
                 }
                 data.profile_photo = relativePath;
                 console.log('Profile photo uploaded and saved to database:', relativePath);
+                // Update preview after successful upload
+                const photoUploadAreaForPreview = document.querySelector('[data-upload-id="profile_photo_header"]');
+                if (photoUploadAreaForPreview) {
+                    const preview = photoUploadAreaForPreview.querySelector('.upload-preview');
+                    if (preview) {
+                        // Construct full URL for display
+                        let displayPath = relativePath;
+                        // Remove BASE_URL if already included to avoid duplication
+                        if (typeof window !== 'undefined' && window.BASE_URL && displayPath.startsWith(window.BASE_URL)) {
+                            displayPath = displayPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                        }
+                        // Construct full URL
+                        if (!displayPath.startsWith('http')) {
+                            if (typeof window !== 'undefined' && window.BASE_URL) {
+                                displayPath = window.BASE_URL + '/' + displayPath.replace(/^\/+/, '');
+                            } else {
+                                displayPath = '../' + displayPath;
+                            }
+                        }
+                        preview.innerHTML = `<img src="${displayPath}" alt="プロフィール写真" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none';">`;
+                        // Store the relative path for later use
+                        photoUploadAreaForPreview.dataset.existingImage = relativePath;
+                        photoUploadAreaForPreview.dataset.uploadedPath = relativePath;
+                    }
+                }
                 // Log resize info
                 if (uploadResult.data.was_resized) {
                     console.log('Profile photo auto-resized:', uploadResult.data);

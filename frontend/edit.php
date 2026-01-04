@@ -1350,6 +1350,11 @@ $defaultGreetings = [
                                 if (preview) {
                                     // Construct full URL for display
                                     let displayPath = relativePath;
+                                    // Remove BASE_URL if already included to avoid duplication
+                                    if (typeof window !== 'undefined' && window.BASE_URL && displayPath.startsWith(window.BASE_URL)) {
+                                        displayPath = displayPath.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+                                    }
+                                    // Construct full URL
                                     if (!displayPath.startsWith('http')) {
                                         if (typeof window !== 'undefined' && window.BASE_URL) {
                                             displayPath = window.BASE_URL + '/' + displayPath.replace(/^\/+/, '');
@@ -1357,7 +1362,10 @@ $defaultGreetings = [
                                             displayPath = '../' + displayPath;
                                         }
                                     }
-                                    preview.innerHTML = `<img src="${displayPath}" alt="${fileType === 'logo' ? 'ロゴ' : 'プロフィール写真'}" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
+                                    preview.innerHTML = `<img src="${displayPath}" alt="${fileType === 'logo' ? 'ロゴ' : 'プロフィール写真'}" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none';">`;
+                                    // Store the relative path for later use
+                                    uploadArea.dataset.existingImage = relativePath;
+                                    uploadArea.dataset.uploadedPath = relativePath;
                                 }
                             }
 
