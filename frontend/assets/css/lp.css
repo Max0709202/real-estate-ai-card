@@ -313,6 +313,119 @@
     min-height: 400px;
 }
 
+/* Tech Tools Hexagonal Grid */
+.tech-tools-hex-container {
+    width: 100%;
+    padding: 20px;
+}
+
+.tech-tools-hex-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #333;
+    text-align: center;
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.tech-tools-hex-subtitle {
+    font-size: 1rem;
+    color: #555;
+    text-align: center;
+    margin-bottom: 2.5rem;
+    line-height: 1.6;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.tech-tools-hex-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+}
+
+.tech-tools-hex-grid::after {
+    content: '';
+    grid-column: 1 / -1;
+    height: 0;
+}
+
+.tech-tools-hex-item {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 12px;
+    padding: 15px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tech-tools-hex-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.tech-tools-hex-icon {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tech-tools-hex-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.tech-tools-hex-item-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 12px;
+    line-height: 1.4;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.tech-tools-hex-item-desc {
+    font-size: 0.9rem;
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    flex-grow: 1;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.tech-tools-hex-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: auto;
+}
+
+.tech-tools-hex-btn {
+    background: #555;
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
 .feature-image-wrapper {
     position: relative;
     border-radius: 20px;
@@ -414,6 +527,32 @@
     color: #FFA500;
     font-size: 1.5rem;
     line-height: 1;
+}
+
+/* Features Intro Section */
+.features-intro-section {
+    padding: 60px 0 40px;
+    background: #fff;
+    text-align: center;
+}
+
+.features-intro-section .section-title {
+    font-size: 2.2rem;
+    color: #0066cc;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .features-intro-section {
+        padding: 40px 0 30px;
+    }
+
+    .features-intro-section .section-title {
+        font-size: 1.6rem;
+        padding: 0 20px;
+    }
 }
 
 /* Tools Detail Section */
@@ -856,6 +995,292 @@
     color: #555;
     line-height: 1.8;
     margin: 0;
+}
+
+/* New User Pricing Section */
+.lp-new-pricing-section {
+    padding: 100px 0;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    position: relative;
+}
+
+.lp-new-pricing-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 102, 204, 0.1), transparent);
+}
+
+.lp-new-title {
+    font-size: 2.75rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #333 0%, #0066cc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-align: center;
+    margin-bottom: 1rem;
+    line-height: 1.3;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    letter-spacing: -0.02em;
+}
+
+.lp-new-subtitle {
+    font-size: 1.2rem;
+    color: #64748b;
+    text-align: center;
+    margin-bottom: 4rem;
+    line-height: 1.6;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    font-weight: 500;
+}
+
+.lp-new-content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    max-width: 1200px;
+    margin: 0 auto 60px;
+    align-items: start;
+}
+
+.lp-new-benefits {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    padding: 45px;
+    border-radius: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 102, 204, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.lp-new-benefits:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 102, 204, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.lp-new-benefits-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 32px;
+    padding-bottom: 18px;
+    border-bottom: 3px solid;
+    border-image: linear-gradient(90deg, #0066cc 0%, #0052a3 100%) 1;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    letter-spacing: -0.01em;
+}
+
+.lp-new-benefits-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.lp-new-benefit-item {
+    font-size: 1.05rem;
+    color: #475569;
+    line-height: 1.85;
+    padding: 14px 0;
+    padding-left: 36px;
+    position: relative;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    transition: color 0.2s ease;
+}
+
+.lp-new-benefit-item:hover {
+    color: #0066cc;
+}
+
+.lp-new-benefit-item::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: #0066cc;
+    font-weight: bold;
+    font-size: 1.3rem;
+    background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.lp-new-pricing-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    padding: 45px;
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0, 102, 204, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 2px solid;
+    border-image: linear-gradient(135deg, #0066cc 0%, #0052a3 100%) 1;
+    position: sticky;
+    top: 30px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.lp-new-pricing-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 102, 204, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.lp-new-pricing-content {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.lp-new-price-item {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.lp-new-price-label {
+    font-size: 1.05rem;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.9rem;
+}
+
+.lp-new-price-amount {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+}
+
+.lp-new-price-tax {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #94a3b8;
+    margin-left: 6px;
+}
+
+.lp-new-price-divider {
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0, 102, 204, 0.2), transparent);
+    margin: 8px 0;
+    border: none;
+}
+
+.lp-new-payment-methods {
+    padding-top: 20px;
+    border-top: 2px solid;
+    border-image: linear-gradient(90deg, rgba(0, 102, 204, 0.2), transparent) 1;
+}
+
+.lp-new-payment-title {
+    font-size: 1.05rem;
+    color: #475569;
+    font-weight: 700;
+    margin-bottom: 16px;
+    letter-spacing: -0.01em;
+}
+
+.lp-new-payment-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.lp-new-payment-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(0, 102, 204, 0.05) 0%, rgba(0, 82, 163, 0.05) 100%);
+    border-radius: 12px;
+    border: 1px solid rgba(0, 102, 204, 0.15);
+    transition: all 0.2s ease;
+}
+
+.lp-new-payment-option:hover {
+    background: linear-gradient(135deg, rgba(0, 102, 204, 0.1) 0%, rgba(0, 82, 163, 0.1) 100%);
+    border-color: rgba(0, 102, 204, 0.3);
+    transform: translateX(4px);
+}
+
+.lp-new-payment-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.lp-new-payment-text {
+    font-size: 1rem;
+    color: #1e293b;
+    line-height: 1.5;
+    font-weight: 600;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.lp-new-disclaimer {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    line-height: 1.6;
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: rgba(0, 102, 204, 0.05);
+    border-radius: 10px;
+    border-left: 3px solid #0066cc;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.lp-new-cta-wrapper {
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.lp-new-cta-button {
+    display: inline-block;
+    margin-bottom: 15px;
+    text-decoration: none;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.lp-new-cta-note {
+    font-size: 0.9rem;
+    color: #666;
+    line-height: 1.6;
+    margin: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+/* Concept Bridge Section */
+.lp-bridge-section {
+    padding: 90px 0;
+    background: transparent;
+    text-align: center;
+}
+
+.lp-bridge-headline {
+    font-size: 3.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.3;
+    margin: 0;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    letter-spacing: -0.02em;
 }
 
 /* Final CTA Section */
@@ -1592,6 +2017,51 @@
         width: 100% !important;
     }
     
+    /* Tech Tools Hex Grid - Mobile */
+    .tech-tools-hex-container {
+        padding: 15px;
+    }
+    
+    .tech-tools-hex-title {
+        font-size: 1.3rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .tech-tools-hex-subtitle {
+        font-size: 0.9rem;
+        margin-bottom: 2rem;
+    }
+    
+    .tech-tools-hex-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+    
+    .tech-tools-hex-item {
+        padding: 20px 15px;
+    }
+    
+    .tech-tools-hex-icon {
+        width: 50px;
+        height: 50px;
+        margin-bottom: 12px;
+    }
+    
+    .tech-tools-hex-item-title {
+        font-size: 1rem;
+        margin-bottom: 10px;
+    }
+    
+    .tech-tools-hex-item-desc {
+        font-size: 0.85rem;
+        margin-bottom: 15px;
+    }
+    
+    .tech-tools-hex-btn {
+        padding: 5px 12px;
+        font-size: 0.8rem;
+    }
+    
     .feature-badge {
         font-size: 0.8rem;
         padding: 5px 14px;
@@ -1801,6 +2271,116 @@
     
     .testimonial-photo {
         margin-top: 20px;
+    }
+    
+    /* New User Pricing Section - Mobile */
+    .lp-new-pricing-section {
+        padding: 60px 0;
+    }
+    
+    .lp-new-title {
+        font-size: 2rem;
+        margin-bottom: 0.75rem;
+        padding: 0 20px;
+    }
+    
+    .lp-new-subtitle {
+        font-size: 1rem;
+        margin-bottom: 2.5rem;
+        padding: 0 20px;
+    }
+    
+    .lp-new-content-grid {
+        grid-template-columns: 1fr;
+        gap: 30px;
+        padding: 0 20px;
+        margin-bottom: 40px;
+    }
+    
+    .lp-new-benefits {
+        padding: 35px 25px;
+        border-radius: 16px;
+    }
+    
+    .lp-new-benefits-title {
+        font-size: 1.4rem;
+        margin-bottom: 28px;
+        padding-bottom: 15px;
+    }
+    
+    .lp-new-benefit-item {
+        font-size: 1rem;
+        padding: 12px 0;
+        padding-left: 32px;
+    }
+    
+    .lp-new-benefit-item::before {
+        font-size: 1.2rem;
+    }
+    
+    .lp-new-pricing-card {
+        padding: 35px 25px;
+        position: static;
+        border-radius: 16px;
+    }
+    
+    .lp-new-pricing-content {
+        gap: 24px;
+    }
+    
+    .lp-new-price-amount {
+        font-size: 2rem;
+    }
+    
+    .lp-new-price-tax {
+        font-size: 1rem;
+    }
+    
+    .lp-new-payment-title {
+        font-size: 1rem;
+        margin-bottom: 14px;
+    }
+    
+    .lp-new-payment-option {
+        padding: 10px 14px;
+    }
+    
+    .lp-new-payment-icon {
+        font-size: 1.3rem;
+    }
+    
+    .lp-new-payment-text {
+        font-size: 0.95rem;
+    }
+    
+    .lp-new-disclaimer {
+        font-size: 0.85rem;
+        padding: 10px 14px;
+    }
+    
+    .lp-new-cta-wrapper {
+        padding: 0 20px;
+    }
+    
+    .lp-new-cta-button {
+        width: 100%;
+        max-width: 100%;
+        display: block;
+    }
+    
+    .lp-new-cta-note {
+        font-size: 0.85rem;
+    }
+    
+    /* Concept Bridge Section - Mobile */
+    .lp-bridge-section {
+        padding: 55px 0;
+    }
+    
+    .lp-bridge-headline {
+        font-size: 1.875rem;
+        line-height: 1.35;
+        padding: 0 20px;
     }
     
     /* Final CTA Section */

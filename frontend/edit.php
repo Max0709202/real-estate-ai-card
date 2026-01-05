@@ -437,8 +437,16 @@ $defaultGreetings = [
                                             <span>宅地建物取引士</span>
                                         </label>
                                         <label class="checkbox-item">
-                                            <input type="checkbox" name="qualification_kenchikushi" value="1">
-                                            <span>建築士</span>
+                                            <input type="checkbox" name="qualification_kenchikushi_1" value="1">
+                                            <span>一級建築士</span>
+                                        </label>
+                                        <label class="checkbox-item">
+                                            <input type="checkbox" name="qualification_kenchikushi_2" value="1">
+                                            <span>二級建築士</span>
+                                        </label>
+                                        <label class="checkbox-item">
+                                            <input type="checkbox" name="qualification_kenchikushi_3" value="1">
+                                            <span>木造建築士</span>
                                         </label>
                                     </div>
                                 </div>
@@ -1651,15 +1659,23 @@ $defaultGreetings = [
                     if (formData.get('qualification_takken')) {
                         qualifications.push('宅地建物取引士');
                     }
-                    if (formData.get('qualification_kenchikushi')) {
-                        qualifications.push('建築士');
+                    if (formData.get('qualification_kenchikushi_1')) {
+                        qualifications.push('一級建築士');
+                    }
+                    if (formData.get('qualification_kenchikushi_2')) {
+                        qualifications.push('二級建築士');
+                    }
+                    if (formData.get('qualification_kenchikushi_3')) {
+                        qualifications.push('木造建築士');
                     }
                     if (data.qualifications_other) {
                         qualifications.push(data.qualifications_other);
                     }
                     data.qualifications = qualifications.join('、');
                     delete data.qualification_takken;
-                    delete data.qualification_kenchikushi;
+                    delete data.qualification_kenchikushi_1;
+                    delete data.qualification_kenchikushi_2;
+                    delete data.qualification_kenchikushi_3;
                     delete data.qualifications_other;
                     
                     // Handle free input from paired items - collect all textarea values and images

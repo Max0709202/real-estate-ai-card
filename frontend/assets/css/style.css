@@ -1274,6 +1274,19 @@ body {
     border-radius: 6px;
     font-weight: 500;
     display: inline-block;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.save-btn:hover {
+    background: #0052a3;
+}
+
+.footer-save-btn {
+    text-decoration: underline;
+    margin-top: 0.5rem;
 }
 
 .save-note {
@@ -1381,6 +1394,11 @@ body {
 .footer-section a {
     color: #666;
     text-decoration: none;
+}
+
+.footer-section .footer-save-btn {
+    color: #fff;
+    text-decoration: underline;
 }
 
 .footer-section a:hover {

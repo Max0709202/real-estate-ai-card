@@ -694,15 +694,23 @@ async function saveStepData(stepNumber) {
                 if (formData3.get('qualification_takken')) {
                     qualifications.push('宅地建物取引士');
                 }
-                if (formData3.get('qualification_kenchikushi')) {
-                    qualifications.push('建築士');
+                if (formData3.get('qualification_kenchikushi_1')) {
+                    qualifications.push('一級建築士');
+                }
+                if (formData3.get('qualification_kenchikushi_2')) {
+                    qualifications.push('二級建築士');
+                }
+                if (formData3.get('qualification_kenchikushi_3')) {
+                    qualifications.push('木造建築士');
                 }
                 if (saveData.qualifications_other) {
                     qualifications.push(saveData.qualifications_other);
                 }
                 saveData.qualifications = qualifications.join('、');
                 delete saveData.qualification_takken;
-                delete saveData.qualification_kenchikushi;
+                delete saveData.qualification_kenchikushi_1;
+                delete saveData.qualification_kenchikushi_2;
+                delete saveData.qualification_kenchikushi_3;
                 delete saveData.qualifications_other;
                 
                 // Handle free input (simplified - just preserve existing structure)
@@ -1704,8 +1712,14 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
     if (formDataObj.get('qualification_takken')) {
         qualifications.push('宅地建物取引士');
     }
-    if (formDataObj.get('qualification_kenchikushi')) {
-        qualifications.push('建築士');
+    if (formDataObj.get('qualification_kenchikushi_1')) {
+        qualifications.push('一級建築士');
+    }
+    if (formDataObj.get('qualification_kenchikushi_2')) {
+        qualifications.push('二級建築士');
+    }
+    if (formDataObj.get('qualification_kenchikushi_3')) {
+        qualifications.push('木造建築士');
     }
     if (data.qualifications_other) {
         qualifications.push(data.qualifications_other);
@@ -1714,7 +1728,9 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
     
     // Remove individual qualification fields
     delete data.qualification_takken;
-    delete data.qualification_kenchikushi;
+    delete data.qualification_kenchikushi_1;
+    delete data.qualification_kenchikushi_2;
+    delete data.qualification_kenchikushi_3;
     delete data.qualifications_other;
     
     // Combine free input fields from paired items - collect all textarea values and images

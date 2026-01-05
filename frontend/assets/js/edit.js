@@ -431,17 +431,27 @@ function populateEditForms(data) {
         if (data.qualifications) {
             const qualifications = data.qualifications.split('、');
             if (qualifications.includes('宅地建物取引士')) {
-            const takkenCheckbox = document.querySelector('input[name="qualification_takken"]');
+                const takkenCheckbox = document.querySelector('input[name="qualification_takken"]');
                 if (takkenCheckbox) takkenCheckbox.checked = true;
             }
-            if (qualifications.includes('建築士')) {
-            const kenchikushiCheckbox = document.querySelector('input[name="qualification_kenchikushi"]');
-                if (kenchikushiCheckbox) kenchikushiCheckbox.checked = true;
+            if (qualifications.includes('一級建築士')) {
+                const kenchikushi1Checkbox = document.querySelector('input[name="qualification_kenchikushi_1"]');
+                if (kenchikushi1Checkbox) kenchikushi1Checkbox.checked = true;
             }
-            const otherQuals = qualifications.filter(q => q !== '宅地建物取引士' && q !== '建築士').join('、');
+            if (qualifications.includes('二級建築士')) {
+                const kenchikushi2Checkbox = document.querySelector('input[name="qualification_kenchikushi_2"]');
+                if (kenchikushi2Checkbox) kenchikushi2Checkbox.checked = true;
+            }
+            if (qualifications.includes('木造建築士')) {
+                const kenchikushi3Checkbox = document.querySelector('input[name="qualification_kenchikushi_3"]');
+                if (kenchikushi3Checkbox) kenchikushi3Checkbox.checked = true;
+            }
+            // Filter out the 4 main qualifications to get "other" qualifications
+            const mainQuals = ['宅地建物取引士', '一級建築士', '二級建築士', '木造建築士'];
+            const otherQuals = qualifications.filter(q => !mainQuals.includes(q)).join('、');
             if (otherQuals) {
-            const otherInput = document.querySelector('textarea[name="qualifications_other"]');
-            if (otherInput) otherInput.value = otherQuals;
+                const otherInput = document.querySelector('textarea[name="qualifications_other"]');
+                if (otherInput) otherInput.value = otherQuals;
             }
         }
         

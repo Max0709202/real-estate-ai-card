@@ -134,7 +134,7 @@ if ($isTokenBased) {
                 <div class="swiper-pagination"></div>
             </div>
             <div class="hero-cta">
-                <a href="#price" class="btn-primary btn-large">不動産 AI 名刺とは？！</a>
+                <a href="#features" class="btn-primary btn-large">不動産 AI 名刺とは？！</a>
                 <!-- <span class="hero-cta-text">※3分で完成</span> -->
             </div>
         </div>
@@ -313,17 +313,20 @@ if ($isTokenBased) {
                         </svg>
                     </div>
                     <h3 class="automation-card-title">顧客育成 <span class="automation-subtitle">(Lead Nurturing)</span></h3>
-                    <p class="automation-description" id="price">
+                    <p class="automation-description">
                         AIが顧客の希望条件に合う物件情報を毎日自動配信。常に顧客の第一想起を維持し、エンゲージメントを高めます。
                     </p>
                 </div>
             </div>
         </div>
     </section>
-    
-    <div class="container">
-        <h2 class="section-title" style="text-align:center;font-size:2.2rem;color:#0066cc;font-weight:700;margin:2.5rem 0 1.5rem 0;letter-spacing:0.05em; margin-bottom: 0;">『不動産 AI 名刺』の機能と料金について</h2>
-    </div>
+
+    <!-- Features & Pricing Introduction -->
+    <section class="features-intro-section" id="features">
+        <div class="container">
+            <h2 class="section-title">『不動産 AI 名刺』の機能と料金について</h2>
+        </div>
+    </section>
 
     <!-- Feature 01: LINE Integration -->
     <section class="feature-section feature-01">
@@ -399,7 +402,118 @@ if ($isTokenBased) {
                     </ul>
                 </div>
                 <div class="feature-visual">
-                    <img src="assets/images/6-tech-tools.png" alt="６つの不動産テックツール" class="feature-image">
+                    <div class="tech-tools-hex-container">
+                        <h3 class="tech-tools-hex-title">競合との「圧倒的な差別化」を実現。</h3>
+                        <p class="tech-tools-hex-subtitle">顧客に無料で提供できる、業界最先端の6つのテックツール。</p>
+                        <div class="tech-tools-hex-grid">
+                            <!-- Hexagon 1: 全国マンションデータベース -->
+                            <div class="tech-tools-hex-item">
+                                <div class="tech-tools-hex-icon">
+                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <rect x="10" y="15" width="40" height="30" rx="2" stroke="#555" stroke-width="2" fill="none"/>
+                                        <rect x="15" y="20" width="8" height="8" rx="1" fill="#555"/>
+                                        <rect x="26" y="20" width="8" height="8" rx="1" fill="#555"/>
+                                        <rect x="37" y="20" width="8" height="8" rx="1" fill="#555"/>
+                                        <rect x="15" y="31" width="8" height="8" rx="1" fill="#555"/>
+                                        <rect x="26" y="31" width="8" height="8" rx="1" fill="#555"/>
+                                        <rect x="37" y="31" width="8" height="8" rx="1" fill="#555"/>
+                                    </svg>
+                                </div>
+                                <h4 class="tech-tools-hex-item-title">全国マンションデータベース</h4>
+                                <p class="tech-tools-hex-item-desc">全国の分譲マンションの95%以上を網羅。</p>
+                                <div class="tech-tools-hex-buttons">
+                                    <span class="tech-tools-hex-btn">売り</span>
+                                    <span class="tech-tools-hex-btn">買い</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Hexagon 2: 物件提案ロボ -->
+                            <div class="tech-tools-hex-item">
+                                <div class="tech-tools-hex-icon">
+                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <rect x="15" y="12" width="30" height="36" rx="4" stroke="#555" stroke-width="2" fill="none"/>
+                                        <circle cx="30" cy="25" r="4" fill="#555"/>
+                                        <path d="M 20 35 Q 30 38 40 35" stroke="#555" stroke-width="2" fill="none"/>
+                                        <rect x="20" y="8" width="20" height="6" rx="2" fill="#555"/>
+                                    </svg>
+                                </div>
+                                <h4 class="tech-tools-hex-item-title">物件提案ロボ</h4>
+                                <p class="tech-tools-hex-item-desc">希望条件に合う物件をAI評価付きで自動配信。</p>
+                                <div class="tech-tools-hex-buttons">
+                                    <span class="tech-tools-hex-btn">買い</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Hexagon 3: 土地情報ロボ -->
+                            <div class="tech-tools-hex-item">
+                                <div class="tech-tools-hex-icon">
+                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="30" cy="25" r="8" stroke="#555" stroke-width="2" fill="none"/>
+                                        <path d="M 30 33 L 30 50 L 38 45" stroke="#555" stroke-width="2" fill="none"/>
+                                        <path d="M 35 30 L 45 30" stroke="#555" stroke-width="2"/>
+                                    </svg>
+                                </div>
+                                <h4 class="tech-tools-hex-item-title">土地情報ロボ</h4>
+                                <p class="tech-tools-hex-item-desc">希望条件に合う土地情報を自動でお届け。</p>
+                                <div class="tech-tools-hex-buttons">
+                                    <span class="tech-tools-hex-btn">買い</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Hexagon 4: AIマンション査定 -->
+                            <div class="tech-tools-hex-item">
+                                <div class="tech-tools-hex-icon">
+                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="15" y1="45" x2="20" y2="35" stroke="#555" stroke-width="2"/>
+                                        <line x1="20" y1="35" x2="30" y2="25" stroke="#555" stroke-width="2"/>
+                                        <line x1="30" y1="25" x2="40" y2="20" stroke="#555" stroke-width="2"/>
+                                        <line x1="40" y1="20" x2="45" y2="15" stroke="#555" stroke-width="2"/>
+                                        <circle cx="20" cy="35" r="2" fill="#555"/>
+                                        <circle cx="30" cy="25" r="2" fill="#555"/>
+                                        <circle cx="40" cy="20" r="2" fill="#555"/>
+                                        <circle cx="45" cy="15" r="2" fill="#555"/>
+                                    </svg>
+                                </div>
+                                <h4 class="tech-tools-hex-item-title">AIマンション査定</h4>
+                                <p class="tech-tools-hex-item-desc">個人情報不要でマンションの査定を実施。</p>
+                                <div class="tech-tools-hex-buttons">
+                                    <span class="tech-tools-hex-btn">売り</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Hexagon 5: セルフィン -->
+                            <div class="tech-tools-hex-item">
+                                <div class="tech-tools-hex-icon">
+                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="30" cy="30" r="12" stroke="#555" stroke-width="2" fill="none"/>
+                                        <circle cx="30" cy="30" r="6" fill="#555"/>
+                                        <path d="M 30 18 L 30 12 M 30 42 L 30 48 M 18 30 L 12 30 M 42 30 L 48 30" stroke="#555" stroke-width="2"/>
+                                        <path d="M 22 22 L 18 18 M 38 22 L 42 18 M 22 38 L 18 42 M 38 38 L 42 42" stroke="#555" stroke-width="2"/>
+                                    </svg>
+                                </div>
+                                <h4 class="tech-tools-hex-item-title">セルフィン</h4>
+                                <p class="tech-tools-hex-item-desc">物件の良し悪しをAIが自動判定。</p>
+                                <div class="tech-tools-hex-buttons">
+                                    <span class="tech-tools-hex-btn">買い</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Hexagon 6: オーナーコネクト -->
+                            <div class="tech-tools-hex-item">
+                                <div class="tech-tools-hex-icon">
+                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M 30 15 L 20 25 L 20 40 L 30 50 L 40 40 L 40 25 Z" stroke="#555" stroke-width="2" fill="none"/>
+                                        <path d="M 28 32 L 32 32 M 30 30 L 30 34" stroke="#555" stroke-width="2"/>
+                                    </svg>
+                                </div>
+                                <h4 class="tech-tools-hex-item-title">オーナーコネクト</h4>
+                                <p class="tech-tools-hex-item-desc">マンション所有者向けの資産ウォッチツール。</p>
+                                <div class="tech-tools-hex-buttons">
+                                    <span class="tech-tools-hex-btn">売り</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -449,6 +563,71 @@ if ($isTokenBased) {
                         ※6つの不動産テックツールとの連携は、お申し込みから1週間以内に接続されます。<br>
                         接続先は、あなた独自のページとなります。
                     </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Real Estate Tech Tools Detail Section -->
+    <section class="tools-detail-section" id="tools">
+        <div class="container">
+            <h2 class="section-title">搭載されている不動産テックツール</h2>
+            <p class="section-subtitle">
+                顧客に無料で提供できる、業界最先端のテックツール。これらのツールが、あなたの営業力を飛躍的に向上させます。
+            </p>
+            <div class="tools-grid">
+                <div class="tool-card">
+                    <div class="tool-icon">
+                        <span class="icon-placeholder">🏢</span>
+                    </div>
+                    <h3 class="tool-title">全国マンションデータベース</h3>
+                    <span class="tool-tag tag-purple">売り・買い</span>
+                    <p class="tool-description">全国の分譲マンションの95%以上を網羅。販売履歴の閲覧が最も多い人気ツール。</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-icon">
+                        <span class="icon-placeholder">🤖</span>
+                    </div>
+                    <h3 class="tool-title">物件提案ロボ</h3>
+                    <span class="tool-tag tag-blue">買い</span>
+                    <p class="tool-description">希望条件に合致した中古マンション・一戸建て情報を、売り出し開始から24時間以内にAI評価付きで自動配信。</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-icon">
+                        <span class="icon-placeholder">📍</span>
+                    </div>
+                    <h3 class="tool-title">土地情報ロボ</h3>
+                    <span class="tool-tag tag-blue">買い</span>
+                    <p class="tool-description">希望条件に合致した土地情報を、売り出し開始から24時間以内に自動でお届け。</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-icon">
+                        <span class="icon-placeholder">📊</span>
+                    </div>
+                    <h3 class="tool-title">AIマンション査定</h3>
+                    <span class="tool-tag tag-green">売り</span>
+                    <p class="tool-description">個人情報不要でマンションの査定を実施。「マンション」「査定」でTOP表示される信頼のコンテンツ。</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-icon">
+                        <span class="icon-placeholder">🔍</span>
+                    </div>
+                    <h3 class="tool-title">セルフィン</h3>
+                    <span class="tool-tag tag-blue">買い</span>
+                    <p class="tool-description">中古マンション・一戸建ての物件情報から、物件の良し悪しをAIが自動判定。</p>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-icon">
+                        <span class="icon-placeholder">🛡️</span>
+                    </div>
+                    <h3 class="tool-title">オーナーコネクト</h3>
+                    <span class="tool-tag tag-green">売り</span>
+                    <p class="tool-description">マンション所有者向けの資産ウォッチツール。週1回の査定レポートと売り出し情報を即時配信。</p>
                 </div>
             </div>
         </div>
@@ -519,344 +698,160 @@ if ($isTokenBased) {
         </div>
     </section>
 
-    
-    <!-- Hero Section -->
-    <section class="hero">
+    <?php if (!$isTokenBased || $userType === 'new'): ?>
+    <!-- New User Pricing Section -->
+    <section class="lp-new-pricing-section" id="price">
         <div class="container">
-            <div class="hero-content">
-                <div class="hero-content-inner">
-                    <div class="hero-content-inner-left">
-                        <div class="tag">不動産営業の新しいスタンダード</div>
-                        <h1>デジタル名刺で<br>商談機会を逃さない</h1>
-                        <p>QRコード付きデジタル名刺で、お客様とのLINE連携を簡単に。<br>
-                        全国マンションデータベース、AI査定など、不動産テックツールを統合。</p>
-                        <div class="hero-buttons">
-                            <?php if ($isTokenBased && $tokenValid && in_array($userType, ['existing', 'free'])): ?>
-                                <?php if ($userType === 'existing'): ?>
-                                    <a href="new_register.php?type=existing&token=<?php echo urlencode($invitationToken); ?>" class="btn-primary btn-large">既存ユーザー登録 →</a>
-                                <?php elseif ($userType === 'free'): ?>
-                                    <a href="new_register.php?type=free&token=<?php echo urlencode($invitationToken); ?>" class="btn-primary btn-large">無料ユーザー登録 →</a>
-                                <?php endif; ?>
-                            <?php else: ?>
-                                <a href="register.php?type=new" class="btn-primary btn-large">無料で始める →</a>
-                            <?php endif; ?>
-                            <a href="#howto" class="btn-outline btn-large">使い方を見る</a>
-                        </div>
-                    </div>
-                    <div class="hero-content-inner-right">
-                        <img src="assets/images/card.png" alt="AI名刺サンプル 1">
-                    </div>
+            <h2 class="lp-new-title">費用・決済方法について</h2>
+            <p class="lp-new-subtitle">初期費用 + 月額課金</p>
+            
+            <div class="lp-new-content-grid">
+                <!-- Left Column: Benefits List -->
+                <div class="lp-new-benefits">
+                    <h3 class="lp-new-benefits-title">ご利用いただけるサービス</h3>
+                    <ul class="lp-new-benefits-list">
+                        <li class="lp-new-benefit-item">デジタル名刺の作成・管理</li>
+                        <li class="lp-new-benefit-item">QRコード自動生成機能</li>
+                        <li class="lp-new-benefit-item">LINE、SNS連携機能</li>
+                        <li class="lp-new-benefit-item">6つの不動産テックツール連携</li>
+                        <li class="lp-new-benefit-item">全国マンションデータベース</li>
+                        <li class="lp-new-benefit-item">AI査定・物件提案ロボ</li>
+                        <li class="lp-new-benefit-item">顧客管理機能</li>
+                        <li class="lp-new-benefit-item">24時間365日のサポート</li>
+                    </ul>
                 </div>
-                <div class="hero-preview">
-                    <div class="swiper card-swiper">
-                        <div class="swiper-wrapper">
-                            <div class="swiper-slide">
-                                <img src="assets/images/card1.png" alt="デジタル名刺サンプル 1">
-                            </div>
-                            <div class="swiper-slide">
-                                <img src="assets/images/card2.png" alt="デジタル名刺サンプル 2">
-                            </div>
-                            <div class="swiper-slide">
-                                <img src="assets/images/card3.png" alt="デジタル名刺サンプル 3">
-                            </div>
-                            <div class="swiper-slide">
-                                <img src="assets/images/card4.png" alt="デジタル名刺サンプル 4">
-                            </div>
-                            <div class="swiper-slide">
-                                <img src="assets/images/card5.png" alt="デジタル名刺サンプル 5">
-                            </div>
-                            <div class="swiper-slide">
-                                <img src="assets/images/card6.png" alt="デジタル名刺サンプル 6">
+                
+                <!-- Right Column: Pricing Card -->
+                <div class="lp-new-pricing-card">
+                    <div class="lp-new-pricing-content">
+                        <div class="lp-new-price-item">
+                            <span class="lp-new-price-label">初期費用</span>
+                            <span class="lp-new-price-amount">30,000円<span class="lp-new-price-tax">（税別）</span></span>
+                        </div>
+                        <div class="lp-new-price-divider"></div>
+                        <div class="lp-new-price-item">
+                            <span class="lp-new-price-label">月額</span>
+                            <span class="lp-new-price-amount">500円<span class="lp-new-price-tax">（税別）</span></span>
+                        </div>
+                        <div class="lp-new-payment-methods">
+                            <p class="lp-new-payment-title">決済方法</p>
+                            <div class="lp-new-payment-options">
+                                <div class="lp-new-payment-option">
+                                    <span class="lp-new-payment-icon">💳</span>
+                                    <span class="lp-new-payment-text">クレジットカード（Stripe決済）</span>
+                                </div>
+                                <div class="lp-new-payment-option">
+                                    <span class="lp-new-payment-icon">🏦</span>
+                                    <span class="lp-new-payment-text">銀行振込</span>
+                                </div>
                             </div>
                         </div>
-                        <!-- Navigation buttons -->
-                        <div class="swiper-button-next"></div>
-                        <div class="swiper-button-prev"></div>
-                        <!-- Pagination -->
-                        <div class="swiper-pagination"></div>
+                        <p class="lp-new-disclaimer">※初月は無料トライアル期間です</p>
                     </div>
                 </div>
             </div>
+            
+            <!-- CTA Section -->
+            <div class="lp-new-cta-wrapper">
+                <a href="register.php?type=new" class="btn-primary btn-large lp-new-cta-button">新規用　不動産AI名刺をつくる</a>
+                <p class="lp-new-cta-note">※登録後、いつでも編集・変更が可能です</p>
+            </div>
         </div>
     </section>
+    <?php endif; ?>
 
-    <!-- Features Section -->
-    <section id="features" class="features">
+    <!-- Concept Bridge Section -->
+    <section class="lp-bridge-section">
         <div class="container">
-            <h2>営業活動を加速する機能</h2>
-            <p class="section-subtitle">デジタル名刺と不動産テックツールの統合で、商談機会を最大化</p>
-            
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">📱</div>
-                    <h3>QRコード生成</h3>
-                    <p>名刺に印刷できるQRコードを自動生成。お客様のスマホで簡単にアクセス。</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">💬</div>
-                    <h3>LINE連携</h3>
-                    <p>ワンタップでLINE追加。お客様との継続的なコミュニケーションを実現。</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">🏢</div>
-                    <h3>全国マンションDB</h3>
-                    <p>全国のマンション情報データベースへ直接アクセス。物件情報を即座に提供。</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">🤖</div>
-                    <h3>物件提案ロボ</h3>
-                    <p>AIが自動で最適な物件をマッチング。お客様のニーズに合わせた提案を自動化。</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">📊</div>
-                    <h3>AIマンション査定</h3>
-                    <p>最新のAI技術で正確な査定額を算出。お客様の信頼を獲得。</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">✏️</div>
-                    <h3>いつでも編集可能</h3>
-                    <p>情報変更もリアルタイムで反映。印刷不要で常に最新の情報を提供。</p>
-                </div>
-            </div>
+            <h2 class="lp-bridge-headline">あなたの1枚は、何を語りますか？</h2>
         </div>
     </section>
 
-    <!-- Pricing Section -->
-    <section id="pricing" class="pricing">
+    <?php if (!$isTokenBased || $userType === 'new'): ?>
+    <!-- Final CTA Section -->
+    <section class="final-cta-section">
         <div class="container">
-            <h2>有効的な活用方法が簡単に理解できる</h2>
-            <p class="section-subtitle">30～60秒のアニメ動画で、サービスを簡単にご紹介</p>
-            
-            <div class="video-container">
-                <div class="video-wrapper">
-                    <video class="service-video" controls>
-                        <source src="assets/video/card.mp4" type="video/mp4">
-                        お使いのブラウザは動画再生に対応していません。
-                    </video>
-                </div>
-                <p class="video-description">新規店舗・既存店舗共通でご利用いただける、契約を促す動画サンプルです。</p>
-            </div>
-        </div>
-    </section>
-
-
-    <!-- How to Use Section -->
-    <section id="howto" class="howto">
-        <div class="container">
-            <h2>簡単4ステップで始められる</h2>
-            <p class="section-subtitle">専門知識不要。誰でも簡単にプロフェッショナルなデジタル名刺を作成</p>
-            
-            <div class="steps-grid">
-                <div class="step-card">
-                    <div class="step-number">STEP 1</div>
-                    <div class="step-icon">📝</div>
-                    <h3>情報入力</h3>
-                    <p>会社名、写真、連絡先など17項目を入力。簡単なフォームで3分で完了。</p>
-                </div>
-                
-                <div class="step-card">
-                    <div class="step-number">STEP 2</div>
-                    <div class="step-icon">👁️</div>
-                    <h3>リアルタイムプレビュー</h3>
-                    <p>入力内容がリアルタイムで反映。デザインを確認しながら作成。</p>
-                </div>
-                
-                <div class="step-card">
-                    <div class="step-number">STEP 3</div>
-                    <div class="step-icon">📱</div>
-                    <h3>QRコード生成</h3>
-                    <p>自動でQRコードを生成。名刺に印刷して配布準備完了。</p>
-                </div>
-                
-                <div class="step-card">
-                    <div class="step-number">STEP 4</div>
-                    <div class="step-icon">🚀</div>
-                    <h3>共有・運用開始</h3>
-                    <p>お客様がQRコードをスキャン。LINE追加や物件提案がスムーズに。</p>
+            <div class="cta-content">
+                <div class="cta-text">
+                    <h2 class="cta-title">
+                        <span class="text-blue">今すぐ始めて、</span><br>
+                        営業力を次のレベルへ
+                    </h2>
+                    <p class="cta-description">
+                        3分で完成。即日利用開始。<br>あなたの営業活動を劇的に変える、不動産AI名刺を今すぐ作成しましょう。
+                    </p>
+                    <a href="register.php?type=new" class="btn-primary btn-large">不動産AI名刺をつくる</a>
                 </div>
             </div>
         </div>
     </section>
+    <?php endif; ?>
 
-    <!-- Tools & Communication Section -->
-    <section id="tools" class="tools-section">
-        <div class="container">
-            <h2>不動産テックツールとコミュニケーション機能</h2>
-            <p class="section-subtitle">デジタル名刺から直接アクセスできる、充実した不動産営業ツール</p>
-            
-            <!-- Real Estate Tech Tools -->
-            <div class="tools-subsection">
-                <h3 class="subsection-title">不動産テックツール</h3>
-                <p class="subsection-description">名刺のQRコードから、お客様が直接アクセスできる7つの強力なツールをご用意しています。</p>
-                
-                <div class="tools-grid">
-                    <div class="tool-card">
-                        <div class="tool-number">1</div>
-                        <h4>全国マンションデータベース</h4>
-                        <p class="tool-type">＜売り・買い＞</p>
-                        <p class="tool-description">全国の分譲マンションの95％以上を網羅。販売履歴の閲覧が最も多い。</p>
-                        <a href="https://self-in.com/●●●●●●/mdb/" target="_blank" class="tool-link">詳細を見る →</a>
-                    </div>
-                    
-                    <div class="tool-card">
-                        <div class="tool-number">2</div>
-                        <h4>物件提案ロボ</h4>
-                        <p class="tool-type">＜買い＞</p>
-                        <p class="tool-description">希望条件に合致している中古マンション・中古一戸建て情報を売り出し開始から24時間以内に評価付きで届けるツール</p>
-                        <a href="https://self-in.net/rlp/index.php?id=●●●●●●" target="_blank" class="tool-link">詳細を見る →</a>
-                    </div>
-                    
-                    <div class="tool-card">
-                        <div class="tool-number">3</div>
-                        <h4>土地情報ロボ</h4>
-                        <p class="tool-type">＜買い＞</p>
-                        <p class="tool-description">希望条件に合致している土地情報を売り出し開始から24時間以内に届けるツール</p>
-                        <a href="https://self-in.net/llp/index.php?id=●●●●●●" target="_blank" class="tool-link">詳細を見る →</a>
-                    </div>
-                    
-                    <div class="tool-card">
-                        <div class="tool-number">4</div>
-                        <h4>AIマンション査定</h4>
-                        <p class="tool-type">＜売り＞</p>
-                        <p class="tool-description">個人情報不要でマンションの査定を行うツール。「マンション」「査定」というキーワードでTOP表示されているコンテンツ。</p>
-                        <a href="https://self-in.com/●●●●●●/ai/" target="_blank" class="tool-link">詳細を見る →</a>
-                    </div>
-                    
-                    <div class="tool-card">
-                        <div class="tool-number">5</div>
-                        <h4>セルフィン</h4>
-                        <p class="tool-type">＜買い＞</p>
-                        <p class="tool-description">中古マンション・中古一戸建ての物件情報から物件の良し悪しを自動判定するツール</p>
-                        <a href="https://self-in.net/slp/index.php?id=●●●●●●" target="_blank" class="tool-link">詳細を見る →</a>
-                    </div>
-                    
-                    <div class="tool-card">
-                        <div class="tool-number">6</div>
-                        <h4>オーナーコネクト</h4>
-                        <p class="tool-type">＜売り＞</p>
-                        <p class="tool-description">マンション所有者向けの資産ウォッチツール。週に1回の査定レポートを始め、同じマンションの売り出し情報をキャッチしたら直ちにお届けするツール</p>
-                        <a href="https://self-in.net/olp/index.php?id=●●●●●●" target="_blank" class="tool-link">詳細を見る →</a>
-                    </div>
-                    
-                    <div class="tool-card">
-                        <div class="tool-number">7</div>
-                        <h4>統合LP</h4>
-                        <p class="tool-type">全サービス統合</p>
-                        <p class="tool-description">上記6つのサービスを一括で紹介しているページです。</p>
-                        <a href="https://self-in.net/alp/index.php?id=●●●●●●" target="_blank" class="tool-link">詳細を見る →</a>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Communication Features -->
-            <div class="communication-subsection">
-                <h3 class="subsection-title">コミュニケーション機能</h3>
-                <p class="subsection-description">名刺のQRコードを読み込むことで、メッセージアプリやSNSでのコミュニケーションをワンタップで確立。入力時に表示させたい機能にチェックを入れると、デジタル名刺に反映されます。</p>
-                
-                <div class="communication-grid">
-                    <div class="communication-category">
-                        <h4 class="category-title">メッセージアプリ</h4>
-                        <p class="category-note">一番簡単につながる方法を教えてください。ここが重要になります。</p>
-                        <ul class="communication-list">
-                            <li>
-                                <img src="assets/images/icons/line.png" alt="LINE">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/messenger.png" alt="Messenger">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/whatsapp.png" alt="WhatsApp">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/message.png" alt="+メッセージ">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/chatwork.png" alt="Chatwork">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/andpad.png" alt="Andpad">
-                            </li>
-                        </ul>
-                        <p class="category-future">※近い将来、「不動産MYページ」という独自コミュニケーションツールをリリースし、追加する予定です。</p>
-                    </div>
-                    
-                    <div class="communication-category">
-                        <h4 class="category-title">SNS</h4>
-                        <p class="category-note">リンク先を入力できるようにする</p>
-                        <ul class="communication-list">
-                            <li>
-                                <img src="assets/images/icons/instagram.png" alt="Instagram">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/facebook.png" alt="Facebook">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/twitter.png" alt="X (Twitter)">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/youtube.png" alt="YouTube">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/tiktok.png" alt="TikTok">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/note.png" alt="note">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/pinterest.png" alt="Pinterest">
-                            </li>
-                            <li>
-                                <img src="assets/images/icons/threads.png" alt="Threads">
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-    <div class="container">
-        <div class="contact-save-info">
-            <h4 class="info-title">不動産エージェントの管理画面</h4>
-            <a class="save-button-demo" href="./admin/dashboard.php">
-                <span class="save-btn">名刺情報の保存ボタン</span>
-            </a>
-        </div>
-    </div>
-    <!-- Footer -->
     <footer class="footer">
+        <div class="footer-background-text">
+            <span>REAL ESTATE</span> 
+            <span>AI</span>
+        </div>
         <div class="container">
             <div class="footer-content">
                 <div class="footer-section">
-                    <h4>不動産デジタル名刺</h4>
-                    <p>不動産営業担当者向けのデジタル名刺作成システム。QRコード付きで、不動産テックツールと連携。</p>
+                    <h4 class="footer-logo">不動産AI名刺</h4>
+                    <p class="footer-description">次世代のAI名刺で、営業力を最大化</p>
                 </div>
+                
                 <div class="footer-section">
                     <h4>サービス</h4>
                     <ul>
-                        <li><a href="#features">機能</a></li>
-                        <li><a href="#pricing">動画</a></li>
-                        <li><a href="#howto">使い方</a></li>
-                        <li><a href="#tools">ツール</a></li>
-                        <!-- <li><a href="#pricing">料金</a></li> -->
+                        <li><a href="#features">特徴</a></li>
+                        <li><a href="#pricing">料金</a></li>
+                        <li><a href="#tools">テックツール</a></li>
+                        <li><a href="help.php">よくある質問</a></li>
+                        <li><a href="contact.php">お問い合わせ</a></li>
                     </ul>
                 </div>
+                
                 <div class="footer-section">
                     <h4>サポート</h4>
-                    <ul>
-                        <li><a href="help.php">ヘルプセンター</a></li>
-                        <li><a href="contact.php">お問い合わせ</a></li>
-                        <li><a href="terms.php">利用規約</a></li>
-                        <li><a href="privacy.php">プライバシーポリシー</a></li>
+                    <ul class="social-links">
+                        <li>
+                            <a href="#" class="social-link">
+                                <span>ヘルプセンター</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="social-link">
+                                <span>お問い合わせ</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="social-link">
+                                <span>利用規約</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="social-link">
+                                <span>プライバシーポリシー</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="social-link">
+                                <span>会社概要</span>
+                            </a>
+                        </li>
                     </ul>
                 </div>
+                
+                <div class="footer-section">
+                    <h4>不動産エージェントの管理画面</h4>
+                    <a href="./admin/dashboard.php" class="save-btn footer-save-btn">名刺情報の保存ボタン</a>
+                </div>
             </div>
+            
             <div class="footer-bottom">
-                <p>&copy; 2025 不動産デジタル名刺. All rights reserved.</p>
+                <div class="footer-bottom-content">
+                    <p>&copy; 2025 リニュアル仲介株式会社. All rights reserved.</p>
+                    <p><a href="terms.php">特定商取引法に基づく表記</a></p>
+                </div>
             </div>
         </div>
     </footer>
