@@ -372,7 +372,7 @@ $communicationMethods = array_merge($messageApps, $snsApps);
 
                     <?php if ($card['birth_date']): ?>
                         <div class="info-section">
-                            <h3>誕生日</h3>
+                            <h3>生年月日</h3>
                             <p><?php echo date('Y年m月d日', strtotime($card['birth_date'])); ?></p>
                         </div>
                     <?php endif; ?>
@@ -394,7 +394,7 @@ $communicationMethods = array_merge($messageApps, $snsApps);
 
                     <?php if ($card['alma_mater']): ?>
                         <div class="info-section">
-                            <h3>出身大学</h3>
+                            <h3>出身校</h3>
                             <p><?php echo nl2br(htmlspecialchars($card['alma_mater'])); ?></p>
                         </div>
                     <?php endif; ?>

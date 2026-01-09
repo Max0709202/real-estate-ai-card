@@ -1379,6 +1379,12 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
     const formDataObj = new FormData(e.target);
     const data = Object.fromEntries(formDataObj);
     
+    // IMPORTANT: Remove file input values from data object to prevent overwriting existing images
+    // File inputs in FormData become empty File objects when no file is selected
+    // These would be sent as empty/null values and overwrite existing database values
+    delete data.company_logo;
+    delete data.profile_photo;
+
     // Handle logo upload (check for cropped image first, then restored file)
     const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
     const logoFile = document.getElementById('company_logo').files[0];
@@ -1472,9 +1478,20 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         } catch (error) {
             console.error('Logo upload error:', error);
         }
-    } else if (businessCardData && businessCardData.company_logo) {
-        // Preserve existing logo
-        data.company_logo = businessCardData.company_logo;
+    } else {
+        // Preserve existing logo - check multiple sources
+        const logoUploadAreaForPreserve = document.querySelector('[data-upload-id="company_logo"]');
+        if (logoUploadAreaForPreserve && logoUploadAreaForPreserve.dataset.uploadedPath) {
+            // Use recently uploaded path (from this session)
+            data.company_logo = logoUploadAreaForPreserve.dataset.uploadedPath;
+        } else if (logoUploadAreaForPreserve && logoUploadAreaForPreserve.dataset.existingImage) {
+            // Use existing image from database
+            data.company_logo = logoUploadAreaForPreserve.dataset.existingImage;
+        } else if (businessCardData && businessCardData.company_logo) {
+            // Fallback to businessCardData
+            data.company_logo = businessCardData.company_logo;
+        }
+        // If none found, don't set company_logo - API will preserve existing value
     }
     
     // Handle profile photo upload (check for cropped image first, then restored file)
@@ -1570,9 +1587,20 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         } catch (error) {
             console.error('Photo upload error:', error);
         }
-    } else if (businessCardData && businessCardData.profile_photo) {
-        // Preserve existing profile photo
-        data.profile_photo = businessCardData.profile_photo;
+    } else {
+        // Preserve existing profile photo - check multiple sources
+        const photoUploadAreaForPreserve = document.querySelector('[data-upload-id="profile_photo_header"]');
+        if (photoUploadAreaForPreserve && photoUploadAreaForPreserve.dataset.uploadedPath) {
+            // Use recently uploaded path (from this session)
+            data.profile_photo = photoUploadAreaForPreserve.dataset.uploadedPath;
+        } else if (photoUploadAreaForPreserve && photoUploadAreaForPreserve.dataset.existingImage) {
+            // Use existing image from database
+            data.profile_photo = photoUploadAreaForPreserve.dataset.existingImage;
+        } else if (businessCardData && businessCardData.profile_photo) {
+            // Fallback to businessCardData
+            data.profile_photo = businessCardData.profile_photo;
+        }
+        // If none found, don't set profile_photo - API will preserve existing value
     }
     
     // Handle greetings - get order from DOM
@@ -1680,6 +1708,10 @@ document.getElementById('company-profile-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
+            // Clear dirty flag to prevent "unsaved changes" popup
+            if (window.autoSave && window.autoSave.markClean) {
+                window.autoSave.markClean();
+            }
             goToStep(3);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -1697,6 +1729,11 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
     const formDataObj = new FormData(e.target);
     const data = Object.fromEntries(formDataObj);
     
+    // IMPORTANT: Remove file input values from data object to prevent issues
+    // File inputs in FormData become empty File objects or arrays when no file is selected
+    delete data['free_image[]'];
+    delete data.free_image;
+
     // Combine last_name and first_name into name
     const lastName = data.last_name || '';
     const firstName = data.first_name || '';
@@ -1824,6 +1861,10 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
         
         const result = await response.json();
         if (result.success) {
+            // Clear dirty flag to prevent "unsaved changes" popup
+            if (window.autoSave && window.autoSave.markClean) {
+                window.autoSave.markClean();
+            }
             goToStep(4);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -1916,6 +1957,10 @@ async function generateTechToolUrls(selectedTools) {
         const saveResult = await saveResponse.json();
         if (saveResult.success) {
             console.log('Tech tools saved to database successfully');
+            // Clear dirty flag to prevent "unsaved changes" popup
+            if (window.autoSave && window.autoSave.markClean) {
+                window.autoSave.markClean();
+            }
         } else {
             console.error('Failed to save tech tools:', saveResult.message);
         }
@@ -2040,6 +2085,10 @@ document.getElementById('communication-form')?.addEventListener('submit', async 
         
         const result = await response.json();
         if (result.success) {
+            // Clear dirty flag to prevent "unsaved changes" popup
+            if (window.autoSave && window.autoSave.markClean) {
+                window.autoSave.markClean();
+            }
             goToStep(6);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2576,7 +2625,7 @@ function generatePreview(data) {
     // Birthday
     if (data.birth_date) {
         html += '<div class="info-section">';
-        html += '<h3>誕生日</h3>';
+        html += '<h3>生年月日</h3>';
         html += `<p>${escapeHtml(data.birth_date)}</p>`;
         html += '</div>';
         hasInfoContent = true;
@@ -2720,38 +2769,141 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Show preview
-function showPreview() {
-    const data = collectFormData();
-    storedFormData = data;
-    
-    const previewContent = document.getElementById('preview-content');
-    const previewContainer = document.getElementById('preview-container');
-    const registerSteps = document.querySelector('.register-steps').parentElement;
-    
-    previewContent.innerHTML = generatePreview(data);
-    previewContainer.style.display = 'block';
-    
-    // Hide all register steps
-    document.querySelectorAll('.register-step').forEach(step => {
-        step.style.display = 'none';
+// Show preview - Display card.php in modal (same as edit.php)
+async function showPreview() {
+    // Load saved business card data to get slug and check if data exists
+    let savedData = null;
+    if (typeof loadExistingBusinessCardData === 'function') {
+        await loadExistingBusinessCardData();
+        savedData = window.businessCardData || businessCardData;
+    } else {
+        // Fallback: fetch data directly
+        try {
+            const response = await fetch('../backend/api/business-card/get.php', {
+                method: 'GET',
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    savedData = result.data;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading business card data:', error);
+        }
+    }
+
+    // Check if we have any data to display
+    const hasData = savedData && (
+        savedData.company_name ||
+        savedData.name ||
+        (savedData.greetings && savedData.greetings.length > 0) ||
+        savedData.company_logo ||
+        savedData.profile_photo ||
+        savedData.real_estate_license_prefecture ||
+        savedData.company_address ||
+        Object.keys(savedData).length > 5 // More than just id, user_id, etc.
+    );
+
+    if (!hasData || !savedData || !savedData.url_slug) {
+        if (typeof showWarning === 'function') {
+            showWarning('表示するデータがありません。まず情報を入力して保存してください。');
+        } else {
+            alert('表示するデータがありません。まず情報を入力して保存してください。');
+        }
+        return;
+    }
+
+    // Get the URL slug
+    const urlSlug = savedData.url_slug;
+
+    // Create modal overlay
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay preview-modal';
+    modalOverlay.id = 'register-preview-modal';
+    modalOverlay.style.cssText = 'visibility: visible; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; opacity: 0; transition: opacity 0.3s;';
+
+    // Create modal content
+    const modalContent = document.createElement('div');
+    modalContent.className = 'preview-modal-content';
+    modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
+
+    // Create iframe to load card.php with preview mode
+    const iframe = document.createElement('iframe');
+    iframe.src = `card.php?slug=${encodeURIComponent(urlSlug)}&preview=1`;
+    iframe.style.cssText = 'width: 100%; height: 100%; border: none; flex: 1; min-height: 600px;';
+    iframe.setAttribute('frameborder', '0');
+    iframe.setAttribute('scrolling', 'yes');
+
+    // Close button
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'preview-modal-close';
+    closeButton.innerHTML = '×';
+    closeButton.style.cssText = 'position: absolute; top: 1rem; right: 1rem; background: #fff; border: 2px solid #ddd; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 1.5rem; line-height: 1; display: flex; align-items: center; justify-content: center; color: #666; transition: all 0.3s; z-index: 10001;';
+    closeButton.onmouseover = function() {
+        this.style.background = '#f0f0f0';
+        this.style.borderColor = '#999';
+    };
+    closeButton.onmouseout = function() {
+        this.style.background = '#fff';
+        this.style.borderColor = '#ddd';
+    };
+
+    modalContent.appendChild(iframe);
+    modalContent.appendChild(closeButton);
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+
+    // Show modal with animation
+    setTimeout(() => {
+        modalOverlay.style.opacity = '1';
+    }, 10);
+
+    // Close function
+    function closeModal() {
+        modalOverlay.style.opacity = '0';
+        setTimeout(() => {
+            if (document.body.contains(modalOverlay)) {
+                document.body.removeChild(modalOverlay);
+            }
+        }, 300);
+    }
+
+    // Close button handler
+    closeButton.addEventListener('click', closeModal);
+
+    // Close on overlay click
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            closeModal();
+        }
     });
-    
+
+    // Close on Escape key
+    const escapeHandler = (e) => {
+        if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', escapeHandler);
+        }
+    };
+    document.addEventListener('keydown', escapeHandler);
+
     isPreviewMode = true;
 }
 
-// Hide preview
+// Hide preview - Close the modal
 function hidePreview() {
-    const previewContainer = document.getElementById('preview-container');
-    previewContainer.style.display = 'none';
-    
-    // Show active register step
-    document.querySelectorAll('.register-step').forEach(step => {
-        if (step.classList.contains('active')) {
-            step.style.display = 'block';
-        }
-    });
-    
+    const modalOverlay = document.getElementById('register-preview-modal');
+    if (modalOverlay) {
+        modalOverlay.style.opacity = '0';
+        setTimeout(() => {
+            if (document.body.contains(modalOverlay)) {
+                document.body.removeChild(modalOverlay);
+            }
+        }, 300);
+    }
     isPreviewMode = false;
 }
 
@@ -3067,9 +3219,21 @@ function showRegisterImagePreview(file, fieldName, originalEvent) {
 
 // Photo upload previews with cropping
 document.getElementById('profile_photo_header')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-        showRegisterImageCropper(file, 'profile_photo_header', e);
+    const file = e.target.files?.[0];
+    if (file) {
+        // より厳密な画像ファイルチェック
+        if (file.type && file.type.startsWith('image/')) {
+            showRegisterImageCropper(file, 'profile_photo_header', e);
+        } else {
+            console.warn('Invalid file type:', file.type);
+            if (typeof showWarning === 'function') {
+                showWarning('画像ファイルを選択してください');
+            } else {
+                alert('画像ファイルを選択してください');
+            }
+            // ファイル入力をリセット
+            e.target.value = '';
+        }
     }
 });
 
@@ -3492,6 +3656,12 @@ function initializeDragAndDropForUploadAreaForRegister(uploadArea) {
     if (uploadArea.dataset.dragInitialized === 'true') return;
     uploadArea.dataset.dragInitialized = 'true';
     
+    // ドラッグエンター時の処理（ブラウザのデフォルト動作を防止）
+    uploadArea.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
     // ドラッグオーバー時の処理
     uploadArea.addEventListener('dragover', function(e) {
         e.preventDefault();
@@ -3516,11 +3686,33 @@ function initializeDragAndDropForUploadAreaForRegister(uploadArea) {
         if (files.length > 0) {
             const file = files[0];
             // 画像ファイルかチェック
-            if (file.type.startsWith('image/')) {
-                fileInput.files = files;
-                // ファイル選択イベントをトリガー
-                const event = new Event('change', { bubbles: true });
-                fileInput.dispatchEvent(event);
+            if (file && file.type && file.type.startsWith('image/')) {
+                // より確実な方法でファイルを設定
+                try {
+                    // DataTransferオブジェクトを使用してファイルを設定
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    fileInput.files = dataTransfer.files;
+
+                    // ファイル選択イベントをトリガー
+                    const event = new Event('change', { bubbles: true, cancelable: true });
+                    fileInput.dispatchEvent(event);
+                } catch (error) {
+                    // フォールバック: 直接代入を試行
+                    console.warn('DataTransfer not supported, using fallback:', error);
+                    try {
+                        fileInput.files = files;
+                        const event = new Event('change', { bubbles: true, cancelable: true });
+                        fileInput.dispatchEvent(event);
+                    } catch (fallbackError) {
+                        console.error('File assignment failed:', fallbackError);
+                        if (typeof showError === 'function') {
+                            showError('ファイルの読み込みに失敗しました。もう一度お試しください。');
+                        } else {
+                            alert('ファイルの読み込みに失敗しました。もう一度お試しください。');
+                        }
+                    }
+                }
             } else {
                 if (typeof showWarning === 'function') {
                     showWarning('画像ファイルを選択してください');
@@ -3570,14 +3762,31 @@ window.addEventListener('DOMContentLoaded', () => {
         updateTechToolButtonsForRegister();
     }, 100);
 
-    // Initialize preview button
-    const previewBtn = document.getElementById('preview-btn');
-    const closePreviewBtn = document.getElementById('close-preview-btn');
-    
-    if (previewBtn) {
-        previewBtn.addEventListener('click', showPreview);
+    // Initialize preview buttons (both desktop and mobile versions)
+    const previewBtns = document.querySelectorAll('.btn-preview');
+    previewBtns.forEach(btn => {
+        if (!btn.dataset.listenerAdded) {
+            btn.addEventListener('click', showPreview);
+            btn.dataset.listenerAdded = 'true';
+        }
+    });
+
+    // Also initialize by specific IDs for desktop and mobile
+    const previewBtnDesktop = document.getElementById('preview-btn-desktop');
+    const previewBtnMobile = document.getElementById('preview-btn-mobile');
+
+    if (previewBtnDesktop && !previewBtnDesktop.dataset.listenerAdded) {
+        previewBtnDesktop.addEventListener('click', showPreview);
+        previewBtnDesktop.dataset.listenerAdded = 'true';
     }
-    
+
+    if (previewBtnMobile && !previewBtnMobile.dataset.listenerAdded) {
+        previewBtnMobile.addEventListener('click', showPreview);
+        previewBtnMobile.dataset.listenerAdded = 'true';
+    }
+
+    // Close preview button (for old preview container, kept for backwards compatibility)
+    const closePreviewBtn = document.getElementById('close-preview-btn');
     if (closePreviewBtn) {
         closePreviewBtn.addEventListener('click', hidePreview);
     }

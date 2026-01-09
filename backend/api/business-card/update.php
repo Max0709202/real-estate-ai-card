@@ -75,7 +75,15 @@ try {
             $value = $value[0] ?? null;
         }
 
-        // Convert blanks to NULL (except required fields)
+        // IMPORTANT: Skip image fields if empty to prevent overwriting existing images
+        // This prevents clearing images when the beforeunload popup is triggered
+        if (in_array($field, ['profile_photo', 'company_logo'])) {
+            if ($value === '' || $value === null) {
+                continue; // Preserve existing image
+            }
+        }
+
+        // Convert blanks to NULL (except required fields and image fields)
         if ($value === '' || $value === null) {
             if (in_array($field, ['name', 'mobile_phone'])) {
                 continue;

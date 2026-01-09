@@ -47,7 +47,7 @@ body {
 }
 
 .form-group label {
-    display: block;
+    display: flex;
     margin-bottom: 0.5rem;
     color: #555;
     font-weight: 500;

@@ -1,5 +1,11 @@
 /* Landing Page - New Design Styles */
 
+/* Global Font Family for Landing Page */
+body,
+html {
+    font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Yu Gothic', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Hiragino Kaku Gothic Pro', Meiryo, 'MS PGothic', sans-serif;
+}
+
 /* Fixed CTA Button */
 .fixed-cta-button {
     position: fixed;
@@ -586,12 +592,14 @@
     margin: 0 auto;
 }
 
+/* Tool Cards with Banner Layout */
 .tool-card {
     background: #fff;
-    border-radius: 12px;
-    padding: 30px;
+    border-radius: 16px;
+    padding: 0;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     transition: transform 0.3s, box-shadow 0.3s;
+    overflow: hidden;
 }
 
 .tool-card:hover {
@@ -599,44 +607,43 @@
     box-shadow: 0 8px 20px rgba(0,0,0,0.12);
 }
 
-.tool-icon {
-    width: 60px;
-    height: 60px;
-    background: #333;
-    border-radius: 8px;
+.tech-tool-content {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 20px;
+    flex-direction: column;
 }
 
-.tool-icon img,
-.tool-icon .icon-placeholder {
-    width: 40px;
-    height: 40px;
-    object-fit: contain;
-    font-size: 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.tech-tool-banner {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.tech-tool-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+}
+
+.tech-tool-info {
+    padding: 22px 24px 24px;
 }
 
 .tool-title {
     font-size: 1.3rem;
     font-weight: 700;
-    color: #333;
+    color: #111827;
     margin-bottom: 10px;
     display: flex;
     align-items: center;
     gap: 10px;
-    float: left;
-    margin-right: 15px;
 }
 
 .tool-tag {
     display: inline-block;
     padding: 4px 12px;
-    border-radius: 12px;
+    border-radius: 999px;
     font-size: 0.85rem;
     font-weight: 600;
     color: #fff;
@@ -1044,6 +1051,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 40px;
+    align-items: stretch;
     max-width: 1200px;
     margin: 0 auto 60px;
     align-items: start;
@@ -1053,6 +1061,9 @@
     background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
     padding: 45px;
     border-radius: 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
     border: 1px solid rgba(0, 102, 204, 0.1);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -1080,6 +1091,7 @@
     list-style: none;
     padding: 0;
     margin: 0;
+    flex: 1;
 }
 
 .lp-new-benefit-item {
@@ -1112,59 +1124,253 @@
 }
 
 .lp-new-pricing-card {
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-    padding: 45px;
-    border-radius: 20px;
-    box-shadow: 0 8px 30px rgba(0, 102, 204, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
-    border: 2px solid;
-    border-image: linear-gradient(135deg, #0066cc 0%, #0052a3 100%) 1;
+    background: linear-gradient(180deg, #4c1d95 0%, #7c3aed 50%, #a78bfa 100%);
+    padding: 0;
+    border-radius: 24px;
+    box-shadow: 0 12px 40px rgba(124, 58, 237, 0.3), 0 4px 12px rgba(0, 0, 0, 0.15);
     position: sticky;
     top: 30px;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 .lp-new-pricing-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 40px rgba(0, 102, 204, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-6px);
+    box-shadow: 0 16px 50px rgba(124, 58, 237, 0.4), 0 6px 16px rgba(0, 0, 0, 0.2);
 }
 
 .lp-new-pricing-content {
     display: flex;
     flex-direction: column;
-    gap: 28px;
+    padding: 40px 35px 35px;
+    gap: 24px;
+    position: relative;
+    flex: 1;
 }
 
-.lp-new-price-item {
+/* Popular Badge */
+.lp-new-popular-badge {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+    color: #fff;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+    z-index: 10;
+}
+
+/* Plan Title */
+.lp-new-plan-title {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #ffffff;
+    text-align: center;
+    margin: 30px 0 20px;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+}
+
+/* Main Price Display */
+.lp-new-main-price {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.lp-new-price-symbol {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1;
+}
+
+.lp-new-price-number {
+    font-size: 4rem;
+    font-weight: 900;
+    color: #ffffff;
+    line-height: 1;
+    letter-spacing: -0.05em;
+}
+
+.lp-new-price-period {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #ffffff;
+    opacity: 0.95;
+    line-height: 1;
+}
+
+/* Initial Fee Note */
+.lp-new-initial-fee-note {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.85);
+    text-align: center;
+    margin: 0 0 28px;
+    font-weight: 500;
+}
+
+/* Features List */
+.lp-new-features-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
     display: flex;
     flex-direction: column;
+    gap: 14px;
+}
+
+.lp-new-feature-item {
+    display: flex;
+    align-items: flex-start;
     gap: 12px;
 }
 
-.lp-new-price-label {
+.lp-new-feature-check {
+    color: #fbbf24;
+    font-size: 1.2rem;
+    font-weight: 900;
+    line-height: 1.4;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.lp-new-feature-text {
+    color: #ffffff;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    font-weight: 500;
+    flex: 1;
+}
+
+/* CTA Button */
+.lp-new-inquire-button {
+    display: block;
+    width: 100%;
+    padding: 16px 24px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.15) 100%);
+    backdrop-filter: blur(10px);
+    color: #ffffff;
+    text-align: center;
+    text-decoration: none;
     font-size: 1.05rem;
+    font-weight: 700;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    margin-top: 8px;
+}
+
+.lp-new-inquire-button:hover {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.25) 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Disclaimer Note */
+.lp-new-disclaimer-note {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.75);
+    text-align: center;
+    margin: 12px 0 0;
+    font-weight: 400;
+}
+
+.lp-new-price-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.lp-new-price-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.lp-new-price-label {
+    font-size: 0.95rem;
     color: #64748b;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 0.9rem;
+    letter-spacing: 0.03em;
+}
+
+.lp-new-price-badge {
+    font-size: 0.75rem;
+    color: #0066cc;
+    background: rgba(0, 102, 204, 0.1);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.lp-new-price-main {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    flex-wrap: wrap;
 }
 
 .lp-new-price-amount {
-    font-size: 2.5rem;
-    font-weight: 800;
+    font-size: 2.8rem;
+    font-weight: 900;
     background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    line-height: 1.2;
-    letter-spacing: -0.02em;
+    line-height: 1;
+    letter-spacing: -0.03em;
+}
+
+.lp-new-price-currency {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #0066cc;
+    margin-left: 2px;
 }
 
 .lp-new-price-tax {
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     font-weight: 500;
     color: #94a3b8;
-    margin-left: 6px;
+    margin-left: 8px;
+}
+
+.lp-new-price-tax-included {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, rgba(0, 102, 204, 0.05) 0%, rgba(0, 82, 163, 0.05) 100%);
+    border-radius: 8px;
+    border-left: 3px solid #0066cc;
+    margin-top: 4px;
+}
+
+.lp-new-tax-label {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.lp-new-tax-amount {
+    font-size: 1.1rem;
+    color: #1e293b;
+    font-weight: 700;
 }
 
 .lp-new-price-divider {
@@ -1226,15 +1432,20 @@
     word-break: break-word;
 }
 
+.lp-new-disclaimer-wrapper {
+    margin-top: 8px;
+}
+
 .lp-new-disclaimer {
     font-size: 0.9rem;
-    color: #94a3b8;
+    color: #64748b;
     line-height: 1.6;
-    margin-top: 12px;
-    padding: 12px 16px;
-    background: rgba(0, 102, 204, 0.05);
-    border-radius: 10px;
-    border-left: 3px solid #0066cc;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(0, 102, 204, 0.08) 0%, rgba(0, 82, 163, 0.08) 100%);
+    border-radius: 12px;
+    border: 1px solid rgba(0, 102, 204, 0.15);
+    text-align: center;
+    font-weight: 500;
     overflow-wrap: break-word;
     word-break: break-word;
 }
@@ -2319,21 +2530,63 @@
     }
     
     .lp-new-pricing-card {
-        padding: 35px 25px;
+        padding: 0;
         position: static;
-        border-radius: 16px;
+        border-radius: 20px;
     }
     
     .lp-new-pricing-content {
-        gap: 24px;
+        padding: 30px 22px 28px;
+        gap: 20px;
     }
     
-    .lp-new-price-amount {
-        font-size: 2rem;
+    .lp-new-popular-badge {
+        top: 12px;
+        padding: 5px 14px;
+        font-size: 0.75rem;
     }
     
-    .lp-new-price-tax {
-        font-size: 1rem;
+    .lp-new-plan-title {
+        font-size: 1.4rem;
+        margin: 22px 0 14px;
+    }
+    
+    .lp-new-price-symbol {
+        font-size: 1.3rem;
+    }
+    
+    .lp-new-price-number {
+        font-size: 2.8rem;
+    }
+    
+    .lp-new-price-period {
+        font-size: 1.2rem;
+    }
+    
+    .lp-new-initial-fee-note {
+        font-size: 0.85rem;
+        margin-bottom: 22px;
+    }
+    
+    .lp-new-features-list {
+        gap: 11px;
+    }
+    
+    .lp-new-feature-check {
+        font-size: 1.05rem;
+    }
+    
+    .lp-new-feature-text {
+        font-size: 0.88rem;
+    }
+    
+    .lp-new-inquire-button {
+        padding: 14px 20px;
+        font-size: 0.95rem;
+    }
+    
+    .lp-new-disclaimer-note {
+        font-size: 0.75rem;
     }
     
     .lp-new-payment-title {

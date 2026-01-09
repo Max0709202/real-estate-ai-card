@@ -55,6 +55,10 @@ if ($isTokenBased) {
     <meta name="googlebot" content="noindex, nofollow">
     <?php endif; ?>
     <title>不動産AI名刺 - 商談機会を逃さない</title>
+    <!-- Google Fonts - Noto Sans JP -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
     <!-- Swiper CSS -->
@@ -142,8 +146,7 @@ if ($isTokenBased) {
         <div class="hero-slide-right">
             <!-- <img src="assets/images/first.jpg" alt="効率化" class="hero-slide-image"> -->
             <div class="container">
-                <h2>有効的な活用方法が簡単に理解できる</h2>
-                <p class="section-subtitle" style="margin-bottom: 1rem;">30～60秒のアニメ動画で、サービスを簡単にご紹介</p>
+                <h2 style="margin-bottom: 1rem;">有効的な活用方法が簡単に理解できる</h2>
                 <div class="video-container">
                     <div class="video-wrapper">
                         <video class="service-video" controls>
@@ -577,57 +580,51 @@ if ($isTokenBased) {
             </p>
             <div class="tools-grid">
                 <div class="tool-card">
-                    <div class="tool-icon">
-                        <span class="icon-placeholder">🏢</span>
+                    <div class="tech-tool-content">
+                        <div class="tech-tool-banner">
+                            <img src="assets/images/tech_banner/mdb.jpg" alt="全国マンションデータベース">
+                        </div>
                     </div>
-                    <h3 class="tool-title">全国マンションデータベース</h3>
-                    <span class="tool-tag tag-purple">売り・買い</span>
-                    <p class="tool-description">全国の分譲マンションの95%以上を網羅。販売履歴の閲覧が最も多い人気ツール。</p>
                 </div>
 
                 <div class="tool-card">
-                    <div class="tool-icon">
-                        <span class="icon-placeholder">🤖</span>
+                    <div class="tech-tool-content">
+                        <div class="tech-tool-banner">
+                            <img src="assets/images/tech_banner/rlp.jpg" alt="物件提案ロボ" class="tech-tool-banner">
+                        </div>
                     </div>
-                    <h3 class="tool-title">物件提案ロボ</h3>
-                    <span class="tool-tag tag-blue">買い</span>
-                    <p class="tool-description">希望条件に合致した中古マンション・一戸建て情報を、売り出し開始から24時間以内にAI評価付きで自動配信。</p>
                 </div>
 
                 <div class="tool-card">
-                    <div class="tool-icon">
-                        <span class="icon-placeholder">📍</span>
+                    <div class="tech-tool-content">
+                        <div class="tech-tool-banner">
+                            <img src="assets/images/tech_banner/llp.jpg" alt="土地情報ロボ" class="tech-tool-banner">
+                        </div>
                     </div>
-                    <h3 class="tool-title">土地情報ロボ</h3>
-                    <span class="tool-tag tag-blue">買い</span>
-                    <p class="tool-description">希望条件に合致した土地情報を、売り出し開始から24時間以内に自動でお届け。</p>
                 </div>
 
                 <div class="tool-card">
-                    <div class="tool-icon">
-                        <span class="icon-placeholder">📊</span>
+                    <div class="tech-tool-content">
+                        <div class="tech-tool-banner">
+                            <img src="assets/images/tech_banner/ai.jpg" alt="AIマンション査定" class="tech-tool-banner">
+                        </div>
                     </div>
-                    <h3 class="tool-title">AIマンション査定</h3>
-                    <span class="tool-tag tag-green">売り</span>
-                    <p class="tool-description">個人情報不要でマンションの査定を実施。「マンション」「査定」でTOP表示される信頼のコンテンツ。</p>
                 </div>
 
                 <div class="tool-card">
-                    <div class="tool-icon">
-                        <span class="icon-placeholder">🔍</span>
+                    <div class="tech-tool-content">
+                        <div class="tech-tool-banner">
+                            <img src="assets/images/tech_banner/slp.jpg" alt="セルフィン" class="tech-tool-banner">
+                        </div>
                     </div>
-                    <h3 class="tool-title">セルフィン</h3>
-                    <span class="tool-tag tag-blue">買い</span>
-                    <p class="tool-description">中古マンション・一戸建ての物件情報から、物件の良し悪しをAIが自動判定。</p>
                 </div>
 
                 <div class="tool-card">
-                    <div class="tool-icon">
-                        <span class="icon-placeholder">🛡️</span>
+                    <div class="tech-tool-content">
+                        <div class="tech-tool-banner">
+                            <img src="assets/images/tech_banner/olp.jpg" alt="オーナーコネクト" class="tech-tool-banner">
+                        </div>
                     </div>
-                    <h3 class="tool-title">オーナーコネクト</h3>
-                    <span class="tool-tag tag-green">売り</span>
-                    <p class="tool-description">マンション所有者向けの資産ウォッチツール。週1回の査定レポートと売り出し情報を即時配信。</p>
                 </div>
             </div>
         </div>
@@ -724,36 +721,34 @@ if ($isTokenBased) {
                 <!-- Right Column: Pricing Card -->
                 <div class="lp-new-pricing-card">
                     <div class="lp-new-pricing-content">
-                        <div class="lp-new-price-item">
-                            <span class="lp-new-price-label">初期費用</span>
-                            <span class="lp-new-price-amount">30,000円<span class="lp-new-price-tax">（税別）</span></span>
+                        <!-- Popular Badge -->
+                        <div class="lp-new-popular-badge">人気</div>
+                        
+                        <!-- Plan Title -->
+                        <h3 class="lp-new-plan-title">不動産AI名刺プラン</h3>
+                        
+                        <!-- Main Price Display -->
+                        <div class="lp-new-main-price">
+                            <span class="lp-new-price-symbol">¥</span>
+                            <span class="lp-new-price-number">500</span>
+                            <span class="lp-new-price-period">/月</span>
                         </div>
-                        <div class="lp-new-price-divider"></div>
-                        <div class="lp-new-price-item">
-                            <span class="lp-new-price-label">月額</span>
-                            <span class="lp-new-price-amount">500円<span class="lp-new-price-tax">（税別）</span></span>
-                        </div>
-                        <div class="lp-new-payment-methods">
-                            <p class="lp-new-payment-title">決済方法</p>
-                            <div class="lp-new-payment-options">
-                                <div class="lp-new-payment-option">
-                                    <span class="lp-new-payment-icon">💳</span>
-                                    <span class="lp-new-payment-text">クレジットカード（Stripe決済）</span>
-                                </div>
-                                <div class="lp-new-payment-option">
-                                    <span class="lp-new-payment-icon">🏦</span>
-                                    <span class="lp-new-payment-text">銀行振込</span>
-                                </div>
-                            </div>
-                        </div>
-                        <p class="lp-new-disclaimer">※初月は無料トライアル期間です</p>
+                        
+                        <!-- Initial Fee Note -->
+                        <p class="lp-new-initial-fee-note">+初期費用 30,000円（税別）</p>
+                        
+                        <!-- CTA Button -->
+                        <a href="register.php?type=new" class="lp-new-inquire-button">詳細を問い合わせる</a>
+                        
+                        <!-- Disclaimer -->
+                        <p class="lp-new-disclaimer-note">※初月は無料トライアル期間です</p>
                     </div>
                 </div>
             </div>
             
             <!-- CTA Section -->
             <div class="lp-new-cta-wrapper">
-                <a href="register.php?type=new" class="btn-primary btn-large lp-new-cta-button">新規用　不動産AI名刺をつくる</a>
+                <a href="register.php?type=new" class="btn-primary btn-large lp-new-cta-button">不動産AI名刺をつくる</a>
                 <p class="lp-new-cta-note">※登録後、いつでも編集・変更が可能です</p>
             </div>
         </div>

@@ -205,7 +205,7 @@ $prefectures = [
             </div>
 
             <div class="preview-btn-container preview-btn-desktop">
-                <button type="button" id="preview-btn" class="btn-preview">プレビュー</button>
+                <button type="button" id="preview-btn-desktop" class="btn-preview">プレビュー</button>
             </div>
 
             <!-- Step 1: Header & Greeting -->
@@ -244,9 +244,8 @@ $prefectures = [
                     </div>
 
                     <div class="form-section">
-                        <h3>ご挨拶 <span class="required">*</span></h3>
+                        <h3>ご挨拶</h3>
                         <p class="section-note">
-                            ・挨拶文は１つは必ずご入力ください。<br>
                             ・５つの挨拶文例をそのまま使用できます。<br>
                             ・挨拶文の順序を上下のボタン・ドラッグで変更できます。
                         </p>
@@ -909,7 +908,7 @@ $prefectures = [
                 </div>
             </div>
             <div class="preview-btn-container preview-btn-mobile">
-                <button type="button" id="preview-btn" class="btn-preview">プレビュー</button>
+                <button type="button" id="preview-btn-mobile" class="btn-preview">プレビュー</button>
             </div>
         </div>
     </div>
@@ -1013,6 +1012,12 @@ $prefectures = [
                 const fileInput = uploadArea.querySelector('input[type="file"]');
                 if (!fileInput) return;
 
+                // ドラッグエンター時の処理（ブラウザのデフォルト動作を防止）
+                uploadArea.addEventListener('dragenter', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+
                 // ドラッグオーバー時の処理
                 uploadArea.addEventListener('dragover', function(e) {
                     e.preventDefault();
@@ -1037,11 +1042,33 @@ $prefectures = [
                     if (files.length > 0) {
                         const file = files[0];
                         // 画像ファイルかチェック
-                        if (file.type.startsWith('image/')) {
-                            fileInput.files = files;
-                            // ファイル選択イベントをトリガー
-                            const event = new Event('change', { bubbles: true });
-                            fileInput.dispatchEvent(event);
+                        if (file && file.type && file.type.startsWith('image/')) {
+                            // より確実な方法でファイルを設定
+                            try {
+                                // DataTransferオブジェクトを使用してファイルを設定
+                                const dataTransfer = new DataTransfer();
+                                dataTransfer.items.add(file);
+                                fileInput.files = dataTransfer.files;
+
+                                // ファイル選択イベントをトリガー
+                                const event = new Event('change', { bubbles: true, cancelable: true });
+                                fileInput.dispatchEvent(event);
+                            } catch (error) {
+                                // フォールバック: 直接代入を試行
+                                console.warn('DataTransfer not supported, using fallback:', error);
+                                try {
+                                    fileInput.files = files;
+                                    const event = new Event('change', { bubbles: true, cancelable: true });
+                                    fileInput.dispatchEvent(event);
+                                } catch (fallbackError) {
+                                    console.error('File assignment failed:', fallbackError);
+                                    if (typeof showError === 'function') {
+                                        showError('ファイルの読み込みに失敗しました。もう一度お試しください。');
+                                    } else {
+                                        alert('ファイルの読み込みに失敗しました。もう一度お試しください。');
+                                    }
+                                }
+                            }
                         } else {
                             if (typeof showWarning === 'function') {
                                 showWarning('画像ファイルを選択してください');
