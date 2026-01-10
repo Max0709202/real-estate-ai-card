@@ -38,15 +38,18 @@ try {
 
     // Calculate end date (period end date)
     $endDate = null;
+    $endDateObj = null; // DateTime object for calculations
     if ($subscriptionInfo) {
         if ($subscriptionInfo['next_billing_date']) {
             // End date is the day before next billing date (last day of current period)
             $nextBilling = new DateTime($subscriptionInfo['next_billing_date']);
             $nextBilling->modify('-1 day');
+            $endDateObj = clone $nextBilling;
             $endDate = $nextBilling->format('Y年n月j日');
         } elseif ($subscriptionInfo['cancelled_at']) {
             // If already cancelled, use cancelled_at date
             $cancelled = new DateTime($subscriptionInfo['cancelled_at']);
+            $endDateObj = clone $cancelled;
             $endDate = $cancelled->format('Y年n月j日');
         }
     }
@@ -62,7 +65,7 @@ try {
         ");
         $stmt->execute([$userId]);
         $bcInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if ($bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
             // Get the most recent completed payment date
             $stmt = $db->prepare("
@@ -73,12 +76,13 @@ try {
             ");
             $stmt->execute([$userId]);
             $paymentInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if ($paymentInfo && $paymentInfo['last_paid_at']) {
                 // Calculate end date: 1 month from payment date, minus 1 day (last day of period)
                 $paidDate = new DateTime($paymentInfo['last_paid_at']);
                 $paidDate->modify('+1 month');
                 $paidDate->modify('-1 day');
+                $endDateObj = clone $paidDate;
                 $endDate = $paidDate->format('Y年n月j日');
             } elseif (isset($bcInfo['updated_at']) && !empty($bcInfo['updated_at'])) {
                 // If no paid_at but payment_status is CR/BANK_PAID, use business_card updated_at
@@ -87,34 +91,37 @@ try {
                     $updatedDate = new DateTime($bcInfo['updated_at']);
                     $updatedDate->modify('+1 month');
                     $updatedDate->modify('-1 day');
+                    $endDateObj = clone $updatedDate;
                     $endDate = $updatedDate->format('Y年n月j日');
                 } catch (Exception $dateException) {
                     error_log("Error parsing updated_at date: " . $dateException->getMessage());
                 }
             }
         }
-        
+
         // If still no date and subscription exists, try subscription created_at
         if (!$endDate && $subscriptionInfo && isset($subscriptionInfo['status']) && in_array($subscriptionInfo['status'], ['active', 'trialing'])) {
             if (isset($subscriptionInfo['id'])) {
                 $stmt = $db->prepare("SELECT created_at FROM subscriptions WHERE id = ?");
                 $stmt->execute([$subscriptionInfo['id']]);
                 $subData = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if ($subData && $subData['created_at']) {
                     $subCreated = new DateTime($subData['created_at']);
                     $subCreated->modify('+1 month');
                     $subCreated->modify('-1 day');
+                    $endDateObj = clone $subCreated;
                     $endDate = $subCreated->format('Y年n月j日');
                 }
             }
         }
-        
+
         // Fallback if still no date: current date + 1 month - 1 day (only if payment is completed)
         if (!$endDate && $bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
             $now = new DateTime();
             $now->modify('+1 month');
             $now->modify('-1 day');
+            $endDateObj = clone $now;
             $endDate = $now->format('Y年n月j日');
         }
     }
@@ -238,12 +245,115 @@ try {
         $needsPayment = true;
     }
 
+    // Get payment method and calculate usage period display
+    $usagePeriodDisplay = null;
+    $paymentMethod = null;
+    $endDateForRenewal = null; // DateTime object for renewal eligibility check
+    $canRenew = false; // Can renew (2 months before expiration)
+
+    if (in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+        // Get most recent payment method
+        $stmt = $db->prepare("
+            SELECT payment_method, paid_at
+            FROM payments
+            WHERE user_id = ? AND payment_status = 'completed'
+            ORDER BY paid_at DESC, created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        $paymentMethodData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($paymentMethodData) {
+            $paymentMethod = $paymentMethodData['payment_method'];
+
+            if ($paymentMethod === 'bank_transfer') {
+                // Bank transfer: show expiration date
+                // Use the stored DateTime object if available, otherwise recalculate
+                if ($endDateObj) {
+                    $endDateForRenewal = clone $endDateObj;
+                } elseif ($endDate) {
+                    // Fallback: try to parse from Japanese format or use subscription date
+                    if ($subscriptionInfo && $subscriptionInfo['next_billing_date']) {
+                        $endDateForRenewal = new DateTime($subscriptionInfo['next_billing_date']);
+                        $endDateForRenewal->modify('-1 day');
+                    } elseif ($paymentMethodData['paid_at']) {
+                        $endDateForRenewal = new DateTime($paymentMethodData['paid_at']);
+                        $endDateForRenewal->modify('+1 month');
+                        $endDateForRenewal->modify('-1 day');
+                    }
+                } else {
+                    // Try to calculate from paid_at
+                    if ($paymentMethodData['paid_at']) {
+                        $endDateForRenewal = new DateTime($paymentMethodData['paid_at']);
+                        $endDateForRenewal->modify('+1 month');
+                        $endDateForRenewal->modify('-1 day');
+                        $endDate = $endDateForRenewal->format('Y年n月j日');
+                    }
+                }
+
+                if ($endDate) {
+                    // Format as "2026年12月21日迄"
+                    $usagePeriodDisplay = $endDate . '迄';
+
+                    // Check if can renew (2 months before expiration)
+                    if (isset($endDateForRenewal) && $endDateForRenewal) {
+                        $renewalEligibleDate = clone $endDateForRenewal;
+                        $renewalEligibleDate->modify('-2 months');
+                        $now = new DateTime();
+                        $canRenew = ($now >= $renewalEligibleDate);
+                    }
+                } else {
+                    $usagePeriodDisplay = '期限未設定';
+                }
+            } else {
+                // Credit card: show "クレジットお支払い"
+                $usagePeriodDisplay = 'クレジットお支払い';
+                // Credit card payments are automatically renewed, so no expiration date to check
+                $canRenew = false; // Credit card users don't need manual renewal
+            }
+        } else {
+            // Payment status is CR/BANK_PAID but no payment record found
+            if ($paymentStatus === 'BANK_PAID') {
+                // Bank transfer but no payment record - use calculated endDateObj if available
+                if ($endDateObj) {
+                    $endDateForRenewal = clone $endDateObj;
+                    $usagePeriodDisplay = $endDate . '迄';
+                    $renewalEligibleDate = clone $endDateForRenewal;
+                    $renewalEligibleDate->modify('-2 months');
+                    $now = new DateTime();
+                    $canRenew = ($now >= $renewalEligibleDate);
+                } elseif ($endDate) {
+                    // Fallback: try to use subscription next_billing_date
+                    if ($subscriptionInfo && $subscriptionInfo['next_billing_date']) {
+                        $endDateForRenewal = new DateTime($subscriptionInfo['next_billing_date']);
+                        $endDateForRenewal->modify('-1 day');
+                        $usagePeriodDisplay = $endDate . '迄';
+                        $renewalEligibleDate = clone $endDateForRenewal;
+                        $renewalEligibleDate->modify('-2 months');
+                        $now = new DateTime();
+                        $canRenew = ($now >= $renewalEligibleDate);
+                    } else {
+                        $usagePeriodDisplay = $endDate . '迄';
+                    }
+                } else {
+                    $usagePeriodDisplay = '期限未設定';
+                }
+            } else {
+                // Credit card
+                $usagePeriodDisplay = 'クレジットお支払い';
+            }
+        }
+    }
+
 } catch (Exception $e) {
     error_log("Error fetching subscription info: " . $e->getMessage());
     $userType = 'new';
     $isCanceledAccount = false;
     $isActive = false;
     $needsPayment = true;
+    $usagePeriodDisplay = null;
+    $paymentMethod = null;
+    $canRenew = false;
 }
 
 // Default greeting messages
@@ -1018,6 +1128,41 @@ $defaultGreetings = [
                     <?php endif; ?>
                     <?php else: ?>
                     <div>ステータス: <span id="subscription-status">支払い完了（サブスクリプション作成中）</span></div>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+
+                <!-- 利用期間の表示 -->
+                <?php if (isset($usagePeriodDisplay) && $usagePeriodDisplay): ?>
+                <div style="margin-top: 1rem; padding: 1rem; background: #e7f3ff; border-radius: 4px; font-size: 0.875rem; border-left: 4px solid #007bff;">
+                    <div style="margin-bottom: 0.5rem;"><strong>利用期間</strong></div>
+                    <div style="font-size: 1rem; font-weight: 500; color: #0056b3;">
+                        <?php echo htmlspecialchars($usagePeriodDisplay); ?>
+                    </div>
+                    <?php if ($canRenew && $paymentMethod === 'bank_transfer'): ?>
+                    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #b3d9ff;">
+                        <button type="button" id="renew-subscription-btn" class="btn-primary" style="width: 100%; padding: 0.5rem; font-size: 0.875rem; margin-top: 0.5rem;">
+                            更新手続きを行う
+                        </button>
+                        <small style="display: block; margin-top: 0.5rem; color: #666;">
+                            利用期限の2か月前から更新手続きが可能です
+                        </small>
+                    </div>
+                    <?php elseif ($paymentMethod === 'bank_transfer' && isset($endDateForRenewal)): ?>
+                    <?php
+                    // Calculate when renewal becomes available
+                    $renewalEligibleDate = clone $endDateForRenewal;
+                    $renewalEligibleDate->modify('-2 months');
+                    $now = new DateTime();
+                    if ($now < $renewalEligibleDate):
+                        $daysUntilRenewal = $now->diff($renewalEligibleDate)->days;
+                    ?>
+                    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #b3d9ff;">
+                        <small style="display: block; color: #666;">
+                            更新手続き可能まで: あと約<?php echo $daysUntilRenewal; ?>日
+                        </small>
+                    </div>
+                    <?php endif; ?>
                     <?php endif; ?>
                 </div>
                 <?php endif; ?>
@@ -2258,6 +2403,23 @@ $defaultGreetings = [
             const goToPaymentBtn = document.getElementById('go-to-payment-btn');
             if (goToPaymentBtn) {
                 goToPaymentBtn.addEventListener('click', function() {
+                    if (typeof goToEditSection === 'function') {
+                        goToEditSection('payment-section');
+                    } else {
+                        // Fallback: scroll to payment section
+                        const paymentSection = document.getElementById('payment-section');
+                        if (paymentSection) {
+                            paymentSection.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }
+                });
+            }
+
+            // Renewal subscription button handler
+            const renewSubscriptionBtn = document.getElementById('renew-subscription-btn');
+            if (renewSubscriptionBtn) {
+                renewSubscriptionBtn.addEventListener('click', function() {
+                    // Navigate to payment section for renewal
                     if (typeof goToEditSection === 'function') {
                         goToEditSection('payment-section');
                     } else {

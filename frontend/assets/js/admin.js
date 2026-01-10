@@ -587,92 +587,240 @@ function confirmBankTransferPaid(businessCardId, badgeElement) {
         const currentStatus = badgeElement.getAttribute('data-current-status') || 'BANK_PENDING';
         const isCurrentlyPaid = currentStatus === 'BANK_PAID';
         const newStatus = isCurrentlyPaid ? 'BANK_PENDING' : 'BANK_PAID';
-        const actionText = isCurrentlyPaid ? '振込予定に戻しますか？' : '振込済みに変更しますか？';
-        const warningText = isCurrentlyPaid 
-            ? '入金状況が「振込予定」に戻ります。' 
-            : 'QRコードが発行され、ユーザーにメールが送信されます。';
 
-        // Store badge element for reverting if cancelled
-        window.currentBadgeElement = badgeElement;
-        window.currentBusinessCardId = businessCardId;
-        window.newPaymentStatus = newStatus;
+        // If changing back to BANK_PENDING, show simple confirmation
+        if (isCurrentlyPaid) {
+            const actionText = '振込予定に戻しますか？';
+            const warningText = '入金状況が「振込予定」に戻ります。';
 
-        // Remove any existing modal first
-        const existingModal = document.querySelector('.modal-overlay');
-        if (existingModal) {
-            existingModal.remove();
-        }
+            // Store badge element for reverting if cancelled
+            window.currentBadgeElement = badgeElement;
+            window.currentBusinessCardId = businessCardId;
+            window.newPaymentStatus = newStatus;
 
-        // Create modal (using admin.css modal styles - same as showQRCodeConfirmation)
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <h3>振込確認</h3>
-                <p>${actionText}</p>
-                <p style="font-size: 14px; color: #666; margin-top: 10px;">${warningText}</p>
-                <div class="modal-buttons">
-                    <button class="modal-btn modal-btn-yes" id="confirm-bank-paid-yes">はい</button>
-                    <button class="modal-btn modal-btn-no" id="confirm-bank-paid-no">いいえ</button>
+            // Remove any existing modal first
+            const existingModal = document.querySelector('.modal-overlay');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Create simple confirmation modal
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3>振込確認</h3>
+                    <p>${actionText}</p>
+                    <p style="font-size: 14px; color: #666; margin-top: 10px;">${warningText}</p>
+                    <div class="modal-buttons">
+                        <button class="modal-btn modal-btn-yes" id="confirm-bank-paid-yes">はい</button>
+                        <button class="modal-btn modal-btn-no" id="confirm-bank-paid-no">いいえ</button>
+                    </div>
                 </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
+            `;
+            document.body.appendChild(modal);
 
-        // Force reflow to ensure DOM is updated
-        void modal.offsetHeight;
+            // Force reflow to ensure DOM is updated
+            void modal.offsetHeight;
 
-        // Add active class to display modal (matching admin.css)
-        setTimeout(() => {
-            modal.classList.add('active');
-            console.log('Modal class added:', modal.className);
-            console.log('Modal element:', modal);
-            console.log('Modal display style:', window.getComputedStyle(modal).display);
-        }, 10);
+            // Add active class to display modal
+            setTimeout(() => {
+                modal.classList.add('active');
+            }, 10);
 
-        // Add event listeners after DOM is updated
-        setTimeout(() => {
-            const yesBtn = document.getElementById('confirm-bank-paid-yes');
-            const noBtn = document.getElementById('confirm-bank-paid-no');
+            // Add event listeners after DOM is updated
+            setTimeout(() => {
+                const yesBtn = document.getElementById('confirm-bank-paid-yes');
+                const noBtn = document.getElementById('confirm-bank-paid-no');
 
-            if (yesBtn) {
-                yesBtn.addEventListener('click', function() {
-                    processBankTransferPaid(businessCardId, badgeElement, newStatus);
-                    modal.remove();
-                });
-            } else {
-                console.error('Yes button not found');
-            }
+                if (yesBtn) {
+                    yesBtn.addEventListener('click', function() {
+                        processBankTransferPaid(businessCardId, badgeElement, newStatus);
+                        modal.remove();
+                    });
+                }
 
-            if (noBtn) {
-                noBtn.addEventListener('click', function() {
-                    modal.remove();
-                });
-            } else {
-                console.error('No button not found');
-            }
-        }, 10);
+                if (noBtn) {
+                    noBtn.addEventListener('click', function() {
+                        modal.remove();
+                    });
+                }
+            }, 10);
+        } else {
+            // If changing to BANK_PAID, show modal with date inputs
+            showBankTransferModal(businessCardId, badgeElement);
+        }
     } catch (error) {
         console.error('Error in confirmBankTransferPaid:', error);
         alert('エラーが発生しました: ' + error.message);
     }
 }
 
+// Show bank transfer modal with date inputs
+function showBankTransferModal(businessCardId, badgeElement) {
+    // Remove any existing modal first
+    const existingModal = document.querySelector('.modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Calculate default expiration date (1 month from today)
+    const defaultExpiration = new Date();
+    defaultExpiration.setMonth(defaultExpiration.getMonth() + 1);
+    const defaultExpirationStr = defaultExpiration.toISOString().split('T')[0];
+
+    // Create modal with date inputs
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'bank-transfer-modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 500px; text-align: left;">
+            <h3 style="text-align: center;">振込確認</h3>
+            <p style="margin-bottom: 1rem; text-align: center; color: #666;">振込日と利用期限日を入力してください。</p>
+            
+            <div style="margin-bottom: 1.25rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: bold; color: #333;">
+                    振込日 <span style="color: red;">*</span>
+                </label>
+                <input type="date" 
+                       id="paid-at-input" 
+                       value="${today}" 
+                       required
+                       style="width: 100%; padding: 0.625rem; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
+            </div>
+            
+            <div style="margin-bottom: 1.25rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: bold; color: #333;">
+                    利用期限日 <span style="color: red;">*</span>
+                </label>
+                <input type="date" 
+                       id="expiration-date-input" 
+                       value="${defaultExpirationStr}" 
+                       required
+                       style="width: 100%; padding: 0.625rem; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
+                <small style="display: block; color: #666; margin-top: 0.5rem; font-size: 12px; line-height: 1.4;">
+                    振込日から1ヶ月後が自動入力されます。必要に応じて変更してください。
+                </small>
+            </div>
+            
+            <div class="modal-buttons" style="margin-top: 1.5rem; text-align: center;">
+                <button class="modal-btn modal-btn-no" id="confirm-bank-paid-cancel">キャンセル</button>
+                <button class="modal-btn modal-btn-yes" id="confirm-bank-paid-submit">確定</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Force reflow to ensure DOM is updated
+    void modal.offsetHeight;
+
+    // Add active class to display modal
+    setTimeout(() => {
+        modal.classList.add('active');
+    }, 10);
+
+    // Add event listeners after DOM is updated
+    setTimeout(() => {
+        const paidAtInput = document.getElementById('paid-at-input');
+        const expirationInput = document.getElementById('expiration-date-input');
+        const submitBtn = document.getElementById('confirm-bank-paid-submit');
+        const cancelBtn = document.getElementById('confirm-bank-paid-cancel');
+
+        // Auto-calculate expiration date when paid date changes
+        if (paidAtInput && expirationInput) {
+            paidAtInput.addEventListener('change', function() {
+                const paidDate = new Date(this.value);
+                if (!isNaN(paidDate.getTime())) {
+                    const expirationDate = new Date(paidDate);
+                    expirationDate.setMonth(expirationDate.getMonth() + 1);
+                    expirationInput.value = expirationDate.toISOString().split('T')[0];
+                }
+            });
+        }
+
+        // Validate and submit
+        if (submitBtn) {
+            submitBtn.addEventListener('click', function() {
+                const paidAt = paidAtInput.value;
+                const expirationDate = expirationInput.value;
+
+                // Validation
+                if (!paidAt || !expirationDate) {
+                    if (typeof showError === 'function') {
+                        showError('振込日と利用期限日を入力してください。');
+                    } else {
+                        alert('振込日と利用期限日を入力してください。');
+                    }
+                    return;
+                }
+
+                const paidDateObj = new Date(paidAt);
+                const expirationDateObj = new Date(expirationDate);
+
+                if (isNaN(paidDateObj.getTime()) || isNaN(expirationDateObj.getTime())) {
+                    if (typeof showError === 'function') {
+                        showError('日付の形式が正しくありません。');
+                    } else {
+                        alert('日付の形式が正しくありません。');
+                    }
+                    return;
+                }
+
+                if (expirationDateObj < paidDateObj) {
+                    if (typeof showError === 'function') {
+                        showError('利用期限日は振込日以降である必要があります。');
+                    } else {
+                        alert('利用期限日は振込日以降である必要があります。');
+                    }
+                    return;
+                }
+
+                // Submit with dates
+                modal.remove();
+                processBankTransferPaid(businessCardId, badgeElement, 'BANK_PAID', {
+                    paid_at: paidAt + ' 00:00:00',
+                    expiration_date: expirationDate
+                });
+            });
+        }
+
+        // Cancel button
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function() {
+                modal.remove();
+            });
+        }
+
+        // Close modal on overlay click
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }, 10);
+}
+
 // Also assign to window for inline onclick handlers
 window.confirmBankTransferPaid = confirmBankTransferPaid;
 
-async function processBankTransferPaid(businessCardId, badgeElement, newStatus) {
+async function processBankTransferPaid(businessCardId, badgeElement, newStatus, additionalData = {}) {
     try {
+        const requestBody = {
+            business_card_id: businessCardId,
+            payment_status: newStatus,
+            ...additionalData
+        };
+        
         const response = await fetch('../../backend/api/admin/update-payment-status.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             credentials: 'include',
-            body: JSON.stringify({
-                business_card_id: businessCardId,
-                payment_status: newStatus
-            })
+            body: JSON.stringify(requestBody)
         });
 
         const result = await response.json();

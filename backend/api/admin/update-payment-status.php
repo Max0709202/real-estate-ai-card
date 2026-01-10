@@ -81,13 +81,105 @@ try {
 
         // Update payment record based on new status
         if ($newStatus === 'BANK_PAID') {
+            // Get paid_at and expiration_date from input (if provided)
+            $paidAt = $input['paid_at'] ?? date('Y-m-d H:i:s');
+            $expirationDate = $input['expiration_date'] ?? null; // YYYY-MM-DD format
+            
+            // Normalize paid_at format: if only date is provided (YYYY-MM-DD), add time
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $paidAt)) {
+                $paidAt .= ' 00:00:00';
+            } elseif (preg_match('/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/', $paidAt)) {
+                // Already in correct format
+            } else {
+                throw new Exception('振込日の形式が正しくありません（YYYY-MM-DDまたはYYYY-MM-DD HH:MM:SS形式で指定してください）');
+            }
+            
+            // Validate expiration_date format if provided
+            if ($expirationDate && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $expirationDate)) {
+                throw new Exception('利用期限日の形式が正しくありません（YYYY-MM-DD形式で指定してください）');
+            }
+            
+            // Validate that expiration_date is after paid_at (compare dates only)
+            if ($expirationDate && $paidAt) {
+                $paidDateObj = new DateTime($paidAt);
+                $expirationDateObj = new DateTime($expirationDate);
+                // Compare only date part (ignore time)
+                $paidDateOnly = $paidDateObj->format('Y-m-d');
+                $expirationDateOnly = $expirationDateObj->format('Y-m-d');
+                if ($expirationDateOnly < $paidDateOnly) {
+                    throw new Exception('利用期限日は振込日以降である必要があります');
+                }
+            }
+            
             // When changing to BANK_PAID, update payment record
             $stmt = $db->prepare("
                 UPDATE payments
-                SET payment_status = 'completed', paid_at = NOW()
+                SET payment_status = 'completed', paid_at = ?
                 WHERE business_card_id = ? AND payment_method = 'bank_transfer' AND payment_status = 'pending'
+                ORDER BY created_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$paidAt, $businessCardId]);
+
+            // Calculate next_billing_date from expiration_date
+            // If expiration_date is provided, next_billing_date is expiration_date + 1 day
+            // Otherwise, calculate from paid_at (1 month later)
+            if ($expirationDate) {
+                $nextBillingDate = date('Y-m-d', strtotime($expirationDate . ' +1 day'));
+            } else {
+                $paidDateObj = new DateTime($paidAt);
+                $paidDateObj->modify('+1 month');
+                $nextBillingDate = $paidDateObj->format('Y-m-d');
+            }
+            
+            // Update or create subscription record
+            $stmt = $db->prepare("
+                SELECT id, status FROM subscriptions 
+                WHERE business_card_id = ? 
+                ORDER BY created_at DESC 
+                LIMIT 1
             ");
             $stmt->execute([$businessCardId]);
+            $subscription = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Determine monthly amount based on user_type
+            $monthlyAmount = 0;
+            if ($businessCard['user_type'] === 'new' || $businessCard['user_type'] === null) {
+                $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+            } elseif ($businessCard['user_type'] === 'existing') {
+                // Existing users typically don't have monthly fees, but we'll create subscription anyway
+                $monthlyAmount = 0;
+            } else {
+                // Default: treat as new user
+                $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+            }
+            
+            if ($subscription) {
+                // Update existing subscription
+                $stmt = $db->prepare("
+                    UPDATE subscriptions 
+                    SET status = 'active', 
+                        next_billing_date = ?,
+                        cancelled_at = NULL,
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$nextBillingDate, $subscription['id']]);
+                error_log("Updated subscription id={$subscription['id']} for business_card_id={$businessCardId} with next_billing_date={$nextBillingDate}");
+            } else {
+                // Create new subscription if it doesn't exist
+                $stmt = $db->prepare("
+                    INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, stripe_customer_id, status, amount, billing_cycle, next_billing_date)
+                    VALUES (?, ?, NULL, NULL, 'active', ?, 'monthly', ?)
+                ");
+                $stmt->execute([
+                    $businessCard['user_id'],
+                    $businessCardId,
+                    $monthlyAmount,
+                    $nextBillingDate
+                ]);
+                error_log("Created subscription for business_card_id={$businessCardId} with next_billing_date={$nextBillingDate}, monthly_amount={$monthlyAmount}");
+            }
 
             // Generate QR code if not already issued (only when changing to BANK_PAID)
             if (!$businessCard['qr_code_issued']) {
@@ -119,8 +211,33 @@ try {
                 UPDATE payments
                 SET payment_status = 'pending', paid_at = NULL
                 WHERE business_card_id = ? AND payment_method = 'bank_transfer'
+                ORDER BY created_at DESC
+                LIMIT 1
             ");
             $stmt->execute([$businessCardId]);
+            
+            // Also update subscription status to canceled or suspend it
+            $stmt = $db->prepare("
+                SELECT id FROM subscriptions 
+                WHERE business_card_id = ? 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            ");
+            $stmt->execute([$businessCardId]);
+            $subscription = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($subscription) {
+                // Mark subscription as canceled when payment is reverted to pending
+                $stmt = $db->prepare("
+                    UPDATE subscriptions 
+                    SET status = 'canceled',
+                        cancelled_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->execute([$subscription['id']]);
+                error_log("Marked subscription id={$subscription['id']} as canceled when payment_status reverted to BANK_PENDING for business_card_id={$businessCardId}");
+            }
         }
 
         // Log the change
@@ -133,6 +250,16 @@ try {
         $currentStatusText = $statusText[$currentStatus] ?? $currentStatus;
         $newStatusText = $statusText[$newStatus] ?? $newStatus;
         
+        // Build log description with expiration date if provided
+        $logDescription = "入金状況変更: {$currentStatusText} → {$newStatusText} (ユーザー: {$businessCard['user_email']}, URL: {$businessCard['url_slug']}";
+        if ($newStatus === 'BANK_PAID' && isset($expirationDate)) {
+            $logDescription .= ", 利用期限: {$expirationDate}";
+        }
+        if ($newStatus === 'BANK_PAID' && isset($paidAt)) {
+            $logDescription .= ", 振込日: " . date('Y-m-d', strtotime($paidAt));
+        }
+        $logDescription .= ")";
+        
         logAdminChange(
             $db,
             $adminId,
@@ -140,14 +267,14 @@ try {
             'payment_status_updated',
             'business_cards',
             $businessCardId,
-            "入金状況変更: {$currentStatusText} → {$newStatusText} (ユーザー: {$businessCard['user_email']}, URL: {$businessCard['url_slug']})"
+            $logDescription
         );
 
         $db->commit();
 
         // Success message based on direction
         $message = $newStatus === 'BANK_PAID' 
-            ? '入金状況を「振込済」に更新しました。QRコードが発行され、ユーザーにメールが送信されました。'
+            ? '入金状況を「振込済」に更新しました。利用期限を設定し、サブスクリプションを更新しました。QRコードが発行され、ユーザーにメールが送信されました。'
             : '入金状況を「振込予定」に戻しました。';
 
         sendSuccessResponse([
