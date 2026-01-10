@@ -166,12 +166,82 @@ if ($isLoggedIn) {
                                 $headerEndDate = null;
                                 if ($headerSubscriptionInfo) {
                                     if ($headerSubscriptionInfo['next_billing_date']) {
+                                        // End date is the day before next billing date (last day of current period)
                                         $nextBilling = new DateTime($headerSubscriptionInfo['next_billing_date']);
                                         $nextBilling->modify('-1 day');
                                         $headerEndDate = $nextBilling->format('Y年n月j日');
                                     } elseif ($headerSubscriptionInfo['cancelled_at']) {
+                                        // If already cancelled, use cancelled_at date
                                         $cancelled = new DateTime($headerSubscriptionInfo['cancelled_at']);
                                         $headerEndDate = $cancelled->format('Y年n月j日');
+                                    }
+                                }
+
+                                // If subscription exists but no end date calculated yet, or subscription doesn't exist, try to get from payment date
+                                if (!$headerEndDate) {
+                                    // Get business card info and payment status
+                                    $stmt = $db->prepare("
+                                        SELECT bc.payment_status, bc.updated_at, bc.created_at
+                                        FROM business_cards bc
+                                        WHERE bc.user_id = ?
+                                        LIMIT 1
+                                    ");
+                                    $stmt->execute([$_SESSION['user_id']]);
+                                    $bcInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                                    
+                                    if ($bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
+                                        // Get the most recent completed payment date
+                                        $stmt = $db->prepare("
+                                            SELECT MAX(p.paid_at) as last_paid_at
+                                            FROM payments p
+                                            INNER JOIN business_cards bc ON p.business_card_id = bc.id
+                                            WHERE bc.user_id = ? AND p.payment_status = 'completed' AND p.paid_at IS NOT NULL
+                                        ");
+                                        $stmt->execute([$_SESSION['user_id']]);
+                                        $paymentInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                                        
+                                        if ($paymentInfo && $paymentInfo['last_paid_at']) {
+                                            // Calculate end date: 1 month from payment date, minus 1 day (last day of period)
+                                            $paidDate = new DateTime($paymentInfo['last_paid_at']);
+                                            $paidDate->modify('+1 month');
+                                            $paidDate->modify('-1 day');
+                                            $headerEndDate = $paidDate->format('Y年n月j日');
+                                        } elseif (isset($bcInfo['updated_at']) && !empty($bcInfo['updated_at'])) {
+                                            // If no paid_at but payment_status is CR/BANK_PAID, use business_card updated_at
+                                            // This handles cases where payment was completed but paid_at wasn't set
+                                            try {
+                                                $updatedDate = new DateTime($bcInfo['updated_at']);
+                                                $updatedDate->modify('+1 month');
+                                                $updatedDate->modify('-1 day');
+                                                $headerEndDate = $updatedDate->format('Y年n月j日');
+                                            } catch (Exception $dateException) {
+                                                error_log("Error parsing updated_at date: " . $dateException->getMessage());
+                                            }
+                                        }
+                                    }
+                                    
+                                    // If still no date and subscription exists, try subscription created_at
+                                    if (!$headerEndDate && $headerSubscriptionInfo && isset($headerSubscriptionInfo['status']) && in_array($headerSubscriptionInfo['status'], ['active', 'trialing'])) {
+                                        if (isset($headerSubscriptionInfo['id'])) {
+                                            $stmt = $db->prepare("SELECT created_at FROM subscriptions WHERE id = ?");
+                                            $stmt->execute([$headerSubscriptionInfo['id']]);
+                                            $subData = $stmt->fetch(PDO::FETCH_ASSOC);
+                                            
+                                            if ($subData && $subData['created_at']) {
+                                                $subCreated = new DateTime($subData['created_at']);
+                                                $subCreated->modify('+1 month');
+                                                $subCreated->modify('-1 day');
+                                                $headerEndDate = $subCreated->format('Y年n月j日');
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Fallback if still no date: current date + 1 month - 1 day (only if payment is completed)
+                                    if (!$headerEndDate && $bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
+                                        $now = new DateTime();
+                                        $now->modify('+1 month');
+                                        $now->modify('-1 day');
+                                        $headerEndDate = $now->format('Y年n月j日');
                                     }
                                 }
 
@@ -198,7 +268,7 @@ if ($isLoggedIn) {
                         ?>
                         <?php if ($headerHasActiveSubscription): ?>
                         <!-- <div class="dropdown-divider"></div> -->
-                        <div class="dropdown-section-header">サブスクリプション</div>
+                        <!-- <div class="dropdown-section-header">サブスクリプション</div> -->
                         <?php if ($headerSubscriptionInfo): ?>
                         <div class="dropdown-subscription-info">
                             <div class="subscription-status">
@@ -223,7 +293,7 @@ if ($isLoggedIn) {
                         </div>
                         <?php endif; ?>
                         <button type="button" class="dropdown-item dropdown-button cancel-subscription-btn" style="color: #dc3545; cursor: pointer; width: 100%; text-align: left; background: none; border: none; padding: 0.75rem 1.25rem;">
-                            <span>サブスクリプションをキャンセル</span>
+                            <span>利用停止</span>
                         </button>
                         <?php endif; ?>
                         <!-- <div class="dropdown-divider"></div> -->
@@ -284,7 +354,7 @@ if ($isLoggedIn) {
       cancelBtn.disabled = true;
 
       const span = cancelBtn.querySelector('span');
-      const originalText = span?.textContent || cancelBtn.textContent || 'サブスクリプションをキャンセル';
+      const originalText = span?.textContent || cancelBtn.textContent || '利用停止';
 
       if (span) span.textContent = '処理中...';
       else cancelBtn.textContent = '処理中...';
@@ -301,9 +371,9 @@ if ($isLoggedIn) {
 
         if (result.success) {
           if (typeof window.showSuccess === 'function') {
-            window.showSuccess(result.message || 'サブスクリプションをキャンセルしました', { autoClose: 5000 });
+            window.showSuccess(result.message || '利用停止しました', { autoClose: 5000 });
           } else {
-            alert(result.message || 'サブスクリプションをキャンセルしました');
+            alert(result.message || '利用停止しました');
           }
           setTimeout(() => window.location.reload(), 2000);
         } else {

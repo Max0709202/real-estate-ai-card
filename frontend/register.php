@@ -17,8 +17,10 @@ $isTokenBased = !empty($invitationToken);
 $tokenValid = false;
 $tokenData = null;
 
-// 停止されたアカウントの検出
+// 停止されたアカウントの検出と決済状況の確認
 $isCanceledAccount = false;
+$isActive = false; // 利用中かどうか
+$needsPayment = true; // 支払いが必要かどうか（デフォルトは必要）
 if ($isLoggedIn) {
     try {
         require_once __DIR__ . '/../backend/config/database.php';
@@ -27,9 +29,10 @@ if ($isLoggedIn) {
 
         $userId = $_SESSION['user_id'];
 
-        // 停止されたサブスクリプションまたはビジネスカードを検出
+        // サブスクリプションとビジネスカードの情報を取得
         $stmt = $db->prepare("
-            SELECT s.status as subscription_status, bc.card_status, bc.payment_status
+            SELECT s.status as subscription_status, s.next_billing_date, s.cancelled_at,
+                   bc.card_status, bc.payment_status
             FROM users u
             LEFT JOIN subscriptions s ON u.id = s.user_id
             LEFT JOIN business_cards bc ON u.id = bc.user_id
@@ -47,11 +50,85 @@ if ($isLoggedIn) {
                 $isCanceledAccount = true;
                 // 停止されたアカウントの場合、新規ユーザーとして扱う（初期費用含む会費を請求）
                 $userType = 'new';
+                $isActive = false;
+                $needsPayment = true;
+            } else {
+                // 決済状況の判定
+                $subscriptionStatus = $accountStatus['subscription_status'];
+                $paymentStatus = $accountStatus['payment_status'] ?? 'UNUSED';
+
+                // Check if subscription is active and payment is completed
+                if ($subscriptionStatus && in_array($subscriptionStatus, ['active', 'trialing'])) {
+                    if (in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+                        // Check if next_billing_date is in the future
+                        if ($accountStatus['next_billing_date']) {
+                            $nextBillingDate = new DateTime($accountStatus['next_billing_date']);
+                            $now = new DateTime();
+                            if ($nextBillingDate > $now) {
+                                $isActive = true;
+                                $needsPayment = false;
+                            } else {
+                                // Subscription period has expired
+                                $isActive = false;
+                                $needsPayment = true;
+                            }
+                        } else {
+                            // No next billing date but status is active - consider as active
+                            $isActive = true;
+                            $needsPayment = false;
+                        }
+                    } else {
+                        // Active subscription but payment not completed
+                        $isActive = false;
+                        $needsPayment = true;
+                    }
+                } elseif ($subscriptionStatus) {
+                    // Subscription exists but status is not active/trialing
+                    if (in_array($subscriptionStatus, ['canceled', 'incomplete_expired', 'past_due', 'unpaid', 'incomplete'])) {
+                        $isActive = false;
+                        $needsPayment = true;
+                    }
+                    // Check if period has expired (next_billing_date is in the past)
+                    if ($accountStatus['next_billing_date']) {
+                        $nextBillingDate = new DateTime($accountStatus['next_billing_date']);
+                        $now = new DateTime();
+                        if ($nextBillingDate <= $now && in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+                            $isActive = false;
+                            $needsPayment = true;
+                        }
+                    }
+                } else {
+                    // No subscription info - check payment_status directly
+                    if (in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+                        // Payment completed but no subscription - show as active for now
+                        $isActive = true;
+                        $needsPayment = false;
+                    } else {
+                        $isActive = false;
+                        $needsPayment = true;
+                    }
+                }
+
+                // If payment_status is UNUSED or BANK_PENDING, always needs payment
+                if (in_array($paymentStatus, ['UNUSED', 'BANK_PENDING'])) {
+                    $isActive = false;
+                    $needsPayment = true;
+                }
             }
+        } else {
+            // No account status found - needs payment
+            $isActive = false;
+            $needsPayment = true;
         }
     } catch (Exception $e) {
         error_log("Error checking account status: " . $e->getMessage());
+        $isActive = false;
+        $needsPayment = true;
     }
+} else {
+    // Not logged in - needs payment (new user)
+    $isActive = false;
+    $needsPayment = true;
 }
 
 // Validate token if provided with enhanced security
@@ -904,7 +981,11 @@ $prefectures = [
 
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" onclick="goToStep(5)">戻る</button>
-                    <button type="button" id="submit-payment" class="btn-primary">この内容で進める</button>
+                    <?php if ($isActive): ?>
+                        <button type="button" id="submit-payment" class="btn-primary" style="background: #007bff; cursor: default;" disabled>利用中</button>
+                    <?php else: ?>
+                        <button type="button" id="submit-payment" class="btn-primary">この内容で進める</button>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="preview-btn-container preview-btn-mobile">

@@ -1010,8 +1010,28 @@
             });
         });
 
-        // beforeunload warning
+        // Check if currently on payment step (6/6)
+        function isOnPaymentStep() {
+            // For register.php: check if step-6 is active
+            const step6 = document.getElementById('step-6');
+            if (step6 && (step6.classList.contains('active') || step6.style.display === 'block' || step6.style.display === '')) {
+                return true;
+            }
+            // For edit.php: check if payment-section is active
+            const paymentSection = document.getElementById('payment-section');
+            if (paymentSection && (paymentSection.classList.contains('active') || paymentSection.style.display === 'block' || paymentSection.style.display === '')) {
+                return true;
+            }
+            return false;
+        }
+
+        // beforeunload warning (not shown on payment step 6/6)
         window.addEventListener('beforeunload', (e) => {
+            // Don't show warning if on payment step (6/6)
+            if (isOnPaymentStep()) {
+                return;
+            }
+
             if (isDirty && !isSubmitting) {
                 e.preventDefault();
                 e.returnValue = '入力内容が保存されていません。このページを離れますか？';

@@ -36,6 +36,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Auto-capitalize first letter of romaji input fields
     setupRomajiAutoCapitalize();
     
+    // Set up mutual exclusivity for architect qualification checkboxes
+    setupArchitectCheckboxMutualExclusivity();
+    
     // Check URL parameter for step navigation (e.g., ?step=6 for payment)
     const urlParams = new URLSearchParams(window.location.search);
     const stepParam = urlParams.get('step');
@@ -125,6 +128,50 @@ function setupRomajiAutoCapitalize() {
                 sanitizeRomajiInputForRegister(e.target);
             });
         }
+    });
+}
+
+// Set up mutual exclusivity for architect qualification checkboxes
+// Only one of the three architect checkboxes can be checked at a time
+// 宅地建物取引士 checkbox remains independent
+function setupArchitectCheckboxMutualExclusivity() {
+    const architectCheckboxes = [
+        document.querySelector('input[name="qualification_kenchikushi_1"]'), // 一級建築士
+        document.querySelector('input[name="qualification_kenchikushi_2"]'), // 二級建築士
+        document.querySelector('input[name="qualification_kenchikushi_3"]')  // 木造建築士
+    ];
+    
+    // Filter out null checkboxes (in case step 3 hasn't been rendered yet)
+    const validCheckboxes = architectCheckboxes.filter(cb => cb !== null);
+    
+    if (validCheckboxes.length === 0) {
+        return; // Checkboxes don't exist yet, will be set up when step 3 is shown
+    }
+    
+    // Add change event listener to each architect checkbox
+    // Use data attribute to prevent duplicate listeners
+    validCheckboxes.forEach(checkbox => {
+        if (checkbox.dataset.mutualExclusivitySetup === 'true') {
+            return; // Already set up
+        }
+        checkbox.dataset.mutualExclusivitySetup = 'true';
+        
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                // If this checkbox is checked, uncheck all other architect checkboxes
+                const allArchitectCheckboxes = [
+                    document.querySelector('input[name="qualification_kenchikushi_1"]'),
+                    document.querySelector('input[name="qualification_kenchikushi_2"]'),
+                    document.querySelector('input[name="qualification_kenchikushi_3"]')
+                ].filter(cb => cb !== null);
+                
+                allArchitectCheckboxes.forEach(otherCheckbox => {
+                    if (otherCheckbox !== this) {
+                        otherCheckbox.checked = false;
+                    }
+                });
+            }
+        });
     });
 }
 
@@ -393,11 +440,21 @@ function populateRegistrationForms(data) {
             const takkenCheckbox = document.querySelector('input[name="qualification_takken"]');
             if (takkenCheckbox) takkenCheckbox.checked = true;
         }
-        if (qualifications.includes('建築士')) {
-            const kenchikushiCheckbox = document.querySelector('input[name="qualification_kenchikushi"]');
-            if (kenchikushiCheckbox) kenchikushiCheckbox.checked = true;
+        // Only check one architect qualification (mutual exclusivity)
+        // Priority: 一級建築士 > 二級建築士 > 木造建築士
+        if (qualifications.includes('一級建築士')) {
+            const kenchikushi1Checkbox = document.querySelector('input[name="qualification_kenchikushi_1"]');
+            if (kenchikushi1Checkbox) kenchikushi1Checkbox.checked = true;
+        } else if (qualifications.includes('二級建築士')) {
+            const kenchikushi2Checkbox = document.querySelector('input[name="qualification_kenchikushi_2"]');
+            if (kenchikushi2Checkbox) kenchikushi2Checkbox.checked = true;
+        } else if (qualifications.includes('木造建築士')) {
+            const kenchikushi3Checkbox = document.querySelector('input[name="qualification_kenchikushi_3"]');
+            if (kenchikushi3Checkbox) kenchikushi3Checkbox.checked = true;
         }
-        const otherQuals = qualifications.filter(q => q !== '宅地建物取引士' && q !== '建築士').join('、');
+        // Filter out the 4 main qualifications to get "other" qualifications
+        const mainQuals = ['宅地建物取引士', '一級建築士', '二級建築士', '木造建築士'];
+        const otherQuals = qualifications.filter(q => !mainQuals.includes(q)).join('、');
         if (otherQuals) {
             const otherInput = document.querySelector('textarea[name="qualifications_other"]');
             if (otherInput) otherInput.value = otherQuals;
@@ -617,6 +674,11 @@ function populateRegistrationForms(data) {
     }
     
     console.log('Registration forms populated');
+    
+    // Set up mutual exclusivity for architect checkboxes after populating data
+    setTimeout(() => {
+        setupArchitectCheckboxMutualExclusivity();
+    }, 100);
 }
 
 /**
@@ -854,6 +916,8 @@ async function goToStep(step, skipSave = false) {
     if (step === 3) {
         setTimeout(() => {
             initializeFreeInputPairDragAndDropForRegister();
+            // Set up mutual exclusivity for architect checkboxes
+            setupArchitectCheckboxMutualExclusivity();
         }, 200);
     }
     
@@ -1384,7 +1448,7 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
     // These would be sent as empty/null values and overwrite existing database values
     delete data.company_logo;
     delete data.profile_photo;
-
+    
     // Handle logo upload (check for cropped image first, then restored file)
     const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
     const logoFile = document.getElementById('company_logo').files[0];
@@ -1487,9 +1551,9 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         } else if (logoUploadAreaForPreserve && logoUploadAreaForPreserve.dataset.existingImage) {
             // Use existing image from database
             data.company_logo = logoUploadAreaForPreserve.dataset.existingImage;
-        } else if (businessCardData && businessCardData.company_logo) {
+    } else if (businessCardData && businessCardData.company_logo) {
             // Fallback to businessCardData
-            data.company_logo = businessCardData.company_logo;
+        data.company_logo = businessCardData.company_logo;
         }
         // If none found, don't set company_logo - API will preserve existing value
     }
@@ -1596,9 +1660,9 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         } else if (photoUploadAreaForPreserve && photoUploadAreaForPreserve.dataset.existingImage) {
             // Use existing image from database
             data.profile_photo = photoUploadAreaForPreserve.dataset.existingImage;
-        } else if (businessCardData && businessCardData.profile_photo) {
+    } else if (businessCardData && businessCardData.profile_photo) {
             // Fallback to businessCardData
-            data.profile_photo = businessCardData.profile_photo;
+        data.profile_photo = businessCardData.profile_photo;
         }
         // If none found, don't set profile_photo - API will preserve existing value
     }
@@ -1733,7 +1797,7 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
     // File inputs in FormData become empty File objects or arrays when no file is selected
     delete data['free_image[]'];
     delete data.free_image;
-
+    
     // Combine last_name and first_name into name
     const lastName = data.last_name || '';
     const firstName = data.first_name || '';
@@ -2828,7 +2892,7 @@ async function showPreview() {
     const modalContent = document.createElement('div');
     modalContent.className = 'preview-modal-content';
     modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
-
+    
     // Create iframe to load card.php with preview mode
     const iframe = document.createElement('iframe');
     iframe.src = `card.php?slug=${encodeURIComponent(urlSlug)}&preview=1`;
@@ -2901,7 +2965,7 @@ function hidePreview() {
         setTimeout(() => {
             if (document.body.contains(modalOverlay)) {
                 document.body.removeChild(modalOverlay);
-            }
+        }
         }, 300);
     }
     isPreviewMode = false;
@@ -3223,7 +3287,7 @@ document.getElementById('profile_photo_header')?.addEventListener('change', (e) 
     if (file) {
         // より厳密な画像ファイルチェック
         if (file.type && file.type.startsWith('image/')) {
-            showRegisterImageCropper(file, 'profile_photo_header', e);
+        showRegisterImageCropper(file, 'profile_photo_header', e);
         } else {
             console.warn('Invalid file type:', file.type);
             if (typeof showWarning === 'function') {
@@ -3661,7 +3725,7 @@ function initializeDragAndDropForUploadAreaForRegister(uploadArea) {
         e.preventDefault();
         e.stopPropagation();
     });
-
+    
     // ドラッグオーバー時の処理
     uploadArea.addEventListener('dragover', function(e) {
         e.preventDefault();
@@ -3694,9 +3758,9 @@ function initializeDragAndDropForUploadAreaForRegister(uploadArea) {
                     dataTransfer.items.add(file);
                     fileInput.files = dataTransfer.files;
 
-                    // ファイル選択イベントをトリガー
+                // ファイル選択イベントをトリガー
                     const event = new Event('change', { bubbles: true, cancelable: true });
-                    fileInput.dispatchEvent(event);
+                fileInput.dispatchEvent(event);
                 } catch (error) {
                     // フォールバック: 直接代入を試行
                     console.warn('DataTransfer not supported, using fallback:', error);
