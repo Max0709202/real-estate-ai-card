@@ -130,7 +130,8 @@
                 }
                 
                 try {
-                    const cancelResponse = await fetch('../backend/api/mypage/cancel.php', {
+                    const apiUrl = window.location.origin + '/php/backend/api/mypage/cancel.php';
+                    const cancelResponse = await fetch(apiUrl, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

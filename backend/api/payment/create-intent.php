@@ -63,22 +63,37 @@ try {
     if (($userInfo['subscription_status'] === 'canceled') || 
         ($userInfo['card_status'] === 'canceled')) {
         $isCanceledAccount = true;
-        // 停止されたアカウントの場合、新規ユーザーとして扱う（初期費用含む会費を請求）
+    }
+
+    // 価格計算: 停止されたアカウントの場合は新規ユーザーとして扱う
+    $userType = $userInfo['user_type'];
+    if ($isCanceledAccount) {
+        // 停止されたアカウントの復活は新規ユーザーと同じ料金
         $userType = 'new';
     }
 
-    // 価格計算
-    $userType = $userInfo['user_type'];
-    $paymentTypeInput = $input['payment_type'] ?? $userType;
+    // payment_typeが明示的に指定されている場合はそれを優先
+    // ただし、停止されたアカウントの場合は強制的に'new'として扱う
+    $paymentTypeInput = $input['payment_type'] ?? null;
+    if ($isCanceledAccount) {
+        $paymentTypeInput = 'new'; // 復活の場合は必ず新規料金
+    } elseif (!$paymentTypeInput) {
+        $paymentTypeInput = $userType;
+    }
 
     // データベーススキーマに合わせて変換（'new' -> 'new_user', 'existing' -> 'existing_user', 'free' -> 'free_user'）
-    $paymentType = $paymentTypeInput;
-    if ($paymentTypeInput === 'new') {
+    // 停止されたアカウントの場合は必ず'new_user'として扱う
+    if ($isCanceledAccount) {
         $paymentType = 'new_user';
-    } elseif ($paymentTypeInput === 'existing') {
-        $paymentType = 'existing_user';
-    } elseif ($paymentTypeInput === 'free') {
-        $paymentType = 'free_user';
+    } else {
+        $paymentType = $paymentTypeInput;
+        if ($paymentTypeInput === 'new') {
+            $paymentType = 'new_user';
+        } elseif ($paymentTypeInput === 'existing') {
+            $paymentType = 'existing_user';
+        } elseif ($paymentTypeInput === 'free') {
+            $paymentType = 'free_user';
+        }
     }
 
     $paymentMethod = $input['payment_method'] ?? 'credit_card';
@@ -88,18 +103,19 @@ try {
     $totalAmount = 0;
     $monthlyAmount = 0;
 
-    if ($paymentType === 'new_user' || $userType === 'new') {
-        $amount = PRICING_NEW_USER_INITIAL;
+    // 停止されたアカウントの復活の場合、必ず新規ユーザー料金を適用
+    if ($isCanceledAccount || $paymentType === 'new_user') {
+        $amount = PRICING_NEW_USER_INITIAL; // ¥30,000
         $taxAmount = $amount * TAX_RATE;
         $totalAmount = $amount + $taxAmount;
 
         // 月額料金も計算
-        $monthlyAmount = PRICING_NEW_USER_MONTHLY;
-    } elseif ($paymentType === 'existing_user' || $userType === 'existing') {
-        $amount = PRICING_EXISTING_USER_INITIAL;
+        $monthlyAmount = PRICING_NEW_USER_MONTHLY; // ¥500
+    } elseif ($paymentType === 'existing_user') {
+        $amount = PRICING_EXISTING_USER_INITIAL; // ¥20,000
         $taxAmount = $amount * TAX_RATE;
         $totalAmount = $amount + $taxAmount;
-    } elseif ($paymentType === 'free_user' || $userType === 'free') {
+    } elseif ($paymentType === 'free_user') {
         // Free users have no initial payment, but may have monthly fee
         $amount = 0;
         $taxAmount = 0;

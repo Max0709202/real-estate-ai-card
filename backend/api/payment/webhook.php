@@ -140,7 +140,7 @@ try {
             $stmt->execute([$paymentIntentId]);
             
             $stmt = $db->prepare("
-                        SELECT p.user_id, p.business_card_id, p.payment_type, p.payment_method, u.user_type, u.stripe_customer_id
+                        SELECT p.id as payment_id, p.user_id, p.business_card_id, p.payment_type, p.payment_method, u.user_type, u.stripe_customer_id
                 FROM payments p
                         JOIN users u ON p.user_id = u.id
                 WHERE p.stripe_payment_intent_id = ? AND p.payment_status = 'completed'
@@ -187,33 +187,110 @@ try {
                             $stmt->execute([$payment['user_id'], $payment['business_card_id']]);
                         }
 
-                        // For new users, ensure subscription exists after payment
-                        if ($payment['user_type'] === 'new' && $payment['stripe_customer_id']) {
+                        // For all users with completed payment, ensure subscription exists after payment
+                        // This handles cases where subscription creation failed in create-intent.php or was skipped
+                        if ($payment['stripe_customer_id']) {
                             // Check if subscription already exists
                             $stmt = $db->prepare("
-                                SELECT id FROM subscriptions
+                                SELECT id, stripe_subscription_id FROM subscriptions
                                 WHERE user_id = ? AND business_card_id = ?
                             ");
                             $stmt->execute([$payment['user_id'], $payment['business_card_id']]);
                             $existingSub = $stmt->fetch();
 
                             if (!$existingSub) {
-                                // Create subscription record for new user (even if Stripe subscription doesn't exist yet)
-                                // This allows the cancel button to appear
+                                // Determine monthly amount based on payment_type
+                                $monthlyAmount = 0;
+                                if ($payment['payment_type'] === 'new_user' || $payment['user_type'] === 'new') {
+                                    $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                                } elseif ($payment['payment_type'] === 'existing_user' || $payment['user_type'] === 'existing') {
+                                    // Existing users typically don't have monthly fees, but we'll create subscription anyway for consistency
+                                    $monthlyAmount = 0;
+                                } else {
+                                    // Default: treat as new user if payment_type is unclear
+                                    $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                                }
+
+                                // Try to find existing Stripe subscription for this customer
+                                $stripeSubscriptionId = null;
+                                try {
+                                    if (class_exists('\Stripe\Stripe') && !empty(STRIPE_SECRET_KEY)) {
+                                        \Stripe\Stripe::setApiKey(STRIPE_SECRET_KEY);
+                                        $stripeSubscriptions = \Stripe\Subscription::all([
+                                            'customer' => $payment['stripe_customer_id'],
+                                            'limit' => 1,
+                                            'status' => 'all'
+                                        ]);
+                                        
+                                        if ($stripeSubscriptions && count($stripeSubscriptions->data) > 0) {
+                                            $stripeSubscriptionId = $stripeSubscriptions->data[0]->id;
+                                            error_log("Found existing Stripe subscription: {$stripeSubscriptionId} for customer: {$payment['stripe_customer_id']}");
+                                        }
+                                    }
+                                } catch (Exception $stripeError) {
+                                    error_log("Error checking for existing Stripe subscription: " . $stripeError->getMessage());
+                                    // Continue without Stripe subscription ID
+                                }
+
+                                // Create subscription record (even if Stripe subscription doesn't exist yet)
+                                // This allows the cancel button to appear and subscription management to work
                                 try {
                                     $stmt = $db->prepare("
                                         INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, stripe_customer_id, status, amount, billing_cycle, next_billing_date)
-                                        VALUES (?, ?, NULL, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH))
+                                        VALUES (?, ?, ?, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH))
                                     ");
                                     $stmt->execute([
                                         $payment['user_id'],
                                         $payment['business_card_id'],
+                                        $stripeSubscriptionId, // NULL if not found, which is acceptable
                                         $payment['stripe_customer_id'],
-                                        500 // Monthly amount for new users
+                                        $monthlyAmount
                                     ]);
-                                    error_log("Created subscription record for new user after payment: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}");
-                                } catch (Exception $e) {
-                                    error_log("Error creating subscription record after payment: " . $e->getMessage());
+                                    error_log("Created subscription record after invoice.payment_succeeded: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, monthly_amount={$monthlyAmount}");
+                                    
+                                    // Update payment record with subscription ID if found
+                                    if ($stripeSubscriptionId) {
+                                        $stmt = $db->prepare("UPDATE payments SET stripe_subscription_id = ? WHERE id = ?");
+                                        $stmt->execute([$stripeSubscriptionId, $payment['payment_id']]);
+                                    }
+                            } catch (PDOException $dbError) {
+                                // Check if error is due to NOT NULL constraint on stripe_subscription_id
+                                if (strpos($dbError->getMessage(), 'cannot be null') !== false || 
+                                    strpos($dbError->getMessage(), '1048') !== false ||
+                                    strpos($dbError->getMessage(), 'Column \'stripe_subscription_id\' cannot be null') !== false) {
+                                    error_log("Database schema error in webhook: stripe_subscription_id column does not allow NULL. Please run migration: backend/database/migrations/make_stripe_subscription_id_nullable.sql");
+                                    error_log("Payment details: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, user_type={$payment['user_type']}, stripe_subscription_id was NULL");
+                                    // Continue processing - subscription will be created later via cancel.php auto-creation
+                                } else {
+                                    error_log("Error creating subscription record after invoice.payment_succeeded: " . $dbError->getMessage());
+                                    error_log("Payment details: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, user_type={$payment['user_type']}");
+                                }
+                            } catch (Exception $e) {
+                                error_log("Error creating subscription record after invoice.payment_succeeded: " . $e->getMessage());
+                                error_log("Payment details: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, user_type={$payment['user_type']}");
+                            }
+                            } else {
+                                // Subscription exists, but check if stripe_subscription_id is missing and try to find it
+                                if (empty($existingSub['stripe_subscription_id']) && !empty($payment['stripe_customer_id'])) {
+                                    try {
+                                        if (class_exists('\Stripe\Stripe') && !empty(STRIPE_SECRET_KEY)) {
+                                            \Stripe\Stripe::setApiKey(STRIPE_SECRET_KEY);
+                                            $stripeSubscriptions = \Stripe\Subscription::all([
+                                                'customer' => $payment['stripe_customer_id'],
+                                                'limit' => 1,
+                                                'status' => 'all'
+                                            ]);
+                                            
+                                            if ($stripeSubscriptions && count($stripeSubscriptions->data) > 0) {
+                                                $stripeSubscriptionId = $stripeSubscriptions->data[0]->id;
+                                                $stmt = $db->prepare("UPDATE subscriptions SET stripe_subscription_id = ? WHERE id = ?");
+                                                $stmt->execute([$stripeSubscriptionId, $existingSub['id']]);
+                                                error_log("Updated subscription with Stripe subscription ID: {$stripeSubscriptionId} for subscription_id: {$existingSub['id']}");
+                                            }
+                                        }
+                                    } catch (Exception $stripeError) {
+                                        error_log("Error updating subscription with Stripe ID: " . $stripeError->getMessage());
+                                    }
                                 }
                             }
                         }
@@ -428,7 +505,7 @@ try {
                 $stmt->execute([$paymentIntentId]);
                 
                 $stmt = $db->prepare("
-                    SELECT p.user_id, p.business_card_id, p.payment_type, p.payment_method, u.user_type, u.stripe_customer_id
+                    SELECT p.id as payment_id, p.user_id, p.business_card_id, p.payment_type, p.payment_method, u.user_type, u.stripe_customer_id
                     FROM payments p
                     JOIN users u ON p.user_id = u.id
                     WHERE p.stripe_payment_intent_id = ? AND p.payment_status = 'completed'
@@ -475,33 +552,110 @@ try {
                         $stmt->execute([$payment['user_id'], $payment['business_card_id']]);
                     }
 
-                    // For new users, ensure subscription exists after payment
-                    if ($payment['user_type'] === 'new' && $payment['stripe_customer_id']) {
+                    // For all users with completed payment, ensure subscription exists after payment
+                    // This handles cases where subscription creation failed in create-intent.php or was skipped
+                    if ($payment['stripe_customer_id']) {
                         // Check if subscription already exists
                         $stmt = $db->prepare("
-                            SELECT id FROM subscriptions
+                            SELECT id, stripe_subscription_id FROM subscriptions
                             WHERE user_id = ? AND business_card_id = ?
                         ");
                         $stmt->execute([$payment['user_id'], $payment['business_card_id']]);
                         $existingSub = $stmt->fetch();
 
                         if (!$existingSub) {
-                            // Create subscription record for new user (even if Stripe subscription doesn't exist yet)
-                            // This allows the cancel button to appear
+                            // Determine monthly amount based on payment_type
+                            $monthlyAmount = 0;
+                            if ($payment['payment_type'] === 'new_user' || $payment['user_type'] === 'new') {
+                                $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                            } elseif ($payment['payment_type'] === 'existing_user' || $payment['user_type'] === 'existing') {
+                                // Existing users typically don't have monthly fees, but we'll create subscription anyway for consistency
+                                $monthlyAmount = 0;
+                            } else {
+                                // Default: treat as new user if payment_type is unclear
+                                $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                            }
+
+                            // Try to find existing Stripe subscription for this customer
+                            $stripeSubscriptionId = null;
+                            try {
+                                if (class_exists('\Stripe\Stripe') && !empty(STRIPE_SECRET_KEY)) {
+                                    \Stripe\Stripe::setApiKey(STRIPE_SECRET_KEY);
+                                    $stripeSubscriptions = \Stripe\Subscription::all([
+                                        'customer' => $payment['stripe_customer_id'],
+                                        'limit' => 1,
+                                        'status' => 'all'
+                                    ]);
+                                    
+                                    if ($stripeSubscriptions && count($stripeSubscriptions->data) > 0) {
+                                        $stripeSubscriptionId = $stripeSubscriptions->data[0]->id;
+                                        error_log("Found existing Stripe subscription: {$stripeSubscriptionId} for customer: {$payment['stripe_customer_id']}");
+                                    }
+                                }
+                            } catch (Exception $stripeError) {
+                                error_log("Error checking for existing Stripe subscription: " . $stripeError->getMessage());
+                                // Continue without Stripe subscription ID
+                            }
+
+                            // Create subscription record (even if Stripe subscription doesn't exist yet)
+                            // This allows the cancel button to appear and subscription management to work
                             try {
                                 $stmt = $db->prepare("
                                     INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, stripe_customer_id, status, amount, billing_cycle, next_billing_date)
-                                    VALUES (?, ?, NULL, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH))
+                                    VALUES (?, ?, ?, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH))
                                 ");
                                 $stmt->execute([
                                     $payment['user_id'],
                                     $payment['business_card_id'],
+                                    $stripeSubscriptionId, // NULL if not found, which is acceptable
                                     $payment['stripe_customer_id'],
-                                    500 // Monthly amount for new users
+                                    $monthlyAmount
                                 ]);
-                                error_log("Created subscription record for new user after payment_intent.succeeded: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}");
+                                error_log("Created subscription record after payment_intent.succeeded: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, monthly_amount={$monthlyAmount}");
+                                
+                                // Update payment record with subscription ID if found
+                                if ($stripeSubscriptionId && isset($payment['payment_id']) && $payment['payment_id']) {
+                                    $stmt = $db->prepare("UPDATE payments SET stripe_subscription_id = ? WHERE id = ?");
+                                    $stmt->execute([$stripeSubscriptionId, $payment['payment_id']]);
+                                }
+                            } catch (PDOException $dbError) {
+                                // Check if error is due to NOT NULL constraint on stripe_subscription_id
+                                if (strpos($dbError->getMessage(), 'cannot be null') !== false || 
+                                    strpos($dbError->getMessage(), '1048') !== false ||
+                                    strpos($dbError->getMessage(), 'Column \'stripe_subscription_id\' cannot be null') !== false) {
+                                    error_log("Database schema error in webhook: stripe_subscription_id column does not allow NULL. Please run migration: backend/database/migrations/make_stripe_subscription_id_nullable.sql");
+                                    error_log("Payment details: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, user_type={$payment['user_type']}, stripe_subscription_id was NULL");
+                                    // Continue processing - subscription will be created later via cancel.php auto-creation
+                                } else {
+                                    error_log("Error creating subscription record after payment_intent.succeeded: " . $dbError->getMessage());
+                                    error_log("Payment details: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, user_type={$payment['user_type']}");
+                                }
                             } catch (Exception $e) {
                                 error_log("Error creating subscription record after payment_intent.succeeded: " . $e->getMessage());
+                                error_log("Payment details: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, user_type={$payment['user_type']}");
+                            }
+                        } else {
+                            // Subscription exists, but check if stripe_subscription_id is missing and try to find it
+                            if (empty($existingSub['stripe_subscription_id']) && !empty($payment['stripe_customer_id'])) {
+                                try {
+                                    if (class_exists('\Stripe\Stripe') && !empty(STRIPE_SECRET_KEY)) {
+                                        \Stripe\Stripe::setApiKey(STRIPE_SECRET_KEY);
+                                        $stripeSubscriptions = \Stripe\Subscription::all([
+                                            'customer' => $payment['stripe_customer_id'],
+                                            'limit' => 1,
+                                            'status' => 'all'
+                                        ]);
+                                        
+                                        if ($stripeSubscriptions && count($stripeSubscriptions->data) > 0) {
+                                            $stripeSubscriptionId = $stripeSubscriptions->data[0]->id;
+                                            $stmt = $db->prepare("UPDATE subscriptions SET stripe_subscription_id = ? WHERE id = ?");
+                                            $stmt->execute([$stripeSubscriptionId, $existingSub['id']]);
+                                            error_log("Updated subscription with Stripe subscription ID: {$stripeSubscriptionId} for subscription_id: {$existingSub['id']}");
+                                        }
+                                    }
+                                } catch (Exception $stripeError) {
+                                    error_log("Error updating subscription with Stripe ID: " . $stripeError->getMessage());
+                                }
                             }
                         }
                     }

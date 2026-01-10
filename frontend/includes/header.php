@@ -360,7 +360,8 @@ if ($isLoggedIn) {
       else cancelBtn.textContent = '処理中...';
 
       try {
-        const response = await fetch('../backend/api/mypage/cancel.php', {
+        const apiUrl = window.location.origin + '/php/backend/api/mypage/cancel.php';
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
