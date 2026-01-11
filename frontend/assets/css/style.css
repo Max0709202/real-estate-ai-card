@@ -87,18 +87,53 @@ body {
     color: #333;
     border-radius: 50%;
     transition: all 0.3s;
-    border: 2px solid transparent;
+    border: 2px solid #90caf9;
+    background: #e3f2fd;
+    flex-shrink: 0;
 }
 
 .user-icon:hover {
-    background: #f0f7ff;
-    color: #0066cc;
-    border-color: #0066cc;
+    background: #bbdefb;
+    border-color: #64b5f6;
 }
 
 .user-icon svg {
     width: 24px;
     height: 24px;
+}
+
+.user-icon svg path {
+    stroke: #1976d2;
+    fill: white;
+}
+
+.user-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.user-info-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.user-info-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.4;
+    min-width: 0;
+}
+
+.user-info-text .user-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.user-info-text .user-period {
+    font-size: 13px;
+    color: #666;
 }
 
 .user-dropdown {

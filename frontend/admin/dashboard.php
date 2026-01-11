@@ -94,6 +94,8 @@ $sql = "
         bc.is_published as is_open,
         bc.admin_notes,
         bc.payment_status,
+        s.next_billing_date,
+        s.cancelled_at,
         COALESCE((
             SELECT COUNT(*)
             FROM access_logs al
@@ -109,9 +111,19 @@ $sql = "
         u.last_login_at
     FROM business_cards bc
     JOIN users u ON bc.user_id = u.id
+    LEFT JOIN (
+        SELECT s1.business_card_id, s1.next_billing_date, s1.cancelled_at
+        FROM subscriptions s1
+        INNER JOIN (
+            SELECT business_card_id, MAX(created_at) as max_created_at
+            FROM subscriptions
+            GROUP BY business_card_id
+        ) s2 ON s1.business_card_id = s2.business_card_id AND s1.created_at = s2.max_created_at
+    ) s ON s.business_card_id = bc.id
     $whereClause
     GROUP BY bc.id, u.id, u.email, u.user_type, bc.company_name, bc.name, bc.mobile_phone, bc.url_slug,
-             bc.is_published, bc.admin_notes, bc.payment_status, bc.created_at, u.last_login_at
+             bc.is_published, bc.admin_notes, bc.payment_status, bc.created_at, u.last_login_at,
+             s.next_billing_date, s.cancelled_at
     ORDER BY $sortField $sortOrder
     LIMIT ? OFFSET ?
 ";
@@ -280,6 +292,47 @@ $users = $stmt->fetchAll();
                 </thead>
                 <tbody>
                     <?php foreach ($users as $index => $user): ?>
+                    <?php
+                    // Calculate usage period display for each user
+                    $usagePeriodDisplay = null;
+                    $paymentStatus = $user['payment_status'] ?? 'UNUSED';
+                    
+                    if (in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+                        // Calculate end date
+                        $endDate = null;
+                        if ($user['next_billing_date']) {
+                            $nextBilling = new DateTime($user['next_billing_date']);
+                            $nextBilling->modify('-1 day');
+                            $endDate = $nextBilling->format('Y年n月j日');
+                        } elseif ($user['cancelled_at']) {
+                            $cancelled = new DateTime($user['cancelled_at']);
+                            $endDate = $cancelled->format('Y年n月j日');
+                        }
+                        
+                        // If no end date from subscription, try to get from payment
+                        if (!$endDate) {
+                            $stmt = $db->prepare("
+                                SELECT paid_at
+                                FROM payments
+                                WHERE user_id = ? AND payment_status = 'completed'
+                                ORDER BY paid_at DESC, created_at DESC
+                                LIMIT 1
+                            ");
+                            $stmt->execute([$user['user_id']]);
+                            $paymentMethodData = $stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            if ($paymentMethodData && $paymentMethodData['paid_at']) {
+                                $paidDate = new DateTime($paymentMethodData['paid_at']);
+                                $paidDate->modify('+1 month');
+                                $paidDate->modify('-1 day');
+                                $endDate = $paidDate->format('Y年n月j日');
+                            }
+                        }
+                        
+                        // Show date for both bank transfer and credit card payments
+                        $usagePeriodDisplay = $endDate ? $endDate . '迄' : '期限未設定';
+                    }
+                    ?>
                     <tr class="<?php echo ($index % 2 === 0) ? 'even-row' : 'odd-row'; ?>">
                         <td data-label="分類">
                             <?php
@@ -360,6 +413,11 @@ $users = $stmt->fetchAll();
                                 </a>
                             <?php else: ?>
                                 <?php echo htmlspecialchars($user['name'] ?? ''); ?>
+                            <?php endif; ?>
+                            <?php if ($usagePeriodDisplay): ?>
+                                <div style="font-size: 0.875rem; color: #666; margin-top: 0.25rem;">
+                                    <?php echo htmlspecialchars($usagePeriodDisplay); ?>
+                                </div>
                             <?php endif; ?>
                         </td>
                         <td data-label="携帯"><?php echo htmlspecialchars($user['mobile_phone'] ?? ''); ?></td>

@@ -123,13 +123,220 @@ if ($isLoggedIn) {
             <nav class="nav">
 
                 <?php if ($isLoggedIn): ?>
+                <?php
+                // Initialize header user info variables
+                $headerUserName = null;
+                $headerUsagePeriodDisplay = null;
+                $headerSubscriptionInfo = null;
+                $headerHasActiveSubscription = false;
+
+                // Get user info for header display
+                try {
+                    require_once __DIR__ . '/../../backend/config/database.php';
+                    $database = new Database();
+                    $db = $database->getConnection();
+
+                    // Get user name from business_cards
+                    $stmt = $db->prepare("
+                        SELECT name FROM business_cards WHERE user_id = ? LIMIT 1
+                    ");
+                    $stmt->execute([$_SESSION['user_id']]);
+                    $bcName = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($bcName && !empty($bcName['name'])) {
+                        $headerUserName = $bcName['name'];
+                    }
+
+                    $stmt = $db->prepare("
+                        SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
+                               bc.payment_status, u.user_type
+                        FROM subscriptions s
+                        JOIN business_cards bc ON s.business_card_id = bc.id
+                        JOIN users u ON bc.user_id = u.id
+                        WHERE s.user_id = ?
+                        ORDER BY s.created_at DESC
+                        LIMIT 1
+                    ");
+                    $stmt->execute([$_SESSION['user_id']]);
+                    $headerSubscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                    // Calculate end date for header
+                    $headerEndDate = null;
+                    if ($headerSubscriptionInfo) {
+                        if ($headerSubscriptionInfo['next_billing_date']) {
+                            // End date is the day before next billing date (last day of current period)
+                            $nextBilling = new DateTime($headerSubscriptionInfo['next_billing_date']);
+                            $nextBilling->modify('-1 day');
+                            $headerEndDate = $nextBilling->format('Y年n月j日');
+                        } elseif ($headerSubscriptionInfo['cancelled_at']) {
+                            // If already cancelled, use cancelled_at date
+                            $cancelled = new DateTime($headerSubscriptionInfo['cancelled_at']);
+                            $headerEndDate = $cancelled->format('Y年n月j日');
+                        }
+                    }
+
+                    // If subscription exists but no end date calculated yet, or subscription doesn't exist, try to get from payment date
+                    if (!$headerEndDate) {
+                        // Get business card info and payment status
+                        $stmt = $db->prepare("
+                            SELECT bc.payment_status, bc.updated_at, bc.created_at
+                            FROM business_cards bc
+                            WHERE bc.user_id = ?
+                            LIMIT 1
+                        ");
+                        $stmt->execute([$_SESSION['user_id']]);
+                        $bcInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                        if ($bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
+                            // Get the most recent completed payment date
+                            $stmt = $db->prepare("
+                                SELECT MAX(p.paid_at) as last_paid_at
+                                FROM payments p
+                                INNER JOIN business_cards bc ON p.business_card_id = bc.id
+                                WHERE bc.user_id = ? AND p.payment_status = 'completed' AND p.paid_at IS NOT NULL
+                            ");
+                            $stmt->execute([$_SESSION['user_id']]);
+                            $paymentInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                            if ($paymentInfo && $paymentInfo['last_paid_at']) {
+                                // Calculate end date: 1 month from payment date, minus 1 day (last day of period)
+                                $paidDate = new DateTime($paymentInfo['last_paid_at']);
+                                $paidDate->modify('+1 month');
+                                $paidDate->modify('-1 day');
+                                $headerEndDate = $paidDate->format('Y年n月j日');
+                            } elseif (isset($bcInfo['updated_at']) && !empty($bcInfo['updated_at'])) {
+                                // If no paid_at but payment_status is CR/BANK_PAID, use business_card updated_at
+                                // This handles cases where payment was completed but paid_at wasn't set
+                                try {
+                                    $updatedDate = new DateTime($bcInfo['updated_at']);
+                                    $updatedDate->modify('+1 month');
+                                    $updatedDate->modify('-1 day');
+                                    $headerEndDate = $updatedDate->format('Y年n月j日');
+                                } catch (Exception $dateException) {
+                                    error_log("Error parsing updated_at date: " . $dateException->getMessage());
+                                }
+                            }
+                        }
+
+                        // If still no date and subscription exists, try subscription created_at
+                        if (!$headerEndDate && $headerSubscriptionInfo && isset($headerSubscriptionInfo['status']) && in_array($headerSubscriptionInfo['status'], ['active', 'trialing'])) {
+                            if (isset($headerSubscriptionInfo['id'])) {
+                                $stmt = $db->prepare("SELECT created_at FROM subscriptions WHERE id = ?");
+                                $stmt->execute([$headerSubscriptionInfo['id']]);
+                                $subData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                                if ($subData && $subData['created_at']) {
+                                    $subCreated = new DateTime($subData['created_at']);
+                                    $subCreated->modify('+1 month');
+                                    $subCreated->modify('-1 day');
+                                    $headerEndDate = $subCreated->format('Y年n月j日');
+                                }
+                            }
+                        }
+
+                        // Fallback if still no date: current date + 1 month - 1 day (only if payment is completed)
+                        if (!$headerEndDate && isset($bcInfo) && $bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
+                            $now = new DateTime();
+                            $now->modify('+1 month');
+                            $now->modify('-1 day');
+                            $headerEndDate = $now->format('Y年n月j日');
+                        }
+                    }
+
+                    // Get payment method and calculate usage period display for header
+                    $headerPaymentStatus = $headerSubscriptionInfo['payment_status'] ?? null;
+                    if (!$headerPaymentStatus) {
+                        $stmt = $db->prepare("
+                            SELECT payment_status FROM business_cards WHERE user_id = ? LIMIT 1
+                        ");
+                        $stmt->execute([$_SESSION['user_id']]);
+                        $bcPaymentStatus = $stmt->fetch(PDO::FETCH_ASSOC);
+                        if ($bcPaymentStatus) {
+                            $headerPaymentStatus = $bcPaymentStatus['payment_status'];
+                        }
+                    }
+
+                    if (in_array($headerPaymentStatus, ['CR', 'BANK_PAID'])) {
+                        // Get most recent payment method
+                        $stmt = $db->prepare("
+                            SELECT payment_method
+                            FROM payments
+                            WHERE user_id = ? AND payment_status = 'completed'
+                            ORDER BY paid_at DESC, created_at DESC
+                            LIMIT 1
+                        ");
+                        $stmt->execute([$_SESSION['user_id']]);
+                        $paymentMethodData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                        if ($paymentMethodData) {
+                            $headerPaymentMethod = $paymentMethodData['payment_method'];
+
+                            if ($headerPaymentMethod === 'bank_transfer') {
+                                // Bank transfer: show expiration date
+                                if ($headerEndDate) {
+                                    $headerUsagePeriodDisplay = $headerEndDate . '迄';
+                                } else {
+                                    $headerUsagePeriodDisplay = '期限未設定';
+                                }
+                            } else {
+                                // Credit card: show "クレジットお支払い"
+                                $headerUsagePeriodDisplay = 'クレジットお支払い';
+                            }
+                        } else {
+                            // Payment status is CR/BANK_PAID but no payment record found
+                            if ($headerPaymentStatus === 'BANK_PAID') {
+                                if ($headerEndDate) {
+                                    $headerUsagePeriodDisplay = $headerEndDate . '迄';
+                                } else {
+                                    $headerUsagePeriodDisplay = '期限未設定';
+                                }
+                            } else {
+                                // Credit card
+                                $headerUsagePeriodDisplay = 'クレジットお支払い';
+                            }
+                        }
+                    }
+
+                    if ($headerSubscriptionInfo && in_array($headerSubscriptionInfo['status'], ['active', 'trialing', 'past_due', 'incomplete'])) {
+                        $headerHasActiveSubscription = true;
+                    } elseif (!$headerSubscriptionInfo) {
+                        $stmt = $db->prepare("
+                            SELECT bc.payment_status, u.user_type
+                            FROM business_cards bc
+                            JOIN users u ON bc.user_id = u.id
+                            WHERE bc.user_id = ?
+                            LIMIT 1
+                        ");
+                        $stmt->execute([$_SESSION['user_id']]);
+                        $cardInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                        if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID']) && $cardInfo['user_type'] === 'new') {
+                            $headerHasActiveSubscription = true;
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("Header subscription check error: " . $e->getMessage());
+                }
+                ?>
                 <!-- User Menu (Person Icon with Dropdown) -->
                 <div class="user-menu">
-                    <div class="user-icon" id="user-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M20.59 22C20.59 18.13 16.74 15 12 15C7.26 15 3.41 18.13 3.41 22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
+                    <div class="user-info-container">
+                        <div class="user-icon" id="user-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="#1976d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="white"/>
+                                <path d="M20.59 22C20.59 18.13 16.74 15 12 15C7.26 15 3.41 18.13 3.41 22" stroke="#1976d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="white"/>
+                            </svg>
+                        </div>
+                        <?php if ($headerUserName): ?>
+                        <div class="user-info-text">
+                            <div class="user-name">
+                                <?php echo htmlspecialchars($headerUserName); ?>様
+                            </div>
+                            <?php if ($headerUsagePeriodDisplay): ?>
+                            <div class="user-period">
+                                <?php echo htmlspecialchars($headerUsagePeriodDisplay); ?>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     <div class="user-dropdown" id="user-dropdown">
                         <?php if ($showMyCard): ?>
@@ -140,132 +347,6 @@ if ($isLoggedIn) {
                         <a href="edit.php" class="dropdown-item">
                             <span>マイページ</span>
                         </a>
-                        <?php
-                        // Get subscription info for header dropdown
-                        $headerSubscriptionInfo = null;
-                        $headerHasActiveSubscription = false;
-                        if ($isLoggedIn) {
-                            try {
-                                require_once __DIR__ . '/../../backend/config/database.php';
-                                $database = new Database();
-                                $db = $database->getConnection();
-                                $stmt = $db->prepare("
-                                    SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
-                                           bc.payment_status, u.user_type
-                                    FROM subscriptions s
-                                    JOIN business_cards bc ON s.business_card_id = bc.id
-                                    JOIN users u ON bc.user_id = u.id
-                                    WHERE s.user_id = ?
-                                    ORDER BY s.created_at DESC
-                                    LIMIT 1
-                                ");
-                                $stmt->execute([$_SESSION['user_id']]);
-                                $headerSubscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-
-                                // Calculate end date for header
-                                $headerEndDate = null;
-                                if ($headerSubscriptionInfo) {
-                                    if ($headerSubscriptionInfo['next_billing_date']) {
-                                        // End date is the day before next billing date (last day of current period)
-                                        $nextBilling = new DateTime($headerSubscriptionInfo['next_billing_date']);
-                                        $nextBilling->modify('-1 day');
-                                        $headerEndDate = $nextBilling->format('Y年n月j日');
-                                    } elseif ($headerSubscriptionInfo['cancelled_at']) {
-                                        // If already cancelled, use cancelled_at date
-                                        $cancelled = new DateTime($headerSubscriptionInfo['cancelled_at']);
-                                        $headerEndDate = $cancelled->format('Y年n月j日');
-                                    }
-                                }
-
-                                // If subscription exists but no end date calculated yet, or subscription doesn't exist, try to get from payment date
-                                if (!$headerEndDate) {
-                                    // Get business card info and payment status
-                                    $stmt = $db->prepare("
-                                        SELECT bc.payment_status, bc.updated_at, bc.created_at
-                                        FROM business_cards bc
-                                        WHERE bc.user_id = ?
-                                        LIMIT 1
-                                    ");
-                                    $stmt->execute([$_SESSION['user_id']]);
-                                    $bcInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-                                    
-                                    if ($bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
-                                        // Get the most recent completed payment date
-                                        $stmt = $db->prepare("
-                                            SELECT MAX(p.paid_at) as last_paid_at
-                                            FROM payments p
-                                            INNER JOIN business_cards bc ON p.business_card_id = bc.id
-                                            WHERE bc.user_id = ? AND p.payment_status = 'completed' AND p.paid_at IS NOT NULL
-                                        ");
-                                        $stmt->execute([$_SESSION['user_id']]);
-                                        $paymentInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-                                        
-                                        if ($paymentInfo && $paymentInfo['last_paid_at']) {
-                                            // Calculate end date: 1 month from payment date, minus 1 day (last day of period)
-                                            $paidDate = new DateTime($paymentInfo['last_paid_at']);
-                                            $paidDate->modify('+1 month');
-                                            $paidDate->modify('-1 day');
-                                            $headerEndDate = $paidDate->format('Y年n月j日');
-                                        } elseif (isset($bcInfo['updated_at']) && !empty($bcInfo['updated_at'])) {
-                                            // If no paid_at but payment_status is CR/BANK_PAID, use business_card updated_at
-                                            // This handles cases where payment was completed but paid_at wasn't set
-                                            try {
-                                                $updatedDate = new DateTime($bcInfo['updated_at']);
-                                                $updatedDate->modify('+1 month');
-                                                $updatedDate->modify('-1 day');
-                                                $headerEndDate = $updatedDate->format('Y年n月j日');
-                                            } catch (Exception $dateException) {
-                                                error_log("Error parsing updated_at date: " . $dateException->getMessage());
-                                            }
-                                        }
-                                    }
-                                    
-                                    // If still no date and subscription exists, try subscription created_at
-                                    if (!$headerEndDate && $headerSubscriptionInfo && isset($headerSubscriptionInfo['status']) && in_array($headerSubscriptionInfo['status'], ['active', 'trialing'])) {
-                                        if (isset($headerSubscriptionInfo['id'])) {
-                                            $stmt = $db->prepare("SELECT created_at FROM subscriptions WHERE id = ?");
-                                            $stmt->execute([$headerSubscriptionInfo['id']]);
-                                            $subData = $stmt->fetch(PDO::FETCH_ASSOC);
-                                            
-                                            if ($subData && $subData['created_at']) {
-                                                $subCreated = new DateTime($subData['created_at']);
-                                                $subCreated->modify('+1 month');
-                                                $subCreated->modify('-1 day');
-                                                $headerEndDate = $subCreated->format('Y年n月j日');
-                                            }
-                                        }
-                                    }
-                                    
-                                    // Fallback if still no date: current date + 1 month - 1 day (only if payment is completed)
-                                    if (!$headerEndDate && $bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
-                                        $now = new DateTime();
-                                        $now->modify('+1 month');
-                                        $now->modify('-1 day');
-                                        $headerEndDate = $now->format('Y年n月j日');
-                                    }
-                                }
-
-                                if ($headerSubscriptionInfo && in_array($headerSubscriptionInfo['status'], ['active', 'trialing', 'past_due', 'incomplete'])) {
-                                    $headerHasActiveSubscription = true;
-                                } elseif (!$headerSubscriptionInfo) {
-                                    $stmt = $db->prepare("
-                                        SELECT bc.payment_status, u.user_type
-                                        FROM business_cards bc
-                                        JOIN users u ON bc.user_id = u.id
-                                        WHERE bc.user_id = ?
-                                        LIMIT 1
-                                    ");
-                                    $stmt->execute([$_SESSION['user_id']]);
-                                    $cardInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-                                    if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID']) && $cardInfo['user_type'] === 'new') {
-                                        $headerHasActiveSubscription = true;
-                                    }
-                                }
-                            } catch (Exception $e) {
-                                error_log("Header subscription check error: " . $e->getMessage());
-                            }
-                        }
-                        ?>
                         <?php if ($headerHasActiveSubscription): ?>
                         <!-- <div class="dropdown-divider"></div> -->
                         <!-- <div class="dropdown-section-header">サブスクリプション</div> -->

@@ -231,6 +231,19 @@
         gap: 0.5rem;
     }
 
+    /* User info container for mobile */
+    .user-info-container {
+        gap: 0.5rem;
+    }
+
+    .user-info-text .user-name {
+        font-size: 13px !important;
+    }
+
+    .user-info-text .user-period {
+        font-size: 12px !important;
+    }
+
     .user-dropdown {
         right: 0;
         left: auto;
