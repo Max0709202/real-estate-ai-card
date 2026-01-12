@@ -149,7 +149,32 @@ try {
             $payment = $stmt->fetch();
             
             if ($payment) {
-                        $newPaymentStatus = ($payment['payment_method'] === 'credit_card') ? 'CR' : 'BANK_PAID';
+                        // Check if this is a Stripe bank transfer (customer_balance)
+                        $isStripeBankTransfer = false;
+                        if (isset($invoice['payment_intent'])) {
+                            try {
+                                if (class_exists('\Stripe\Stripe') && !empty(STRIPE_SECRET_KEY)) {
+                                    \Stripe\Stripe::setApiKey(STRIPE_SECRET_KEY);
+                                    $pi = \Stripe\PaymentIntent::retrieve($invoice['payment_intent']);
+                                    if (isset($pi['payment_method_types']) && in_array('customer_balance', $pi['payment_method_types'])) {
+                                        $isStripeBankTransfer = true;
+                                    }
+                                }
+                            } catch (Exception $e) {
+                                error_log("Error checking payment intent for Stripe bank transfer: " . $e->getMessage());
+                            }
+                        }
+                        
+                        // Determine payment status
+                        if ($payment['payment_method'] === 'credit_card') {
+                            $newPaymentStatus = 'CR';
+                        } elseif ($isStripeBankTransfer) {
+                            // Stripe bank transfer (Stripe口座への送金)
+                            $newPaymentStatus = 'ST';
+                        } else {
+                            // Regular bank transfer (manual)
+                            $newPaymentStatus = 'BANK_PAID';
+                        }
 
                         // 停止されたアカウントの復活処理を確認
                         $stmt = $db->prepare("
@@ -161,6 +186,10 @@ try {
                         $bcStatus = $stmt->fetch();
                         $isReactivation = ($bcStatus && ($bcStatus['card_status'] === 'canceled'));
 
+                        // ST送金の場合は、クレジット決済と同じようにis_publishedを1に設定
+                        // 復活の場合もis_publishedを1に設定
+                        $isPublished = ($newPaymentStatus === 'ST' || $isReactivation) ? 1 : 0;
+
                         $stmt = $db->prepare("
                             UPDATE business_cards
                             SET payment_status = ?,
@@ -169,8 +198,6 @@ try {
                                 updated_at = NOW()
                             WHERE id = ? AND user_id = ?
                         ");
-                        // 復活の場合、is_publishedを1に設定（新規登録と同じ扱い）
-                        $isPublished = $isReactivation ? 1 : 0;
                         $stmt->execute([$newPaymentStatus, $isPublished, $payment['business_card_id'], $payment['user_id']]);
 
                         enforceOpenPaymentStatusRule($db, $payment['business_card_id'], $newPaymentStatus);
@@ -295,7 +322,7 @@ try {
                             }
                         }
 
-                        if (in_array($newPaymentStatus, ['CR', 'BANK_PAID'])) {
+                        if (in_array($newPaymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
                             $stmt = $db->prepare("SELECT qr_code_issued FROM business_cards WHERE id = ?");
                             $stmt->execute([$payment['business_card_id']]);
                             $bc = $stmt->fetch();
@@ -514,7 +541,39 @@ try {
                 $payment = $stmt->fetch();
 
                 if ($payment) {
-                    $newPaymentStatus = ($payment['payment_method'] === 'credit_card') ? 'CR' : 'BANK_PAID';
+                    // Check if this is a Stripe bank transfer (customer_balance)
+                    // Stripe bank transfers use customer_balance payment method type
+                    $isStripeBankTransfer = false;
+                    if (isset($paymentIntent['payment_method_types']) && in_array('customer_balance', $paymentIntent['payment_method_types'])) {
+                        $isStripeBankTransfer = true;
+                    } elseif (isset($paymentIntent['payment_method'])) {
+                        // If payment_method is an object, check its type
+                        try {
+                            if (is_string($paymentIntent['payment_method'])) {
+                                // Fetch payment method details from Stripe
+                                if (class_exists('\Stripe\Stripe') && !empty(STRIPE_SECRET_KEY)) {
+                                    \Stripe\Stripe::setApiKey(STRIPE_SECRET_KEY);
+                                    $pm = \Stripe\PaymentMethod::retrieve($paymentIntent['payment_method']);
+                                    if ($pm->type === 'customer_balance') {
+                                        $isStripeBankTransfer = true;
+                                    }
+                                }
+                            }
+                        } catch (Exception $e) {
+                            error_log("Error checking payment method type: " . $e->getMessage());
+                        }
+                    }
+                    
+                    // Determine payment status
+                    if ($payment['payment_method'] === 'credit_card') {
+                        $newPaymentStatus = 'CR';
+                    } elseif ($isStripeBankTransfer) {
+                        // Stripe bank transfer (Stripe口座への送金)
+                        $newPaymentStatus = 'ST';
+                    } else {
+                        // Regular bank transfer (manual)
+                        $newPaymentStatus = 'BANK_PAID';
+                    }
 
                     // 停止されたアカウントの復活処理を確認
                     $stmt = $db->prepare("
@@ -526,6 +585,10 @@ try {
                     $bcStatus = $stmt->fetch();
                     $isReactivation = ($bcStatus && ($bcStatus['card_status'] === 'canceled'));
 
+                    // ST送金の場合は、クレジット決済と同じようにis_publishedを1に設定
+                    // 復活の場合もis_publishedを1に設定
+                    $isPublished = ($newPaymentStatus === 'ST' || $isReactivation) ? 1 : 0;
+
                     $stmt = $db->prepare("
                         UPDATE business_cards
                         SET payment_status = ?,
@@ -534,8 +597,6 @@ try {
                             updated_at = NOW()
                         WHERE id = ? AND user_id = ?
                     ");
-                    // 復活の場合、is_publishedを1に設定（新規登録と同じ扱い）
-                    $isPublished = $isReactivation ? 1 : 0;
                     $stmt->execute([$newPaymentStatus, $isPublished, $payment['business_card_id'], $payment['user_id']]);
 
                     enforceOpenPaymentStatusRule($db, $payment['business_card_id'], $newPaymentStatus);
@@ -660,7 +721,7 @@ try {
                         }
                     }
 
-                    if (in_array($newPaymentStatus, ['CR', 'BANK_PAID'])) {
+                    if (in_array($newPaymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
                         $stmt = $db->prepare("SELECT qr_code_issued FROM business_cards WHERE id = ?");
                 $stmt->execute([$payment['business_card_id']]);
                 $bc = $stmt->fetch();

@@ -48,7 +48,7 @@ $where = [];
 $params = [];
 
 // 入金状況の検索条件
-if (!empty($_GET['payment_status']) && in_array($_GET['payment_status'], ['CR', 'BANK_PENDING', 'BANK_PAID', 'UNUSED'])) {
+if (!empty($_GET['payment_status']) && in_array($_GET['payment_status'], ['CR', 'BANK_PENDING', 'BANK_PAID', 'ST', 'UNUSED'])) {
     $where[] = "bc.payment_status = ?";
     $params[] = $_GET['payment_status'];
 }
@@ -230,6 +230,7 @@ $users = $stmt->fetchAll();
                         <option value="CR" <?php echo ($_GET['payment_status'] ?? '') === 'CR' ? 'selected' : ''; ?>>CR</option>
                         <option value="BANK_PENDING" <?php echo ($_GET['payment_status'] ?? '') === 'BANK_PENDING' ? 'selected' : ''; ?>>振込予定</option>
                         <option value="BANK_PAID" <?php echo ($_GET['payment_status'] ?? '') === 'BANK_PAID' ? 'selected' : ''; ?>>振込済</option>
+                        <option value="ST" <?php echo ($_GET['payment_status'] ?? '') === 'ST' ? 'selected' : ''; ?>>ST送金</option>
                         <option value="UNUSED" <?php echo ($_GET['payment_status'] ?? '') === 'UNUSED' ? 'selected' : ''; ?>>未利用</option>
                     </select>
                     <select name="is_open">
@@ -297,7 +298,7 @@ $users = $stmt->fetchAll();
                     $usagePeriodDisplay = null;
                     $paymentStatus = $user['payment_status'] ?? 'UNUSED';
                     
-                    if (in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+                    if (in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
                         // Calculate end date
                         $endDate = null;
                         if ($user['next_billing_date']) {
@@ -359,12 +360,14 @@ $users = $stmt->fetchAll();
                                 'CR' => 'CR',
                                 'BANK_PENDING' => '振込予定',
                                 'BANK_PAID' => '振込済',
+                                'ST' => 'ST送金',
                                 'UNUSED' => '未利用'
                             ];
                             $paymentStatusClasses = [
                                 'CR' => 'payment-badge-credit',
                                 'BANK_PENDING' => 'payment-badge-transfer-pending',
                                 'BANK_PAID' => 'payment-badge-transfer-completed',
+                                'ST' => 'payment-badge-credit', // ST送金はクレジットと同じグリーン背景
                                 'UNUSED' => 'payment-badge-unused'
                             ];
                             $label = $paymentStatusLabels[$paymentStatus] ?? '未利用';
@@ -390,7 +393,7 @@ $users = $stmt->fetchAll();
                         <td data-label="OPEN">
                             <?php
                             $paymentStatus = $user['payment_status'] ?? 'UNUSED';
-                            $canOpen = in_array($paymentStatus, ['CR', 'BANK_PAID']);
+                            $canOpen = in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST']);
                             $isActuallyOpen = $user['is_open'] && $canOpen; // Force closed if payment not allowed
                             $isDisabled = !$isAdmin || !$canOpen;
                             $tooltip = !$canOpen ? '入金完了（CR / 振込済）後にOPEN可能' : '';

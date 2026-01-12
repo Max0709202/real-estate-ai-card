@@ -32,9 +32,9 @@ if (!$card) {
 }
 
 // Check payment status and publication status
-// Card can only be viewed if payment_status is CR or BANK_PAID, and is_published is 1
+// Card can only be viewed if payment_status is CR, BANK_PAID, or ST, and is_published is 1
 // However, allow preview mode when preview=1 parameter is set (for edit page)
-if (!$preview && ($card['payment_status'] !== 'CR' && $card['payment_status'] !== 'BANK_PAID' || $card['is_published'] == 0)) {
+if (!$preview && (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || $card['is_published'] == 0)) {
     // Display custom message instead of 404
     ?>
 <!DOCTYPE html>
@@ -84,7 +84,7 @@ if (!$preview && ($card['payment_status'] !== 'CR' && $card['payment_status'] !=
         <div class="message-icon">⚠️</div>
         <h1 class="message-title">この名刺は現在ご利用いただけません</h1>
         <p class="message-description">
-            <?php if ($card['payment_status'] !== 'CR' && $card['payment_status'] !== 'BANK_PAID'): ?>
+            <?php if (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST'])): ?>
                 入金確認が完了していないため、名刺を表示することができません。<br>
                 名刺のご利用には入金確認が必要です。
             <?php elseif ($card['is_published'] == 0): ?>

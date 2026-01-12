@@ -66,7 +66,7 @@ try {
         $stmt->execute([$userId]);
         $bcInfo = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
+        if ($bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID', 'ST'])) {
             // Get the most recent completed payment date
             $stmt = $db->prepare("
                 SELECT MAX(p.paid_at) as last_paid_at
@@ -137,7 +137,7 @@ try {
         ");
         $stmt->execute([$userId]);
         $cardInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID'])) {
+        if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID', 'ST'])) {
             $hasCompletedPayment = true;
         }
     }
@@ -195,7 +195,7 @@ try {
 
     // Check if subscription is active and payment is completed
     if ($subscriptionInfo && in_array($subscriptionInfo['status'], ['active', 'trialing'])) {
-        if (in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+        if (in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
             // Check if next_billing_date is in the future
             if ($subscriptionInfo['next_billing_date']) {
                 $nextBillingDate = new DateTime($subscriptionInfo['next_billing_date']);
@@ -223,7 +223,7 @@ try {
         if ($subscriptionInfo['next_billing_date']) {
             $nextBillingDate = new DateTime($subscriptionInfo['next_billing_date']);
             $now = new DateTime();
-            if ($nextBillingDate <= $now && in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+            if ($nextBillingDate <= $now && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
                 $needsPayment = true;
             }
         }
@@ -251,7 +251,7 @@ try {
     $endDateForRenewal = null; // DateTime object for renewal eligibility check
     $canRenew = false; // Can renew (2 months before expiration)
 
-    if (in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+    if (in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
         // Get most recent payment method
         $stmt = $db->prepare("
             SELECT payment_method, paid_at
@@ -265,6 +265,11 @@ try {
 
         if ($paymentMethodData) {
             $paymentMethod = $paymentMethodData['payment_method'];
+
+            // ST送金の場合もbank_transferとして扱う（更新手続きを促すため）
+            if ($paymentStatus === 'ST') {
+                $paymentMethod = 'bank_transfer';
+            }
 
             if ($paymentMethod === 'bank_transfer') {
                 // Bank transfer: show expiration date

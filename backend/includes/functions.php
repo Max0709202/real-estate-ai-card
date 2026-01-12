@@ -138,7 +138,8 @@ function generateToken($length = 32) {
  * @return bool True if card was forced closed, false otherwise
  */
 function enforceOpenPaymentStatusRule($db, $businessCardId, $paymentStatus) {
-    $canOpen = in_array($paymentStatus, ['CR', 'BANK_PAID']);
+    // ST (Stripe bank transfer) and CR (credit card) allow OPEN, same as BANK_PAID
+    $canOpen = in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST']);
     
     if (!$canOpen) {
         // Check if card is currently open

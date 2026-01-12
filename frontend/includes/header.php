@@ -186,7 +186,7 @@ if ($isLoggedIn) {
                         $stmt->execute([$_SESSION['user_id']]);
                         $bcInfo = $stmt->fetch(PDO::FETCH_ASSOC);
 
-                        if ($bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
+                        if ($bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID', 'ST'])) {
                             // Get the most recent completed payment date
                             $stmt = $db->prepare("
                                 SELECT MAX(p.paid_at) as last_paid_at
@@ -255,7 +255,7 @@ if ($isLoggedIn) {
                         }
                     }
 
-                    if (in_array($headerPaymentStatus, ['CR', 'BANK_PAID'])) {
+                    if (in_array($headerPaymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
                         // Get most recent payment method
                         $stmt = $db->prepare("
                             SELECT payment_method
@@ -308,7 +308,7 @@ if ($isLoggedIn) {
                         ");
                         $stmt->execute([$_SESSION['user_id']]);
                         $cardInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-                        if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID']) && $cardInfo['user_type'] === 'new') {
+                        if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID', 'ST']) && $cardInfo['user_type'] === 'new') {
                             $headerHasActiveSubscription = true;
                         }
                     }
