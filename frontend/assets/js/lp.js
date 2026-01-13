@@ -94,11 +94,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const textHeight = featureText.offsetHeight;
                 
                 // Set visual height to be 10% larger than text height (minimum 50px extra)
-                const extraHeight = Math.max(textHeight * 0.1, 50);
-                const visualHeight = textHeight + extraHeight;
-                
-                featureVisual.style.height = visualHeight + 'px';
-                featureVisual.style.minHeight = visualHeight + 'px';
             }
         });
     }

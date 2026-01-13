@@ -225,7 +225,7 @@ if ($isTokenBased) {
         <div class="container">
             <h2 class="problems-title">こんなお悩みありませんか?</h2>
             <div class="problems-grid">
-                <div class="problem-card">
+                <div class="problem-card problem-card-1">
                     <div class="problem-icon">
                         <span>!</span>
                     </div>
@@ -235,7 +235,7 @@ if ($isTokenBased) {
                     </p>
                 </div>
                 
-                <div class="problem-card">
+                <div class="problem-card problem-card-2">
                     <div class="problem-icon">
                         <span>!</span>
                     </div>
@@ -245,7 +245,7 @@ if ($isTokenBased) {
                     </p>
                 </div>
                 
-                <div class="problem-card">
+                <div class="problem-card problem-card-3">
                     <div class="problem-icon">
                         <span>!</span>
                     </div>
@@ -261,64 +261,93 @@ if ($isTokenBased) {
     <!-- Automation Process Section -->
     <section class="automation-section">
         <div class="container">
-            <h2 class="automation-title">営業プロセスを「自動化」する。</h2>
-            <div class="automation-grid">
-                <div class="automation-card">
-                    <div class="automation-icon">
-                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            <!-- U-shaped magnet with customer icon and lightning -->
-                            <path d="M 30 20 Q 30 10 40 10 L 60 10 Q 70 10 70 20 L 70 50 Q 70 60 60 60 L 40 60 Q 30 60 30 50 Z"
-                                  fill="none" stroke="#0066cc" stroke-width="3"/>
-                            <circle cx="50" cy="35" r="8" fill="none" stroke="#0066cc" stroke-width="2"/>
-                            <path d="M 50 43 L 50 55" stroke="#0066cc" stroke-width="2"/>
-                            <path d="M 45 50 L 55 50" stroke="#0066cc" stroke-width="2"/>
-                            <!-- Lightning bolts -->
-                            <path d="M 75 25 L 80 35 L 77 35 L 82 45" stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
-                            <path d="M 25 25 L 20 35 L 23 35 L 18 45" stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
-                        </svg>
+            <div class="automation-content">
+                <h2 class="automation-title">営業プロセスを「自動化」する。</h2>
+                <div class="automation-grid">
+                    <div class="automation-card-wrapper">
+                        <div class="automation-card-content">
+                            <h3 class="automation-card-title" style="margin-bottom: 0; font-size: 0.8rem; font-weight: normal;">001 /</h3>
+                        </div>
+                        <div class="automation-card">
+                            <div class="automation-card-icon">
+                                <div class="automation-icon">
+                                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="margin-bottom: -2rem;">
+                                        <!-- U-shaped magnet with customer icon and lightning -->
+                                        <path d="M 30 20 Q 30 10 40 10 L 60 10 Q 70 10 70 20 L 70 50 Q 70 60 60 60 L 40 60 Q 30 60 30 50 Z"
+                                            fill="none" stroke="#0066cc" stroke-width="3"/>
+                                        <circle cx="50" cy="35" r="8" fill="none" stroke="#0066cc" stroke-width="2"/>
+                                        <path d="M 50 43 L 50 55" stroke="#0066cc" stroke-width="2"/>
+                                        <path d="M 45 50 L 55 50" stroke="#0066cc" stroke-width="2"/>
+                                        <!-- Lightning bolts -->
+                                        <path d="M 75 25 L 80 35 L 77 35 L 82 45" stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                        <path d="M 25 25 L 20 35 L 23 35 L 18 45" stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="automation-card-content">
+                                <h3 class="automation-card-title">顧客獲得 <span class="automation-subtitle">(Lead Capture)</span></h3>
+                                <p class="automation-description">
+                                    ワンタップでLINE連携完了。QRコードを読み込むだけで、その場で顧客とつながり、失注を防ぎます。
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <h3 class="automation-card-title">顧客獲得 <span class="automation-subtitle">(Lead Capture)</span></h3>
-                    <p class="automation-description">
-                        ワンタップでLINE連携完了。QRコードを読み込むだけで、その場で顧客とつながり、失注を防ぎます。
-                    </p>
-                </div>
 
-                <div class="automation-card">
-                    <div class="automation-icon">
-                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            <!-- Shield with briefcase -->
-                            <path d="M 50 15 L 25 25 L 25 60 Q 25 75 50 85 Q 75 75 75 60 L 75 25 Z"
-                                  fill="none" stroke="#0066cc" stroke-width="3"/>
-                            <rect x="35" y="40" width="30" height="20" rx="2" fill="none" stroke="#0066cc" stroke-width="2"/>
-                            <path d="M 40 40 L 40 35 L 60 35 L 60 40" stroke="#0066cc" stroke-width="2" fill="none"/>
-                            <path d="M 45 50 L 55 50" stroke="#0066cc" stroke-width="2"/>
-                        </svg>
+                    <div class="automation-card-wrapper">
+                        <div class="automation-card-content">
+                            <h3 class="automation-card-title" style="margin-bottom: 0; font-size: 0.8rem; font-weight: normal;">002 /</h3>
+                        </div>
+                        <div class="automation-card">
+                            <div class="automation-card-icon">
+                                <div class="automation-icon">
+                                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                        <!-- Shield with briefcase -->
+                                        <path d="M 50 15 L 25 25 L 25 60 Q 25 75 50 85 Q 75 75 75 60 L 75 25 Z"
+                                            fill="none" stroke="#0066cc" stroke-width="3"/>
+                                        <rect x="35" y="40" width="30" height="20" rx="2" fill="none" stroke="#0066cc" stroke-width="2"/>
+                                        <path d="M 40 40 L 40 35 L 60 35 L 60 40" stroke="#0066cc" stroke-width="2" fill="none"/>
+                                        <path d="M 45 50 L 55 50" stroke="#0066cc" stroke-width="2"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="automation-card-content">
+                                <h3 class="automation-card-title">価値提供 <span class="automation-subtitle">(Value Proposition)</span></h3>
+                                <p class="automation-description">
+                                    顧客に6つの強力な不動産テックツールを無料で提供。情報武装で他社を圧倒し、信頼を勝ち取ります。
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <h3 class="automation-card-title">価値提供 <span class="automation-subtitle">(Value Proposition)</span></h3>
-                    <p class="automation-description">
-                        顧客に6つの強力な不動産テックツールを無料で提供。情報武装で他社を圧倒し、信頼を勝ち取ります。
-                    </p>
-                </div>
 
-                <div class="automation-card">
-                    <div class="automation-icon">
-                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            <!-- Robot head with growth arrow -->
-                            <rect x="30" y="25" width="40" height="35" rx="5" fill="none" stroke="#0066cc" stroke-width="3"/>
-                            <circle cx="40" cy="38" r="3" fill="#0066cc"/>
-                            <circle cx="60" cy="38" r="3" fill="#0066cc"/>
-                            <path d="M 40 48 Q 50 52 60 48" stroke="#0066cc" stroke-width="2" fill="none"/>
-                            <rect x="35" y="20" width="30" height="8" rx="2" fill="none" stroke="#0066cc" stroke-width="2"/>
-                            <!-- Growth arrow graph -->
-                            <path d="M 20 70 L 30 65 L 40 60 L 50 55 L 60 50 L 70 45 L 80 40"
-                                  stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
-                            <path d="M 75 42 L 80 40 L 75 38" stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
-                        </svg>
+                    <div class="automation-card-wrapper">
+                        <div class="automation-card-content">
+                            <h3 class="automation-card-title" style="margin-bottom: 0; font-size: 0.8rem; font-weight: normal;">003 /</h3>
+                        </div>
+                        <div class="automation-card" style="border-bottom: none;">
+                            <div class="automation-card-icon">
+                                <div class="automation-icon">
+                                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                        <!-- Robot head with growth arrow -->
+                                        <rect x="30" y="25" width="40" height="35" rx="5" fill="none" stroke="#0066cc" stroke-width="3"/>
+                                        <circle cx="40" cy="38" r="3" fill="#0066cc"/>
+                                        <circle cx="60" cy="38" r="3" fill="#0066cc"/>
+                                        <path d="M 40 48 Q 50 52 60 48" stroke="#0066cc" stroke-width="2" fill="none"/>
+                                        <rect x="35" y="20" width="30" height="8" rx="2" fill="none" stroke="#0066cc" stroke-width="2"/>
+                                        <!-- Growth arrow graph -->
+                                        <path d="M 20 70 L 30 65 L 40 60 L 50 55 L 60 50 L 70 45 L 80 40"
+                                            stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                        <path d="M 75 42 L 80 40 L 75 38" stroke="#0066cc" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="automation-card-content">
+                                <h3 class="automation-card-title">顧客育成 <span class="automation-subtitle">(Lead Nurturing)</span></h3>
+                                <p class="automation-description">
+                                    AIが顧客の希望条件に合う物件情報を毎日自動配信。常に顧客の第一想起を維持し、エンゲージメントを高めます。
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <h3 class="automation-card-title">顧客育成 <span class="automation-subtitle">(Lead Nurturing)</span></h3>
-                    <p class="automation-description">
-                        AIが顧客の希望条件に合う物件情報を毎日自動配信。常に顧客の第一想起を維持し、エンゲージメントを高めます。
-                    </p>
                 </div>
             </div>
         </div>
@@ -339,8 +368,6 @@ if ($isTokenBased) {
                     <div class="feature-image-wrapper line-feature">
                         <div id="communication-alternate" style="width:100%;" class="crossfade-container">
                             <div class="communication-category" id="comm-category-1">
-                                <h4 class="category-title">メッセージアプリ</h4>
-                                <p class="category-note">一番簡単につながる方法を教えてください。ここが重要になります。</p>
                                 <ul class="communication-list">
                                     <li><img src="assets/images/icons/line.png" alt="LINE"></li>
                                     <li><img src="assets/images/icons/messenger.png" alt="Messenger"></li>
@@ -352,8 +379,6 @@ if ($isTokenBased) {
                                 <p class="category-future">※近い将来、「不動産MYページ」という独自コミュニケーションツールをリリースし、追加する予定です。</p>
                             </div>
                             <div class="communication-category" id="comm-category-2">
-                                <h4 class="category-title">SNS</h4>
-                                <p class="category-note">リンク先を入力できるようにする</p>
                                 <ul class="communication-list">
                                     <li><img src="assets/images/icons/instagram.png" alt="Instagram"></li>
                                     <li><img src="assets/images/icons/facebook.png" alt="Facebook"></li>
@@ -406,8 +431,6 @@ if ($isTokenBased) {
                 </div>
                 <div class="feature-visual">
                     <div class="tech-tools-hex-container">
-                        <h3 class="tech-tools-hex-title">競合との「圧倒的な差別化」を実現。</h3>
-                        <p class="tech-tools-hex-subtitle">顧客に無料で提供できる、業界最先端の6つのテックツール。</p>
                         <div class="tech-tools-hex-grid">
                             <!-- Hexagon 1: 全国マンションデータベース -->
                             <div class="tech-tools-hex-item">
@@ -425,7 +448,7 @@ if ($isTokenBased) {
                                 <h4 class="tech-tools-hex-item-title">全国マンションデータベース</h4>
                                 <p class="tech-tools-hex-item-desc">全国の分譲マンションの95%以上を網羅。</p>
                                 <div class="tech-tools-hex-buttons">
-                                    <span class="tech-tools-hex-btn">売り</span>
+                                    <!-- <span class="tech-tools-hex-btn">売り</span> -->
                                     <span class="tech-tools-hex-btn">買い</span>
                                 </div>
                             </div>
@@ -523,7 +546,7 @@ if ($isTokenBased) {
     </section>
 
     <!-- Feature 03: 3 Minutes to Complete -->
-    <section class="feature-section feature-03">
+    <section class="feature-section feature-03" style="margin-bottom: 6.5rem;">
         <div class="container">
             <div class="feature-content">
                 <div class="feature-visual">
@@ -572,7 +595,7 @@ if ($isTokenBased) {
     </section>
 
     <!-- Real Estate Tech Tools Detail Section -->
-    <section class="tools-detail-section" id="tools">
+    <!-- <section class="tools-detail-section" id="tools">
         <div class="container">
             <h2 class="section-title">搭載されている不動産テックツール</h2>
             <p class="section-subtitle">
@@ -628,7 +651,7 @@ if ($isTokenBased) {
                 </div>
             </div>
         </div>
-    </section>
+    </section> -->
 
     <!-- Testimonials Two Column Section -->
     <section class="testimonials-two-column-section">
@@ -640,10 +663,12 @@ if ($isTokenBased) {
                     <div class="testimonials-column-content">
                         <div class="testimonial-block">
                             <div class="testimonial-portrait">
-                                <img src="assets/images/testimonials/brand-builder.png" alt="The Brand Builder">
+                                <div class="testimonial-portrait-image">
+                                    <img src="assets/images/testimonials/brand-builder.png" alt="The Brand Builder">
+                                </div>
+                                <h3 class="testimonial-english-title">The Brand Builder</h3>
                             </div>
                             <div class="testimonial-content">
-                                <h3 class="testimonial-english-title">The Brand Builder</h3>
                                 <p class="testimonial-japanese-text">
                                     相手に興味を持ってもらえたり、覚えてもらう、この体験はセルフブランディングの一環として、他の人と違う演出に役立っていますね。
                                 </p>
@@ -651,10 +676,12 @@ if ($isTokenBased) {
                         </div>
                         <div class="testimonial-block">
                             <div class="testimonial-portrait">
-                                <img src="assets/images/testimonials/creator.jpg" alt="The Creator">
+                                <div class="testimonial-portrait-image">
+                                    <img src="assets/images/testimonials/creator.jpg" alt="The Creator">
+                                </div>
+                                <h3 class="testimonial-english-title">The Creator</h3>
                             </div>
                             <div class="testimonial-content">
-                                <h3 class="testimonial-english-title">The Creator</h3>
                                 <p class="testimonial-japanese-text">
                                     自分の活動内容やスキル、SNSアカウントなどを自由に掲載できますし、デザインもカスタマイズできます。まさに、私が求めていた理想の名刺でしたね。
                                 </p>
@@ -669,10 +696,12 @@ if ($isTokenBased) {
                     <div class="testimonials-column-content">
                         <div class="testimonial-block">
                             <div class="testimonial-portrait">
-                                <img src="assets/images/testimonials/efficiency-expert.jpg" alt="The Efficiency Expert">
+                                <div class="testimonial-portrait-image">
+                                    <img src="assets/images/testimonials/efficiency-expert.jpg" alt="The Efficiency Expert">
+                                </div>
+                                <h3 class="testimonial-english-title">The Efficiency Expert</h3>
                             </div>
                             <div class="testimonial-content">
-                                <h3 class="testimonial-english-title">The Efficiency Expert</h3>
                                 <p class="testimonial-japanese-text">
                                     名刺交換後の失注が激減。顧客との信頼関係構築が圧倒的に早くなりました。
                                 </p>
@@ -680,10 +709,12 @@ if ($isTokenBased) {
                         </div>
                         <div class="testimonial-block">
                             <div class="testimonial-portrait">
-                                <img src="assets/images/testimonials/trusted-advisor.jpg" alt="The Trusted Advisor">
+                                <div class="testimonial-portrait-image">
+                                    <img src="assets/images/testimonials/trusted-advisor.jpg" alt="The Trusted Advisor">
+                                </div>
+                                <h3 class="testimonial-english-title">The Trusted Advisor</h3>
                             </div>
                             <div class="testimonial-content">
-                                <h3 class="testimonial-english-title">The Trusted Advisor</h3>
                                 <p class="testimonial-japanese-text">
                                     AI査定ツールのおかげで、顧客との会話がスムーズになり、信頼を得やすくなりました。
                                 </p>
@@ -746,11 +777,6 @@ if ($isTokenBased) {
                 </div>
             </div>
             
-            <!-- CTA Section -->
-            <div class="lp-new-cta-wrapper">
-                <a href="register.php?type=new" class="btn-primary btn-large lp-new-cta-button">不動産AI名刺をつくる</a>
-                <p class="lp-new-cta-note">※登録後、いつでも編集・変更が可能です</p>
-            </div>
         </div>
     </section>
     <?php endif; ?>
@@ -775,7 +801,7 @@ if ($isTokenBased) {
                     <p class="cta-description">
                         3分で完成。即日利用開始。<br>あなたの営業活動を劇的に変える、不動産AI名刺を今すぐ作成しましょう。
                     </p>
-                    <a href="register.php?type=new" class="btn-primary btn-large">不動産AI名刺をつくる</a>
+                    <a href="register.php?type=new" class="btn-primary btn-large" style="margin-top: 2.8rem; border-radius: 2.25rem; padding-inline: 3rem;">不動産AI名刺をつくる</a>
                 </div>
             </div>
         </div>

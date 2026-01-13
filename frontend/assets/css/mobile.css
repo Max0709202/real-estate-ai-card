@@ -1335,8 +1335,12 @@
     }
 
     .dx-integration-content {
-        padding: 0 1.25rem;
+        padding: 3rem 1.5rem 2.5rem !important;
         max-width: 100%;
+        background: #fff !important;
+        border-radius: 1.5rem !important;
+        box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.15) !important;
+        margin: 0 1rem;
     }
 
     .dx-tagline {
@@ -1365,8 +1369,8 @@
     }
 
     .dx-subtitle {
-        font-size: 1.15rem;
-        margin-bottom: 2rem;
+        font-size: 1rem;
+        margin-bottom: 2.5rem;
         line-height: 1.6;
         padding: 0;
         text-align: center;
@@ -1394,7 +1398,7 @@
 
     .dx-logo {
         width: 100%;
-        max-width: 280px;
+        max-width: 100%;
         height: auto;
         object-fit: contain;
         display: block;
@@ -1409,55 +1413,109 @@
 
     /* Automation Process Section - Mobile */
     .automation-section {
-        padding: 3.5rem 0;
-        background: #faf8f5;
+        padding: 3rem 0 !important;
+        background: #ebebeb !important;
+        background-image: url('../images/lp/image4.png') !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        border-radius: 0 0 3rem 3rem !important;
+    }
+
+    .automation-content {
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 
     .automation-title {
-        font-size: 1.75rem;
-        margin-bottom: 2.5rem;
-        padding-bottom: 0.75rem;
+        font-size: 1.4rem !important;
+        margin-bottom: 2rem !important;
+        color: #fff !important;
+        text-align: center !important;
     }
 
     .automation-title::after {
-        width: 120px;
-        height: 2px;
+        width: 60% !important;
+        height: 2px !important;
+        background: #333 !important;
     }
 
     .automation-grid {
-        grid-template-columns: 1fr;
-        gap: 2rem;
-        padding: 0 1rem;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2rem !important;
+        max-width: 100% !important;
+        margin: 0 auto !important;
+        padding: 0 1rem !important;
+    }
+
+    .automation-card-wrapper {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.5rem !important;
+        width: 100% !important;
+    }
+
+    .automation-card-wrapper .automation-card-content:first-child {
+        margin-bottom: 0.5rem;
+    }
+
+    .automation-card-wrapper .automation-card-content:first-child h3 {
+        color: #fff !important;
+        font-size: 0.9rem !important;
+        margin-bottom: 0 !important;
     }
 
     .automation-card {
-        padding: 2rem 1.5rem;
-        border-radius: 12px;
-        max-width: 100%;
+        padding: 1.5rem 0 !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 1.5rem !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important;
+        width: 100% !important;
+        max-width: 100% !important;
     }
 
-    .automation-card:hover {
-        transform: translateY(-3px);
+    .automation-card:last-child {
+        border-bottom: none !important;
+    }
+
+    .automation-card-icon {
+        flex-shrink: 0;
     }
 
     .automation-icon {
-        width: 80px;
-        height: 80px;
-        margin-bottom: 1.25rem;
+        width: 70px !important;
+        height: 70px !important;
+        margin-bottom: 0 !important;
+        background-color: #fff !important;
+        border-radius: 50% !important;
+    }
+
+    .automation-card-content {
+        flex: 1;
     }
 
     .automation-card-title {
-        font-size: 1.3rem;
-        margin-bottom: 0.875rem;
+        font-size: 0.95rem !important;
+        margin-bottom: 0.5rem !important;
+        color: #fff !important;
+        text-align: left !important;
     }
 
     .automation-subtitle {
-        font-size: 0.9rem;
+        font-size: 0.85rem !important;
+        color: #fff !important;
     }
 
     .automation-description {
-        font-size: 0.95rem;
-        line-height: 1.7;
+        font-size: 0.85rem !important;
+        line-height: 1.6 !important;
+        color: #fff !important;
+        text-align: left !important;
+        width: 100% !important;
     }
 
     .dx-product-name-wrapper {
@@ -1497,9 +1555,35 @@
         padding: 0 1rem;
     }
 
+    /* Communication Category - Mobile */
+    .communication-category {
+        padding: 2.5rem 1.5rem !important;
+        border-radius: 24px !important;
+        height: auto !important;
+        min-height: auto !important;
+    }
+
     .communication-list {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 0.75rem;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 0.875rem !important;
+        margin-bottom: 2rem !important;
+    }
+
+    .communication-list li {
+        width: 70px !important;
+        height: 70px !important;
+        border-radius: 16px !important;
+    }
+
+    .communication-list li img {
+        width: 55% !important;
+    }
+
+    .category-future {
+        font-size: 0.75rem !important;
+        margin-top: 0.75rem !important;
+        padding-top: 0.75rem !important;
+        line-height: 1.6 !important;
     }
 
     /* Video section */
@@ -1725,15 +1809,6 @@
     /* DX Integration Section - Tablet */
     .dx-integration-section {
         padding: 4rem 0;
-    }
-
-    .dx-integration-content {
-        padding: 0 1.5rem;
-    }
-
-    /* DX Integration Section - Tablet */
-    .dx-integration-section {
-        padding: 4rem 0;
         background: linear-gradient(to bottom, #ffffff 0%, #fafafa 100%);
         position: relative;
     }
@@ -1749,8 +1824,12 @@
     }
 
     .dx-integration-content {
-        padding: 0 2rem;
+        padding: 4rem 3rem 3.5rem !important;
         max-width: 100%;
+        background: #fff !important;
+        border-radius: 2rem !important;
+        box-shadow: 0px 3px 12px rgba(0, 0, 0, 0.2) !important;
+        margin: 0 2rem;
     }
 
     .dx-tagline {
@@ -1792,6 +1871,7 @@
         border: none;
         align-items: center;
         justify-content: center;
+
     }
 
     .dx-logo-wrapper {
@@ -1823,100 +1903,105 @@
 
     /* Automation Process Section - Tablet */
     .automation-section {
-        padding: 4rem 0;
-        background: #faf8f5;
+        padding: 4rem 0 !important;
+        background: #ebebeb !important;
+        background-image: url('../images/lp/image4.png') !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        border-radius: 0 0 3rem 3rem !important;
+    }
+
+    .automation-content {
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 
     .automation-title {
-        font-size: 2.2rem;
-        margin-bottom: 3rem;
-        padding-bottom: 0.875rem;
+        font-size: 1.5rem !important;
+        margin-bottom: 2.5rem !important;
+        color: #fff !important;
+        text-align: center !important;
     }
 
     .automation-title::after {
-        width: 160px;
-        height: 2px;
+        width: 60% !important;
+        height: 2px !important;
+        background: #333 !important;
     }
 
     .automation-grid {
-        grid-template-columns: 1fr;
-        gap: 2.5rem;
-        padding: 0 2rem;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2.5rem !important;
+        max-width: 100% !important;
+        margin: 0 auto !important;
+        padding: 0 2rem !important;
+    }
+
+    .automation-card-wrapper {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.75rem !important;
+        width: 100% !important;
+    }
+
+    .automation-card-wrapper .automation-card-content:first-child h3 {
+        color: #fff !important;
+        font-size: 0.95rem !important;
+        margin-bottom: 0 !important;
     }
 
     .automation-card {
-        padding: 2.25rem 2rem;
-        max-width: 600px;
-        margin: 0 auto;
+        padding: 2rem 0 !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 2rem !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .automation-card:last-child {
+        border-bottom: none !important;
+    }
+
+    .automation-card-icon {
+        flex-shrink: 0;
     }
 
     .automation-icon {
-        width: 90px;
-        height: 90px;
-        margin-bottom: 1.5rem;
+        width: 85px !important;
+        height: 85px !important;
+        margin-bottom: 0 !important;
+        background-color: #fff !important;
+        border-radius: 50% !important;
+    }
+
+    .automation-card-content {
+        flex: 1;
     }
 
     .automation-card-title {
-        font-size: 1.4rem;
-        margin-bottom: 1rem;
+        font-size: 1rem !important;
+        margin-bottom: 0.75rem !important;
+        color: #fff !important;
+        text-align: left !important;
     }
 
     .automation-subtitle {
-        font-size: 0.95rem;
+        font-size: 0.9rem !important;
+        color: #fff !important;
     }
 
     .automation-description {
-        font-size: 1.05rem;
-        line-height: 1.75;
-    }
-
-    /* Automation Process Section - Tablet */
-    .automation-section {
-        padding: 4rem 0;
-        background: #faf8f5;
-    }
-
-    .automation-title {
-        font-size: 2.2rem;
-        margin-bottom: 3rem;
-        padding-bottom: 0.875rem;
-    }
-
-    .automation-title::after {
-        width: 160px;
-        height: 2px;
-    }
-
-    .automation-grid {
-        grid-template-columns: 1fr;
-        gap: 2.5rem;
-        padding: 0 2rem;
-    }
-
-    .automation-card {
-        padding: 2.25rem 2rem;
-        max-width: 600px;
-        margin: 0 auto;
-    }
-
-    .automation-icon {
-        width: 90px;
-        height: 90px;
-        margin-bottom: 1.5rem;
-    }
-
-    .automation-card-title {
-        font-size: 1.4rem;
-        margin-bottom: 1rem;
-    }
-
-    .automation-subtitle {
-        font-size: 0.95rem;
-    }
-
-    .automation-description {
-        font-size: 1.05rem;
-        line-height: 1.75;
+        font-size: 0.95rem !important;
+        line-height: 1.7 !important;
+        color: #fff !important;
+        text-align: left !important;
+        width: 100% !important;
     }
 
     /* Communication section - Tablet */
@@ -2649,45 +2734,73 @@
 
     /* Automation Process Section - Very Small Screens */
     .automation-section {
-        padding: 3rem 0;
+        padding: 2.5rem 0 !important;
+        background: #ebebeb !important;
+        background-image: url('../images/lp/image4.png') !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        border-radius: 0 0 3rem 3rem !important;
+    }
+
+    .automation-content {
+        flex-direction: column !important;
     }
 
     .automation-title {
-        font-size: 1.5rem;
-        margin-bottom: 2rem;
-        padding-bottom: 0.625rem;
+        font-size: 1.2rem !important;
+        margin-bottom: 1.5rem !important;
+        color: #fff !important;
     }
 
     .automation-title::after {
-        width: 100px;
+        width: 50% !important;
+        background: #333 !important;
     }
 
     .automation-grid {
-        gap: 1.75rem;
-        padding: 0 0.875rem;
+        gap: 1.5rem !important;
+        padding: 0 0.875rem !important;
+    }
+
+    .automation-card-wrapper {
+        flex-direction: column !important;
+        gap: 0.5rem !important;
+    }
+
+    .automation-card-wrapper .automation-card-content:first-child h3 {
+        color: #fff !important;
+        font-size: 0.85rem !important;
     }
 
     .automation-card {
-        padding: 1.75rem 1.25rem;
+        padding: 1.25rem 0 !important;
+        flex-direction: row !important;
+        gap: 1rem !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important;
     }
 
     .automation-icon {
-        width: 70px;
-        height: 70px;
-        margin-bottom: 1rem;
+        width: 60px !important;
+        height: 60px !important;
+        margin-bottom: 0 !important;
+        background-color: #fff !important;
     }
 
     .automation-card-title {
-        font-size: 1.2rem;
-        margin-bottom: 0.75rem;
+        font-size: 0.85rem !important;
+        margin-bottom: 0.5rem !important;
+        color: #fff !important;
     }
 
     .automation-subtitle {
-        font-size: 0.85rem;
+        font-size: 0.75rem !important;
+        color: #fff !important;
     }
 
     .automation-description {
-        font-size: 0.9rem;
+        font-size: 0.8rem !important;
+        color: #fff !important;
         line-height: 1.6;
     }
 
@@ -2757,6 +2870,35 @@
 
     .greeting-item p {
         font-size: 0.85rem;
+    }
+
+    /* Communication Category - Very Small Screens */
+    .communication-category {
+        padding: 2rem 1.25rem !important;
+        border-radius: 20px !important;
+    }
+
+    .communication-list {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 0.625rem !important;
+        margin-bottom: 1.5rem !important;
+    }
+
+    .communication-list li {
+        width: 60px !important;
+        height: 60px !important;
+        border-radius: 12px !important;
+    }
+
+    .communication-list li img {
+        width: 50% !important;
+    }
+
+    .category-future {
+        font-size: 0.7rem !important;
+        margin-top: 0.5rem !important;
+        padding-top: 0.5rem !important;
+        line-height: 1.5 !important;
     }
 }
 
