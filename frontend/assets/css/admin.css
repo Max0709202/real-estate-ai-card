@@ -121,6 +121,8 @@ body {
     transition: background 0.3s;
     width: 100%;
     max-width: 200px;
+    display: block;
+    margin: 0 auto;
 }
 
 .btn-primary:hover {
@@ -129,6 +131,9 @@ body {
 
 .btn-block {
     width: 100%;
+    max-width: 200px;
+    display: block;
+    margin: 0 auto;
 }
 
 .error-message {

@@ -2000,40 +2000,158 @@ html {
 }
 
 @media (max-width: 1024px) {
-    .footer-content {
-        grid-template-columns: 1fr 1fr;
-        gap: 40px;
+    .footer {
+        padding: 4rem 2rem 2.5rem !important;
     }
-    
+
     .footer-background-text {
-        font-size: 8rem;
+        font-size: 7rem !important;
+        letter-spacing: 0.08em !important;
     }
-    
+
+    .footer-content {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 3rem !important;
+        margin-bottom: 3rem !important;
+    }
+
+    .footer-section h4 {
+        font-size: 1.15rem !important;
+        margin-bottom: 1.5rem !important;
+    }
+
+    .footer-logo {
+        font-size: 1.65rem !important;
+        margin-bottom: 1rem !important;
+    }
+
+    .footer-description {
+        font-size: 0.95rem !important;
+    }
+
+    .footer-section ul li {
+        margin-bottom: 0.875rem !important;
+    }
+
+    .footer-section a {
+        font-size: 0.92rem !important;
+    }
+
+    .footer-save-btn {
+        display: inline-block !important;
+        padding: 0.7rem 1.4rem !important;
+        border-radius: 8px !important;
+        background: rgba(255, 255, 255, 0.1) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        text-decoration: none !important;
+        font-size: 0.9rem !important;
+        transition: all 0.3s ease !important;
+        margin-top: 0.75rem !important;
+    }
+
+    .footer-save-btn:hover {
+        background: rgba(255, 255, 255, 0.2) !important;
+        border-color: rgba(255, 255, 255, 0.3) !important;
+    }
+
     .footer-bottom-content {
-        flex-direction: column;
-        gap: 15px;
-        text-align: center;
+        flex-direction: column !important;
+        gap: 1rem !important;
+        text-align: center !important;
     }
 }
 
 @media (max-width: 768px) {
     .footer {
-        padding: 60px 20px 30px;
+        padding: 3rem 1.25rem 2rem !important;
+        border-radius: 3rem 3rem 0 0 !important;
     }
-    
-    .footer-content {
-        grid-template-columns: 1fr;
-        gap: 30px;
-    }
-    
+
     .footer-background-text {
-        font-size: 5rem;
+        font-size: 4rem !important;
+        letter-spacing: 0.05em !important;
     }
-    
+
+    .footer-content {
+        grid-template-columns: 1fr !important;
+        gap: 2.5rem !important;
+        margin-bottom: 2.5rem !important;
+    }
+
+    .footer-section {
+        text-align: center !important;
+    }
+
+    .footer-section h4 {
+        font-size: 1.1rem !important;
+        margin-bottom: 1.25rem !important;
+    }
+
+    .footer-logo {
+        font-size: 1.5rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+
+    .footer-description {
+        font-size: 0.9rem !important;
+        line-height: 1.6 !important;
+        margin-bottom: 0 !important;
+    }
+
+    .footer-section ul {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+    }
+
+    .footer-section ul li {
+        margin-bottom: 0 !important;
+    }
+
+    .footer-section a {
+        font-size: 0.9rem !important;
+        gap: 0.5rem !important;
+    }
+
+    .social-links {
+        align-items: center !important;
+        gap: 0.75rem !important;
+    }
+
+    .footer-save-btn {
+        display: inline-block !important;
+        padding: 0.75rem 1.5rem !important;
+        border-radius: 8px !important;
+        background: rgba(255, 255, 255, 0.1) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        text-decoration: none !important;
+        font-size: 0.9rem !important;
+        transition: all 0.3s ease !important;
+        margin-top: 0.75rem !important;
+    }
+
+    .footer-save-btn:hover {
+        background: rgba(255, 255, 255, 0.2) !important;
+        border-color: rgba(255, 255, 255, 0.3) !important;
+    }
+
+    .footer-bottom {
+        padding-top: 1.5rem !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
+    }
+
+    .footer-bottom-content {
+        flex-direction: column !important;
+        gap: 0.75rem !important;
+        text-align: center !important;
+        font-size: 0.85rem !important;
+    }
+
     .newsletter-input-wrapper {
         flex-direction: column;
     }
-    
+
     .newsletter-submit {
         width: 10%;
         border-radius: 25px;
@@ -3011,5 +3129,58 @@ html {
         padding: 0.3rem 0.625rem !important;
         font-size: 0.6rem !important;
         border-radius: 8px !important;
+    }
+
+    /* Footer - Very Small Screens */
+    .footer {
+        padding: 2.5rem 1rem 1.75rem !important;
+        border-radius: 2rem 2rem 0 0 !important;
+    }
+
+    .footer-background-text {
+        font-size: 3rem !important;
+        letter-spacing: 0.03em !important;
+    }
+
+    .footer-content {
+        gap: 2rem !important;
+        margin-bottom: 2rem !important;
+    }
+
+    .footer-section h4 {
+        font-size: 1rem !important;
+        margin-bottom: 1rem !important;
+    }
+
+    .footer-logo {
+        font-size: 1.35rem !important;
+        margin-bottom: 0.625rem !important;
+    }
+
+    .footer-description {
+        font-size: 0.85rem !important;
+    }
+
+    .footer-section ul {
+        gap: 0.625rem !important;
+    }
+
+    .footer-section a {
+        font-size: 0.85rem !important;
+    }
+
+    .footer-save-btn {
+        padding: 0.625rem 1.25rem !important;
+        font-size: 0.85rem !important;
+        margin-top: 0.625rem !important;
+    }
+
+    .footer-bottom {
+        padding-top: 1.25rem !important;
+    }
+
+    .footer-bottom-content {
+        font-size: 0.8rem !important;
+        gap: 0.625rem !important;
     }
 }
