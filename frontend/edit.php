@@ -610,7 +610,7 @@ $defaultGreetings = [
                         </div>
 
                         <div class="form-group">
-                            <label>会社HP URL</label>
+                            <label>会社HP　URL（https://  から入力してください。）</label>
                             <input type="url" name="company_website" class="form-control" placeholder="https://example.com">
                         </div>
 

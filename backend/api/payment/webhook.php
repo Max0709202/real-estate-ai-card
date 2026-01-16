@@ -292,7 +292,7 @@ try {
                                     error_log("Error creating subscription record after invoice.payment_succeeded: " . $dbError->getMessage());
                                     error_log("Payment details: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, user_type={$payment['user_type']}");
                                 }
-                            } catch (Exception $e) {
+                                } catch (Exception $e) {
                                 error_log("Error creating subscription record after invoice.payment_succeeded: " . $e->getMessage());
                                 error_log("Payment details: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, user_type={$payment['user_type']}");
                             }
@@ -694,7 +694,7 @@ try {
                             } catch (Exception $e) {
                                 error_log("Error creating subscription record after payment_intent.succeeded: " . $e->getMessage());
                                 error_log("Payment details: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, user_type={$payment['user_type']}");
-                            }
+                        }
                         } else {
                             // Subscription exists, but check if stripe_subscription_id is missing and try to find it
                             if (empty($existingSub['stripe_subscription_id']) && !empty($payment['stripe_customer_id'])) {

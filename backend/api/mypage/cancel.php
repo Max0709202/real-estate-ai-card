@@ -8,11 +8,11 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 
 try {
-    require_once __DIR__ . '/../../config/config.php';
-    require_once __DIR__ . '/../../config/database.php';
-    require_once __DIR__ . '/../../includes/functions.php';
-    require_once __DIR__ . '/../../includes/stripe-service.php';
-    require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/stripe-service.php';
+require_once __DIR__ . '/../middleware/auth.php';
 } catch (Exception $e) {
     error_log("Cancel API require error: " . $e->getMessage());
     http_response_code(500);
@@ -190,12 +190,12 @@ try {
         // Cancel subscription in Stripe only if stripe_subscription_id exists
         if (!empty($subscription['stripe_subscription_id'])) {
             try {
-                $stripeService = new StripeService();
-                $stripeSubscription = $stripeService->cancelSubscription($subscription['stripe_subscription_id'], $cancelImmediately);
+        $stripeService = new StripeService();
+        $stripeSubscription = $stripeService->cancelSubscription($subscription['stripe_subscription_id'], $cancelImmediately);
 
                 // Update status based on Stripe response
                 if ($stripeSubscription) {
-                    $newStatus = ($cancelImmediately || $stripeSubscription->status === 'canceled') ? 'canceled' : 'active'; // Will be canceled at period end
+        $newStatus = ($cancelImmediately || $stripeSubscription->status === 'canceled') ? 'canceled' : 'active'; // Will be canceled at period end
                 } else {
                     // If Stripe cancellation fails, still mark as canceled in DB
                     $newStatus = 'canceled';
@@ -211,7 +211,7 @@ try {
             // This can happen for subscriptions created without Stripe (e.g., bank transfer only)
             $newStatus = 'canceled';
         }
-
+        
         $stmt = $db->prepare("
             UPDATE subscriptions
             SET status = ?,
@@ -236,15 +236,15 @@ try {
         // Otherwise, use regular error_log for user-initiated cancellations
         if (!empty($_SESSION['admin_id'])) {
             // Admin-initiated cancellation
-            logAdminChange(
-                $db,
+        logAdminChange(
+            $db,
                 $_SESSION['admin_id'],
                 $_SESSION['admin_email'] ?? 'unknown',
-                'subscription_canceled',
-                'subscription',
-                $subscription['id'],
+            'subscription_canceled',
+            'subscription',
+            $subscription['id'],
                 "サブスクリプションキャンセル（管理者操作）: ユーザー {$subscription['email']} (ビジネスカードID: {$subscription['business_card_id']}, URL: {$businessCard['url_slug']})"
-            );
+        );
         } else {
             // User-initiated cancellation - log to error log instead
             error_log("Subscription canceled by user: user_id={$userId}, email={$subscription['email']}, subscription_id={$subscription['id']}, business_card_id={$subscription['business_card_id']}, url_slug={$businessCard['url_slug']}, cancel_immediately=" . ($cancelImmediately ? 'yes' : 'no'));

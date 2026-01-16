@@ -123,18 +123,18 @@ if ($isLoggedIn) {
             <nav class="nav">
 
                 <?php if ($isLoggedIn): ?>
-                <?php
+                        <?php
                 // Initialize header user info variables
                 $headerUserName = null;
                 $headerUsagePeriodDisplay = null;
-                $headerSubscriptionInfo = null;
-                $headerHasActiveSubscription = false;
+                        $headerSubscriptionInfo = null;
+                        $headerHasActiveSubscription = false;
 
                 // Get user info for header display
-                try {
-                    require_once __DIR__ . '/../../backend/config/database.php';
-                    $database = new Database();
-                    $db = $database->getConnection();
+                            try {
+                                require_once __DIR__ . '/../../backend/config/database.php';
+                                $database = new Database();
+                                $db = $database->getConnection();
 
                     // Get user name from business_cards
                     $stmt = $db->prepare("
@@ -146,33 +146,33 @@ if ($isLoggedIn) {
                         $headerUserName = $bcName['name'];
                     }
 
-                    $stmt = $db->prepare("
-                        SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
-                               bc.payment_status, u.user_type
-                        FROM subscriptions s
-                        JOIN business_cards bc ON s.business_card_id = bc.id
-                        JOIN users u ON bc.user_id = u.id
-                        WHERE s.user_id = ?
-                        ORDER BY s.created_at DESC
-                        LIMIT 1
-                    ");
-                    $stmt->execute([$_SESSION['user_id']]);
-                    $headerSubscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                                $stmt = $db->prepare("
+                                    SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
+                                           bc.payment_status, u.user_type
+                                    FROM subscriptions s
+                                    JOIN business_cards bc ON s.business_card_id = bc.id
+                                    JOIN users u ON bc.user_id = u.id
+                                    WHERE s.user_id = ?
+                                    ORDER BY s.created_at DESC
+                                    LIMIT 1
+                                ");
+                                $stmt->execute([$_SESSION['user_id']]);
+                                $headerSubscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
 
-                    // Calculate end date for header
-                    $headerEndDate = null;
-                    if ($headerSubscriptionInfo) {
-                        if ($headerSubscriptionInfo['next_billing_date']) {
+                                // Calculate end date for header
+                                $headerEndDate = null;
+                                if ($headerSubscriptionInfo) {
+                                    if ($headerSubscriptionInfo['next_billing_date']) {
                             // End date is the day before next billing date (last day of current period)
-                            $nextBilling = new DateTime($headerSubscriptionInfo['next_billing_date']);
-                            $nextBilling->modify('-1 day');
-                            $headerEndDate = $nextBilling->format('Y年n月j日');
-                        } elseif ($headerSubscriptionInfo['cancelled_at']) {
+                                        $nextBilling = new DateTime($headerSubscriptionInfo['next_billing_date']);
+                                        $nextBilling->modify('-1 day');
+                                        $headerEndDate = $nextBilling->format('Y年n月j日');
+                                    } elseif ($headerSubscriptionInfo['cancelled_at']) {
                             // If already cancelled, use cancelled_at date
-                            $cancelled = new DateTime($headerSubscriptionInfo['cancelled_at']);
-                            $headerEndDate = $cancelled->format('Y年n月j日');
-                        }
-                    }
+                                        $cancelled = new DateTime($headerSubscriptionInfo['cancelled_at']);
+                                        $headerEndDate = $cancelled->format('Y年n月j日');
+                                    }
+                                }
 
                     // If subscription exists but no end date calculated yet, or subscription doesn't exist, try to get from payment date
                     if (!$headerEndDate) {
@@ -296,25 +296,25 @@ if ($isLoggedIn) {
                         }
                     }
 
-                    if ($headerSubscriptionInfo && in_array($headerSubscriptionInfo['status'], ['active', 'trialing', 'past_due', 'incomplete'])) {
-                        $headerHasActiveSubscription = true;
-                    } elseif (!$headerSubscriptionInfo) {
-                        $stmt = $db->prepare("
-                            SELECT bc.payment_status, u.user_type
-                            FROM business_cards bc
-                            JOIN users u ON bc.user_id = u.id
-                            WHERE bc.user_id = ?
-                            LIMIT 1
-                        ");
-                        $stmt->execute([$_SESSION['user_id']]);
-                        $cardInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                                if ($headerSubscriptionInfo && in_array($headerSubscriptionInfo['status'], ['active', 'trialing', 'past_due', 'incomplete'])) {
+                                    $headerHasActiveSubscription = true;
+                                } elseif (!$headerSubscriptionInfo) {
+                                    $stmt = $db->prepare("
+                                        SELECT bc.payment_status, u.user_type
+                                        FROM business_cards bc
+                                        JOIN users u ON bc.user_id = u.id
+                                        WHERE bc.user_id = ?
+                                        LIMIT 1
+                                    ");
+                                    $stmt->execute([$_SESSION['user_id']]);
+                                    $cardInfo = $stmt->fetch(PDO::FETCH_ASSOC);
                         if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID', 'ST']) && $cardInfo['user_type'] === 'new') {
-                            $headerHasActiveSubscription = true;
-                        }
-                    }
-                } catch (Exception $e) {
-                    error_log("Header subscription check error: " . $e->getMessage());
-                }
+                                        $headerHasActiveSubscription = true;
+                                    }
+                                }
+                            } catch (Exception $e) {
+                                error_log("Header subscription check error: " . $e->getMessage());
+                            }
                 ?>
                 <!-- User Menu (Person Icon with Dropdown) -->
                 <div class="user-menu">
@@ -373,7 +373,7 @@ if ($isLoggedIn) {
                             <?php endif; ?>
                         </div>
                         <?php endif; ?>
-                        <button type="button" class="dropdown-item dropdown-button cancel-subscription-btn" style="color: #dc3545; cursor: pointer; width: 100%; text-align: left; background: none; border: none; padding: 0.75rem 1.25rem;">
+                        <button type="button" class="dropdown-item dropdown-button cancel-subscription-btn" style="font-weight: normal;">
                             <span>利用停止</span>
                         </button>
                         <?php endif; ?>

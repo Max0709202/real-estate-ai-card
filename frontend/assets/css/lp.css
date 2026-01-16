@@ -2003,7 +2003,7 @@ html {
     .footer {
         padding: 4rem 2rem 2.5rem !important;
     }
-
+    
     .footer-background-text {
         font-size: 7rem !important;
         letter-spacing: 0.08em !important;
@@ -2053,7 +2053,7 @@ html {
         background: rgba(255, 255, 255, 0.2) !important;
         border-color: rgba(255, 255, 255, 0.3) !important;
     }
-
+    
     .footer-bottom-content {
         flex-direction: column !important;
         gap: 1rem !important;
@@ -2071,7 +2071,7 @@ html {
         font-size: 4rem !important;
         letter-spacing: 0.05em !important;
     }
-
+    
     .footer-content {
         grid-template-columns: 1fr !important;
         gap: 2.5rem !important;
@@ -2104,7 +2104,7 @@ html {
         align-items: center !important;
         gap: 0.75rem !important;
     }
-
+    
     .footer-section ul li {
         margin-bottom: 0 !important;
     }
@@ -2147,11 +2147,11 @@ html {
         text-align: center !important;
         font-size: 0.85rem !important;
     }
-
+    
     .newsletter-input-wrapper {
         flex-direction: column;
     }
-
+    
     .newsletter-submit {
         width: 10%;
         border-radius: 25px;
@@ -2209,7 +2209,7 @@ html {
         gap: 40px;
         padding: 0 2rem;
     }
-
+    
     .feature-content.reverse {
         flex-direction: column-reverse;
     }
@@ -2369,7 +2369,7 @@ html {
     .testimonial-japanese-text {
         font-size: 0.85rem !important;
     }
-
+    
     .tools-grid {
         grid-template-columns: 1fr;
     }
@@ -2537,17 +2537,17 @@ html {
     .tech-tools-hex-container {
         padding: 1rem !important;
     }
-
+    
     .tech-tools-hex-title {
         font-size: 1.2rem !important;
         margin-bottom: 0.5rem !important;
     }
-
+    
     .tech-tools-hex-subtitle {
         font-size: 0.85rem !important;
         margin-bottom: 1.5rem !important;
     }
-
+    
     .tech-tools-hex-grid {
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 0.875rem !important;
@@ -2555,24 +2555,24 @@ html {
         padding: 1rem 0.75rem !important;
         border-radius: 1rem !important;
     }
-
+    
     .tech-tools-hex-item {
         padding: 1rem 0.75rem !important;
         border-radius: 10px !important;
     }
-
+    
     .tech-tools-hex-icon {
         width: 42px !important;
         height: 42px !important;
         margin-bottom: 0.75rem !important;
     }
-
+    
     .tech-tools-hex-item-title {
         font-size: 0.8rem !important;
         margin-bottom: 0.5rem !important;
         line-height: 1.3 !important;
     }
-
+    
     .tech-tools-hex-item-desc {
         font-size: 0.7rem !important;
         margin-bottom: 0.75rem !important;
@@ -2583,7 +2583,7 @@ html {
         gap: 0.5rem !important;
         margin-top: 0.5rem !important;
     }
-
+    
     .tech-tools-hex-btn {
         padding: 0.35rem 0.75rem !important;
         font-size: 0.65rem !important;
@@ -2746,17 +2746,17 @@ html {
     .testimonials-two-column-section {
         padding: 3rem 0 !important;
     }
-
+    
     .testimonials-two-column-grid {
         grid-template-columns: 1fr !important;
         gap: 3rem !important;
         padding: 0 1.25rem !important;
     }
-
+    
     .testimonials-column {
         gap: 2rem !important;
     }
-
+    
     .testimonials-column-title {
         font-size: 1.2rem !important;
         text-align: center;
@@ -2767,7 +2767,7 @@ html {
     .testimonials-column-content {
         gap: 1.5rem !important;
     }
-
+    
     .testimonial-block {
         flex-direction: column !important;
         align-items: center !important;
@@ -2777,7 +2777,7 @@ html {
         height: auto !important;
         min-height: auto !important;
     }
-
+    
     .testimonial-portrait {
         flex-direction: column !important;
         gap: 0.75rem !important;
@@ -2788,7 +2788,7 @@ html {
         width: 5rem !important;
         height: 5rem !important;
     }
-
+    
     .testimonial-english-title {
         font-size: 0.95rem !important;
         margin-top: 0.25rem;
@@ -2798,7 +2798,7 @@ html {
         width: 100% !important;
         text-align: center !important;
     }
-
+    
     .testimonial-japanese-text {
         font-size: 0.85rem !important;
         line-height: 1.7 !important;
@@ -2832,20 +2832,20 @@ html {
     .lp-new-pricing-section {
         padding: 3rem 0 2rem !important;
     }
-
+    
     .lp-new-title {
         font-size: 1.4rem !important;
         margin-bottom: 0.75rem !important;
         padding: 0 1.25rem !important;
         line-height: 1.4 !important;
     }
-
+    
     .lp-new-subtitle {
         font-size: 0.95rem !important;
         margin-bottom: 2rem !important;
         padding: 0 1.25rem !important;
     }
-
+    
     .lp-new-content-grid {
         flex-direction: column !important;
         gap: 2rem !important;
@@ -2853,7 +2853,7 @@ html {
         margin-bottom: 2rem !important;
         align-items: stretch !important;
     }
-
+    
     .lp-new-benefits {
         width: 100% !important;
         padding: 2rem 1.5rem !important;
@@ -2861,7 +2861,7 @@ html {
         height: auto !important;
         min-height: auto !important;
     }
-
+    
     .lp-new-benefits-title {
         font-size: 1.1rem !important;
         margin-bottom: 1.75rem !important;
@@ -2872,19 +2872,19 @@ html {
         gap: 0.75rem !important;
         margin: auto;
     }
-
+    
     .lp-new-benefit-item {
         font-size: 0.85rem !important;
         padding: 0.75rem 0 !important;
         padding-left: 1.75rem !important;
         line-height: 1.6 !important;
     }
-
+    
     .lp-new-benefit-item::before {
         font-size: 0.85rem !important;
         left: 0 !important;
     }
-
+    
     .lp-new-pricing-card {
         width: 100% !important;
         padding: 0 !important;
@@ -2893,19 +2893,19 @@ html {
         height: auto !important;
         min-height: auto !important;
     }
-
+    
     .lp-new-pricing-content {
         padding: 2rem 1.5rem 1.75rem !important;
         gap: 1.25rem !important;
         margin: auto;
     }
-
+    
     .lp-new-popular-badge {
         top: 0.75rem !important;
         padding: 0.35rem 0.85rem !important;
         font-size: 0.65rem !important;
     }
-
+    
     .lp-new-plan-title {
         font-size: 1.15rem !important;
         margin: 1.25rem 0 0.75rem !important;
@@ -2915,19 +2915,19 @@ html {
         margin-top: 2.5rem !important;
         margin-bottom: 0.5rem !important;
     }
-
+    
     .lp-new-price-symbol {
         font-size: 1.1rem !important;
     }
-
+    
     .lp-new-price-number {
         font-size: 2.2rem !important;
     }
-
+    
     .lp-new-price-period {
         font-size: 1.1rem !important;
     }
-
+    
     .lp-new-initial-fee-note {
         font-size: 0.75rem !important;
         margin-bottom: 1.5rem !important;
