@@ -357,9 +357,34 @@
     function restoreFormData() {
         try {
             const saved = localStorage.getItem(CONFIG.STORAGE_KEY);
-            if (!saved) return false;
+            if (!saved) {
+                // Check if there's server-side draft data
+                checkServerDraft();
+                return false;
+            }
 
             const formData = JSON.parse(saved);
+            let restored = false;
+            
+            // Wait a bit for DOM to be fully ready (especially for mobile)
+            setTimeout(() => {
+                restoreFormDataInternal(formData);
+            }, 100);
+            
+            return true;
+        } catch (error) {
+            console.error('Error restoring from localStorage:', error);
+            // Try to check server draft as fallback
+            checkServerDraft();
+            return false;
+        }
+    }
+
+    /**
+     * Internal restore function
+     */
+    function restoreFormDataInternal(formData) {
+        try {
             let restored = false;
 
             // Handle flat data structure (from collectFormDataForDraft)
@@ -463,8 +488,50 @@
 
             return restored;
         } catch (error) {
-            console.error('Error restoring from localStorage:', error);
+            console.error('Error in restoreFormDataInternal:', error);
             return false;
+        }
+    }
+
+    /**
+     * Check for server-side draft data
+     */
+    async function checkServerDraft() {
+        // Only check on edit.php
+        if (!window.location.pathname.includes('edit.php')) {
+            return;
+        }
+
+        try {
+            // Use the existing business card get endpoint
+            const response = await fetch('../backend/api/business-card/get.php', {
+                method: 'GET',
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                    // Check if card_status is 'draft' (unsaved changes)
+                    const cardData = result.data;
+                    if (cardData.card_status === 'draft') {
+                        // Convert business card data to form data format
+                        const formData = { default: {} };
+                        Object.keys(cardData).forEach(key => {
+                            if (cardData[key] !== null && cardData[key] !== undefined) {
+                                formData.default[key] = cardData[key];
+                            }
+                        });
+                        
+                        // Restore from server draft after a short delay
+                        setTimeout(() => {
+                            restoreFormDataInternal(formData);
+                        }, 300);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error checking server draft:', error);
         }
     }
 
@@ -821,6 +888,45 @@
     }
 
     /**
+     * Synchronous save function (for mobile/unload events)
+     * Saves immediately without debouncing
+     */
+    function saveFormDataSync() {
+        try {
+            const forms = document.querySelectorAll('form');
+            const formData = {};
+
+            forms.forEach(form => {
+                const formId = form.id || 'default';
+                formData[formId] = {};
+
+                // Get all input, textarea, select fields (except passwords and files)
+                const fields = form.querySelectorAll('input:not([type="file"]):not([type="password"]), textarea, select');
+                
+                fields.forEach(field => {
+                    if (isPasswordField(field)) return;
+
+                    const fieldName = field.name || field.id;
+                    if (!fieldName) return;
+
+                    if (field.type === 'checkbox' || field.type === 'radio') {
+                        formData[formId][fieldName] = field.checked ? field.value : '';
+                    } else {
+                        formData[formId][fieldName] = field.value;
+                    }
+                });
+            });
+
+            // Save to localStorage synchronously
+            localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(formData));
+            return true;
+        } catch (error) {
+            console.error('Error saving to localStorage (sync):', error);
+            return false;
+        }
+    }
+
+    /**
      * Debounced save function
      */
     function debouncedSave() {
@@ -985,8 +1091,21 @@
             document.head.appendChild(style);
         }
 
-        // Restore form data
+        // Restore form data (with retry for mobile)
         restoreFormData();
+        
+        // Retry restore after a delay (for slow mobile DOM loading)
+        setTimeout(() => {
+            const saved = localStorage.getItem(CONFIG.STORAGE_KEY);
+            if (saved) {
+                try {
+                    const formData = JSON.parse(saved);
+                    restoreFormDataInternal(formData);
+                } catch (error) {
+                    console.error('Error in retry restore:', error);
+                }
+            }
+        }, 500);
 
         // Restore files
         await restoreFiles();
@@ -1025,14 +1144,82 @@
             return false;
         }
 
+        // Save data before page unload (for mobile compatibility)
+        // Use pagehide for mobile (more reliable than beforeunload on iOS)
+        window.addEventListener('pagehide', (e) => {
+            // Save data synchronously before page is hidden
+            if (isDirty && !isSubmitting) {
+                saveFormDataSync();
+                
+                // Also try to save to server using fetch with keepalive (more reliable on mobile)
+                if (window.location.pathname.includes('edit.php')) {
+                    try {
+                        const draftData = collectFormDataForDraft();
+                        if (draftData && Object.keys(draftData).length > 0) {
+                            // Use fetch with keepalive for reliable mobile saving
+                            fetch('../backend/api/mypage/autosave.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                credentials: 'include',
+                                body: JSON.stringify(draftData),
+                                keepalive: true // Critical for mobile pagehide events
+                            }).catch(() => {
+                                // Ignore errors during pagehide
+                            });
+                        }
+                    } catch (error) {
+                        // Ignore errors during pagehide
+                    }
+                }
+            }
+        });
+
+        // Also use visibilitychange for better mobile support
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && isDirty && !isSubmitting) {
+                // Save data when page becomes hidden
+                saveFormDataSync();
+                
+                // Try to save to server asynchronously (but don't wait)
+                if (window.location.pathname.includes('edit.php')) {
+                    try {
+                        const draftData = collectFormDataForDraft();
+                        if (draftData && Object.keys(draftData).length > 0) {
+                            // Use fetch with keepalive for better mobile support
+                            fetch('../backend/api/mypage/autosave.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                credentials: 'include',
+                                body: JSON.stringify(draftData),
+                                keepalive: true // Important for mobile
+                            }).catch(() => {
+                                // Ignore errors during visibility change
+                            });
+                        }
+                    } catch (error) {
+                        // Ignore errors during visibility change
+                    }
+                }
+            }
+        });
+
         // beforeunload warning (not shown on payment step 6/6)
+        // Note: This may not work reliably on mobile, but we keep it for desktop
         window.addEventListener('beforeunload', (e) => {
             // Don't show warning if on payment step (6/6)
             if (isOnPaymentStep()) {
                 return;
             }
 
+            // Save data synchronously before showing warning
             if (isDirty && !isSubmitting) {
+                saveFormDataSync();
+                
+                // Show warning on desktop browsers
                 e.preventDefault();
                 e.returnValue = '入力内容が保存されていません。このページを離れますか？';
                 return e.returnValue;

@@ -1633,11 +1633,29 @@ $defaultGreetings = [
         document.addEventListener('DOMContentLoaded', function() {
             const headerGreetingForm = document.getElementById('header-greeting-form');
             if (headerGreetingForm) {
+                let isSubmitting = false; // Prevent double submission
+                
                 headerGreetingForm.addEventListener('submit', async function(e) {
                     e.preventDefault();
+                    
+                    // Prevent double submission (especially important for mobile)
+                    if (isSubmitting) {
+                        console.log('Already submitting, ignoring duplicate submission');
+                        return;
+                    }
+                    isSubmitting = true;
+                    
+                    // Disable submit button and show loading state
+                    const submitButton = headerGreetingForm.querySelector('button[type="submit"]');
+                    const originalButtonText = submitButton ? submitButton.textContent : '';
+                    if (submitButton) {
+                        submitButton.disabled = true;
+                        submitButton.textContent = '保存中...';
+                    }
 
-                    const formData = new FormData(headerGreetingForm);
-                    const data = {};
+                    try {
+                        const formData = new FormData(headerGreetingForm);
+                        const data = {};
 
                     // Get all fields
                     for (let [key, value] of formData.entries()) {
@@ -1826,14 +1844,25 @@ $defaultGreetings = [
 
                     // Send to API
                     try {
+                        // Add timeout for mobile networks (30 seconds)
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 30000);
+                        
                         const response = await fetch('../backend/api/business-card/update.php', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
                             body: JSON.stringify(data),
-                            credentials: 'include'
+                            credentials: 'include',
+                            signal: controller.signal
                         });
+                        clearTimeout(timeoutId);
+                        
+                        // Check if response is OK
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
 
                         const result = await response.json();
 
@@ -1841,6 +1870,14 @@ $defaultGreetings = [
                             // Clear dirty flag to prevent "unsaved changes" popup
                             if (window.autoSave && window.autoSave.markClean) {
                                 window.autoSave.markClean();
+                            }
+                            // Clear drafts on successful save
+                            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                                await window.autoSave.clearDraftsOnSuccess();
+                            }
+                            // Show success message
+                            if (typeof showSuccess === 'function') {
+                                showSuccess('保存しました');
                             }
                             // Update business card data and move to next step without reloading
                             if (typeof loadBusinessCardData === 'function') {
@@ -1861,11 +1898,22 @@ $defaultGreetings = [
                                 }, 300);
                             }
                         } else {
-                            showError('保存に失敗しました: ' + result.message);
+                            showError('保存に失敗しました: ' + (result.message || '不明なエラー'));
+                            isSubmitting = false;
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = originalButtonText;
+                            }
                         }
                     } catch (error) {
                         console.error('Error:', error);
-                        showError('エラーが発生しました');
+                        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
+                        showError('エラーが発生しました: ' + errorMessage);
+                        isSubmitting = false;
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        }
                     }
                 });
             }
@@ -1873,8 +1921,25 @@ $defaultGreetings = [
             // Step 2: Company Profile form submission
             const companyProfileForm = document.getElementById('company-profile-form');
             if (companyProfileForm) {
+                let isSubmittingStep2 = false; // Prevent double submission
+                
                 companyProfileForm.addEventListener('submit', async function(e) {
                     e.preventDefault();
+                    
+                    // Prevent double submission
+                    if (isSubmittingStep2) {
+                        console.log('Already submitting step 2, ignoring duplicate submission');
+                        return;
+                    }
+                    isSubmittingStep2 = true;
+                    
+                    // Disable submit button and show loading state
+                    const submitButton = companyProfileForm.querySelector('button[type="submit"]');
+                    const originalButtonText = submitButton ? submitButton.textContent : '';
+                    if (submitButton) {
+                        submitButton.disabled = true;
+                        submitButton.textContent = '保存中...';
+                    }
 
                     // Validate required fields for real estate license
                     const prefecture = document.getElementById('license_prefecture').value;
@@ -1883,6 +1948,11 @@ $defaultGreetings = [
 
                     if (!prefecture || !renewal || !registration) {
                         showError('宅建業者番号（都道府県、更新番号、登録番号）は必須項目です。');
+                        isSubmittingStep2 = false;
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        }
                         return;
                     }
 
@@ -1900,14 +1970,25 @@ $defaultGreetings = [
                     }
 
                     try {
+                        // Add timeout for mobile networks (30 seconds)
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 30000);
+                        
                         const response = await fetch('../backend/api/business-card/update.php', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
                             body: JSON.stringify(data),
-                            credentials: 'include'
+                            credentials: 'include',
+                            signal: controller.signal
                         });
+                        clearTimeout(timeoutId);
+                        
+                        // Check if response is OK
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
 
                         const result = await response.json();
 
@@ -1915,6 +1996,14 @@ $defaultGreetings = [
                             // Clear dirty flag to prevent "unsaved changes" popup
                             if (window.autoSave && window.autoSave.markClean) {
                                 window.autoSave.markClean();
+                            }
+                            // Clear drafts on successful save
+                            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                                await window.autoSave.clearDraftsOnSuccess();
+                            }
+                            // Show success message
+                            if (typeof showSuccess === 'function') {
+                                showSuccess('保存しました');
                             }
                             // Update business card data and move to next step without reloading
                             if (typeof loadBusinessCardData === 'function') {
@@ -1935,11 +2024,27 @@ $defaultGreetings = [
                                 }, 300);
                             }
                         } else {
-                            showError('保存に失敗しました: ' + result.message);
+                            showError('保存に失敗しました: ' + (result.message || '不明なエラー'));
+                            isSubmittingStep2 = false;
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = originalButtonText;
+                            }
                         }
                     } catch (error) {
                         console.error('Error:', error);
-                        showError('エラーが発生しました');
+                        let errorMessage = 'エラーが発生しました';
+                        if (error.name === 'AbortError') {
+                            errorMessage = 'タイムアウト: 接続がタイムアウトしました。もう一度お試しください。';
+                        } else if (error.message) {
+                            errorMessage = 'エラーが発生しました: ' + error.message;
+                        }
+                        showError(errorMessage);
+                        isSubmittingStep2 = false;
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        }
                     }
                 });
             }
@@ -1947,8 +2052,25 @@ $defaultGreetings = [
             // Step 3: Personal Information form submission
             const personalInfoForm = document.getElementById('personal-info-form');
             if (personalInfoForm) {
+                let isSubmittingStep3 = false; // Prevent double submission
+                
                 personalInfoForm.addEventListener('submit', async function(e) {
                     e.preventDefault();
+                    
+                    // Prevent double submission
+                    if (isSubmittingStep3) {
+                        console.log('Already submitting step 3, ignoring duplicate submission');
+                        return;
+                    }
+                    isSubmittingStep3 = true;
+                    
+                    // Disable submit button and show loading state
+                    const submitButton = personalInfoForm.querySelector('button[type="submit"]');
+                    const originalButtonText = submitButton ? submitButton.textContent : '';
+                    if (submitButton) {
+                        submitButton.disabled = true;
+                        submitButton.textContent = '保存中...';
+                    }
 
                     const formData = new FormData(personalInfoForm);
                     const data = {};
@@ -2064,14 +2186,25 @@ $defaultGreetings = [
                     delete data.first_name_romaji;
 
                     try {
+                        // Add timeout for mobile networks (30 seconds)
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 30000);
+                        
                         const response = await fetch('../backend/api/business-card/update.php', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
                             body: JSON.stringify(data),
-                            credentials: 'include'
+                            credentials: 'include',
+                            signal: controller.signal
                         });
+                        clearTimeout(timeoutId);
+                        
+                        // Check if response is OK
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
 
                         const result = await response.json();
 
@@ -2079,6 +2212,14 @@ $defaultGreetings = [
                             // Clear dirty flag to prevent "unsaved changes" popup
                             if (window.autoSave && window.autoSave.markClean) {
                                 window.autoSave.markClean();
+                            }
+                            // Clear drafts on successful save
+                            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                                await window.autoSave.clearDraftsOnSuccess();
+                            }
+                            // Show success message
+                            if (typeof showSuccess === 'function') {
+                                showSuccess('保存しました');
                             }
                             // Update business card data and move to next step without reloading
                             if (typeof loadBusinessCardData === 'function') {
@@ -2099,11 +2240,27 @@ $defaultGreetings = [
                                 }, 300);
                             }
                         } else {
-                            showError('保存に失敗しました: ' + result.message);
+                            showError('保存に失敗しました: ' + (result.message || '不明なエラー'));
+                            isSubmittingStep3 = false;
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = originalButtonText;
+                            }
                         }
                     } catch (error) {
                         console.error('Error:', error);
-                        showError('エラーが発生しました');
+                        let errorMessage = 'エラーが発生しました';
+                        if (error.name === 'AbortError') {
+                            errorMessage = 'タイムアウト: 接続がタイムアウトしました。もう一度お試しください。';
+                        } else if (error.message) {
+                            errorMessage = 'エラーが発生しました: ' + error.message;
+                        }
+                        showError(errorMessage);
+                        isSubmittingStep3 = false;
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        }
                     }
                 });
             }
