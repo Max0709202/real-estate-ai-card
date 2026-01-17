@@ -28,6 +28,8 @@ date_default_timezone_set('Asia/Tokyo');
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0); // HTTPS使用時は1に変更
+ini_set('session.gc_maxlifetime', 3600); // セッション有効期限: 1時間 (3600秒)
+ini_set('session.cookie_lifetime', 3600); // クッキー有効期限: 1時間 (3600秒)
 
 // セッション保存パスをプロジェクト内に設定（権限エラーを回避）
 $sessionPath = __DIR__ . '/../sessions';

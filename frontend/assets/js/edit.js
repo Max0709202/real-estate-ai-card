@@ -792,38 +792,75 @@ function loadTechTools(savedTechTools) {
 }
 
 // Save tech tools
+// Prevent double submission
+let isSavingTechTools = false;
+
 async function saveTechTools() {
-    const selectedCheckboxes = document.querySelectorAll('#tech-tools-list input[name="tech_tools[]"]:checked');
-    
-    if (selectedCheckboxes.length < 2) {
-        showError('最低2つ以上のテックツールを選択してください');
+    // Prevent double submission (especially important for mobile)
+    if (isSavingTechTools) {
+        console.log('Already saving tech tools, ignoring duplicate submission');
         return;
     }
+    isSavingTechTools = true;
     
-    // Get selected tools in DOM order
-    const techToolsList = document.getElementById('tech-tools-list');
-    const selectedTools = [];
-    techToolsList.querySelectorAll('.tech-tool-banner-card').forEach(card => {
-        const checkbox = card.querySelector('input[name="tech_tools[]"]');
-        if (checkbox && checkbox.checked) {
-            selectedTools.push(checkbox.value);
-        }
-    });
+    // Disable button and show loading state
+    const saveButton = document.querySelector('button[onclick="saveTechTools()"]');
+    const originalButtonText = saveButton ? saveButton.textContent : '';
+    if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.textContent = '保存中...';
+    }
     
     try {
-        // Get tool URLs from API
+        const selectedCheckboxes = document.querySelectorAll('#tech-tools-list input[name="tech_tools[]"]:checked');
+        
+        if (selectedCheckboxes.length < 2) {
+            showError('最低2つ以上のテックツールを選択してください');
+            isSavingTechTools = false;
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.textContent = originalButtonText;
+            }
+            return;
+        }
+        
+        // Get selected tools in DOM order
+        const techToolsList = document.getElementById('tech-tools-list');
+        const selectedTools = [];
+        techToolsList.querySelectorAll('.tech-tool-banner-card').forEach(card => {
+            const checkbox = card.querySelector('input[name="tech_tools[]"]');
+            if (checkbox && checkbox.checked) {
+                selectedTools.push(checkbox.value);
+            }
+        });
+        
+        // Get tool URLs from API with timeout
+        const urlController = new AbortController();
+        const urlTimeoutId = setTimeout(() => urlController.abort(), 30000);
+        
         const urlResponse = await fetch('../backend/api/tech-tools/generate-urls.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ selected_tools: selectedTools }),
-            credentials: 'include'
+            credentials: 'include',
+            signal: urlController.signal
         });
+        clearTimeout(urlTimeoutId);
+        
+        if (!urlResponse.ok) {
+            throw new Error(`HTTP error! status: ${urlResponse.status}`);
+        }
         
         const urlResult = await urlResponse.json();
         if (!urlResult.success) {
-            showError('テックツールURLの取得に失敗しました');
+            showError('テックツールURLの取得に失敗しました: ' + (urlResult.message || '不明なエラー'));
+            isSavingTechTools = false;
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.textContent = originalButtonText;
+            }
             return;
         }
         
@@ -840,38 +877,93 @@ async function saveTechTools() {
             is_active: 1
         }));
         
-        // Save to database
+        // Save to database with timeout
+        const saveController = new AbortController();
+        const saveTimeoutId = setTimeout(() => saveController.abort(), 30000);
+        
         const saveResponse = await fetch('../backend/api/business-card/update.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ tech_tools: techToolsForDB }),
-            credentials: 'include'
+            credentials: 'include',
+            signal: saveController.signal
         });
+        clearTimeout(saveTimeoutId);
+        
+        if (!saveResponse.ok) {
+            throw new Error(`HTTP error! status: ${saveResponse.status}`);
+        }
         
         const saveResult = await saveResponse.json();
         if (saveResult.success) {
+            // Clear dirty flag
+            if (window.autoSave && window.autoSave.markClean) {
+                window.autoSave.markClean();
+            }
+            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                await window.autoSave.clearDraftsOnSuccess();
+            }
+            // Show success message
+            if (typeof showSuccess === 'function') {
+                showSuccess('保存しました');
+            }
             // Update business card data without reloading
             await loadBusinessCardData();
             // Move to next step (Step 5)
-    setTimeout(() => {
+            setTimeout(() => {
                 if (window.goToNextStep) {
                     window.goToNextStep(4);
                 }
             }, 300);
         } else {
-            showError('保存に失敗しました: ' + saveResult.message);
+            showError('保存に失敗しました: ' + (saveResult.message || '不明なエラー'));
+            isSavingTechTools = false;
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.textContent = originalButtonText;
+            }
         }
     } catch (error) {
         console.error('Error saving tech tools:', error);
-        showError('エラーが発生しました');
+        let errorMessage = 'エラーが発生しました';
+        if (error.name === 'AbortError') {
+            errorMessage = 'タイムアウト: 接続がタイムアウトしました。もう一度お試しください。';
+        } else if (error.message) {
+            errorMessage = 'エラーが発生しました: ' + error.message;
+        }
+        showError(errorMessage);
+        isSavingTechTools = false;
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.textContent = originalButtonText;
+        }
     }
 }
 
+// Prevent double submission
+let isSavingCommunicationMethods = false;
+
 // Save communication methods
 async function saveCommunicationMethods() {
-    const communicationMethods = [];
+    // Prevent double submission (especially important for mobile)
+    if (isSavingCommunicationMethods) {
+        console.log('Already saving communication methods, ignoring duplicate submission');
+        return;
+    }
+    isSavingCommunicationMethods = true;
+    
+    // Disable button and show loading state
+    const saveButton = document.querySelector('button[onclick="saveCommunicationMethods()"]');
+    const originalButtonText = saveButton ? saveButton.textContent : '';
+    if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.textContent = '保存中...';
+    }
+    
+    try {
+        const communicationMethods = [];
     let displayOrder = 0;
     
     // Mapping from method_type to form field names
@@ -964,19 +1056,28 @@ async function saveCommunicationMethods() {
         });
     }
     
-    const data = {
-        communication_methods: communicationMethods
-    };
-    
-    try {
+        const data = {
+            communication_methods: communicationMethods
+        };
+        
+        // Add timeout for mobile networks (30 seconds)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
         const response = await fetch('../backend/api/business-card/update.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(data),
-            credentials: 'include'
+            credentials: 'include',
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         
         const result = await response.json();
         if (result.success) {
@@ -984,17 +1085,39 @@ async function saveCommunicationMethods() {
             if (window.autoSave && window.autoSave.markClean) {
                 window.autoSave.markClean();
             }
+            // Clear drafts on successful save
+            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                await window.autoSave.clearDraftsOnSuccess();
+            }
             // Update business card data without reloading
             await loadBusinessCardData();
-            showSuccess('保存しました');
+            if (typeof showSuccess === 'function') {
+                showSuccess('保存しました');
+            }
             // Navigate to payment section
             goToEditSection('payment-section');
         } else {
-            showError('保存に失敗しました: ' + result.message);
+            showError('保存に失敗しました: ' + (result.message || '不明なエラー'));
+            isSavingCommunicationMethods = false;
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.textContent = originalButtonText;
+            }
         }
     } catch (error) {
         console.error('Error:', error);
-        showError('エラーが発生しました');
+        let errorMessage = 'エラーが発生しました';
+        if (error.name === 'AbortError') {
+            errorMessage = 'タイムアウト: 接続がタイムアウトしました。もう一度お試しください。';
+        } else if (error.message) {
+            errorMessage = 'エラーが発生しました: ' + error.message;
+        }
+        showError(errorMessage);
+        isSavingCommunicationMethods = false;
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.textContent = originalButtonText;
+        }
     }
 }
 

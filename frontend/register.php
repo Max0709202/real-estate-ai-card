@@ -406,7 +406,7 @@ $prefectures = [
                     </div>
 
                     <div class="form-group">
-                        <label>会社HP URL</label>
+                        <label>会社HP　URL（https://  から入力してください。）</label>
                         <input type="url" name="company_website" class="form-control" placeholder="https://example.com">
                     </div>
 
@@ -426,11 +426,11 @@ $prefectures = [
                     <div class="form-row">
                         <div class="form-group">
                             <label>部署</label>
-                            <input type="text" name="branch_department" class="form-control" value="営業部">
+                            <input type="text" name="branch_department" class="form-control" value="例：営業部">
                         </div>
                         <div class="form-group">
                             <label>役職</label>
-                            <input type="text" name="position" class="form-control" value="営業課長">
+                            <input type="text" name="position" class="form-control" value="例：営業課長">
                         </div>
                     </div>
 
