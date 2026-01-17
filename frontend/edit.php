@@ -1691,11 +1691,22 @@ $defaultGreetings = [
                         uploadData.append('file', blobOrFile);
                         uploadData.append('file_type', fileType);
 
+                        // Add timeout and keepalive for iOS
+                        const uploadController = new AbortController();
+                        const uploadTimeoutId = setTimeout(() => uploadController.abort(), 30000);
+
                         const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
                             method: 'POST',
                             body: uploadData,
-                            credentials: 'include'
+                            credentials: 'include',
+                            signal: uploadController.signal,
+                            keepalive: true // Important for iOS
                         });
+                        clearTimeout(uploadTimeoutId);
+
+                        if (!uploadResponse.ok) {
+                            throw new Error(`HTTP error! status: ${uploadResponse.status}`);
+                        }
 
                         const uploadResult = await uploadResponse.json();
                         if (uploadResult.success) {
@@ -1826,14 +1837,26 @@ $defaultGreetings = [
 
                     // Send to API
                     try {
+                        // Add timeout for mobile networks (30 seconds) and keepalive for iOS
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
                         const response = await fetch('../backend/api/business-card/update.php', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
                             body: JSON.stringify(data),
-                            credentials: 'include'
+                            credentials: 'include',
+                            signal: controller.signal,
+                            keepalive: true // Important for iOS to ensure request completes
                         });
+                        clearTimeout(timeoutId);
+
+                        // Check if response is OK
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
 
                         const result = await response.json();
 
@@ -1842,30 +1865,78 @@ $defaultGreetings = [
                             if (window.autoSave && window.autoSave.markClean) {
                                 window.autoSave.markClean();
                             }
+                            // Clear drafts on successful save
+                            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                                await window.autoSave.clearDraftsOnSuccess();
+                            }
+                            // Show success message
+                            if (typeof showSuccess === 'function') {
+                                showSuccess('保存しました');
+                            }
                             // Update business card data and move to next step without reloading
                             if (typeof loadBusinessCardData === 'function') {
                                 loadBusinessCardData().then(() => {
                                     // Move to next step (Step 2)
                                     setTimeout(() => {
-                                        if (window.goToNextStep) {
-                                            window.goToNextStep(1);
+                                        if (typeof window.goToNextStep === 'function') {
+                                            try {
+                                                window.goToNextStep(1);
+                                            } catch (err) {
+                                                console.error('Error calling goToNextStep:', err);
+                                                if (typeof window.goToEditSection === 'function') {
+                                                    window.goToEditSection('company-profile-section');
+                                                }
+                                            }
+                                        } else if (typeof window.goToEditSection === 'function') {
+                                            window.goToEditSection('company-profile-section');
                                         }
                                     }, 300);
+                                }).catch(err => {
+                                    console.error('Error loading business card data:', err);
+                                    if (typeof window.goToNextStep === 'function') {
+                                        window.goToNextStep(1);
+                                    } else if (typeof window.goToEditSection === 'function') {
+                                        window.goToEditSection('company-profile-section');
+                                    }
                                 });
                             } else {
                                 // Fallback: just move to next step
                                 setTimeout(() => {
-                                    if (window.goToNextStep) {
-                                        window.goToNextStep(1);
+                                    if (typeof window.goToNextStep === 'function') {
+                                        try {
+                                            window.goToNextStep(1);
+                                        } catch (err) {
+                                            console.error('Error calling goToNextStep:', err);
+                                            if (typeof window.goToEditSection === 'function') {
+                                                window.goToEditSection('company-profile-section');
+                                            }
+                                        }
+                                    } else if (typeof window.goToEditSection === 'function') {
+                                        window.goToEditSection('company-profile-section');
                                     }
                                 }, 300);
                             }
                         } else {
-                            showError('保存に失敗しました: ' + result.message);
+                            showError('保存に失敗しました: ' + (result.message || '不明なエラー'));
+                            isSubmitting = false;
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = originalButtonText;
+                            }
                         }
                     } catch (error) {
                         console.error('Error:', error);
-                        showError('エラーが発生しました');
+                        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
+                        if (error.name === 'AbortError') {
+                            showError('タイムアウトしました。もう一度お試しください。');
+                        } else {
+                            showError('エラーが発生しました: ' + errorMessage);
+                        }
+                        isSubmitting = false;
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        }
                     }
                 });
             }
@@ -1873,8 +1944,27 @@ $defaultGreetings = [
             // Step 2: Company Profile form submission
             const companyProfileForm = document.getElementById('company-profile-form');
             if (companyProfileForm) {
+                let isSubmittingStep2 = false; // Prevent double submission
+
                 companyProfileForm.addEventListener('submit', async function(e) {
+                    // CRITICAL: Always prevent default form submission FIRST
                     e.preventDefault();
+                    e.stopPropagation();
+
+                    // Prevent double submission
+                    if (isSubmittingStep2) {
+                        console.log('Already submitting step 2, ignoring duplicate submission');
+                        return false;
+                    }
+                    isSubmittingStep2 = true;
+
+                    // Disable submit button and show loading state
+                    const submitButton = companyProfileForm.querySelector('button[type="submit"]');
+                    const originalButtonText = submitButton ? submitButton.textContent : '';
+                    if (submitButton) {
+                        submitButton.disabled = true;
+                        submitButton.textContent = '保存中...';
+                    }
 
                     // Validate required fields for real estate license
                     const prefecture = document.getElementById('license_prefecture').value;
@@ -1883,7 +1973,12 @@ $defaultGreetings = [
 
                     if (!prefecture || !renewal || !registration) {
                         showError('宅建業者番号（都道府県、更新番号、登録番号）は必須項目です。');
-                        return;
+                        isSubmittingStep2 = false;
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        }
+                        return false;
                     }
 
                     const formData = new FormData(companyProfileForm);
@@ -1900,14 +1995,26 @@ $defaultGreetings = [
                     }
 
                     try {
+                        // Add timeout for mobile networks (30 seconds) and keepalive for iOS
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
                         const response = await fetch('../backend/api/business-card/update.php', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
                             body: JSON.stringify(data),
-                            credentials: 'include'
+                            credentials: 'include',
+                            signal: controller.signal,
+                            keepalive: true // Important for iOS to ensure request completes
                         });
+                        clearTimeout(timeoutId);
+
+                        // Check if response is OK
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
 
                         const result = await response.json();
 
@@ -1916,30 +2023,78 @@ $defaultGreetings = [
                             if (window.autoSave && window.autoSave.markClean) {
                                 window.autoSave.markClean();
                             }
+                            // Clear drafts on successful save
+                            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                                await window.autoSave.clearDraftsOnSuccess();
+                            }
+                            // Show success message
+                            if (typeof showSuccess === 'function') {
+                                showSuccess('保存しました');
+                            }
                             // Update business card data and move to next step without reloading
                             if (typeof loadBusinessCardData === 'function') {
                                 loadBusinessCardData().then(() => {
                                     // Move to next step (Step 3)
                                     setTimeout(() => {
-                                        if (window.goToNextStep) {
-                                            window.goToNextStep(2);
+                                        if (typeof window.goToNextStep === 'function') {
+                                            try {
+                                                window.goToNextStep(2);
+                                            } catch (err) {
+                                                console.error('Error calling goToNextStep:', err);
+                                                if (typeof window.goToEditSection === 'function') {
+                                                    window.goToEditSection('personal-info-section');
+                                                }
+                                            }
+                                        } else if (typeof window.goToEditSection === 'function') {
+                                            window.goToEditSection('personal-info-section');
                                         }
                                     }, 300);
+                                }).catch(err => {
+                                    console.error('Error loading business card data:', err);
+                                    if (typeof window.goToNextStep === 'function') {
+                                        window.goToNextStep(2);
+                                    } else if (typeof window.goToEditSection === 'function') {
+                                        window.goToEditSection('personal-info-section');
+                                    }
                                 });
                             } else {
                                 // Fallback: just move to next step
                                 setTimeout(() => {
-                                    if (window.goToNextStep) {
-                                        window.goToNextStep(2);
+                                    if (typeof window.goToNextStep === 'function') {
+                                        try {
+                                            window.goToNextStep(2);
+                                        } catch (err) {
+                                            console.error('Error calling goToNextStep:', err);
+                                            if (typeof window.goToEditSection === 'function') {
+                                                window.goToEditSection('personal-info-section');
+                                            }
+                                        }
+                                    } else if (typeof window.goToEditSection === 'function') {
+                                        window.goToEditSection('personal-info-section');
                                     }
                                 }, 300);
                             }
                         } else {
-                            showError('保存に失敗しました: ' + result.message);
+                            showError('保存に失敗しました: ' + (result.message || '不明なエラー'));
+                            isSubmittingStep2 = false;
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = originalButtonText;
+                            }
                         }
                     } catch (error) {
                         console.error('Error:', error);
-                        showError('エラーが発生しました');
+                        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
+                        if (error.name === 'AbortError') {
+                            showError('タイムアウトしました。もう一度お試しください。');
+                        } else {
+                            showError('エラーが発生しました: ' + errorMessage);
+                        }
+                        isSubmittingStep2 = false;
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        }
                     }
                 });
             }
@@ -1947,8 +2102,27 @@ $defaultGreetings = [
             // Step 3: Personal Information form submission
             const personalInfoForm = document.getElementById('personal-info-form');
             if (personalInfoForm) {
+                let isSubmittingStep3 = false; // Prevent double submission
+
                 personalInfoForm.addEventListener('submit', async function(e) {
+                    // CRITICAL: Always prevent default form submission FIRST
                     e.preventDefault();
+                    e.stopPropagation();
+
+                    // Prevent double submission
+                    if (isSubmittingStep3) {
+                        console.log('Already submitting step 3, ignoring duplicate submission');
+                        return false;
+                    }
+                    isSubmittingStep3 = true;
+
+                    // Disable submit button and show loading state
+                    const submitButton = personalInfoForm.querySelector('button[type="submit"]');
+                    const originalButtonText = submitButton ? submitButton.textContent : '';
+                    if (submitButton) {
+                        submitButton.disabled = true;
+                        submitButton.textContent = '保存中...';
+                    }
 
                     const formData = new FormData(personalInfoForm);
                     const data = {};
@@ -2022,11 +2196,22 @@ $defaultGreetings = [
                             uploadData.append('file_type', 'free');
 
                             try {
+                                // Add timeout and keepalive for iOS
+                                const uploadController = new AbortController();
+                                const uploadTimeoutId = setTimeout(() => uploadController.abort(), 30000);
+
                                 const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
                                     method: 'POST',
                                     body: uploadData,
-                                    credentials: 'include'
+                                    credentials: 'include',
+                                    signal: uploadController.signal,
+                                    keepalive: true // Important for iOS
                                 });
+                                clearTimeout(uploadTimeoutId);
+
+                                if (!uploadResponse.ok) {
+                                    throw new Error(`HTTP error! status: ${uploadResponse.status}`);
+                                }
 
                                 const uploadResult = await uploadResponse.json();
                                 if (uploadResult.success) {
@@ -2064,14 +2249,26 @@ $defaultGreetings = [
                     delete data.first_name_romaji;
 
                     try {
+                        // Add timeout for mobile networks (30 seconds) and keepalive for iOS
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
                         const response = await fetch('../backend/api/business-card/update.php', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
                             body: JSON.stringify(data),
-                            credentials: 'include'
+                            credentials: 'include',
+                            signal: controller.signal,
+                            keepalive: true // Important for iOS to ensure request completes
                         });
+                        clearTimeout(timeoutId);
+
+                        // Check if response is OK
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
 
                         const result = await response.json();
 
@@ -2080,30 +2277,78 @@ $defaultGreetings = [
                             if (window.autoSave && window.autoSave.markClean) {
                                 window.autoSave.markClean();
                             }
+                            // Clear drafts on successful save
+                            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
+                                await window.autoSave.clearDraftsOnSuccess();
+                            }
+                            // Show success message
+                            if (typeof showSuccess === 'function') {
+                                showSuccess('保存しました');
+                            }
                             // Update business card data and move to next step without reloading
                             if (typeof loadBusinessCardData === 'function') {
                                 loadBusinessCardData().then(() => {
                                     // Move to next step (Step 4)
                                     setTimeout(() => {
-                                        if (window.goToNextStep) {
-                                            window.goToNextStep(3);
+                                        if (typeof window.goToNextStep === 'function') {
+                                            try {
+                                                window.goToNextStep(3);
+                                            } catch (err) {
+                                                console.error('Error calling goToNextStep:', err);
+                                                if (typeof window.goToEditSection === 'function') {
+                                                    window.goToEditSection('tech-tools-section');
+                                                }
+                                            }
+                                        } else if (typeof window.goToEditSection === 'function') {
+                                            window.goToEditSection('tech-tools-section');
                                         }
                                     }, 300);
+                                }).catch(err => {
+                                    console.error('Error loading business card data:', err);
+                                    if (typeof window.goToNextStep === 'function') {
+                                        window.goToNextStep(3);
+                                    } else if (typeof window.goToEditSection === 'function') {
+                                        window.goToEditSection('tech-tools-section');
+                                    }
                                 });
                             } else {
                                 // Fallback: just move to next step
                                 setTimeout(() => {
-                                    if (window.goToNextStep) {
-                                        window.goToNextStep(3);
+                                    if (typeof window.goToNextStep === 'function') {
+                                        try {
+                                            window.goToNextStep(3);
+                                        } catch (err) {
+                                            console.error('Error calling goToNextStep:', err);
+                                            if (typeof window.goToEditSection === 'function') {
+                                                window.goToEditSection('tech-tools-section');
+                                            }
+                                        }
+                                    } else if (typeof window.goToEditSection === 'function') {
+                                        window.goToEditSection('tech-tools-section');
                                     }
                                 }, 300);
                             }
                         } else {
-                            showError('保存に失敗しました: ' + result.message);
+                            showError('保存に失敗しました: ' + (result.message || '不明なエラー'));
+                            isSubmittingStep3 = false;
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = originalButtonText;
+                            }
                         }
                     } catch (error) {
                         console.error('Error:', error);
-                        showError('エラーが発生しました');
+                        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
+                        if (error.name === 'AbortError') {
+                            showError('タイムアウトしました。もう一度お試しください。');
+                        } else {
+                            showError('エラーが発生しました: ' + errorMessage);
+                        }
+                        isSubmittingStep3 = false;
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        }
                     }
                 });
             }

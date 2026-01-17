@@ -1026,7 +1026,8 @@
         }
 
         // beforeunload warning (not shown on payment step 6/6)
-        window.addEventListener('beforeunload', (e) => {
+        // Note: iOS Safari has limited support for beforeunload, so we also use pagehide and visibilitychange
+        const showUnloadWarning = (e) => {
             // Don't show warning if on payment step (6/6)
             if (isOnPaymentStep()) {
                 return;
@@ -1036,6 +1037,38 @@
                 e.preventDefault();
                 e.returnValue = '入力内容が保存されていません。このページを離れますか？';
                 return e.returnValue;
+            }
+        };
+
+        // Standard beforeunload (works on desktop and Android)
+        window.addEventListener('beforeunload', showUnloadWarning);
+
+        // pagehide event (better support on iOS Safari)
+        window.addEventListener('pagehide', (e) => {
+            if (isDirty && !isSubmitting && !isOnPaymentStep()) {
+                // On iOS, we can't prevent pagehide, but we can try to save data
+                // Save form data synchronously before page unloads
+                if (typeof saveFormDataSync === 'function') {
+                    try {
+                        saveFormDataSync();
+                    } catch (err) {
+                        console.warn('Failed to save on pagehide:', err);
+                    }
+                }
+            }
+        });
+
+        // visibilitychange event (for iOS when app goes to background)
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && isDirty && !isSubmitting && !isOnPaymentStep()) {
+                // Try to save data when page becomes hidden
+                if (typeof saveFormDataSync === 'function') {
+                    try {
+                        saveFormDataSync();
+                    } catch (err) {
+                        console.warn('Failed to save on visibilitychange:', err);
+                    }
+                }
             }
         });
     }

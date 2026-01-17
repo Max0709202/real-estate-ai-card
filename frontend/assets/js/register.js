@@ -32,13 +32,13 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (greetingsContainer && greetingsContainer.children.length === 0) {
         displayDefaultGreetingsForRegister();
     }
-    
+
     // Auto-capitalize first letter of romaji input fields
     setupRomajiAutoCapitalize();
-    
+
     // Set up mutual exclusivity for architect qualification checkboxes
     setupArchitectCheckboxMutualExclusivity();
-    
+
     // Check URL parameter for step navigation (e.g., ?step=6 for payment)
     const urlParams = new URLSearchParams(window.location.search);
     const stepParam = urlParams.get('step');
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             goToStep(6);
         }, 500);
     }
-    
+
     // Make step indicators clickable
     const stepItems = document.querySelectorAll('.step-indicator .step');
     stepItems.forEach(stepItem => {
@@ -82,23 +82,23 @@ function setupRomajiAutoCapitalize() {
         document.getElementById('last_name_romaji'),
         document.getElementById('first_name_romaji')
     ];
-    
+
     romajiFields.forEach(field => {
         if (field) {
             let isComposing = false; // Track IME composition state
-            
+
             // Track composition start (IME input started)
             field.addEventListener('compositionstart', function() {
                 isComposing = true;
             });
-            
+
             // Track composition end (IME input finished)
             field.addEventListener('compositionend', function(e) {
                 isComposing = false;
                 // Apply capitalization after composition ends
                 setTimeout(() => capitalizeFirstLetterForRegister(e.target), 0);
             });
-            
+
             // Handle input event - skip during IME composition
             field.addEventListener('input', function(e) {
                 // Skip if IME is composing or if event has isComposing flag
@@ -108,7 +108,7 @@ function setupRomajiAutoCapitalize() {
                 // Use setTimeout to ensure the value is updated before capitalization
                 setTimeout(() => capitalizeFirstLetterForRegister(e.target), 0);
             });
-            
+
             // Handle keyup for more reliable capitalization on PC
             field.addEventListener('keyup', function(e) {
                 // Skip during IME composition
@@ -120,7 +120,7 @@ function setupRomajiAutoCapitalize() {
                     setTimeout(() => capitalizeFirstLetterForRegister(e.target), 0);
                 }
             });
-            
+
             // Also apply on blur (when field loses focus)
             field.addEventListener('blur', function(e) {
                 capitalizeFirstLetterForRegister(e.target);
@@ -140,14 +140,14 @@ function setupArchitectCheckboxMutualExclusivity() {
         document.querySelector('input[name="qualification_kenchikushi_2"]'), // 二級建築士
         document.querySelector('input[name="qualification_kenchikushi_3"]')  // 木造建築士
     ];
-    
+
     // Filter out null checkboxes (in case step 3 hasn't been rendered yet)
     const validCheckboxes = architectCheckboxes.filter(cb => cb !== null);
-    
+
     if (validCheckboxes.length === 0) {
         return; // Checkboxes don't exist yet, will be set up when step 3 is shown
     }
-    
+
     // Add change event listener to each architect checkbox
     // Use data attribute to prevent duplicate listeners
     validCheckboxes.forEach(checkbox => {
@@ -155,7 +155,7 @@ function setupArchitectCheckboxMutualExclusivity() {
             return; // Already set up
         }
         checkbox.dataset.mutualExclusivitySetup = 'true';
-        
+
         checkbox.addEventListener('change', function() {
             if (this.checked) {
                 // If this checkbox is checked, uncheck all other architect checkboxes
@@ -164,7 +164,7 @@ function setupArchitectCheckboxMutualExclusivity() {
                     document.querySelector('input[name="qualification_kenchikushi_2"]'),
                     document.querySelector('input[name="qualification_kenchikushi_3"]')
                 ].filter(cb => cb !== null);
-                
+
                 allArchitectCheckboxes.forEach(otherCheckbox => {
                     if (otherCheckbox !== this) {
                         otherCheckbox.checked = false;
@@ -178,9 +178,9 @@ function setupArchitectCheckboxMutualExclusivity() {
 // Capitalize first letter helper function for register page
 function capitalizeFirstLetterForRegister(input) {
     if (!input || !input.value) return;
-    
+
     let value = input.value.trim();
-    
+
     if (value.length > 0) {
         // 最初の文字が小文字（a-z）の場合は大文字に変換
         const firstChar = value.charAt(0);
@@ -204,7 +204,7 @@ function sanitizeRomajiInputForRegister(input) {
     let value = input.value;
     // Remove any characters that are not: A-Z, a-z, space, hyphen (-), apostrophe ('), or dot (.)
     const sanitized = value.replace(/[^A-Za-z\s\-'.]/g, '');
-    
+
     if (sanitized !== value) {
         const cursorPosition = input.selectionStart;
         input.value = sanitized;
@@ -221,17 +221,17 @@ async function loadExistingBusinessCardData() {
             method: 'GET',
             credentials: 'include'
         });
-        
+
         if (!response.ok) {
             console.log('No existing data found or not logged in');
             // For new users, display default greetings
             displayDefaultGreetingsForRegister();
             return;
         }
-        
+
         const result = await response.json();
         console.log('Loaded business card data:', result);
-        
+
         if (result.success && result.data) {
             businessCardData = result.data;
             populateRegistrationForms(businessCardData);
@@ -249,13 +249,13 @@ async function loadExistingBusinessCardData() {
 // Populate all registration forms with existing data
 function populateRegistrationForms(data) {
     console.log('Populating registration forms with:', data);
-    
+
     // Step 1: Header & Greeting
     if (data.company_name) {
         const companyNameInput = document.querySelector('#header-greeting-form input[name="company_name"]');
         if (companyNameInput) companyNameInput.value = data.company_name;
     }
-    
+
     // Logo preview
     if (data.company_logo) {
         const logoPreview = document.querySelector('#logo-upload .upload-preview');
@@ -288,7 +288,7 @@ function populateRegistrationForms(data) {
             }
         }
     }
-    
+
     // Profile photo preview
     if (data.profile_photo) {
         const photoPreview = document.querySelector('#photo-upload-header .upload-preview');
@@ -321,12 +321,12 @@ function populateRegistrationForms(data) {
             }
         }
     }
-    
+
     // Greetings - ALWAYS clear first, then populate based on data
     const greetingsContainer = document.getElementById('greetings-container');
     if (greetingsContainer) {
         greetingsContainer.innerHTML = '';
-        
+
         if (data.greetings && Array.isArray(data.greetings) && data.greetings.length > 0) {
             console.log('Displaying greetings from database:', data.greetings);
             displayGreetingsForRegister(data.greetings);
@@ -340,7 +340,7 @@ function populateRegistrationForms(data) {
             displayDefaultGreetingsForRegister();
         }
     }
-    
+
     // Step 2: Company Profile
     if (data.real_estate_license_prefecture) {
         const prefSelect = document.getElementById('license_prefecture');
@@ -371,7 +371,7 @@ function populateRegistrationForms(data) {
         const websiteInput = document.querySelector('input[name="company_website"]');
         if (websiteInput) websiteInput.value = data.company_website;
     }
-    
+
     // Step 3: Personal Information
     if (data.branch_department) {
         const branchInput = document.querySelector('input[name="branch_department"]');
@@ -381,7 +381,7 @@ function populateRegistrationForms(data) {
         const positionInput = document.querySelector('input[name="position"]');
         if (positionInput) positionInput.value = data.position;
     }
-    
+
     // Name (split into last_name and first_name)
     if (data.name) {
         const nameParts = data.name.trim().split(/\s+/);
@@ -396,7 +396,7 @@ function populateRegistrationForms(data) {
             }
         }
     }
-    
+
     // Name Romaji
     if (data.name_romaji) {
         const romajiParts = data.name_romaji.trim().split(/\s+/);
@@ -411,7 +411,7 @@ function populateRegistrationForms(data) {
             }
         }
     }
-    
+
     if (data.mobile_phone) {
         const mobileInput = document.querySelector('input[name="mobile_phone"]');
         if (mobileInput) mobileInput.value = data.mobile_phone;
@@ -432,7 +432,7 @@ function populateRegistrationForms(data) {
         const almaMaterInput = document.querySelector('input[name="alma_mater"]');
         if (almaMaterInput) almaMaterInput.value = data.alma_mater;
     }
-    
+
     // Qualifications
     if (data.qualifications) {
         const qualifications = data.qualifications.split('、');
@@ -460,18 +460,18 @@ function populateRegistrationForms(data) {
             if (otherInput) otherInput.value = otherQuals;
         }
     }
-    
+
     if (data.hobbies) {
         const hobbiesInput = document.querySelector('textarea[name="hobbies"]');
         if (hobbiesInput) hobbiesInput.value = data.hobbies;
     }
-    
+
     // Free input - Populate paired items (text + image)
     if (data.free_input) {
         try {
             const freeInputData = JSON.parse(data.free_input);
             const container = document.getElementById('free-input-pairs-container');
-            
+
             if (!container) return;
 
             // Handle both old format and new format
@@ -483,7 +483,7 @@ function populateRegistrationForms(data) {
             } else if (freeInputData.text) {
                 texts = [freeInputData.text];
             }
-            
+
                 if (freeInputData.images && Array.isArray(freeInputData.images)) {
                     images = freeInputData.images;
                 } else if (freeInputData.image || freeInputData.image_link) {
@@ -492,7 +492,7 @@ function populateRegistrationForms(data) {
                         link: freeInputData.image_link || ''
                     }];
                 }
-                
+
             // Ensure we have at least one pair
             const pairCount = Math.max(texts.length, images.length, 1);
 
@@ -562,22 +562,22 @@ function populateRegistrationForms(data) {
                     `;
 
                 container.appendChild(pairItem);
-                    
+
                     // Store existing image path in data attribute for later use
                     if (imgData.image) {
                     pairItem.querySelector('.upload-area').dataset.existingImage = imgData.image;
                     }
-                    
+
                     // Initialize file upload handler
                 initializeFreeImageUploadForRegister(pairItem);
-                
+
                 // Initialize drag and drop for upload area
                 const uploadArea = pairItem.querySelector('.upload-area');
                 if (uploadArea) {
                     initializeDragAndDropForUploadAreaForRegister(uploadArea);
                 }
             }
-            
+
             // Initialize drag and drop for reordering after all items are loaded
             setTimeout(() => {
                 initializeFreeInputPairDragAndDropForRegister();
@@ -588,7 +588,7 @@ function populateRegistrationForms(data) {
             console.error('Error parsing free_input:', e);
         }
     }
-    
+
     // Step 4: Tech Tools - Reorder based on display_order from database
     if (data.tech_tools && Array.isArray(data.tech_tools) && data.tech_tools.length > 0) {
         // Sort saved tech tools by display_order
@@ -597,7 +597,7 @@ function populateRegistrationForms(data) {
             const orderB = b.display_order !== undefined ? parseInt(b.display_order) : 999;
             return orderA - orderB;
         });
-        
+
         // Get all tech tool cards from the grid
         const grid = document.getElementById('tech-tools-grid');
         if (grid) {
@@ -606,22 +606,22 @@ function populateRegistrationForms(data) {
             allCards.forEach(card => {
                 cardMap[card.dataset.toolType] = card;
             });
-            
+
             // Create ordered list: selected tools first (in display_order), then unselected tools
             const selectedToolTypes = sortedSavedTools.map(tool => tool.tool_type);
             const defaultOrder = ['mdb', 'rlp', 'llp', 'ai', 'slp', 'olp', 'alp'];
-            const unselectedToolTypes = defaultOrder.filter(toolType => 
+            const unselectedToolTypes = defaultOrder.filter(toolType =>
                 !selectedToolTypes.includes(toolType) && cardMap[toolType]
             );
             const finalOrder = [...selectedToolTypes, ...unselectedToolTypes];
-            
+
             // Reorder cards in DOM
             finalOrder.forEach(toolType => {
                 if (cardMap[toolType]) {
                     grid.appendChild(cardMap[toolType]);
                 }
             });
-            
+
             // Check checkboxes for active tools
             sortedSavedTools.forEach(tool => {
                 if (tool.is_active) {
@@ -631,7 +631,7 @@ function populateRegistrationForms(data) {
                     if (card) card.classList.add('selected');
                 }
             });
-            
+
             // Update button indices after reordering
             setTimeout(() => {
                 updateTechToolButtonsForRegister();
@@ -646,7 +646,7 @@ function populateRegistrationForms(data) {
             });
         }
     }
-    
+
     // Step 5: Communication Methods
     if (data.communication_methods && Array.isArray(data.communication_methods)) {
         data.communication_methods.forEach(method => {
@@ -654,14 +654,14 @@ function populateRegistrationForms(data) {
             const checkbox = document.querySelector(`input[name="comm_${method.method_type}"]`);
             if (checkbox) {
                 checkbox.checked = method.is_active;
-                
+
                 // Show details div
                 const item = checkbox.closest('.communication-item');
                 if (item) {
                     const details = item.querySelector('.comm-details');
                     if (details && method.is_active) {
                         details.style.display = 'block';
-                        
+
                         // Fill in the value
                         const input = details.querySelector('input');
                         if (input) {
@@ -672,9 +672,9 @@ function populateRegistrationForms(data) {
             }
         });
     }
-    
+
     console.log('Registration forms populated');
-    
+
     // Set up mutual exclusivity for architect checkboxes after populating data
     setTimeout(() => {
         setupArchitectCheckboxMutualExclusivity();
@@ -688,17 +688,17 @@ function populateRegistrationForms(data) {
 async function saveStepData(stepNumber) {
     let form;
     let saveData = {};
-    
+
     try {
         switch(stepNumber) {
             case 1:
                 form = document.getElementById('header-greeting-form');
                 if (!form) return true;
-                
+
                 // Collect form data (simplified version - just basic fields, files handled separately)
                 const formData1 = new FormData(form);
                 saveData = Object.fromEntries(formData1);
-                
+
                 // Handle greetings
                 const greetingItems = document.querySelectorAll('#greetings-container .greeting-item');
                 const greetings = [];
@@ -717,15 +717,15 @@ async function saveStepData(stepNumber) {
                     }
                 });
                 saveData.greetings = greetings;
-                
+
                 // Note: File uploads for step 1 are handled separately and are complex
                 // For now, we'll save the text data. Files should be uploaded via form submit.
                 break;
-                
+
             case 2:
                 form = document.getElementById('company-profile-form');
                 if (!form) return true;
-                
+
                 const formData2 = new FormData(form);
                 saveData = Object.fromEntries(formData2);
                 if (saveData.company_name_profile) {
@@ -734,23 +734,23 @@ async function saveStepData(stepNumber) {
                     delete saveData.company_name_profile;
                 }
                 break;
-                
+
             case 3:
                 form = document.getElementById('personal-info-form');
                 if (!form) return true;
-                
+
                 const formData3 = new FormData(form);
                 saveData = Object.fromEntries(formData3);
-                
+
                 // Combine names
                 const lastName = saveData.last_name || '';
                 const firstName = saveData.first_name || '';
                 saveData.name = (lastName + ' ' + firstName).trim();
-                
+
                 const lastNameRomaji = saveData.last_name_romaji || '';
                 const firstNameRomaji = saveData.first_name_romaji || '';
                 saveData.name_romaji = (lastNameRomaji + ' ' + firstNameRomaji).trim();
-                
+
                 // Handle qualifications
                 const qualifications = [];
                 if (formData3.get('qualification_takken')) {
@@ -774,7 +774,7 @@ async function saveStepData(stepNumber) {
                 delete saveData.qualification_kenchikushi_2;
                 delete saveData.qualification_kenchikushi_3;
                 delete saveData.qualifications_other;
-                
+
                 // Handle free input (simplified - just preserve existing structure)
                 const freeInputTexts = formData3.getAll('free_input_text[]').filter(text => text.trim() !== '');
                 const freeImageLinks = formData3.getAll('free_image_link[]');
@@ -786,19 +786,19 @@ async function saveStepData(stepNumber) {
                 };
                 saveData.free_input = JSON.stringify(freeInputData);
                 break;
-                
+
             case 4:
                 // Step 4 (tech tools) doesn't need to save before navigation
                 return true;
-                
+
             case 5:
                 // Step 5 (communication) doesn't need to save before navigation
                 return true;
-                
+
             default:
                 return true;
         }
-        
+
         // Save to database
         if (Object.keys(saveData).length > 0) {
             const response = await fetch('../backend/api/business-card/update.php', {
@@ -809,7 +809,7 @@ async function saveStepData(stepNumber) {
                 body: JSON.stringify(saveData),
                 credentials: 'include'
             });
-            
+
             const result = await response.json();
             if (result.success) {
                 return true;
@@ -818,7 +818,7 @@ async function saveStepData(stepNumber) {
                 return false;
             }
         }
-        
+
         return true;
     } catch (error) {
         console.error(`Error saving step ${stepNumber}:`, error);
@@ -834,7 +834,7 @@ async function saveStepsBeforeTarget(targetStep) {
     for (let step = 1; step < targetStep; step++) {
         // Skip steps 4 and 5 as they don't need pre-save (they're selection-based)
         if (step === 4 || step === 5) continue;
-        
+
         const saved = await saveStepData(step);
         if (!saved) {
             console.warn(`Failed to save step ${step} before navigating to step ${targetStep}`);
@@ -846,7 +846,7 @@ async function saveStepsBeforeTarget(targetStep) {
 // Step navigation
 async function goToStep(step, skipSave = false) {
     if (step < 1 || step > 6) return;
-    
+
     // Update step indicator
     const stepItems = document.querySelectorAll('.step-indicator .step');
     stepItems.forEach(item => {
@@ -861,7 +861,7 @@ async function goToStep(step, skipSave = false) {
                 const itemLeft = itemRect.left - indicatorRect.left;
                 const itemWidth = itemRect.width;
                 const indicatorWidth = indicatorRect.width;
-                
+
                 const scrollPosition = itemLeft - (indicatorWidth / 2) + (itemWidth / 2);
                 stepIndicator.scrollTo({
                     left: scrollPosition,
@@ -870,35 +870,35 @@ async function goToStep(step, skipSave = false) {
             }
         }
     });
-    
+
     // Hide all steps
     document.querySelectorAll('.register-step').forEach(el => {
         el.classList.remove('active');
         el.style.display = 'none';
     });
-    
+
     // Show target step
     document.getElementById(`step-${step}`).classList.add('active');
     document.getElementById(`step-${step}`).style.display = 'block';
-    
+
     // Update step indicator
     document.querySelectorAll('.step').forEach((el, index) => {
         if (index + 1 <= step) {
-            el.classList.add('active'); 
+            el.classList.add('active');
             // el.style.display = 'block';
         } else {
-            el.classList.remove('active'); 
+            el.classList.remove('active');
             // el.style.display = 'none';
         }
     });
-    
+
     currentStep = step;
-    
+
     // Scroll to the top of the screen (not just the section)
     setTimeout(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }, 100);
-    
+
     // Load company name from database when step 2 becomes active
     if (step === 2) {
         // Wait a bit for DOM to be ready, then load company name
@@ -911,7 +911,7 @@ async function goToStep(step, skipSave = false) {
             }
         }, 100);
     }
-    
+
     // Initialize free input pair drag and drop when step 3 becomes active
     if (step === 3) {
         setTimeout(() => {
@@ -920,7 +920,7 @@ async function goToStep(step, skipSave = false) {
             setupArchitectCheckboxMutualExclusivity();
         }, 200);
     }
-    
+
     // Generate and display QR code when reaching step 6 (payment step)
     // if (step === 6) {
     //     generateAndDisplayQRCode();
@@ -931,7 +931,7 @@ async function goToStep(step, skipSave = false) {
 function moveGreeting(index, direction) {
     const container = document.getElementById('greetings-container');
     const items = Array.from(container.querySelectorAll('.greeting-item'));
-    
+
     if (direction === 'up' && index > 0) {
         const currentItem = items[index];
         const prevItem = items[index - 1];
@@ -1162,10 +1162,10 @@ function addGreeting() {
 function clearGreeting(button) {
     const greetingItem = button.closest('.greeting-item');
     if (!greetingItem) return;
-    
+
     // Remove the entire greeting-item div
     greetingItem.remove();
-    
+
     // Update greeting numbers and buttons
     updateGreetingNumbers();
     updateGreetingButtons();
@@ -1208,11 +1208,11 @@ function escapeHtml(text) {
 function displayDefaultGreetingsForRegister() {
     const greetingsContainer = document.getElementById('greetings-container');
     if (!greetingsContainer) return;
-    
+
     // Get current greeting items count
     const existingItems = greetingsContainer.querySelectorAll('.greeting-item');
     const currentCount = existingItems.length;
-    
+
     // Append default greetings to existing ones
     defaultGreetings.forEach((greeting, index) => {
         const greetingItem = document.createElement('div');
@@ -1239,7 +1239,7 @@ function displayDefaultGreetingsForRegister() {
         `;
         greetingsContainer.appendChild(greetingItem);
     });
-    
+
     // Re-initialize drag and drop and update numbering/buttons after displaying
     setTimeout(function() {
         initializeGreetingDragAndDrop();
@@ -1255,7 +1255,7 @@ function restoreDefaultGreetingsForRegister() {
     if (existingModal) {
         existingModal.remove();
     }
-    
+
     // Create modal
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -1276,10 +1276,10 @@ function restoreDefaultGreetingsForRegister() {
         </div>
     `;
     document.body.appendChild(modal);
-    
+
     // Force reflow to ensure DOM is updated
     void modal.offsetHeight;
-    
+
     // Add active class to show modal
     setTimeout(() => {
         modal.classList.add('show');
@@ -1289,14 +1289,14 @@ function restoreDefaultGreetingsForRegister() {
     setTimeout(() => {
         const yesBtn = document.getElementById('confirm-restore-register-yes');
         const noBtn = document.getElementById('confirm-restore-register-no');
-        
+
         if (yesBtn) {
             yesBtn.addEventListener('click', function() {
                 closeRestoreModalForRegister();
                 displayDefaultGreetingsForRegister();
             });
         }
-        
+
         if (noBtn) {
             noBtn.addEventListener('click', function() {
                 closeRestoreModalForRegister();
@@ -1320,9 +1320,9 @@ function closeRestoreModalForRegister() {
 function displayGreetingsForRegister(greetings) {
     const greetingsContainer = document.getElementById('greetings-container');
     if (!greetingsContainer) return;
-    
+
     greetingsContainer.innerHTML = '';
-    
+
     greetings.forEach((greeting, index) => {
         const greetingItem = document.createElement('div');
         greetingItem.className = 'greeting-item';
@@ -1348,7 +1348,7 @@ function displayGreetingsForRegister(greetings) {
         `;
         greetingsContainer.appendChild(greetingItem);
     });
-    
+
     // Re-initialize drag and drop after displaying
     setTimeout(function() {
         initializeGreetingDragAndDrop();
@@ -1359,16 +1359,16 @@ function displayGreetingsForRegister(greetings) {
 // Postal code lookup
 document.getElementById('lookup-address')?.addEventListener('click', async () => {
     const postalCode = document.getElementById('company_postal_code').value.replace(/-/g, '');
-    
+
     if (!postalCode || postalCode.length !== 7) {
         showWarning('7桁の郵便番号を入力してください');
         return;
     }
-    
+
     try {
         const response = await fetch(`../backend/api/utils/postal-code-lookup.php?postal_code=${postalCode}`);
         const result = await response.json();
-        
+
         if (result.success) {
             document.getElementById('company_address').value = result.data.address;
         } else {
@@ -1385,12 +1385,12 @@ document.getElementById('lookup-license')?.addEventListener('click', async () =>
     const prefecture = document.getElementById('license_prefecture').value;
     const renewal = document.getElementById('license_renewal').value;
     const registration = document.getElementById('license_registration').value;
-    
+
     if (!prefecture || !renewal || !registration) {
         showWarning('都道府県、更新番号、登録番号をすべて入力してください');
         return;
     }
-    
+
     try {
         const response = await fetch('../backend/api/utils/license-lookup.php', {
             method: 'POST',
@@ -1404,7 +1404,7 @@ document.getElementById('lookup-license')?.addEventListener('click', async () =>
             })
         });
         const result = await response.json();
-        
+
         if (result.success) {
             if (result.data.company_name) {
                 // Trim the company name to remove any accidental periods or whitespace
@@ -1437,18 +1437,42 @@ document.querySelectorAll('.communication-checkbox input[type="checkbox"]').forE
 });
 
 // Step 1: Header & Greeting (Note: Account registration is now in new_register.php)
+// Track submission state for each form to prevent double submissions (especially important for iPhone)
+let isSubmittingStep1 = false;
+let isSubmittingStep2 = false;
+let isSubmittingStep3 = false;
+let isSubmittingStep4 = false;
+let isSubmittingStep5 = false;
+
 document.getElementById('header-greeting-form')?.addEventListener('submit', async (e) => {
+    // CRITICAL: Always prevent default form submission FIRST
     e.preventDefault();
-    
+    e.stopPropagation();
+
+    // Prevent double submission (especially important for mobile/iOS)
+    if (isSubmittingStep1) {
+        console.log('Already submitting step 1, ignoring duplicate submission');
+        return false;
+    }
+    isSubmittingStep1 = true;
+
+    // Disable submit button and show loading state
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton ? submitButton.textContent : '';
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = '保存中...';
+    }
+
     const formDataObj = new FormData(e.target);
     const data = Object.fromEntries(formDataObj);
-    
+
     // IMPORTANT: Remove file input values from data object to prevent overwriting existing images
     // File inputs in FormData become empty File objects when no file is selected
     // These would be sent as empty/null values and overwrite existing database values
     delete data.company_logo;
     delete data.profile_photo;
-    
+
     // Handle logo upload (check for cropped image first, then restored file)
     const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
     const logoFile = document.getElementById('company_logo').files[0];
@@ -1466,7 +1490,7 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
     }
     if (logoFile || (logoUploadArea && logoUploadArea.dataset.croppedBlob) || restoredLogoFile) {
         const uploadData = new FormData();
-        
+
         // Use cropped image if available, otherwise use original file
         if (logoUploadArea && logoUploadArea.dataset.croppedBlob) {
             // Convert data URL to blob
@@ -1482,14 +1506,25 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
             uploadData.append('file', logoFile);
         }
         uploadData.append('file_type', 'logo');
-        
+
         try {
+            // Add timeout and keepalive for iOS
+            const uploadController = new AbortController();
+            const uploadTimeoutId = setTimeout(() => uploadController.abort(), 30000);
+
             const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
                 method: 'POST',
                 body: uploadData,
-                credentials: 'include'
+                credentials: 'include',
+                signal: uploadController.signal,
+                keepalive: true // Important for iOS
             });
-            
+            clearTimeout(uploadTimeoutId);
+
+            if (!uploadResponse.ok) {
+                throw new Error(`HTTP error! status: ${uploadResponse.status}`);
+            }
+
             const uploadResult = await uploadResponse.json();
             if (uploadResult.success) {
                 // Extract relative path from absolute URL for database storage
@@ -1557,7 +1592,7 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         }
         // If none found, don't set company_logo - API will preserve existing value
     }
-    
+
     // Handle profile photo upload (check for cropped image first, then restored file)
     const photoUploadArea = document.querySelector('[data-upload-id="profile_photo_header"]');
     const photoFile = document.getElementById('profile_photo_header').files[0];
@@ -1575,7 +1610,7 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
     }
     if (photoFile || (photoUploadArea && photoUploadArea.dataset.croppedBlob) || restoredPhotoFile) {
         const uploadData = new FormData();
-        
+
         // Use cropped image if available, otherwise use original file
         if (photoUploadArea && photoUploadArea.dataset.croppedBlob) {
             // Convert data URL to blob
@@ -1591,7 +1626,7 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
             uploadData.append('file', photoFile);
         }
         uploadData.append('file_type', 'photo');
-        
+
         try {
             const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
                 method: 'POST',
@@ -1666,7 +1701,7 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         }
         // If none found, don't set profile_photo - API will preserve existing value
     }
-    
+
     // Handle greetings - get order from DOM
     const greetingItems = document.querySelectorAll('#greetings-container .greeting-item');
     const greetings = [];
@@ -1675,13 +1710,13 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         if (item.dataset.cleared === 'true') {
             return;
         }
-        
+
         const titleInput = item.querySelector('input[name="greeting_title[]"]');
         const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]');
-        
+
         const title = titleInput ? (titleInput.value || '').trim() : '';
         const content = contentTextarea ? (contentTextarea.value || '').trim() : '';
-        
+
         // Only add if both title and content have values
         if (title && content) {
             greetings.push({
@@ -1691,27 +1726,43 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
             });
         }
     });
-    
+
     data.greetings = greetings;
-    
+
     formData = { ...formData, ...data };
     completedSteps.add(1); // Mark step 1 as completed
     sessionStorage.setItem('registerData', JSON.stringify(formData));
     sessionStorage.setItem('completedSteps', JSON.stringify(Array.from(completedSteps)));
-    
+
     // Update business card
     try {
+        // Add timeout for mobile networks (30 seconds) and keepalive for iOS
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const response = await fetch('../backend/api/business-card/update.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(data),
-            credentials: 'include'
+            credentials: 'include',
+            signal: controller.signal,
+            keepalive: true // Important for iOS to ensure request completes
         });
-        
+        clearTimeout(timeoutId);
+
+        // Check if response is OK
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const result = await response.json();
         if (result.success) {
+            // Clear dirty flag to prevent "unsaved changes" popup
+            if (window.autoSave && window.autoSave.markClean) {
+                window.autoSave.markClean();
+            }
             // Clear drafts on successful step completion
             if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
                 await window.autoSave.clearDraftsOnSuccess();
@@ -1724,52 +1775,101 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
                 window.autoSave.markSubmissionFailed();
             }
             showError('更新に失敗しました: ' + result.message);
+            isSubmittingStep1 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
         }
     } catch (error) {
         console.error('Error:', error);
-        showError('エラーが発生しました');
+        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
+        if (error.name === 'AbortError') {
+            showError('タイムアウトしました。もう一度お試しください。');
+        } else {
+            showError('エラーが発生しました: ' + errorMessage);
+        }
+        isSubmittingStep1 = false;
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
+        }
     }
 });
 
 // Step 2: Company Profile
 document.getElementById('company-profile-form')?.addEventListener('submit', async (e) => {
+    // CRITICAL: Always prevent default form submission FIRST
     e.preventDefault();
-    
+    e.stopPropagation();
+
+    // Prevent double submission
+    if (isSubmittingStep2) {
+        console.log('Already submitting step 2, ignoring duplicate submission');
+        return false;
+    }
+    isSubmittingStep2 = true;
+
+    // Disable submit button and show loading state
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton ? submitButton.textContent : '';
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = '保存中...';
+    }
+
     // Validate required fields for real estate license
     const prefecture = document.getElementById('license_prefecture').value;
     const renewal = document.getElementById('license_renewal').value;
     const registration = document.getElementById('license_registration').value.trim();
-    
+
     if (!prefecture || !renewal || !registration) {
         showError('宅建業者番号（都道府県、更新番号、登録番号）は必須項目です。');
-        return;
+        isSubmittingStep2 = false;
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
+        }
+        return false;
     }
-    
+
     const formDataObj = new FormData(e.target);
     const data = Object.fromEntries(formDataObj);
-    
+
     // Merge company_name from profile step and trim to prevent unwanted periods/whitespace
     if (data.company_name_profile) {
         data.company_name = String(data.company_name_profile).trim();
         delete data.company_name_profile;
     }
-    
+
     formData = { ...formData, ...data };
     completedSteps.add(2); // Mark step 2 as completed
     sessionStorage.setItem('registerData', JSON.stringify(formData));
     sessionStorage.setItem('completedSteps', JSON.stringify(Array.from(completedSteps)));
-    
+
     // Update business card
     try {
+        // Add timeout for mobile networks (30 seconds) and keepalive for iOS
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const response = await fetch('../backend/api/business-card/update.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(data),
-            credentials: 'include'
+            credentials: 'include',
+            signal: controller.signal,
+            keepalive: true // Important for iOS to ensure request completes
         });
-        
+        clearTimeout(timeoutId);
+
+        // Check if response is OK
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const result = await response.json();
         if (result.success) {
             // Clear dirty flag to prevent "unsaved changes" popup
@@ -1779,35 +1879,67 @@ document.getElementById('company-profile-form')?.addEventListener('submit', asyn
             goToStep(3);
         } else {
             showError('更新に失敗しました: ' + result.message);
+            isSubmittingStep2 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
         }
     } catch (error) {
         console.error('Error:', error);
-        showError('エラーが発生しました');
+        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
+        if (error.name === 'AbortError') {
+            showError('タイムアウトしました。もう一度お試しください。');
+        } else {
+            showError('エラーが発生しました: ' + errorMessage);
+        }
+        isSubmittingStep2 = false;
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
+        }
     }
 });
 
 // Step 3: Personal Information
 document.getElementById('personal-info-form')?.addEventListener('submit', async (e) => {
+    // CRITICAL: Always prevent default form submission FIRST
     e.preventDefault();
-    
+    e.stopPropagation();
+
+    // Prevent double submission
+    if (isSubmittingStep3) {
+        console.log('Already submitting step 3, ignoring duplicate submission');
+        return false;
+    }
+    isSubmittingStep3 = true;
+
+    // Disable submit button and show loading state
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton ? submitButton.textContent : '';
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = '保存中...';
+    }
+
     const formDataObj = new FormData(e.target);
     const data = Object.fromEntries(formDataObj);
-    
+
     // IMPORTANT: Remove file input values from data object to prevent issues
     // File inputs in FormData become empty File objects or arrays when no file is selected
     delete data['free_image[]'];
     delete data.free_image;
-    
+
     // Combine last_name and first_name into name
     const lastName = data.last_name || '';
     const firstName = data.first_name || '';
     data.name = (lastName + ' ' + firstName).trim();
-    
+
     // Combine romaji names
     const lastNameRomaji = data.last_name_romaji || '';
     const firstNameRomaji = data.first_name_romaji || '';
     data.name_romaji = (lastNameRomaji + ' ' + firstNameRomaji).trim();
-    
+
     // Handle qualifications checkboxes
     const qualifications = [];
     if (formDataObj.get('qualification_takken')) {
@@ -1826,51 +1958,51 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
         qualifications.push(data.qualifications_other);
     }
     data.qualifications = qualifications.join('、');
-    
+
     // Remove individual qualification fields
     delete data.qualification_takken;
     delete data.qualification_kenchikushi_1;
     delete data.qualification_kenchikushi_2;
     delete data.qualification_kenchikushi_3;
     delete data.qualifications_other;
-    
+
     // Combine free input fields from paired items - collect all textarea values and images
     const freeInputTexts = [];
     const images = [];
-    
+
     // Get all paired items
     const pairedItems = document.querySelectorAll('#free-input-pairs-container .free-input-pair-item');
-    
+
     for (let i = 0; i < pairedItems.length; i++) {
         const pairItem = pairedItems[i];
-        
+
         // Get text from this pair
         const textarea = pairItem.querySelector('textarea[name="free_input_text[]"]');
         if (textarea && textarea.value.trim() !== '') {
             freeInputTexts.push(textarea.value.trim());
         }
-        
+
         // Get image and link from this pair
         const fileInput = pairItem.querySelector('input[type="file"]');
         const linkInput = pairItem.querySelector('input[type="url"]');
         const uploadArea = pairItem.querySelector('.upload-area');
         const existingImage = uploadArea ? uploadArea.dataset.existingImage : '';
-        
+
         let imagePath = existingImage || '';
-        
+
         // If new file is selected, upload it
         if (fileInput && fileInput.files && fileInput.files[0]) {
             const uploadData = new FormData();
             uploadData.append('file', fileInput.files[0]);
             uploadData.append('file_type', 'free');
-            
+
             try {
                 const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
                     method: 'POST',
                     body: uploadData,
                     credentials: 'include'
                 });
-                
+
                 const uploadResult = await uploadResponse.json();
                 if (uploadResult.success) {
                     const fullPath = uploadResult.data.file_path;
@@ -1884,19 +2016,19 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
                 console.error('Upload error:', error);
             }
         }
-        
+
         // Add image data (even if empty, to maintain pairing)
         images.push({
             image: imagePath,
             link: linkInput ? linkInput.value.trim() : ''
         });
     }
-    
+
     let freeInputData = {
         texts: freeInputTexts.length > 0 ? freeInputTexts : [''],
         images: images.length > 0 ? images : [{ image: '', link: '' }]
     };
-    
+
     // Store free input as JSON
     data.free_input = JSON.stringify(freeInputData);
     // Remove all free_input_text entries from data
@@ -1906,23 +2038,35 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
         }
     });
     delete data.free_image_link;
-    
+
     formData = { ...formData, ...data };
     completedSteps.add(3); // Mark step 3 as completed
     sessionStorage.setItem('registerData', JSON.stringify(formData));
     sessionStorage.setItem('completedSteps', JSON.stringify(Array.from(completedSteps)));
-    
+
     // Update business card
     try {
+        // Add timeout for mobile networks (30 seconds) and keepalive for iOS
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const response = await fetch('../backend/api/business-card/update.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(data),
-            credentials: 'include'
+            credentials: 'include',
+            signal: controller.signal,
+            keepalive: true // Important for iOS to ensure request completes
         });
-        
+        clearTimeout(timeoutId);
+
+        // Check if response is OK
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const result = await response.json();
         if (result.success) {
             // Clear dirty flag to prevent "unsaved changes" popup
@@ -1932,71 +2076,133 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
             goToStep(4);
         } else {
             showError('更新に失敗しました: ' + result.message);
+            isSubmittingStep3 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
         }
     } catch (error) {
         console.error('Error:', error);
-        showError('エラーが発生しました');
+        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
+        if (error.name === 'AbortError') {
+            showError('タイムアウトしました。もう一度お試しください。');
+        } else {
+            showError('エラーが発生しました: ' + errorMessage);
+        }
+        isSubmittingStep3 = false;
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
+        }
     }
 });
 
 // Step 4: Tech Tools Selection
 document.getElementById('tech-tools-form')?.addEventListener('submit', async (e) => {
+    // CRITICAL: Always prevent default form submission FIRST
     e.preventDefault();
-    
+    e.stopPropagation();
+
+    // Prevent double submission
+    if (isSubmittingStep4) {
+        console.log('Already submitting step 4, ignoring duplicate submission');
+        return false;
+    }
+    isSubmittingStep4 = true;
+
+    // Disable submit button and show loading state
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton ? submitButton.textContent : '';
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = '保存中...';
+    }
+
     // Get selected tools in DOM order (respecting user's reordering)
     const grid = document.getElementById('tech-tools-grid');
     const toolCards = Array.from(grid.querySelectorAll('.tech-tool-banner-card'));
     const selectedTools = [];
-    
+
     toolCards.forEach(card => {
         const checkbox = card.querySelector('input[type="checkbox"]');
         if (checkbox && checkbox.checked) {
             selectedTools.push(card.dataset.toolType);
         }
     });
-    
+
     if (selectedTools.length < 2) {
         showWarning('最低2つ以上のテックツールを選択してください');
-        return;
+        isSubmittingStep4 = false;
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
+        }
+        return false;
     }
-    
+
     formData.tech_tools = selectedTools;
     completedSteps.add(4); // Mark step 4 as completed
     sessionStorage.setItem('registerData', JSON.stringify(formData));
     sessionStorage.setItem('completedSteps', JSON.stringify(Array.from(completedSteps)));
-    
-    // Generate tech tool URLs and save to database
-    await generateTechToolUrls(selectedTools);
-    
-    goToStep(5);
+
+    try {
+        // Generate tech tool URLs and save to database
+        await generateTechToolUrls(selectedTools);
+
+        // Clear dirty flag to prevent "unsaved changes" popup
+        if (window.autoSave && window.autoSave.markClean) {
+            window.autoSave.markClean();
+        }
+
+        goToStep(5);
+    } catch (error) {
+        console.error('Error saving tech tools:', error);
+        showError('テックツールの保存に失敗しました');
+        isSubmittingStep4 = false;
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
+        }
+    }
 });
 
 // Generate Tech Tool URLs and save to database
 async function generateTechToolUrls(selectedTools) {
     try {
-        // Step 1: Generate URLs
+        // Step 1: Generate URLs with timeout and keepalive for iOS
+        const urlController = new AbortController();
+        const urlTimeoutId = setTimeout(() => urlController.abort(), 30000);
+
         const urlResponse = await fetch('../backend/api/tech-tools/generate-urls.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ selected_tools: selectedTools }),
-            credentials: 'include'
+            credentials: 'include',
+            signal: urlController.signal,
+            keepalive: true // Important for iOS
         });
-        
+        clearTimeout(urlTimeoutId);
+
+        if (!urlResponse.ok) {
+            throw new Error(`HTTP error! status: ${urlResponse.status}`);
+        }
+
         const urlResult = await urlResponse.json();
         if (!urlResult.success) {
             console.error('Failed to generate URLs:', urlResult.message);
             return;
         }
-        
+
         // Step 2: Format tech tools for database - preserve DOM order
         // Create a map of tool_type to tool_url for quick lookup
         const toolUrlMap = {};
         urlResult.data.tech_tools.forEach(tool => {
             toolUrlMap[tool.tool_type] = tool.tool_url;
         });
-        
+
         // Build tech tools array in DOM order
         const techToolsForDB = selectedTools.map((toolType, index) => ({
             tool_type: toolType,
@@ -2004,20 +2210,30 @@ async function generateTechToolUrls(selectedTools) {
             display_order: index,
             is_active: 1
         }));
-        
+
         formData.tech_tool_urls = urlResult.data.tech_tools;
         sessionStorage.setItem('registerData', JSON.stringify(formData));
-        
-        // Step 3: Save to database
+
+        // Step 3: Save to database with timeout and keepalive for iOS
+        const saveController = new AbortController();
+        const saveTimeoutId = setTimeout(() => saveController.abort(), 30000);
+
         const saveResponse = await fetch('../backend/api/business-card/update.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ tech_tools: techToolsForDB }),
-            credentials: 'include'
+            credentials: 'include',
+            signal: saveController.signal,
+            keepalive: true // Important for iOS
         });
-        
+        clearTimeout(saveTimeoutId);
+
+        if (!saveResponse.ok) {
+            throw new Error(`HTTP error! status: ${saveResponse.status}`);
+        }
+
         const saveResult = await saveResponse.json();
         if (saveResult.success) {
             console.log('Tech tools saved to database successfully');
@@ -2035,12 +2251,29 @@ async function generateTechToolUrls(selectedTools) {
 
 // Step 6: Communication Functions
 document.getElementById('communication-form')?.addEventListener('submit', async (e) => {
+    // CRITICAL: Always prevent default form submission FIRST
     e.preventDefault();
-    
+    e.stopPropagation();
+
+    // Prevent double submission
+    if (isSubmittingStep5) {
+        console.log('Already submitting step 5, ignoring duplicate submission');
+        return false;
+    }
+    isSubmittingStep5 = true;
+
+    // Disable submit button and show loading state
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton ? submitButton.textContent : '';
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = '保存中...';
+    }
+
     const formDataObj = new FormData(e.target);
     const communicationMethods = [];
     let displayOrder = 0;
-    
+
     // Mapping from method_type to form field names
     const methodTypeMap = {
         'line': { key: 'comm_line', idField: 'comm_line_id', isUrl: false },
@@ -2058,7 +2291,7 @@ document.getElementById('communication-form')?.addEventListener('submit', async 
         'pinterest': { key: 'comm_pinterest', urlField: 'comm_pinterest_url', isUrl: true },
         'threads': { key: 'comm_threads', urlField: 'comm_threads_url', isUrl: true }
     };
-    
+
     // Collect Message Apps first (in DOM order)
     const messageGrid = document.getElementById('message-apps-grid');
     if (messageGrid) {
@@ -2092,7 +2325,7 @@ document.getElementById('communication-form')?.addEventListener('submit', async 
             }
         });
     }
-    
+
     // Collect SNS Apps second (in DOM order)
     const snsGrid = document.getElementById('sns-grid');
     if (snsGrid) {
@@ -2126,27 +2359,39 @@ document.getElementById('communication-form')?.addEventListener('submit', async 
             }
         });
     }
-    
+
     const data = {
         communication_methods: communicationMethods
     };
-    
+
     formData = { ...formData, ...data };
     completedSteps.add(5); // Mark step 5 as completed
     sessionStorage.setItem('registerData', JSON.stringify(formData));
     sessionStorage.setItem('completedSteps', JSON.stringify(Array.from(completedSteps)));
-    
+
     // Update business card
     try {
+        // Add timeout for mobile networks (30 seconds) and keepalive for iOS
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const response = await fetch('../backend/api/business-card/update.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(data),
-            credentials: 'include'
+            credentials: 'include',
+            signal: controller.signal,
+            keepalive: true // Important for iOS to ensure request completes
         });
-        
+        clearTimeout(timeoutId);
+
+        // Check if response is OK
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const result = await response.json();
         if (result.success) {
             // Clear dirty flag to prevent "unsaved changes" popup
@@ -2156,22 +2401,37 @@ document.getElementById('communication-form')?.addEventListener('submit', async 
             goToStep(6);
         } else {
             showError('更新に失敗しました: ' + result.message);
+            isSubmittingStep5 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
         }
     } catch (error) {
         console.error('Error:', error);
-        showError('エラーが発生しました');
+        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
+        if (error.name === 'AbortError') {
+            showError('タイムアウトしました。もう一度お試しください。');
+        } else {
+            showError('エラーが発生しました: ' + errorMessage);
+        }
+        isSubmittingStep5 = false;
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
+        }
     }
 });
 
 // Step 6: Preview & Payment
 document.getElementById('submit-payment')?.addEventListener('click', async () => {
     const paymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value;
-    
+
     if (!paymentMethod) {
         showWarning('支払方法を選択してください');
         return;
     }
-    
+
     // Create payment intent
     try {
         const response = await fetch('../backend/api/payment/create-intent.php', {
@@ -2185,9 +2445,9 @@ document.getElementById('submit-payment')?.addEventListener('click', async () =>
             }),
             credentials: 'include'
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             if (paymentMethod === 'credit_card') {
                 // Redirect to payment page with payment_id and client_secret
@@ -2234,10 +2494,10 @@ function collectFormData() {
     // Start with stored data from sessionStorage (only contains submitted data)
     const storedData = sessionStorage.getItem('registerData');
     const data = storedData ? JSON.parse(storedData) : {};
-    
+
     // Only read from form fields for steps that have been completed
     // This prevents showing default values from forms that haven't been submitted yet
-    
+
     // Step 1: Header & Greeting (Step 1 in the current flow)
     if (completedSteps.has(1)) {
         const step1Form = document.getElementById('header-greeting-form');
@@ -2247,7 +2507,7 @@ function collectFormData() {
                 // Trim to prevent unwanted periods/whitespace
                 data.company_name = String(formData.get('company_name')).trim();
             }
-            
+
             // Logo
             const logoInput = document.getElementById('company_logo');
             if (logoInput && logoInput.files[0]) {
@@ -2256,7 +2516,7 @@ function collectFormData() {
                 const logoPreview = document.querySelector('#logo-upload .upload-preview img');
                 if (logoPreview) data.company_logo = logoPreview.src;
             }
-            
+
             // Profile photo
             const photoInput = document.getElementById('profile_photo_header');
             if (photoInput && photoInput.files[0]) {
@@ -2265,7 +2525,7 @@ function collectFormData() {
                 const photoPreview = document.querySelector('#photo-upload-header .upload-preview img');
                 if (photoPreview) data.profile_photo = photoPreview.src;
             }
-            
+
             // Greetings
             data.greetings = [];
             const greetingTitles = formData.getAll('greeting_title[]');
@@ -2280,7 +2540,7 @@ function collectFormData() {
             });
         }
     }
-    
+
     // Step 2: Company Profile
     if (completedSteps.has(2)) {
         const step2Form = document.getElementById('company-profile-form');
@@ -2313,7 +2573,7 @@ function collectFormData() {
             }
         }
     }
-    
+
     // Step 3: Personal Info
     if (completedSteps.has(3)) {
         const step3Form = document.getElementById('personal-info-form');
@@ -2361,7 +2621,7 @@ function collectFormData() {
             if (formData.get('free_image_link')) {
                 data.free_image_link = formData.get('free_image_link');
             }
-            
+
             // Qualifications
             const qualifications = [];
             if (formData.get('qualification_takken')) qualifications.push('宅地建物取引士');
@@ -2371,7 +2631,7 @@ function collectFormData() {
             if (qualifications.length > 0) {
                 data.qualifications = qualifications.join('、');
             }
-            
+
             // Free image
             const freeImageInput = document.getElementById('free_image');
             if (freeImageInput && freeImageInput.files[0]) {
@@ -2382,7 +2642,7 @@ function collectFormData() {
             }
         }
     }
-    
+
     // Step 4: Tech Tools
     if (completedSteps.has(4)) {
         const step4Form = document.getElementById('tech-tools-form');
@@ -2394,14 +2654,14 @@ function collectFormData() {
             }
         }
     }
-    
+
     // Step 5: Communication
     if (completedSteps.has(5)) {
         const step5Form = document.getElementById('communication-form');
         if (step5Form) {
             const formData = new FormData(step5Form);
             data.communication = {};
-            
+
             // Message apps
             if (formData.get('comm_line')) {
                 data.communication.line = {
@@ -2445,7 +2705,7 @@ function collectFormData() {
                     icon: '<img src="assets/images/icons/chatwork.png" alt="Chatwork">'
                 };
             }
-            
+
             // SNS
             if (formData.get('comm_instagram')) {
                 data.communication.instagram = {
@@ -2505,7 +2765,7 @@ function collectFormData() {
             }
         }
     }
-    
+
     return data;
 }
 
@@ -2519,7 +2779,7 @@ function generatePreview(data) {
         'slp': 'セルフィン',
         'olp': 'オーナーコネクト'
     };
-    
+
     const techToolDescriptions = {
         'slp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><strong><span style="color: #000000;">AI評価付き『SelFin（セルフィン）』は消費者自ら</span></strong><span style="color: #ff0000;"><span style="font-weight: 700 !important;">「物件の資産性」を自動判定できる</span></span></span><span style="color: #000000;"><strong><span style="font-size: 14px;">ツールです。「価格の妥当性」「街力」「流動性」「耐震性」「管理費・修繕積立金の妥当性」を自動判定します。また物件提案ロボで配信される物件にはSelFin評価が付随します。</span></strong></span></p></div>',
         'rlp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>AI評価付き『物件提案ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><strong><span style="color: #000000;">」で自動配信します。WEB上に登録になった</span></strong><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span></p></div>',
@@ -2528,7 +2788,7 @@ function generatePreview(data) {
         'ai': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span></p></div>',
         'olp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>オーナーコネクトはマンション所有者様向けのサービスで、</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">誰でも簡単に自宅の資産状況を確認できます。</span></span></span><span style="color: #000000;"><strong>登録されたマンションで新たに売り出し情報が出たらメールでお知らせいたします。</strong></span><span style="color: #000000;"><strong>また、</strong></span><span style="font-weight: 700 !important;"><span style="color: #ff0000;">毎週自宅の資産状況をまとめたレポートメールも送信</span></span><strong><span style="color: #000000;">いたします。</span></strong></span></p></div>'
     };
-    
+
     const techToolBanners = {
         'slp': 'assets/images/tech_banner/slp.jpg',
         'rlp': 'assets/images/tech_banner/rlp.jpg',
@@ -2537,10 +2797,10 @@ function generatePreview(data) {
         'ai': 'assets/images/tech_banner/ai.jpg',
         'olp': 'assets/images/tech_banner/olp.jpg'
     };
-    
+
     let html = '<div class="card-container">';
     html += '<div class="card-section">';
-    
+
     // Header Section (matching card.php)
     html += '<div class="card-header">';
     let hasHeaderContent = false;
@@ -2557,10 +2817,10 @@ function generatePreview(data) {
     if (hasHeaderContent) {
         html += '<hr>';
     }
-    
+
     // Card Body
     html += '<div class="card-body">';
-    
+
     // Profile photo and greeting section (matching card.php)
     html += '<div class="profile-greeting-section">';
     let hasProfileGreetingContent = false;
@@ -2570,7 +2830,7 @@ function generatePreview(data) {
         html += '</div>';
         hasProfileGreetingContent = true;
     }
-    
+
     // First greeting only
     html += '<div class="greeting-content">';
     if (data.greetings && data.greetings.length > 0) {
@@ -2593,7 +2853,7 @@ function generatePreview(data) {
     if (hasProfileGreetingContent) {
         html += '<hr>';
     }
-    
+
     // Responsive two-column info layout (matching card.php)
     html += '<div class="card-body">';
     html += '<div class="info-responsive-grid">';
@@ -2608,7 +2868,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // License
     if (data.real_estate_license_registration_number) {
         html += '<div class="info-section">';
@@ -2621,7 +2881,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Address
     if (data.company_postal_code || data.company_address) {
         html += '<div class="info-section">';
@@ -2635,7 +2895,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Company phone
     if (data.company_phone) {
         html += '<div class="info-section">';
@@ -2644,7 +2904,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Website
     if (data.company_website) {
         html += '<div class="info-section">';
@@ -2653,7 +2913,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Department / Position
     if (data.branch_department || data.position) {
         html += '<div class="info-section">';
@@ -2663,7 +2923,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Name
     if (data.name) {
         html += '<div class="info-section person-name-section">';
@@ -2676,7 +2936,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Mobile phone
     if (data.mobile_phone) {
         html += '<div class="info-section">';
@@ -2685,7 +2945,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Birthday
     if (data.birth_date) {
         html += '<div class="info-section">';
@@ -2694,7 +2954,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Residence / Hometown
     if (data.current_residence || data.hometown) {
         html += '<div class="info-section">';
@@ -2704,7 +2964,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Alma mater
     if (data.alma_mater) {
         html += '<div class="info-section">';
@@ -2713,7 +2973,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Qualifications
     if (data.qualifications) {
         html += '<div class="info-section">';
@@ -2722,7 +2982,7 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Hobbies
     if (data.hobbies) {
         html += '<div class="info-section">';
@@ -2731,34 +2991,34 @@ function generatePreview(data) {
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     // Free input (Other)
     if (data.free_input !== '{"text":"","image_link":""}' && (data.free_input_text || data.free_image)) {
         html += '<div class="info-section">';
         html += '<h3>その他</h3>';
         html += '<div class="free-input-content" style="overflow-wrap: anywhere;">';
-        
+
         if (data.free_input_text) {
             html += `<p class="free-input-text">${escapeHtml(data.free_input_text).replace(/\n/g, '<br>')}</p>`;
         }
-        
+
         if (data.free_image) {
             html += '<div class="free-input-image">';
             html += `<img src="${escapeHtml(data.free_image)}" alt="アップロード画像" style="max-width: 100%; height: auto; border-radius: 4px; margin: 0.5rem 0; display: block;">`;
             html += '</div>';
         }
-        
+
         if (data.free_image_link) {
             html += '<p class="free-input-link">';
             html += `<a href="${escapeHtml(data.free_image_link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(data.free_image_link)}</a>`;
             html += '</p>';
         }
-        
+
         html += '</div>';
         html += '</div>';
         hasInfoContent = true;
     }
-    
+
     html += '</div>'; // info-responsive-grid
 
     if (hasInfoContent) {
@@ -2771,11 +3031,11 @@ function generatePreview(data) {
         html += '<h2>不動産テックツール</h2>';
         html += '<p class="section-description">物件の購入・売却に役立つツールをご利用いただけます</p>';
         html += '<div class="tech-tools-grid">';
-        
+
         data.tech_tools.forEach(tool => {
             const bannerImage = techToolBanners[tool] || 'assets/images/tech_banner/default.jpg';
             const description = techToolDescriptions[tool] || '';
-            
+
             html += '<div class="tech-tool-banner-card">';
             html += `<div class="tool-banner-header" style="background-image: url('${bannerImage}'); background-size: contain; background-position: center; background-repeat: no-repeat; height: 200px;"></div>`;
             html += '<div class="tool-banner-content">';
@@ -2784,22 +3044,22 @@ function generatePreview(data) {
             html += '</div>';
             html += '</div>';
         });
-        
+
         html += '</div>';
         html += '</div>';
     }
-    
+
     // Only show HR if tech tools section was displayed
     if (data.tech_tools && data.tech_tools.length > 0) {
         html += '<hr>';
     }
-    
+
     // Communication Section (matching card.php)
     if (data.communication && Object.keys(data.communication).length > 0) {
         html += '<div class="communication-section">';
         html += '<h3>コミュニケーション方法</h3>';
         html += '<div class="communication-grid">';
-        
+
         Object.entries(data.communication).forEach(([key, comm]) => {
             if (comm.url || comm.id) {
                 html += '<div class="comm-card">';
@@ -2810,15 +3070,15 @@ function generatePreview(data) {
                 html += '</div>';
             }
         });
-        
+
         html += '</div>';
         html += '</div>';
     }
-    
+
     html += '</div>'; // card-body
     html += '</section>';
     html += '</div>'; // card-container
-    
+
     return html;
 }
 
@@ -2892,7 +3152,7 @@ async function showPreview() {
     const modalContent = document.createElement('div');
     modalContent.className = 'preview-modal-content';
     modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
-    
+
     // Create iframe to load card.php with preview mode
     const iframe = document.createElement('iframe');
     iframe.src = `card.php?slug=${encodeURIComponent(urlSlug)}&preview=1`;
@@ -2976,13 +3236,13 @@ function hidePreview() {
 function showRegisterImageCropper(file, fieldName, originalEvent) {
     const modal = document.getElementById('image-cropper-modal');
     const cropperImage = document.getElementById('cropper-image');
-    
+
     if (!modal || !cropperImage) {
         // Fallback to preview if modal doesn't exist
         showRegisterImagePreview(file, fieldName, originalEvent);
         return;
     }
-    
+
     // Step 1: Clean up previous state completely
     if (registerCropper) {
         try {
@@ -2992,7 +3252,7 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
         }
         registerCropper = null;
     }
-    
+
     // Step 1.5: Reset image element completely BEFORE revoking URL (to prevent errors)
     cropperImage.onload = null;
     cropperImage.onerror = null;
@@ -3021,35 +3281,35 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
         cropperImage.removeEventListener('load', registerCropperImageLoadHandler);
         registerCropperImageLoadHandler = null;
     }
-    
+
     // Step 2: Remove old event listeners from buttons (create new handlers)
     const cancelBtn = document.getElementById('crop-cancel-btn');
     const confirmBtn = document.getElementById('crop-confirm-btn');
-    
+
     // Clone buttons to remove all event listeners
     if (cancelBtn) {
         const newCancelBtn = cancelBtn.cloneNode(true);
         cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
         document.getElementById('crop-cancel-btn').onclick = null; // Clear any existing handlers
     }
-    
+
     if (confirmBtn) {
         const newConfirmBtn = confirmBtn.cloneNode(true);
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
         document.getElementById('crop-confirm-btn').onclick = null; // Clear any existing handlers
     }
-    
+
     // Step 3: Store file and field name for later use
     registerCropFile = file;
     registerCropFieldName = fieldName;
     registerCropOriginalEvent = originalEvent;
-    
+
     // Step 4: Create new object URL for the image
     registerImageObjectURL = URL.createObjectURL(file);
-    
+
     // Step 5: Show modal
     modal.style.display = 'block';
-    
+
     // Step 6: Set up image load handler (with timeout to ensure DOM is ready)
     setTimeout(() => {
         // Make image visible again
@@ -3093,7 +3353,7 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
                 }
             }, 50);
         };
-        
+
         cropperImage.onerror = function() {
             console.error('Error loading image');
             showError('画像の読み込みに失敗しました');
@@ -3119,7 +3379,7 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
             cropperImage.onload = registerCropperImageLoadHandler;
         }
     }, 100); // Small delay to ensure cleanup completes
-    
+
     // Step 7: Setup cancel button (after recreating it)
     const newCancelBtn = document.getElementById('crop-cancel-btn');
     if (newCancelBtn) {
@@ -3132,7 +3392,7 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
             }
         };
     }
-    
+
     // Step 8: Setup confirm button (after recreating it)
     const newConfirmBtn = document.getElementById('crop-confirm-btn');
     if (newConfirmBtn) {
@@ -3150,7 +3410,7 @@ function closeRegisterImageCropper() {
         modal.style.alignItems = '';
         modal.style.justifyContent = '';
     }
-    
+
     // Destroy cropper instance
     if (registerCropper) {
         try {
@@ -3160,7 +3420,7 @@ function closeRegisterImageCropper() {
         }
         registerCropper = null;
     }
-    
+
     // Clean up object URL
     const cropperImage = document.getElementById('cropper-image');
     if (cropperImage) {
@@ -3171,7 +3431,7 @@ function closeRegisterImageCropper() {
             registerCropperImageLoadHandler = null;
         }
         cropperImage.onerror = null;
-        
+
         // Revoke object URL
         if (registerImageObjectURL) {
             try {
@@ -3181,11 +3441,11 @@ function closeRegisterImageCropper() {
             }
             registerImageObjectURL = null;
         }
-        
+
         // Clear image src
         cropperImage.src = '';
     }
-    
+
     // Clear state
     registerCropFile = null;
     registerCropFieldName = null;
@@ -3197,13 +3457,13 @@ function cropAndStoreForRegister() {
     if (!registerCropper || !registerCropFile || !registerCropFieldName) {
         return;
     }
-    
+
     // Find upload area using field name as fallback
     let uploadArea = null;
     if (registerCropOriginalEvent && registerCropOriginalEvent.target) {
         uploadArea = registerCropOriginalEvent.target.closest('.upload-area');
     }
-    
+
     // If we can't find it from the event, try to find it by field name
     if (!uploadArea && registerCropFieldName) {
         const fieldId = registerCropFieldName === 'company_logo' ? 'company_logo' : 'profile_photo_header';
@@ -3212,16 +3472,16 @@ function cropAndStoreForRegister() {
             uploadArea = fieldElement.closest('.upload-area');
         }
     }
-    
+
     if (!uploadArea) {
         showError('アップロードエリアが見つかりません');
         return;
     }
-    
+
     // Store file info in local variables before async operations
     const cropFileName = registerCropFile ? registerCropFile.name : 'cropped_image.png';
     const cropFileType = registerCropFile ? registerCropFile.type : 'image/png';
-    
+
     try {
         // Get cropped canvas
         const canvas = registerCropper.getCroppedCanvas({
@@ -3230,14 +3490,14 @@ function cropAndStoreForRegister() {
             imageSmoothingEnabled: true,
             imageSmoothingQuality: 'high'
         });
-        
+
         // Convert canvas to blob
         canvas.toBlob(function(blob) {
             if (!blob) {
                 showError('画像のトリミングに失敗しました');
                 return;
             }
-            
+
             // Show preview with cropped image
             const reader = new FileReader();
             reader.onload = (event) => {
@@ -3245,17 +3505,17 @@ function cropAndStoreForRegister() {
                 if (preview) {
                     preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
                 }
-                
+
                 // Store cropped blob in a data attribute for later upload
                 uploadArea.dataset.croppedBlob = event.target.result; // Store as data URL
                 uploadArea.dataset.croppedFileName = cropFileName;
             };
             reader.readAsDataURL(blob);
-            
+
             // Close cropper
             closeRegisterImageCropper();
         }, cropFileType, 0.95);
-        
+
     } catch (error) {
         console.error('Crop error:', error);
         showError('画像のトリミング中にエラーが発生しました');
@@ -3270,8 +3530,8 @@ function showRegisterImagePreview(file, fieldName, originalEvent) {
         if (preview) {
             const img = new Image();
             img.onload = () => {
-                const resizeNote = (img.width > 800 || img.height > 800) 
-                    ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大800×800px)</p>` 
+                const resizeNote = (img.width > 800 || img.height > 800)
+                    ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大800×800px)</p>`
                     : '';
                                 preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
             };
@@ -3318,8 +3578,8 @@ document.getElementById('free_image')?.addEventListener('change', (e) => {
                 // Get image dimensions
                 const img = new Image();
                 img.onload = () => {
-                    const resizeNote = (img.width > 1200 || img.height > 1200) 
-                        ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
+                    const resizeNote = (img.width > 1200 || img.height > 1200)
+                        ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>`
                         : '';
                                 preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
                 };
@@ -3335,7 +3595,7 @@ document.getElementById('free_image')?.addEventListener('change', (e) => {
 function addFreeInputPairForRegister() {
     const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-    
+
     const itemCount = container.querySelectorAll('.free-input-pair-item').length;
     const newPairItem = document.createElement('div');
     newPairItem.className = 'free-input-pair-item';
@@ -3373,7 +3633,7 @@ function addFreeInputPairForRegister() {
             </div>
         </div>
     `;
-    
+
     // Insert at the top of the container (before the first child, or append if no children exist)
     if (container.firstChild) {
         container.insertBefore(newPairItem, container.firstChild);
@@ -3390,20 +3650,20 @@ function addFreeInputPairForRegister() {
 
     // Initialize file input handler for the new item
     initializeFreeImageUploadForRegister(newPairItem);
-    
+
     // Initialize drag and drop for the new upload area
     const uploadArea = newPairItem.querySelector('.upload-area');
     if (uploadArea) {
         initializeDragAndDropForUploadAreaForRegister(uploadArea);
     }
-    
+
     // Initialize drag and drop for reordering
     initializeFreeInputPairDragAndDropForRegister();
-    
+
     // Update buttons and numbers
     updateFreeInputPairButtonsForRegister();
     updateFreeInputPairNumbersForRegister();
-    
+
     // Show delete buttons if there are multiple items
     updateFreeInputPairDeleteButtonsForRegister();
 }
@@ -3412,13 +3672,13 @@ function addFreeInputPairForRegister() {
 function removeFreeInputPairForRegister(button) {
     const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-    
+
     const items = container.querySelectorAll('.free-input-pair-item');
     if (items.length <= 1) {
         showWarning('最低1つのセットが必要です。');
         return;
     }
-    
+
     const item = button.closest('.free-input-pair-item');
     if (item) {
         item.remove();
@@ -3434,10 +3694,10 @@ function removeFreeInputPairForRegister(button) {
 function updateFreeInputPairDeleteButtonsForRegister() {
     const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-    
+
     const items = container.querySelectorAll('.free-input-pair-item');
     const deleteButtons = container.querySelectorAll('.free-input-pair-item .btn-delete-small');
-    
+
     if (items.length > 1) {
         deleteButtons.forEach(btn => btn.style.display = 'inline-block');
     } else {
@@ -3557,9 +3817,9 @@ function initializeFreeInputPairDragAndDropForRegister() {
 function moveFreeInputPairForRegister(index, direction) {
     const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-    
+
     const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
-    
+
     if (direction === 'up' && index > 0) {
         const currentItem = items[index];
         const prevItem = items[index - 1];
@@ -3579,12 +3839,12 @@ function moveFreeInputPairForRegister(index, direction) {
 function updateFreeInputPairButtonsForRegister() {
     const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-    
+
     const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
     items.forEach((item, index) => {
         const upBtn = item.querySelector('.btn-move-up');
         const downBtn = item.querySelector('.btn-move-down');
-        
+
         if (upBtn) {
             upBtn.disabled = index === 0;
             upBtn.setAttribute('onclick', `moveFreeInputPairForRegister(${index}, 'up')`);
@@ -3600,7 +3860,7 @@ function updateFreeInputPairButtonsForRegister() {
 function updateFreeInputPairNumbersForRegister() {
     const container = document.getElementById('free-input-pairs-container');
     if (!container) return;
-    
+
     const items = container.querySelectorAll('.free-input-pair-item');
     items.forEach((item, index) => {
         const numberSpan = item.querySelector('.free-input-pair-number');
@@ -3653,13 +3913,13 @@ function updateFreeInputDeleteButtonsForRegister() {
 function removeFreeImageItemForRegister(button) {
     const container = document.getElementById('free-images-container');
     if (!container) return;
-    
+
     const items = container.querySelectorAll('.free-image-item');
     if (items.length <= 1) {
         showWarning('最低1つの画像項目が必要です。');
         return;
     }
-    
+
     const item = button.closest('.free-image-item');
     if (item) {
         item.remove();
@@ -3671,10 +3931,10 @@ function removeFreeImageItemForRegister(button) {
 function updateFreeImageDeleteButtonsForRegister() {
     const container = document.getElementById('free-images-container');
     if (!container) return;
-    
+
     const items = container.querySelectorAll('.free-image-item');
     const deleteButtons = container.querySelectorAll('#free-images-container .btn-delete-small');
-    
+
     if (items.length > 1) {
         deleteButtons.forEach(btn => btn.style.display = 'inline-block');
     } else {
@@ -3686,7 +3946,7 @@ function updateFreeImageDeleteButtonsForRegister() {
 function initializeFreeImageUploadForRegister(item) {
     const fileInput = item.querySelector('input[type="file"]');
     if (!fileInput) return;
-    
+
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
@@ -3696,8 +3956,8 @@ function initializeFreeImageUploadForRegister(item) {
                 if (preview) {
                     const img = new Image();
                     img.onload = () => {
-                        const resizeNote = (img.width > 1200 || img.height > 1200) 
-                            ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>` 
+                        const resizeNote = (img.width > 1200 || img.height > 1200)
+                            ? `<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>`
                             : '';
                                 preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
                     };
@@ -3712,40 +3972,40 @@ function initializeFreeImageUploadForRegister(item) {
 // Initialize drag and drop for a specific upload area (register page)
 function initializeDragAndDropForUploadAreaForRegister(uploadArea) {
     if (!uploadArea) return;
-    
+
     const fileInput = uploadArea.querySelector('input[type="file"]');
     if (!fileInput) return;
-    
+
     // Check if already initialized to avoid duplicate listeners
     if (uploadArea.dataset.dragInitialized === 'true') return;
     uploadArea.dataset.dragInitialized = 'true';
-    
+
     // ドラッグエンター時の処理（ブラウザのデフォルト動作を防止）
     uploadArea.addEventListener('dragenter', function(e) {
         e.preventDefault();
         e.stopPropagation();
     });
-    
+
     // ドラッグオーバー時の処理
     uploadArea.addEventListener('dragover', function(e) {
         e.preventDefault();
         e.stopPropagation();
         uploadArea.classList.add('drag-over');
     });
-    
+
     // ドラッグリーブ時の処理
     uploadArea.addEventListener('dragleave', function(e) {
         e.preventDefault();
         e.stopPropagation();
         uploadArea.classList.remove('drag-over');
     });
-    
+
     // ドロップ時の処理
     uploadArea.addEventListener('drop', function(e) {
         e.preventDefault();
         e.stopPropagation();
         uploadArea.classList.remove('drag-over');
-        
+
         const files = e.dataTransfer.files;
         if (files.length > 0) {
             const file = files[0];
@@ -3786,7 +4046,7 @@ function initializeDragAndDropForUploadAreaForRegister(uploadArea) {
             }
         }
     });
-    
+
     // クリックでファイル選択も可能
     uploadArea.addEventListener('click', function(e) {
         // ボタンやプレビュー画像をクリックした場合は除外
@@ -3802,24 +4062,24 @@ window.addEventListener('DOMContentLoaded', () => {
     if (savedData) {
         formData = JSON.parse(savedData);
     }
-    
+
     // Load completed steps
     const savedCompletedSteps = sessionStorage.getItem('completedSteps');
     if (savedCompletedSteps) {
         completedSteps = new Set(JSON.parse(savedCompletedSteps));
     }
-    
+
     // Initialize greeting buttons
     updateGreetingButtons();
-    
+
     // Initialize drag and drop for greeting items
     initializeGreetingDragAndDrop();
-    
+
     // Initialize free input pair drag and drop
     setTimeout(() => {
         initializeFreeInputPairDragAndDropForRegister();
     }, 200);
-    
+
     // Initialize tech tool drag and drop
     setTimeout(() => {
         initializeTechToolDragAndDropForRegister();
@@ -3860,9 +4120,9 @@ window.addEventListener('DOMContentLoaded', () => {
 function moveTechToolForRegister(index, direction) {
     const container = document.getElementById('tech-tools-grid');
     if (!container) return;
-    
+
     const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
-    
+
     if (direction === 'up' && index > 0) {
         const currentItem = items[index];
         const prevItem = items[index - 1];
@@ -3880,7 +4140,7 @@ function moveTechToolForRegister(index, direction) {
 function updateTechToolButtonsForRegister() {
     const container = document.getElementById('tech-tools-grid');
     if (!container) return;
-    
+
     const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
     items.forEach((item, index) => {
         const upBtn = item.querySelector('.btn-move-up');
@@ -3900,14 +4160,14 @@ function updateTechToolButtonsForRegister() {
 function initializeTechToolDragAndDropForRegister() {
     const container = document.getElementById('tech-tools-grid');
     if (!container) return;
-    
+
     let draggedElement = null;
     let isInitializing = false;
-    
+
     function makeItemsDraggable() {
         if (isInitializing) return;
         isInitializing = true;
-        
+
         const items = container.querySelectorAll('.tech-tool-banner-card');
         items.forEach((item, index) => {
             if (!item.hasAttribute('draggable')) {
@@ -3915,31 +4175,31 @@ function initializeTechToolDragAndDropForRegister() {
             }
             item.dataset.dragIndex = index;
         });
-        
+
         attachDragListeners();
         isInitializing = false;
     }
-    
+
     function attachDragListeners() {
         const items = container.querySelectorAll('.tech-tool-banner-card');
         items.forEach((item) => {
             if (item.dataset.dragInitialized === 'true') return;
             item.dataset.dragInitialized = 'true';
-            
+
             item.addEventListener('dragstart', function(e) {
                 draggedElement = this;
                 this.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/html', this.innerHTML);
             });
-            
+
             item.addEventListener('dragend', function(e) {
                 this.classList.remove('dragging');
                 container.querySelectorAll('.tech-tool-banner-card').forEach(item => {
                     item.classList.remove('drag-over');
                 });
             });
-            
+
             item.addEventListener('dragover', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -3947,34 +4207,34 @@ function initializeTechToolDragAndDropForRegister() {
                 this.classList.add('drag-over');
                 return false;
             });
-            
+
             item.addEventListener('dragleave', function(e) {
                 this.classList.remove('drag-over');
             });
-            
+
             item.addEventListener('drop', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 if (draggedElement !== this && draggedElement !== null) {
                     if (observer) observer.disconnect();
-                    
+
                     const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
                     const targetIndex = items.indexOf(this);
                     const draggedIndexCurrent = items.indexOf(draggedElement);
-                    
+
                     if (draggedIndexCurrent < targetIndex) {
                         container.insertBefore(draggedElement, this.nextSibling);
                     } else {
                         container.insertBefore(draggedElement, this);
                     }
-                    
+
                     draggedElement.dataset.dragInitialized = 'false';
                     this.dataset.dragInitialized = 'false';
-                    
+
                     updateTechToolButtonsForRegister();
                     attachDragListeners();
-                    
+
                     if (observer) {
                         observer.observe(container, {
                             childList: true,
@@ -3982,19 +4242,19 @@ function initializeTechToolDragAndDropForRegister() {
                         });
                     }
                 }
-                
+
                 this.classList.remove('drag-over');
                 draggedElement = null;
                 return false;
             });
         });
     }
-    
+
     makeItemsDraggable();
-    
+
     const observer = new MutationObserver(function(mutations) {
         if (isInitializing) return;
-        
+
         let shouldReinit = false;
         mutations.forEach(function(mutation) {
             if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
@@ -4008,12 +4268,12 @@ function initializeTechToolDragAndDropForRegister() {
                 }
             }
         });
-        
+
         if (shouldReinit) {
             makeItemsDraggable();
         }
     });
-    
+
     observer.observe(container, {
         childList: true,
         subtree: false
@@ -4025,9 +4285,9 @@ function moveCommunicationItem(index, direction, type) {
     const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
     const container = document.getElementById(gridId);
     if (!container) return;
-    
+
     const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
-    
+
     if (direction === 'up' && index > 0) {
         const currentItem = items[index];
         const prevItem = items[index - 1];
@@ -4046,7 +4306,7 @@ function updateCommunicationButtons(type) {
     const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
     const container = document.getElementById(gridId);
     if (!container) return;
-    
+
     const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
     items.forEach((item, index) => {
         const upBtn = item.querySelector('.btn-move-up');
@@ -4067,14 +4327,14 @@ function initializeCommunicationDragAndDrop(type) {
     const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
     const container = document.getElementById(gridId);
     if (!container) return;
-    
+
     let draggedElement = null;
     let isInitializing = false;
-    
+
     function makeItemsDraggable() {
         if (isInitializing) return;
         isInitializing = true;
-        
+
         const items = container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`);
         items.forEach((item, index) => {
             if (!item.hasAttribute('draggable')) {
@@ -4082,31 +4342,31 @@ function initializeCommunicationDragAndDrop(type) {
             }
             item.dataset.dragIndex = index;
         });
-        
+
         attachDragListeners();
         isInitializing = false;
     }
-    
+
     function attachDragListeners() {
         const items = container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`);
         items.forEach((item) => {
             if (item.dataset.dragInitialized === 'true') return;
             item.dataset.dragInitialized = 'true';
-            
+
             item.addEventListener('dragstart', function(e) {
                 draggedElement = this;
                 this.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/html', this.innerHTML);
             });
-            
+
             item.addEventListener('dragend', function(e) {
                 this.classList.remove('dragging');
                 container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`).forEach(item => {
                     item.classList.remove('drag-over');
                 });
             });
-            
+
             item.addEventListener('dragover', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -4114,34 +4374,34 @@ function initializeCommunicationDragAndDrop(type) {
                 this.classList.add('drag-over');
                 return false;
             });
-            
+
             item.addEventListener('dragleave', function(e) {
                 this.classList.remove('drag-over');
             });
-            
+
             item.addEventListener('drop', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 if (draggedElement !== this && draggedElement !== null) {
                     if (observer) observer.disconnect();
-                    
+
                     const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
                     const targetIndex = items.indexOf(this);
                     const draggedIndexCurrent = items.indexOf(draggedElement);
-                    
+
                     if (draggedIndexCurrent < targetIndex) {
                         container.insertBefore(draggedElement, this.nextSibling);
                     } else {
                         container.insertBefore(draggedElement, this);
                     }
-                    
+
                     draggedElement.dataset.dragInitialized = 'false';
                     this.dataset.dragInitialized = 'false';
-                    
+
                     updateCommunicationButtons(type);
                     attachDragListeners();
-                    
+
                     if (observer) {
                         observer.observe(container, {
                             childList: true,
@@ -4152,7 +4412,7 @@ function initializeCommunicationDragAndDrop(type) {
             });
         });
     }
-    
+
     // MutationObserver to handle dynamic changes
     const observer = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
@@ -4161,9 +4421,9 @@ function initializeCommunicationDragAndDrop(type) {
             }
         });
     });
-    
+
     makeItemsDraggable();
-    
+
     observer.observe(container, {
         childList: true,
         subtree: false
