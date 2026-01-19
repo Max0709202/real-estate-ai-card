@@ -426,11 +426,11 @@ $prefectures = [
                     <div class="form-row">
                         <div class="form-group">
                             <label>部署</label>
-                            <input type="text" name="branch_department" class="form-control" value="例：営業部">
+                            <input type="text" name="branch_department" class="form-control" placeholder="例：営業部">
                         </div>
                         <div class="form-group">
                             <label>役職</label>
-                            <input type="text" name="position" class="form-control" value="例：営業課長">
+                            <input type="text" name="position" class="form-control" placeholder="例：営業課長">
                         </div>
                     </div>
 

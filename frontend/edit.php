@@ -628,11 +628,11 @@ $defaultGreetings = [
                         <div class="form-row">
                             <div class="form-group">
                                 <label>部署</label>
-                                <input type="text" name="branch_department" class="form-control">
+                                <input type="text" name="branch_department" class="form-control" placeholder="例：営業部">
                             </div>
                             <div class="form-group">
                                 <label>役職</label>
-                                <input type="text" name="position" class="form-control">
+                                <input type="text" name="position" class="form-control" placeholder="例：営業課長">
                             </div>
                         </div>
 
@@ -1653,9 +1653,8 @@ $defaultGreetings = [
                         submitButton.textContent = '保存中...';
                     }
 
-                    try {
-                        const formData = new FormData(headerGreetingForm);
-                        const data = {};
+                    const formData = new FormData(headerGreetingForm);
+                    const data = {};
 
                     // Get all fields
                     for (let [key, value] of formData.entries()) {
@@ -1731,16 +1730,26 @@ $defaultGreetings = [
                             // Extract relative path from absolute URL
                             let relativePath = uploadResult.data.file_path;
                             if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
-                                const urlParts = relativePath.split('/');
-                                const backendIndex = urlParts.indexOf('backend');
-                                if (backendIndex !== -1) {
-                                    relativePath = urlParts.slice(backendIndex).join('/');
+                                // Remove BASE_URL if it's included
+                                if (typeof window !== 'undefined' && window.BASE_URL) {
+                                    relativePath = relativePath.replace(window.BASE_URL, '').replace(/^\/+/, '');
                                 } else {
-                                    const uploadsIndex = urlParts.indexOf('uploads');
-                                    if (uploadsIndex !== -1) {
-                                        relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
+                                    // Fallback: extract path after domain
+                                    const urlParts = relativePath.split('/');
+                                    const backendIndex = urlParts.indexOf('backend');
+                                    if (backendIndex !== -1) {
+                                        relativePath = urlParts.slice(backendIndex).join('/');
+                                    } else {
+                                        const uploadsIndex = urlParts.indexOf('uploads');
+                                        if (uploadsIndex !== -1) {
+                                            relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
+                                        }
                                     }
                                 }
+                            }
+                            // Ensure path starts with backend/ if it's an upload path
+                            if (!relativePath.startsWith('backend/') && relativePath.includes('uploads/')) {
+                                relativePath = 'backend/' + relativePath.replace(/^.*?uploads\//, 'uploads/');
                             }
 
                             // Update preview after successful upload
@@ -1777,6 +1786,7 @@ $defaultGreetings = [
 
                     // Upload logo if cropped or new file selected
                     const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
+                    const logoFileInput = document.getElementById('company_logo');
                     if (logoUploadArea) {
                         if (logoUploadArea.dataset.croppedBlobData) {
                             // Upload cropped image
@@ -1801,6 +1811,17 @@ $defaultGreetings = [
                                     fileInfo.name
                                 );
                                 data.company_logo = await uploadImage(blob, 'logo');
+                                logoUploadArea.dataset.uploadedPath = data.company_logo;
+                            } catch (error) {
+                                console.error('Logo upload error:', error);
+                                showError('ロゴのアップロードに失敗しました: ' + error.message);
+                                return;
+                            }
+                        } else if (logoFileInput && logoFileInput.files && logoFileInput.files[0]) {
+                            // Upload file directly from input (e.g., if cropper was cancelled)
+                            try {
+                                const file = logoFileInput.files[0];
+                                data.company_logo = await uploadImage(file, 'logo');
                                 logoUploadArea.dataset.uploadedPath = data.company_logo;
                             } catch (error) {
                                 console.error('Logo upload error:', error);
@@ -1944,16 +1965,13 @@ $defaultGreetings = [
                         }
                     } catch (error) {
                         console.error('Error:', error);
-                        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
-<<<<<<< HEAD
+                        let errorMessage = 'エラーが発生しました';
                         if (error.name === 'AbortError') {
-                            showError('タイムアウトしました。もう一度お試しください。');
-                        } else {
-                            showError('エラーが発生しました: ' + errorMessage);
+                            errorMessage = 'タイムアウト: 接続がタイムアウトしました。もう一度お試しください。';
+                        } else if (error.message) {
+                            errorMessage = 'エラーが発生しました: ' + error.message;
                         }
-=======
-                        showError('エラーが発生しました: ' + errorMessage);
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
+                        showError(errorMessage);
                         isSubmitting = false;
                         if (submitButton) {
                             submitButton.disabled = false;
@@ -1967,25 +1985,11 @@ $defaultGreetings = [
             const companyProfileForm = document.getElementById('company-profile-form');
             if (companyProfileForm) {
                 let isSubmittingStep2 = false; // Prevent double submission
-<<<<<<< HEAD
-
-=======
                 
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                 companyProfileForm.addEventListener('submit', async function(e) {
                     // CRITICAL: Always prevent default form submission FIRST
                     e.preventDefault();
-<<<<<<< HEAD
                     e.stopPropagation();
-
-                    // Prevent double submission
-                    if (isSubmittingStep2) {
-                        console.log('Already submitting step 2, ignoring duplicate submission');
-                        return false;
-                    }
-                    isSubmittingStep2 = true;
-
-=======
                     
                     // Prevent double submission
                     if (isSubmittingStep2) {
@@ -1994,7 +1998,6 @@ $defaultGreetings = [
                     }
                     isSubmittingStep2 = true;
                     
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                     // Disable submit button and show loading state
                     const submitButton = companyProfileForm.querySelector('button[type="submit"]');
                     const originalButtonText = submitButton ? submitButton.textContent : '';
@@ -2015,11 +2018,7 @@ $defaultGreetings = [
                             submitButton.disabled = false;
                             submitButton.textContent = originalButtonText;
                         }
-<<<<<<< HEAD
-                        return false;
-=======
                         return;
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                     }
 
                     const formData = new FormData(companyProfileForm);
@@ -2036,17 +2035,10 @@ $defaultGreetings = [
                     }
 
                     try {
-<<<<<<< HEAD
-                        // Add timeout for mobile networks (30 seconds) and keepalive for iOS
+                        // Add timeout and keepalive for iOS
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-=======
-                        // Add timeout for mobile networks (30 seconds)
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 30000);
-                        
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                         const response = await fetch('../backend/api/business-card/update.php', {
                             method: 'POST',
                             headers: {
@@ -2054,18 +2046,11 @@ $defaultGreetings = [
                             },
                             body: JSON.stringify(data),
                             credentials: 'include',
-<<<<<<< HEAD
                             signal: controller.signal,
                             keepalive: true // Important for iOS to ensure request completes
                         });
                         clearTimeout(timeoutId);
 
-=======
-                            signal: controller.signal
-                        });
-                        clearTimeout(timeoutId);
-                        
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                         // Check if response is OK
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
@@ -2139,14 +2124,6 @@ $defaultGreetings = [
                         }
                     } catch (error) {
                         console.error('Error:', error);
-<<<<<<< HEAD
-                        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
-                        if (error.name === 'AbortError') {
-                            showError('タイムアウトしました。もう一度お試しください。');
-                        } else {
-                            showError('エラーが発生しました: ' + errorMessage);
-                        }
-=======
                         let errorMessage = 'エラーが発生しました';
                         if (error.name === 'AbortError') {
                             errorMessage = 'タイムアウト: 接続がタイムアウトしました。もう一度お試しください。';
@@ -2154,7 +2131,6 @@ $defaultGreetings = [
                             errorMessage = 'エラーが発生しました: ' + error.message;
                         }
                         showError(errorMessage);
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                         isSubmittingStep2 = false;
                         if (submitButton) {
                             submitButton.disabled = false;
@@ -2168,25 +2144,10 @@ $defaultGreetings = [
             const personalInfoForm = document.getElementById('personal-info-form');
             if (personalInfoForm) {
                 let isSubmittingStep3 = false; // Prevent double submission
-<<<<<<< HEAD
-
-=======
-                
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                 personalInfoForm.addEventListener('submit', async function(e) {
                     // CRITICAL: Always prevent default form submission FIRST
                     e.preventDefault();
-<<<<<<< HEAD
                     e.stopPropagation();
-
-                    // Prevent double submission
-                    if (isSubmittingStep3) {
-                        console.log('Already submitting step 3, ignoring duplicate submission');
-                        return false;
-                    }
-                    isSubmittingStep3 = true;
-
-=======
                     
                     // Prevent double submission
                     if (isSubmittingStep3) {
@@ -2195,7 +2156,6 @@ $defaultGreetings = [
                     }
                     isSubmittingStep3 = true;
                     
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                     // Disable submit button and show loading state
                     const submitButton = personalInfoForm.querySelector('button[type="submit"]');
                     const originalButtonText = submitButton ? submitButton.textContent : '';
@@ -2329,17 +2289,10 @@ $defaultGreetings = [
                     delete data.first_name_romaji;
 
                     try {
-<<<<<<< HEAD
-                        // Add timeout for mobile networks (30 seconds) and keepalive for iOS
+                        // Add timeout and keepalive for iOS
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-=======
-                        // Add timeout for mobile networks (30 seconds)
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 30000);
-                        
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                         const response = await fetch('../backend/api/business-card/update.php', {
                             method: 'POST',
                             headers: {
@@ -2347,18 +2300,11 @@ $defaultGreetings = [
                             },
                             body: JSON.stringify(data),
                             credentials: 'include',
-<<<<<<< HEAD
                             signal: controller.signal,
                             keepalive: true // Important for iOS to ensure request completes
                         });
                         clearTimeout(timeoutId);
 
-=======
-                            signal: controller.signal
-                        });
-                        clearTimeout(timeoutId);
-                        
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                         // Check if response is OK
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
@@ -2430,16 +2376,8 @@ $defaultGreetings = [
                                 submitButton.textContent = originalButtonText;
                             }
                         }
-                    } catch (error) {
+                        } catch (error) {
                         console.error('Error:', error);
-<<<<<<< HEAD
-                        const errorMessage = error.message || 'ネットワークエラーが発生しました。接続を確認してください。';
-                        if (error.name === 'AbortError') {
-                            showError('タイムアウトしました。もう一度お試しください。');
-                        } else {
-                            showError('エラーが発生しました: ' + errorMessage);
-                        }
-=======
                         let errorMessage = 'エラーが発生しました';
                         if (error.name === 'AbortError') {
                             errorMessage = 'タイムアウト: 接続がタイムアウトしました。もう一度お試しください。';
@@ -2447,7 +2385,6 @@ $defaultGreetings = [
                             errorMessage = 'エラーが発生しました: ' + error.message;
                         }
                         showError(errorMessage);
->>>>>>> 97677baa4ba6ff62da934d21ca062ccbc1a6bb85
                         isSubmittingStep3 = false;
                         if (submitButton) {
                             submitButton.disabled = false;

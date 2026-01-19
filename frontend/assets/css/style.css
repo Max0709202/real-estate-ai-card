@@ -1534,7 +1534,7 @@ body {
     .hero {
         padding: 3rem 0;
     }
-
+    
     .hero-content-inner {
         gap: 2rem;
     }
@@ -1686,7 +1686,7 @@ body {
         height: auto !important;
         min-height: auto !important;
     }
-
+    
     .communication-list {
         grid-template-columns: repeat(3, 1fr) !important;
         gap: 1rem !important;

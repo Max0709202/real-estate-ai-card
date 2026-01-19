@@ -48,6 +48,25 @@ try {
         $admin = $adminStmt->fetch(PDO::FETCH_ASSOC);
         
         if ($admin) {
+            // セキュリティチェック: このメールアドレスが管理画面から削除されたユーザーかどうかを確認
+            // Check if this email was deleted from users table via admin panel
+            $checkDeletedStmt = $db->prepare("
+                SELECT id 
+                FROM admin_change_logs 
+                WHERE change_type = 'user_deleted' 
+                AND description LIKE ?
+                ORDER BY changed_at DESC
+                LIMIT 1
+            ");
+            $emailPattern = '%ユーザー削除: ' . $input['email'] . '%';
+            $checkDeletedStmt->execute([$emailPattern]);
+            $deletedLog = $checkDeletedStmt->fetch(PDO::FETCH_ASSOC);
+            
+            // 削除されたユーザーの場合は管理者ログインを拒否
+            if ($deletedLog) {
+                sendErrorResponse('このアカウントは削除されているため、管理者としてログインできません', 403);
+            }
+            
             // 管理者アカウントが見つかった場合、パスワードを検証
             $storedHash = trim($admin['password_hash']);
             $inputPassword = trim($input['password']);

@@ -1531,16 +1531,26 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
                 let relativePath = uploadResult.data.file_path;
                 if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
                     // Remove BASE_URL prefix to get relative path
-                    const urlParts = relativePath.split('/');
-                    const backendIndex = urlParts.indexOf('backend');
-                    if (backendIndex !== -1) {
-                        relativePath = urlParts.slice(backendIndex).join('/');
+                    if (typeof window !== 'undefined' && window.BASE_URL) {
+                        // Remove BASE_URL if it's included
+                        relativePath = relativePath.replace(window.BASE_URL, '').replace(/^\/+/, '');
                     } else {
-                        const uploadsIndex = urlParts.indexOf('uploads');
-                        if (uploadsIndex !== -1) {
-                            relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
+                        // Fallback: extract path after domain
+                        const urlParts = relativePath.split('/');
+                        const backendIndex = urlParts.indexOf('backend');
+                        if (backendIndex !== -1) {
+                            relativePath = urlParts.slice(backendIndex).join('/');
+                        } else {
+                            const uploadsIndex = urlParts.indexOf('uploads');
+                            if (uploadsIndex !== -1) {
+                                relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
+                            }
                         }
                     }
+                }
+                // Ensure path starts with backend/ if it's an upload path
+                if (!relativePath.startsWith('backend/') && relativePath.includes('uploads/')) {
+                    relativePath = 'backend/' + relativePath.replace(/^.*?uploads\//, 'uploads/');
                 }
                 data.company_logo = relativePath;
                 console.log('Logo uploaded and saved to database:', relativePath);

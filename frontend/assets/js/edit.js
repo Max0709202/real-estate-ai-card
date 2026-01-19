@@ -2261,11 +2261,31 @@ function showEditImageCropper(file, fieldName, originalEvent) {
     const newCancelBtn = document.getElementById('crop-cancel-btn');
     if (newCancelBtn) {
         newCancelBtn.onclick = function() {
-            closeEditImageCropper();
-            // Reset file input so it can be used again
-            if (originalEvent && originalEvent.target) {
-                originalEvent.target.value = '';
+            // Store the file for upload even if cropper is cancelled
+            if (file && originalEvent && originalEvent.target) {
+                const uploadArea = originalEvent.target.closest('.upload-area');
+                if (uploadArea) {
+                    // Store file as data URL for later upload
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        uploadArea.dataset.originalFile = JSON.stringify({
+                            name: file.name,
+                            type: file.type,
+                            size: file.size
+                        });
+                        uploadArea.dataset.originalFileData = event.target.result;
+                        uploadArea.dataset.originalFieldName = fieldName;
+                        // Show preview
+                        const preview = uploadArea.querySelector('.upload-preview');
+                        if (preview) {
+                            preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
             }
+            closeEditImageCropper();
+            // Don't reset file input - keep it so we can upload it
         };
     }
 

@@ -5,6 +5,58 @@
 require_once __DIR__ . '/../backend/config/config.php';
 require_once __DIR__ . '/../backend/config/database.php';
 
+/**
+ * Convert URLs in text to clickable links
+ * @param string $text The text to process
+ * @return string Text with URLs converted to clickable links (with HTML escaped)
+ */
+function linkifyUrlsInText($text) {
+    if (empty($text)) return $text;
+    
+    // Pattern to match URLs (http://, https://, or www.)
+    $pattern = '/(\b(?:https?:\/\/|www\.)[^\s<>"\'{}|\\^`\[\]]+)/i';
+    
+    // Find all URLs and store them with placeholders
+    $urls = [];
+    $placeholders = [];
+    $counter = 0;
+    
+    $text = preg_replace_callback($pattern, function($matches) use (&$urls, &$placeholders, &$counter) {
+        $url = $matches[1];
+        $placeholder = '___URL_PLACEHOLDER_' . $counter . '___';
+        
+        // Normalize URL (add http:// if it starts with www.)
+        $href = $url;
+        if (preg_match('/^www\./i', $url)) {
+            $href = 'http://' . $url;
+        }
+        
+        $urls[$counter] = [
+            'original' => $url,
+            'href' => $href
+        ];
+        $placeholders[] = $placeholder;
+        $counter++;
+        
+        return $placeholder;
+    }, $text);
+    
+    // Escape the entire text (placeholders are safe, they won't be escaped in a way that breaks them)
+    $escaped = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    
+    // Replace placeholders with properly escaped links
+    foreach ($placeholders as $index => $placeholder) {
+        if (isset($urls[$index])) {
+            $hrefEscaped = htmlspecialchars($urls[$index]['href'], ENT_QUOTES, 'UTF-8');
+            $textEscaped = htmlspecialchars($urls[$index]['original'], ENT_QUOTES, 'UTF-8');
+            $link = '<a href="' . $hrefEscaped . '" target="_blank" rel="noopener noreferrer">' . $textEscaped . '</a>';
+            $escaped = str_replace(htmlspecialchars($placeholder, ENT_QUOTES, 'UTF-8'), $link, $escaped);
+        }
+    }
+    
+    return $escaped;
+}
+
 $slug = $_GET['slug'] ?? '';
 $preview = isset($_GET['preview']) && $_GET['preview'] === '1';
 
@@ -448,7 +500,7 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                                             // Display text if exists
                                             if (!empty($text)) {
                                                 echo '<div class="free-input-text-wrapper">';
-                                                echo '<p class="free-input-text">' . nl2br(htmlspecialchars($text)) . '</p>';
+                                                echo '<p class="free-input-text">' . nl2br(linkifyUrlsInText($text)) . '</p>';
                                                 echo '</div>';
                                             }
 
@@ -502,7 +554,7 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                                     // Display text if exists
                                     if (!empty($freeInputData['text'])) {
                                             echo '<div class="free-input-text-wrapper">';
-                                        echo '<p class="free-input-text">' . nl2br(htmlspecialchars($freeInputData['text'])) . '</p>';
+                                        echo '<p class="free-input-text">' . nl2br(linkifyUrlsInText($freeInputData['text'])) . '</p>';
                                             echo '</div>';
                                     }
 
@@ -544,7 +596,7 @@ $communicationMethods = array_merge($messageApps, $snsApps);
                                     // Not JSON or invalid JSON - display as plain text
                                     echo '<div class="free-input-pair">';
                                     echo '<div class="free-input-text-wrapper">';
-                                    echo '<p class="free-input-text">' . nl2br(htmlspecialchars($card['free_input'])) . '</p>';
+                                    echo '<p class="free-input-text">' . nl2br(linkifyUrlsInText($card['free_input'])) . '</p>';
                                     echo '</div>';
                                     echo '</div>';
                                 }
