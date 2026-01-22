@@ -104,7 +104,7 @@ body {
 
 .user-icon svg path {
     stroke: #1976d2;
-    fill: white;
+    fill: rgba(255, 255, 255, 0);
 }
 
 .user-icon svg {
@@ -151,7 +151,7 @@ body {
     z-index: 1001;
     overflow: hidden;
     margin-top: 5px;
-    width: 205px;
+    width: 210px;
 }
 
 .user-dropdown a {
@@ -307,7 +307,7 @@ body {
 }
 
 .btn-secondary {
-    background: #9b9b9b;
+    background: #fff;
     color: #0066cc;
     padding: 0.55rem 1rem;
     border: 1px solid #0066cc;

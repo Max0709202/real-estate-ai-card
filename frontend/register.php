@@ -205,7 +205,7 @@ $defaultGreetings = [
 
 // Japanese prefectures
 $prefectures = [
-    '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
+    '国土交通大臣', '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
     '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県',
     '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県',
     '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県',
@@ -638,7 +638,8 @@ $prefectures = [
                         ['type' => 'llp', 'id' => 'tool-llp', 'name' => '土地情報ロボ'],
                         ['type' => 'ai', 'id' => 'tool-ai', 'name' => 'AIマンション査定'],
                         ['type' => 'slp', 'id' => 'tool-slp', 'name' => 'セルフィン'],
-                        ['type' => 'olp', 'id' => 'tool-olp', 'name' => 'オーナーコネクト']
+                        ['type' => 'olp', 'id' => 'tool-olp', 'name' => 'オーナーコネクト'],
+                        ['type' => 'alp', 'id' => 'tool-alp', 'name' => '統合LP']
                     ];
                     ?>
                     <div class="tech-tools-grid" id="tech-tools-grid">

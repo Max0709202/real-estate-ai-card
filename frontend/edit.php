@@ -550,7 +550,7 @@ $defaultGreetings = [
                         <?php
                         // Japanese prefectures
                         $prefectures = [
-                            '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
+                            '国土交通大臣', '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県',
                             '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県',
                             '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県',
                             '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県',
@@ -1455,6 +1455,9 @@ $defaultGreetings = [
             // Get the URL slug
             const urlSlug = savedData.url_slug;
 
+            // Detect if user is on PC (desktop) - if so, load mobile version
+            const isPC = window.innerWidth > 768;
+
             // Create modal overlay
             const modalOverlay = document.createElement('div');
             modalOverlay.className = 'modal-overlay direct-input-modal';
@@ -1463,12 +1466,24 @@ $defaultGreetings = [
             // Create modal content
             const modalContent = document.createElement('div');
             modalContent.className = 'direct-input-modal-content';
-            modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
+            modalContent.id = 'direct-input-modal-content';
+            // On PC, set initial width to mobile size, but allow expansion
+            if (isPC) {
+                modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center; min-width: 375px;';
+            } else {
+                modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
+            }
 
             // Create iframe to load card.php with preview mode
             const iframe = document.createElement('iframe');
-            iframe.src = `card.php?slug=${encodeURIComponent(urlSlug)}&preview=1`;
-            iframe.style.cssText = 'width: 100%; height: 100%; border: none; flex: 1; min-height: 600px;';
+            iframe.src = `card.php?slug=${encodeURIComponent(urlSlug)}&preview=1&preview_from_pc=${isPC ? '1' : '0'}`;
+            // On PC, set iframe to mobile width to show smart version
+            if (isPC) {
+                iframe.style.cssText = 'width: 375px; height: 100%; border: none; flex: 1; min-height: 600px; max-width: 375px; margin: 0 auto;';
+                modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center;';
+            } else {
+                iframe.style.cssText = 'width: 100%; height: 100%; border: none; flex: 1; min-height: 600px;';
+            }
             iframe.setAttribute('frameborder', '0');
             iframe.setAttribute('scrolling', 'yes');
 
@@ -1532,6 +1547,28 @@ $defaultGreetings = [
                 }
             };
             document.addEventListener('keydown', escapeHandler);
+            // Listen for view change messages from iframe
+            window.addEventListener('message', function(event) {
+                // Security: Only accept messages from same origin (or use specific origin check)
+                if (event.data && event.data.type === 'card-view-changed') {
+                    const modalContentEl = document.getElementById('direct-input-modal-content');
+                    const iframeEl = modalContentEl ? modalContentEl.querySelector('iframe') : null;
+
+                    if (modalContentEl && event.data.view === 'desktop') {
+                        // Expand modal for desktop view
+                        modalContentEl.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center; min-width: 1200px;';
+                        if (iframeEl) {
+                            iframeEl.style.cssText = 'width: 1200px; height: 100%; border: none; flex: 1; min-height: 600px; max-width: 1200px; margin: 0 auto;';
+                        }
+                    } else if (modalContentEl && event.data.view === 'mobile') {
+                        // Shrink modal for mobile view
+                        modalContentEl.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center; min-width: 375px;';
+                        if (iframeEl) {
+                            iframeEl.style.cssText = 'width: 375px; height: 100%; border: none; flex: 1; min-height: 600px; max-width: 375px; margin: 0 auto;';
+                        }
+                    }
+                }
+            });
         }
 
         // Subscription cancellation handler for edit.php sidebar

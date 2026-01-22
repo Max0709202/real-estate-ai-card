@@ -59,6 +59,7 @@ function linkifyUrlsInText($text) {
 
 $slug = $_GET['slug'] ?? '';
 $preview = isset($_GET['preview']) && $_GET['preview'] === '1';
+$previewFromPC = isset($_GET['preview_from_pc']) && $_GET['preview_from_pc'] === '1';
 
 if (empty($slug)) {
     header('HTTP/1.0 404 Not Found');
@@ -240,9 +241,81 @@ $communicationMethods = array_merge($messageApps, $snsApps);
     <title><?php echo htmlspecialchars($card['name']); ?> - デジタル名刺</title>
     <link rel="stylesheet" href="assets/css/card.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
+    <style>
+        /* View toggle button */
+        .view-toggle-container {
+            position: fixed;
+            top: 1rem;
+            right: 4rem;
+            z-index: 1000;
+        }
+        
+        .view-toggle-btn {
+            background: #0066cc;
+            color: #fff;
+            border: none;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .view-toggle-btn:hover {
+            background: #0052a3;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .view-toggle-btn:active {
+            transform: scale(0.95);
+        }
+        
+        
+        /* Desktop view mode */
+        body.desktop-view .card-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        body.desktop-view .card-section {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+        }
+        
+        /* Hide button in preview mode on mobile, unless preview is from PC */
+        @media (max-width: 768px) {
+            body.preview-mode:not(.preview-from-pc) .view-toggle-container {
+                display: none;
+            }
+        }
+    </style>
 </head>
 
-<body>
+<body<?php 
+    $bodyClasses = [];
+    if ($preview) {
+        $bodyClasses[] = 'preview-mode';
+        if ($previewFromPC) {
+            $bodyClasses[] = 'preview-from-pc';
+        }
+    }
+    echo !empty($bodyClasses) ? ' class="' . implode(' ', $bodyClasses) . '"' : '';
+?>>
+    <!-- View Toggle Button -->
+    <div class="view-toggle-container" id="view-toggle-container">
+        <button type="button" class="view-toggle-btn" id="view-toggle-btn" aria-label="表示切り替え">
+            <span id="view-toggle-text">PC版</span>
+        </button>
+    </div>
+    
     <div class="card-container">
         <!-- 名刺部 -->
         <section class="card-section">
@@ -823,6 +896,99 @@ $communicationMethods = array_merge($messageApps, $snsApps);
         </div>
     </div>
     <script>
+        // View toggle functionality (Mobile/Desktop)
+        (function() {
+            const viewToggleBtn = document.getElementById('view-toggle-btn');
+            const viewToggleText = document.getElementById('view-toggle-text');
+            const viewToggleContainer = document.getElementById('view-toggle-container');
+            
+            if (!viewToggleBtn) return;
+            
+            // Check if we're in preview mode from register/edit on mobile - hide button
+            // But show button if preview is from PC version
+            const isPreview = <?php echo $preview ? 'true' : 'false'; ?>;
+            const isPreviewFromPC = <?php echo $previewFromPC ? 'true' : 'false'; ?>;
+            const isMobile = window.innerWidth <= 768;
+            
+            // Hide button only if preview mode AND mobile AND NOT from PC
+            if (isPreview && isMobile && !isPreviewFromPC) {
+                if (viewToggleContainer) {
+                    viewToggleContainer.style.display = 'none';
+                }
+                return; // Don't initialize toggle functionality
+            }
+            
+            // Get saved view preference or default to mobile
+            const savedView = localStorage.getItem('card-view-mode') || 'mobile';
+            const isDesktopView = savedView === 'desktop';
+            
+            // Apply initial view
+            if (isDesktopView) {
+                document.body.classList.add('desktop-view');
+                viewToggleText.textContent = 'スマホ版';
+            } else {
+                document.body.classList.remove('desktop-view');
+                viewToggleText.textContent = 'PC版';
+            }
+            
+            // Toggle view on button click
+            viewToggleBtn.addEventListener('click', function() {
+                const isCurrentlyDesktop = document.body.classList.contains('desktop-view');
+                
+                if (isCurrentlyDesktop) {
+                    // Switch to mobile view
+                    document.body.classList.remove('desktop-view');
+                    viewToggleText.textContent = 'PC版';
+                    localStorage.setItem('card-view-mode', 'mobile');
+                    
+                    // Notify parent window to resize modal to mobile width
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'card-view-changed',
+                            view: 'mobile'
+                        }, '*');
+                    }
+                } else {
+                    // Switch to desktop view
+                    document.body.classList.add('desktop-view');
+                    viewToggleText.textContent = 'スマホ版';
+                    localStorage.setItem('card-view-mode', 'desktop');
+                    
+                    // Notify parent window to resize modal to desktop width
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'card-view-changed',
+                            view: 'desktop'
+                        }, '*');
+                    }
+                }
+            });
+            
+            // Send initial view state to parent on load
+            if (window.parent !== window) {
+                const initialView = document.body.classList.contains('desktop-view') ? 'desktop' : 'mobile';
+                window.parent.postMessage({
+                    type: 'card-view-changed',
+                    view: initialView
+                }, '*');
+            }
+            
+            // Update button visibility on window resize
+            let resizeTimeout;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(function() {
+                    const isNowMobile = window.innerWidth <= 768;
+                    // Hide button only if preview mode AND mobile AND NOT from PC
+                    if (isPreview && isNowMobile && !isPreviewFromPC && viewToggleContainer) {
+                        viewToggleContainer.style.display = 'none';
+                    } else if (viewToggleContainer) {
+                        viewToggleContainer.style.display = 'block';
+                    }
+                }, 250);
+            });
+        })();
+        
         // Greeting pagination functionality
         (function() {
             const container = document.querySelector('.greeting-pagination-container');
