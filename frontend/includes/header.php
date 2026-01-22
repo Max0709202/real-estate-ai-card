@@ -126,6 +126,7 @@ if ($isLoggedIn) {
                         <?php
                 // Initialize header user info variables
                 $headerUserName = null;
+                $headerProfilePhoto = null;
                 $headerUsagePeriodDisplay = null;
                         $headerSubscriptionInfo = null;
                         $headerHasActiveSubscription = false;
@@ -136,15 +137,16 @@ if ($isLoggedIn) {
                                 $database = new Database();
                                 $db = $database->getConnection();
 
-                    // Get user name from business_cards
+                    // Get user name and profile photo from business_cards
                     $stmt = $db->prepare("
-                        SELECT name FROM business_cards WHERE user_id = ? LIMIT 1
+                        SELECT name, profile_photo FROM business_cards WHERE user_id = ? LIMIT 1
                     ");
                     $stmt->execute([$_SESSION['user_id']]);
-                    $bcName = $stmt->fetch(PDO::FETCH_ASSOC);
-                    if ($bcName && !empty($bcName['name'])) {
-                        $headerUserName = $bcName['name'];
+                    $bcData = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($bcData && !empty($bcData['name'])) {
+                        $headerUserName = $bcData['name'];
                     }
+                    $headerProfilePhoto = $bcData['profile_photo'] ?? null;
 
                                 $stmt = $db->prepare("
                                     SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
@@ -320,10 +322,27 @@ if ($isLoggedIn) {
                 <div class="user-menu">
                     <div class="user-info-container">
                         <div class="user-icon" id="user-icon">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="#1976d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="white"/>
-                                <path d="M20.59 22C20.59 18.13 16.74 15 12 15C7.26 15 3.41 18.13 3.41 22" stroke="#1976d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="white"/>
-                            </svg>
+                            <?php if (!empty($headerProfilePhoto)): ?>
+                                <?php
+                                $photoPath = trim($headerProfilePhoto);
+                                // Add BASE_URL if path doesn't start with http
+                                if (!empty($photoPath) && !preg_match('/^https?:\/\//', $photoPath)) {
+                                    // Remove BASE_URL if already included to avoid duplication
+                                    $baseUrlPattern = preg_quote(BASE_URL, '/');
+                                    if (preg_match('/^' . $baseUrlPattern . '/i', $photoPath)) {
+                                        // Already contains BASE_URL, use as is
+                                    } else {
+                                        $photoPath = BASE_URL . '/' . ltrim($photoPath, '/');
+                                    }
+                                }
+                                ?>
+                                <img src="<?php echo htmlspecialchars($photoPath); ?>" alt="プロフィール写真" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.style.display='none'; this.parentElement.innerHTML='<svg width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' xmlns=\'http://www.w3.org/2000/svg\'><path d=\'M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z\' stroke=\'#1976d2\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' fill=\'white\'/><path d=\'M20.59 22C20.59 18.13 16.74 15 12 15C7.26 15 3.41 18.13 3.41 22\' stroke=\'#1976d2\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' fill=\'white\'/></svg>';">
+                            <?php else: ?>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="#1976d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="white"/>
+                                    <path d="M20.59 22C20.59 18.13 16.74 15 12 15C7.26 15 3.41 18.13 3.41 22" stroke="#1976d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="white"/>
+                                </svg>
+                            <?php endif; ?>
                         </div>
                         <?php if ($headerUserName): ?>
                         <div class="user-info-text">
