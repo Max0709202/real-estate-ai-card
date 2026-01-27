@@ -3152,6 +3152,9 @@ async function showPreview() {
     // Get the URL slug
     const urlSlug = savedData.url_slug;
 
+    // Detect if user is on PC (desktop) - if so, load mobile version
+    const isPC = window.innerWidth > 768;
+
     // Create modal overlay
     const modalOverlay = document.createElement('div');
     modalOverlay.className = 'modal-overlay preview-modal';
@@ -3171,8 +3174,6 @@ async function showPreview() {
     
     // Create iframe to load card.php with preview mode
     const iframe = document.createElement('iframe');
-    // Detect if user is on PC (desktop) - if so, load mobile version
-    const isPC = window.innerWidth > 768;
     iframe.src = `card.php?slug=${encodeURIComponent(urlSlug)}&preview=1&preview_from_pc=${isPC ? '1' : '0'}`;
     // On PC, set iframe to mobile width to show smart version
     if (isPC) {

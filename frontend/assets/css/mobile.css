@@ -2559,19 +2559,29 @@
     }
 
     .greeting-pagination-btn {
-        padding: 0.875rem 1.25rem;
-        font-size: 0.9rem;
-        min-width: 90px;
-        min-height: 44px; /* Touch-friendly */
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+        min-width: 70px;
+        min-height: 36px; /* Smaller but still touch-friendly */
+    }
+
+    .greeting-pagination-btn span {
+        font-size: 1rem;
+    }
+
+    .greeting-pagination-controls {
+        gap: 1rem;
+        margin-top: 1.5rem;
+        padding-top: 1rem;
     }
 
     .greeting-pagination-info {
-        font-size: 0.95rem;
-        gap: 0.4rem;
+        font-size: 0.85rem;
+        gap: 0.3rem;
     }
 
     .greeting-page-number {
-        font-size: 1.1rem;
+        font-size: 1rem;
     }
 
     /* Communication section */
