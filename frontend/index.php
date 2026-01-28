@@ -855,7 +855,7 @@ if ($isTokenBased) {
                             </a>
                         </li>
                         <li>
-                            <a href="#" class="social-link">
+                            <a href="company.php" class="social-link">
                                 <span>会社概要</span>
                             </a>
                         </li>
