@@ -845,7 +845,7 @@ if ($isTokenBased) {
                             </a>
                         </li>
                         <li>
-                            <a href="#" class="social-link">
+                            <a href="terms.php" class="social-link">
                                 <span>利用規約</span>
                             </a>
                         </li>
