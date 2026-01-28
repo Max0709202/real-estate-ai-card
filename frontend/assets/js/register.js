@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Auto-capitalize first letter of romaji input fields
     setupRomajiAutoCapitalize();
-
+    
     // Set up mutual exclusivity for architect qualification checkboxes
     setupArchitectCheckboxMutualExclusivity();
     
@@ -3169,7 +3169,7 @@ async function showPreview() {
     if (isPC) {
         modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center; min-width: 375px;';
     } else {
-        modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
+    modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
     }
     
     // Create iframe to load card.php with preview mode
@@ -3180,7 +3180,7 @@ async function showPreview() {
         iframe.style.cssText = 'width: 375px; height: 100%; border: none; flex: 1; min-height: 600px; max-width: 375px; margin: 0 auto;';
         modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center;';
     } else {
-        iframe.style.cssText = 'width: 100%; height: 100%; border: none; flex: 1; min-height: 600px;';
+    iframe.style.cssText = 'width: 100%; height: 100%; border: none; flex: 1; min-height: 600px;';
     }
     iframe.setAttribute('frameborder', '0');
     iframe.setAttribute('scrolling', 'yes');

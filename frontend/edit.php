@@ -424,11 +424,11 @@ $defaultGreetings = [
     </style>
 </head>
 <body>
-    <?php
+    <?php 
     $showNavLinks = false; // Hide nav links on edit page
-    include __DIR__ . '/includes/header.php';
+    include __DIR__ . '/includes/header.php'; 
     ?>
-
+    
     <div class="edit-container">
         <header class="edit-header" style="padding-top: 3rem;">
             <div class="edit-header-content">
@@ -784,11 +784,11 @@ $defaultGreetings = [
                 <div id="communication-section" class="edit-section">
                     <h2>コミュニケーション機能部</h2>
                     <p class="step-description">メッセージアプリやSNSの連携を設定してください</p>
-
+                    
                     <div class="form-section">
                         <h3>メッセージアプリ部</h3>
                         <p class="section-note">一番簡単につながる方法を教えてください。ここが重要になります。</p>
-
+                        
                         <div class="communication-grid" id="message-apps-grid">
                             <div class="communication-item" data-comm-type="message">
                                 <div class="comm-actions">
@@ -897,7 +897,7 @@ $defaultGreetings = [
                     <div class="form-section">
                         <h3>SNS部</h3>
                         <p class="section-note">SNSのリンク先を入力できます。</p>
-
+                        
                         <div class="communication-grid" id="sns-grid">
                             <div class="communication-item" data-comm-type="sns">
                                 <div class="comm-actions">
@@ -1036,7 +1036,7 @@ $defaultGreetings = [
                             </div>
                         </div>
                     </div>
-
+                    
                     <div style="text-align: center; margin-top: 2rem;">
                         <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存して次へ</button>
                     </div>
@@ -1081,7 +1081,7 @@ $defaultGreetings = [
                         <?php if ($isActive): ?>
                             <button type="button" id="submit-payment-edit" class="btn-primary" style="background: #007bff; cursor: default;" disabled>利用中</button>
                         <?php else: ?>
-                            <button type="button" id="submit-payment-edit" class="btn-primary">この内容で進める</button>
+                        <button type="button" id="submit-payment-edit" class="btn-primary">この内容で進める</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1099,9 +1099,9 @@ $defaultGreetings = [
                     <?php if ($isActive): ?>
                         <button type="button" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: default; background: #007bff; color: #fff; border: none; font-weight: 500;" disabled>利用中</button>
                     <?php elseif ($needsPayment): ?>
-                        <button type="button" id="go-to-payment-btn" class="btn-payment-red" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer; background: #dc3545; color: #fff; border: none; font-weight: 500; transition: background 0.3s;">
-                            お支払いへ進む
-                        </button>
+                    <button type="button" id="go-to-payment-btn" class="btn-payment-red" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer; background: #dc3545; color: #fff; border: none; font-weight: 500; transition: background 0.3s;">
+                        お支払いへ進む
+                    </button>
                     <?php endif; ?>
                     <?php if ($hasActiveSubscription): ?>
                     <button type="button" id="cancel-subscription-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer;">
@@ -1143,7 +1143,7 @@ $defaultGreetings = [
                     <div style="margin-bottom: 0.5rem;"><strong>利用期間</strong></div>
                     <div style="font-size: 1rem; font-weight: 500; color: #0056b3;">
                         <?php echo htmlspecialchars($usagePeriodDisplay); ?>
-                    </div>
+            </div>
                     <?php if ($canRenew && $paymentMethod === 'bank_transfer'): ?>
                     <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #b3d9ff;">
                         <button type="button" id="renew-subscription-btn" class="btn-primary" style="width: 100%; padding: 0.5rem; font-size: 0.875rem; margin-top: 0.5rem;">
@@ -1471,7 +1471,7 @@ $defaultGreetings = [
             if (isPC) {
                 modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center; min-width: 375px;';
             } else {
-                modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
+            modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
             }
 
             // Create iframe to load card.php with preview mode
@@ -1482,7 +1482,7 @@ $defaultGreetings = [
                 iframe.style.cssText = 'width: 375px; height: 100%; border: none; flex: 1; min-height: 600px; max-width: 375px; margin: 0 auto;';
                 modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center;';
             } else {
-                iframe.style.cssText = 'width: 100%; height: 100%; border: none; flex: 1; min-height: 600px;';
+            iframe.style.cssText = 'width: 100%; height: 100%; border: none; flex: 1; min-height: 600px;';
             }
             iframe.setAttribute('frameborder', '0');
             iframe.setAttribute('scrolling', 'yes');
@@ -1689,15 +1689,15 @@ $defaultGreetings = [
                         submitButton.disabled = true;
                         submitButton.textContent = '保存中...';
                     }
-
+                    
                     const formData = new FormData(headerGreetingForm);
                     const data = {};
-
+                    
                     // Get all fields
                     for (let [key, value] of formData.entries()) {
                         data[key] = value;
                     }
-
+                    
                     // Handle greetings
                     const greetingItems = document.querySelectorAll('#greetings-list .greeting-item');
                     const greetings = [];
@@ -1706,14 +1706,14 @@ $defaultGreetings = [
                         if (item.dataset.cleared === 'true') {
                             return;
                         }
-
+                        
                         // Try to get values from different possible selectors
                         const titleInput = item.querySelector('input[name="greeting_title[]"]') || item.querySelector('.greeting-title');
                         const contentTextarea = item.querySelector('textarea[name="greeting_content[]"]') || item.querySelector('.greeting-content');
-
+                        
                         const title = titleInput ? (titleInput.value || '').trim() : '';
                         const content = contentTextarea ? (contentTextarea.value || '').trim() : '';
-
+                        
                         // Only add if both title and content have values
                         if (title && content) {
                             greetings.push({
@@ -1724,7 +1724,7 @@ $defaultGreetings = [
                         }
                     });
                     data.greetings = greetings;
-
+                    
                     // Helper function to convert data URL to blob
                     function dataURLtoBlob(dataurl, filename) {
                         const arr = dataurl.split(',');
@@ -1772,16 +1772,16 @@ $defaultGreetings = [
                                     relativePath = relativePath.replace(window.BASE_URL, '').replace(/^\/+/, '');
                                 } else {
                                     // Fallback: extract path after domain
-                                    const urlParts = relativePath.split('/');
-                                    const backendIndex = urlParts.indexOf('backend');
-                                    if (backendIndex !== -1) {
-                                        relativePath = urlParts.slice(backendIndex).join('/');
-                                    } else {
-                                        const uploadsIndex = urlParts.indexOf('uploads');
-                                        if (uploadsIndex !== -1) {
-                                            relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
-                                        }
+                                const urlParts = relativePath.split('/');
+                                const backendIndex = urlParts.indexOf('backend');
+                                if (backendIndex !== -1) {
+                                    relativePath = urlParts.slice(backendIndex).join('/');
+                                } else {
+                                    const uploadsIndex = urlParts.indexOf('uploads');
+                                    if (uploadsIndex !== -1) {
+                                        relativePath = 'backend/' + urlParts.slice(uploadsIndex).join('/');
                                     }
+                                }
                                 }
                             }
                             // Ensure path starts with backend/ if it's an upload path
@@ -1910,7 +1910,7 @@ $defaultGreetings = [
                             data.profile_photo = window.businessCardData.profile_photo;
                         }
                     }
-
+                    
                     // Send to API
                     try {
                         // Add timeout for mobile networks (30 seconds) and keepalive for iOS
@@ -1933,9 +1933,9 @@ $defaultGreetings = [
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
-
+                        
                         const result = await response.json();
-
+                        
                         if (result.success) {
                             // Clear dirty flag to prevent "unsaved changes" popup
                             if (window.autoSave && window.autoSave.markClean) {
@@ -1956,7 +1956,7 @@ $defaultGreetings = [
                                     setTimeout(() => {
                                         if (typeof window.goToNextStep === 'function') {
                                             try {
-                                                window.goToNextStep(1);
+                                            window.goToNextStep(1);
                                             } catch (err) {
                                                 console.error('Error calling goToNextStep:', err);
                                                 if (typeof window.goToEditSection === 'function') {
@@ -1980,7 +1980,7 @@ $defaultGreetings = [
                                 setTimeout(() => {
                                     if (typeof window.goToNextStep === 'function') {
                                         try {
-                                            window.goToNextStep(1);
+                                        window.goToNextStep(1);
                                         } catch (err) {
                                             console.error('Error calling goToNextStep:', err);
                                             if (typeof window.goToEditSection === 'function') {
@@ -2042,12 +2042,12 @@ $defaultGreetings = [
                         submitButton.disabled = true;
                         submitButton.textContent = '保存中...';
                     }
-
+                    
                     // Validate required fields for real estate license
                     const prefecture = document.getElementById('license_prefecture').value;
                     const renewal = document.getElementById('license_renewal').value;
                     const registration = document.getElementById('license_registration').value.trim();
-
+                    
                     if (!prefecture || !renewal || !registration) {
                         showError('宅建業者番号（都道府県、更新番号、登録番号）は必須項目です。');
                         isSubmittingStep2 = false;
@@ -2057,20 +2057,20 @@ $defaultGreetings = [
                         }
                         return;
                     }
-
+                    
                     const formData = new FormData(companyProfileForm);
                     const data = {};
-
+                    
                     for (let [key, value] of formData.entries()) {
                         data[key] = value;
                     }
-
+                    
                     // Merge company_name from profile step and trim to prevent unwanted periods/whitespace
                     if (data.company_name_profile) {
                         data.company_name = String(data.company_name_profile).trim();
                         delete data.company_name_profile;
                     }
-
+                    
                     try {
                         // Add timeout and keepalive for iOS
                         const controller = new AbortController();
@@ -2092,7 +2092,7 @@ $defaultGreetings = [
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
-
+                        
                         const result = await response.json();
 
                         if (result.success) {
@@ -2115,7 +2115,7 @@ $defaultGreetings = [
                                     setTimeout(() => {
                                         if (typeof window.goToNextStep === 'function') {
                                             try {
-                                                window.goToNextStep(2);
+                                            window.goToNextStep(2);
                                             } catch (err) {
                                                 console.error('Error calling goToNextStep:', err);
                                                 if (typeof window.goToEditSection === 'function') {
@@ -2139,7 +2139,7 @@ $defaultGreetings = [
                                 setTimeout(() => {
                                     if (typeof window.goToNextStep === 'function') {
                                         try {
-                                            window.goToNextStep(2);
+                                        window.goToNextStep(2);
                                         } catch (err) {
                                             console.error('Error calling goToNextStep:', err);
                                             if (typeof window.goToEditSection === 'function') {
@@ -2200,24 +2200,24 @@ $defaultGreetings = [
                         submitButton.disabled = true;
                         submitButton.textContent = '保存中...';
                     }
-
+                    
                     const formData = new FormData(personalInfoForm);
                     const data = {};
-
+                    
                     for (let [key, value] of formData.entries()) {
                         data[key] = value;
                     }
-
+                    
                     // Combine last_name and first_name
                     const lastName = data.last_name || '';
                     const firstName = data.first_name || '';
                     data.name = (lastName + ' ' + firstName).trim();
-
+                    
                     // Combine romaji names
                     const lastNameRomaji = data.last_name_romaji || '';
                     const firstNameRomaji = data.first_name_romaji || '';
                     data.name_romaji = (lastNameRomaji + ' ' + firstNameRomaji).trim();
-
+                    
                     // Handle qualifications
                     const qualifications = [];
                     if (formData.get('qualification_takken')) {
@@ -2241,11 +2241,11 @@ $defaultGreetings = [
                     delete data.qualification_kenchikushi_2;
                     delete data.qualification_kenchikushi_3;
                     delete data.qualifications_other;
-
+                    
                     // Handle free input from paired items - collect all textarea values and images
                     const freeInputTexts = [];
                     const images = [];
-
+                    
                     // Get all paired items
                     const pairedItems = document.querySelectorAll('#free-input-pairs-container .free-input-pair-item');
 
@@ -2263,15 +2263,15 @@ $defaultGreetings = [
                         const linkInput = pairItem.querySelector('input[type="url"]');
                         const uploadArea = pairItem.querySelector('.upload-area');
                         const existingImage = uploadArea ? uploadArea.dataset.existingImage : '';
-
+                        
                         let imagePath = existingImage || '';
-
+                        
                         // If new file is selected, upload it
                         if (fileInput && fileInput.files && fileInput.files[0]) {
                             const uploadData = new FormData();
                             uploadData.append('file', fileInput.files[0]);
                             uploadData.append('file_type', 'free');
-
+                            
                             try {
                                 // Add timeout and keepalive for iOS
                                 const uploadController = new AbortController();
@@ -2289,7 +2289,7 @@ $defaultGreetings = [
                                 if (!uploadResponse.ok) {
                                     throw new Error(`HTTP error! status: ${uploadResponse.status}`);
                                 }
-
+                                
                                 const uploadResult = await uploadResponse.json();
                                 if (uploadResult.success) {
                                     const fullPath = uploadResult.data.file_path;
@@ -2299,19 +2299,19 @@ $defaultGreetings = [
                                 console.error('Upload error:', error);
                             }
                         }
-
+                        
                         // Add image data (even if empty, to maintain pairing)
                         images.push({
                             image: imagePath,
                             link: linkInput ? linkInput.value.trim() : ''
                         });
                     }
-
+                    
                     let freeInputData = {
                         texts: freeInputTexts.length > 0 ? freeInputTexts : [''],
                         images: images.length > 0 ? images : [{ image: '', link: '' }]
                     };
-
+                    
                     data.free_input = JSON.stringify(freeInputData);
                     // Remove all free_input_text entries from data
                     Object.keys(data).forEach(key => {
@@ -2324,7 +2324,7 @@ $defaultGreetings = [
                     delete data.first_name;
                     delete data.last_name_romaji;
                     delete data.first_name_romaji;
-
+                    
                     try {
                         // Add timeout and keepalive for iOS
                         const controller = new AbortController();
@@ -2346,7 +2346,7 @@ $defaultGreetings = [
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
-
+                        
                         const result = await response.json();
 
                         if (result.success) {
@@ -2369,7 +2369,7 @@ $defaultGreetings = [
                                     setTimeout(() => {
                                         if (typeof window.goToNextStep === 'function') {
                                             try {
-                                                window.goToNextStep(3);
+                                            window.goToNextStep(3);
                                             } catch (err) {
                                                 console.error('Error calling goToNextStep:', err);
                                                 if (typeof window.goToEditSection === 'function') {
@@ -2393,7 +2393,7 @@ $defaultGreetings = [
                                 setTimeout(() => {
                                     if (typeof window.goToNextStep === 'function') {
                                         try {
-                                            window.goToNextStep(3);
+                                        window.goToNextStep(3);
                                         } catch (err) {
                                             console.error('Error calling goToNextStep:', err);
                                             if (typeof window.goToEditSection === 'function') {
@@ -2413,7 +2413,7 @@ $defaultGreetings = [
                                 submitButton.textContent = originalButtonText;
                             }
                         }
-                        } catch (error) {
+                    } catch (error) {
                         console.error('Error:', error);
                         let errorMessage = 'エラーが発生しました';
                         if (error.name === 'AbortError') {
@@ -2434,16 +2434,16 @@ $defaultGreetings = [
             // Postal code lookup
             document.getElementById('lookup-address')?.addEventListener('click', async () => {
                 const postalCode = document.getElementById('company_postal_code').value.replace(/-/g, '');
-
+                
                 if (!postalCode || postalCode.length !== 7) {
                     showWarning('7桁の郵便番号を入力してください');
                     return;
                 }
-
+                
                 try {
                     const response = await fetch(`../backend/api/utils/postal-code-lookup.php?postal_code=${postalCode}`);
                     const result = await response.json();
-
+                    
                     if (result.success) {
                         document.getElementById('company_address').value = result.data.address;
                     } else {
@@ -2454,18 +2454,18 @@ $defaultGreetings = [
                     showError('エラーが発生しました');
                 }
             });
-
+            
             // License lookup
             document.getElementById('lookup-license')?.addEventListener('click', async () => {
                 const prefecture = document.getElementById('license_prefecture').value;
                 const renewal = document.getElementById('license_renewal').value;
                 const registration = document.getElementById('license_registration').value;
-
+                
                 if (!prefecture || !renewal || !registration) {
                     showWarning('都道府県、更新番号、登録番号をすべて入力してください');
                     return;
                 }
-
+                
                 try {
                     const response = await fetch('../backend/api/utils/license-lookup.php', {
                         method: 'POST',
@@ -2479,7 +2479,7 @@ $defaultGreetings = [
                         })
                     });
                     const result = await response.json();
-
+                    
                     if (result.success) {
                         if (result.data.company_name) {
                             // Trim the company name to remove any accidental periods or whitespace
@@ -2498,14 +2498,14 @@ $defaultGreetings = [
                 }
             });
         });
-
+        
         // 漢字からローマ字への自動変換機能（edit.php用）
         document.addEventListener('DOMContentLoaded', function() {
             const lastNameInput = document.getElementById('edit_last_name');
             const firstNameInput = document.getElementById('edit_first_name');
             const lastNameRomajiInput = document.getElementById('edit_last_name_romaji');
             const firstNameRomajiInput = document.getElementById('edit_first_name_romaji');
-
+            
             // 簡易的な変換テーブル
             const nameConversionMap = {
                 '山田': 'Yamada', '田中': 'Tanaka', '佐藤': 'Sato', '鈴木': 'Suzuki',
@@ -2518,7 +2518,7 @@ $defaultGreetings = [
                 '一郎': 'Ichiro', '二郎': 'Jiro', '三郎': 'Saburo', '美咲': 'Misaki',
                 'さくら': 'Sakura', 'あかり': 'Akari', 'ひなた': 'Hinata', 'みお': 'Mio'
             };
-
+            
             function convertToRomaji(japanese) {
                 if (!japanese) return '';
                 if (nameConversionMap[japanese]) {
@@ -2526,13 +2526,13 @@ $defaultGreetings = [
                 }
                 return '';
             }
-
+            
             // ローマ字入力フィールドの最初の文字を大文字に変換する関数
             function capitalizeFirstLetterForEdit(input) {
                 if (!input || !input.value) return;
-
+                
                 let value = input.value.trim();
-
+                
                 if (value.length > 0) {
                     // 最初の文字が小文字（a-z）の場合は大文字に変換
                     const firstChar = value.charAt(0);
@@ -2550,27 +2550,27 @@ $defaultGreetings = [
                     }
                 }
             }
-
+            
             // ローマ字入力フィールドの大文字化機能を設定
             function setupRomajiAutoCapitalizeForEdit() {
                 const romajiFields = [lastNameRomajiInput, firstNameRomajiInput];
-
+                
                 romajiFields.forEach(field => {
                     if (field) {
                         let isComposing = false; // Track IME composition state
-
+                        
                         // Track composition start (IME input started)
                         field.addEventListener('compositionstart', function() {
                             isComposing = true;
                         });
-
+                        
                         // Track composition end (IME input finished)
                         field.addEventListener('compositionend', function(e) {
                             isComposing = false;
                             // Apply capitalization after composition ends
                             setTimeout(() => capitalizeFirstLetterForEdit(e.target), 0);
                         });
-
+                        
                         // Handle input event - skip during IME composition
                         field.addEventListener('input', function(e) {
                             // Skip if IME is composing or if event has isComposing flag
@@ -2580,7 +2580,7 @@ $defaultGreetings = [
                             // Use setTimeout to ensure the value is updated before capitalization
                             setTimeout(() => capitalizeFirstLetterForEdit(e.target), 0);
                         });
-
+                        
                         // Handle keyup for more reliable capitalization on PC
                         field.addEventListener('keyup', function(e) {
                             // Skip during IME composition
@@ -2592,7 +2592,7 @@ $defaultGreetings = [
                                 setTimeout(() => capitalizeFirstLetterForEdit(e.target), 0);
                             }
                         });
-
+                        
                         // Also apply on blur (when field loses focus)
                         field.addEventListener('blur', function(e) {
                             capitalizeFirstLetterForEdit(e.target);
@@ -2600,10 +2600,10 @@ $defaultGreetings = [
                     }
                 });
             }
-
+            
             // ローマ字入力フィールドの大文字化機能を初期化
             setupRomajiAutoCapitalizeForEdit();
-
+            
             if (lastNameInput && lastNameRomajiInput) {
                 let lastNameTimeout;
                 lastNameInput.addEventListener('input', function() {
@@ -2621,7 +2621,7 @@ $defaultGreetings = [
                     }
                 });
             }
-
+            
             if (firstNameInput && firstNameRomajiInput) {
                 let firstNameTimeout;
                 firstNameInput.addEventListener('input', function() {
@@ -2640,14 +2640,14 @@ $defaultGreetings = [
                 });
             }
         });
-
+        
         // ドラッグ&ドロップ機能の初期化（edit.php用）
         document.addEventListener('DOMContentLoaded', function() {
             // すべてのアップロードエリアにドラッグ&ドロップ機能を追�
             document.querySelectorAll('.upload-area').forEach(uploadArea => {
                 const fileInput = uploadArea.querySelector('input[type="file"]');
                 if (!fileInput) return;
-
+                
                 // ドラッグエンター時の処理（ブラウザのデフォルト動作を防止）
                 uploadArea.addEventListener('dragenter', function(e) {
                     e.preventDefault();
@@ -2660,20 +2660,20 @@ $defaultGreetings = [
                     e.stopPropagation();
                     uploadArea.classList.add('drag-over');
                 });
-
+                
                 // ドラッグリーブ時の処理
                 uploadArea.addEventListener('dragleave', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     uploadArea.classList.remove('drag-over');
                 });
-
+                
                 // ドロップ時の処理
                 uploadArea.addEventListener('drop', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     uploadArea.classList.remove('drag-over');
-
+                    
                     const files = e.dataTransfer.files;
                     if (files.length > 0) {
                         const file = files[0];
@@ -2714,7 +2714,7 @@ $defaultGreetings = [
                         }
                     }
                 });
-
+                
                 // クリックでファイル選択も可能
                 uploadArea.addEventListener('click', function(e) {
                     // ボタンやプレビュー画像をクリックした場合は除外
@@ -2759,7 +2759,7 @@ $defaultGreetings = [
                     }
                 });
             }
-
+            
             const submitPaymentBtn = document.getElementById('submit-payment-edit');
             if (submitPaymentBtn) {
                 submitPaymentBtn.addEventListener('click', async () => {

@@ -850,7 +850,7 @@ if ($isTokenBased) {
                             </a>
                         </li>
                         <li>
-                            <a href="#" class="social-link">
+                            <a href="privacy.php" class="social-link">
                                 <span>プライバシーポリシー</span>
                             </a>
                         </li>
