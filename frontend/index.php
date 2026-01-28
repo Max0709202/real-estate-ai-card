@@ -871,7 +871,7 @@ if ($isTokenBased) {
             <div class="footer-bottom">
                 <div class="footer-bottom-content">
                     <p>&copy; 2025 リニュアル仲介株式会社. All rights reserved.</p>
-                    <p><a href="terms.php">特定商取引法に基づく表記</a></p>
+                    <p><a href="specific.php">特定商取引法に基づく表記</a></p>
                 </div>
             </div>
         </div>
