@@ -134,19 +134,18 @@ body {
         display: none;
     }
 
-    /* Show and style SP version button in header */
+    /* Show and style SP version button in header - always display "プレビュー" text */
     .edit-header .btn-direct-input {
         position: fixed;
         top: 50%;
-        right: -45px;
+        right: 0;
         transform: translateY(-50%);
         padding: 0.5rem 0.75rem;
-        border-radius: 3px;
+        border-radius: 3px 0 0 3px;
         z-index: 1000;
         box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
         width: auto;
-        overflow: hidden;
-        transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1), left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: visible;
         display: flex;
     }
 
@@ -164,17 +163,6 @@ body {
 
     .input-text {
         margin-left: 0.25rem;
-    }
-
-    .btn-direct-input:hover,
-    .btn-direct-input:active {
-        right: -5px;
-        /* left: 1rem; */
-    }
-
-    /* Touch device support - move left after first tap */
-    .btn-direct-input.touched {
-        right: -5px;
     }
 }
 
