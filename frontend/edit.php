@@ -1145,7 +1145,7 @@ $defaultGreetings = [
                 <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
                     画像のサイズを調整し、必要な部分を選択してください。指でドラッグしてトリミングエリアを移動・拡大縮小できます。
                 </p>
-                <div style="width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;">
+                <div id="cropper-image-container" style="width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;">
                     <img id="cropper-image" style="max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;">
                 </div>
                 <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
@@ -1163,9 +1163,24 @@ $defaultGreetings = [
         // Make user type and account status available
         window.userType = <?php echo json_encode($userType ?? 'new', JSON_UNESCAPED_UNICODE); ?>;
         window.isCanceledAccount = <?php echo json_encode($isCanceledAccount ?? false); ?>;
+        // Absolute upload URL - always use current origin to avoid cross-origin issues
+        window.getUploadUrl = function() {
+            // Use current origin + path to construct URL (works for localhost, staging, production)
+            const pathParts = window.location.pathname.split('/');
+            // Find the 'frontend' part and get everything before it
+            const frontendIndex = pathParts.indexOf('frontend');
+            let basePath = '';
+            if (frontendIndex > 0) {
+                basePath = pathParts.slice(0, frontendIndex).join('/');
+            } else {
+                // Fallback: try to extract from pathname (e.g., /php/frontend/edit.php -> /php)
+                const match = window.location.pathname.match(/^(\/[^/]+)\/frontend\//);
+                basePath = match ? match[1] : '';
+            }
+            return window.location.origin + basePath + '/backend/api/business-card/upload.php';
+        };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
-    <script src="assets/js/auto-save.js"></script>
     <script src="assets/js/edit.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script>
@@ -1707,17 +1722,26 @@ $defaultGreetings = [
                         uploadData.append('file', blobOrFile);
                         uploadData.append('file_type', fileType);
 
-                        // Add timeout and keepalive for iOS
                         const uploadController = new AbortController();
                         const uploadTimeoutId = setTimeout(() => uploadController.abort(), 30000);
 
-                        const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
-                            method: 'POST',
-                            body: uploadData,
-                            credentials: 'include',
-                            signal: uploadController.signal,
-                            keepalive: true // Important for iOS
-                        });
+                        const uploadUrl = window.getUploadUrl();
+                        let uploadResponse;
+                        try {
+                            uploadResponse = await fetch(uploadUrl, {
+                                method: 'POST',
+                                body: uploadData,
+                                credentials: 'include',
+                                signal: uploadController.signal
+                            });
+                        } catch (fetchError) {
+                            clearTimeout(uploadTimeoutId);
+                            const msg = fetchError.message === 'Failed to fetch'
+                                ? 'サーバーに接続できません。ネットワーク接続とURLを確認してください。'
+                                : fetchError.message;
+                            console.error('Logo upload failed:', { url: uploadUrl, error: fetchError });
+                            throw new Error(msg);
+                        }
                         clearTimeout(uploadTimeoutId);
 
                         if (!uploadResponse.ok) {
@@ -1898,18 +1922,16 @@ $defaultGreetings = [
                         
                         const result = await response.json();
                         
-                        if (result.success) {
-                            // Clear dirty flag to prevent "unsaved changes" popup
-                            if (window.autoSave && window.autoSave.markClean) {
-                                window.autoSave.markClean();
-                            }
-                            // Clear drafts on successful save
-                            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
-                                await window.autoSave.clearDraftsOnSuccess();
-                            }
-                            // Show success message
+                            if (result.success) {
+                                // Show success message
                             if (typeof showSuccess === 'function') {
                                 showSuccess('保存しました');
+                            }
+                            // Re-enable button immediately on success
+                            isSubmitting = false;
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = originalButtonText;
                             }
                             // Update business card data and move to next step without reloading
                             if (typeof loadBusinessCardData === 'function') {
@@ -2057,16 +2079,8 @@ $defaultGreetings = [
                         
                         const result = await response.json();
 
-                        if (result.success) {
-                            // Clear dirty flag to prevent "unsaved changes" popup
-                            if (window.autoSave && window.autoSave.markClean) {
-                                window.autoSave.markClean();
-                            }
-                            // Clear drafts on successful save
-                            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
-                                await window.autoSave.clearDraftsOnSuccess();
-                            }
-                            // Show success message
+                            if (result.success) {
+                                // Show success message
                             if (typeof showSuccess === 'function') {
                                 showSuccess('保存しました');
                             }
@@ -2235,16 +2249,14 @@ $defaultGreetings = [
                             uploadData.append('file_type', 'free');
                             
                             try {
-                                // Add timeout and keepalive for iOS
                                 const uploadController = new AbortController();
                                 const uploadTimeoutId = setTimeout(() => uploadController.abort(), 30000);
 
-                                const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
+                                const uploadResponse = await fetch(window.getUploadUrl(), {
                                     method: 'POST',
                                     body: uploadData,
                                     credentials: 'include',
-                                    signal: uploadController.signal,
-                                    keepalive: true // Important for iOS
+                                    signal: uploadController.signal
                                 });
                                 clearTimeout(uploadTimeoutId);
 
@@ -2311,18 +2323,16 @@ $defaultGreetings = [
                         
                         const result = await response.json();
 
-                        if (result.success) {
-                            // Clear dirty flag to prevent "unsaved changes" popup
-                            if (window.autoSave && window.autoSave.markClean) {
-                                window.autoSave.markClean();
-                            }
-                            // Clear drafts on successful save
-                            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
-                                await window.autoSave.clearDraftsOnSuccess();
-                            }
-                            // Show success message
+                            if (result.success) {
+                                // Show success message
                             if (typeof showSuccess === 'function') {
                                 showSuccess('保存しました');
+                            }
+                            // Re-enable button immediately on success
+                            isSubmittingStep3 = false;
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = originalButtonText;
                             }
                             // Update business card data and move to next step without reloading
                             if (typeof loadBusinessCardData === 'function') {

@@ -8,6 +8,21 @@
  * - free: 1200x1200px
  */
 
+// CRITICAL: Send CORS headers FIRST before anything else
+// This ensures the browser doesn't block the response even if PHP crashes
+$origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*';
+header('Access-Control-Allow-Origin: ' . $origin);
+header('Access-Control-Allow-Credentials: true');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, X-Requested-With');
+header('Access-Control-Max-Age: 86400');
+
+// Handle preflight OPTIONS request immediately
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
 // Ensure clean JSON output - disable all error display
 ini_set('display_errors', 0);
 error_reporting(0);
@@ -25,6 +40,12 @@ require_once __DIR__ . '/../middleware/auth.php';
 
 // Re-disable display errors (config.php may have enabled it)
 ini_set('display_errors', 0);
+
+// CRITICAL: Release session lock early to prevent blocking concurrent requests
+// The auth middleware has already validated the session, so we can close it now
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
 
 // Helper function to send clean JSON response
 function cleanJsonResponse($success, $data, $message, $statusCode = 200) {

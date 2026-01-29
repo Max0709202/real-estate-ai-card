@@ -1473,22 +1473,10 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
     delete data.company_logo;
     delete data.profile_photo;
     
-    // Handle logo upload (check for cropped image first, then restored file)
+    // Handle logo upload (check for cropped image first)
     const logoUploadArea = document.querySelector('[data-upload-id="company_logo"]');
     const logoFile = document.getElementById('company_logo').files[0];
-    // Check for restored file from auto-save
-    let restoredLogoFile = null;
-    if (window.autoSave) {
-        const restoredFiles = window.autoSave.getRestoredFiles();
-        const restoredLogo = restoredFiles.get('company_logo');
-        if (restoredLogo && !logoFile && !(logoUploadArea && logoUploadArea.dataset.croppedBlob)) {
-            restoredLogoFile = new File([restoredLogo.blob], restoredLogo.name, {
-                type: restoredLogo.type,
-                lastModified: restoredLogo.lastModified
-            });
-        }
-    }
-    if (logoFile || (logoUploadArea && logoUploadArea.dataset.croppedBlob) || restoredLogoFile) {
+    if (logoFile || (logoUploadArea && logoUploadArea.dataset.croppedBlob)) {
         const uploadData = new FormData();
         
         // Use cropped image if available, otherwise use original file
@@ -1500,8 +1488,6 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
             // Clear cropped data
             delete logoUploadArea.dataset.croppedBlob;
             delete logoUploadArea.dataset.croppedFileName;
-        } else if (restoredLogoFile) {
-            uploadData.append('file', restoredLogoFile);
         } else {
             uploadData.append('file', logoFile);
         }
@@ -1603,22 +1589,10 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         // If none found, don't set company_logo - API will preserve existing value
     }
     
-    // Handle profile photo upload (check for cropped image first, then restored file)
+    // Handle profile photo upload (check for cropped image first)
     const photoUploadArea = document.querySelector('[data-upload-id="profile_photo_header"]');
     const photoFile = document.getElementById('profile_photo_header').files[0];
-    // Check for restored file from auto-save
-    let restoredPhotoFile = null;
-    if (window.autoSave) {
-        const restoredFiles = window.autoSave.getRestoredFiles();
-        const restoredPhoto = restoredFiles.get('profile_photo');
-        if (restoredPhoto && !photoFile && !(photoUploadArea && photoUploadArea.dataset.croppedBlob)) {
-            restoredPhotoFile = new File([restoredPhoto.blob], restoredPhoto.name, {
-                type: restoredPhoto.type,
-                lastModified: restoredPhoto.lastModified
-            });
-        }
-    }
-    if (photoFile || (photoUploadArea && photoUploadArea.dataset.croppedBlob) || restoredPhotoFile) {
+    if (photoFile || (photoUploadArea && photoUploadArea.dataset.croppedBlob)) {
         const uploadData = new FormData();
         
         // Use cropped image if available, otherwise use original file
@@ -1630,8 +1604,6 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
             // Clear cropped data
             delete photoUploadArea.dataset.croppedBlob;
             delete photoUploadArea.dataset.croppedFileName;
-        } else if (restoredPhotoFile) {
-            uploadData.append('file', restoredPhotoFile);
         } else {
             uploadData.append('file', photoFile);
         }
@@ -1769,21 +1741,10 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
-            // Clear dirty flag to prevent "unsaved changes" popup
-            if (window.autoSave && window.autoSave.markClean) {
-                window.autoSave.markClean();
-            }
-            // Clear drafts on successful step completion
-            if (window.autoSave && window.autoSave.clearDraftsOnSuccess) {
-                await window.autoSave.clearDraftsOnSuccess();
-            }
             // Reload business card data to get updated company name
             await loadExistingBusinessCardData();
             goToStep(2);
         } else {
-            if (window.autoSave && window.autoSave.markSubmissionFailed) {
-                window.autoSave.markSubmissionFailed();
-            }
             showError('更新に失敗しました: ' + result.message);
             isSubmittingStep1 = false;
             if (submitButton) {
@@ -1882,10 +1843,6 @@ document.getElementById('company-profile-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
-            // Clear dirty flag to prevent "unsaved changes" popup
-            if (window.autoSave && window.autoSave.markClean) {
-                window.autoSave.markClean();
-            }
             goToStep(3);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2079,10 +2036,6 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
         
         const result = await response.json();
         if (result.success) {
-            // Clear dirty flag to prevent "unsaved changes" popup
-            if (window.autoSave && window.autoSave.markClean) {
-                window.autoSave.markClean();
-            }
             goToStep(4);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2161,9 +2114,6 @@ document.getElementById('tech-tools-form')?.addEventListener('submit', async (e)
     await generateTechToolUrls(selectedTools);
 
         // Clear dirty flag to prevent "unsaved changes" popup
-        if (window.autoSave && window.autoSave.markClean) {
-            window.autoSave.markClean();
-        }
     
     goToStep(5);
     } catch (error) {
@@ -2247,10 +2197,6 @@ async function generateTechToolUrls(selectedTools) {
         const saveResult = await saveResponse.json();
         if (saveResult.success) {
             console.log('Tech tools saved to database successfully');
-            // Clear dirty flag to prevent "unsaved changes" popup
-            if (window.autoSave && window.autoSave.markClean) {
-                window.autoSave.markClean();
-            }
         } else {
             console.error('Failed to save tech tools:', saveResult.message);
         }
@@ -2401,10 +2347,6 @@ document.getElementById('communication-form')?.addEventListener('submit', async 
         
         const result = await response.json();
         if (result.success) {
-            // Clear dirty flag to prevent "unsaved changes" popup
-            if (window.autoSave && window.autoSave.markClean) {
-                window.autoSave.markClean();
-            }
             goToStep(6);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2483,297 +2425,1599 @@ document.getElementById('submit-payment')?.addEventListener('click', async () =>
     }
 });
 
-// Load preview
-function loadPreview() {
-    const previewArea = document.getElementById('preview-area');
-    if (previewArea) {
-        previewArea.innerHTML = '<p>プレビューを読み込み中...</p>';
-        // TODO: Implement actual preview
-    }
-}
-
 // Preview functionality
 let isPreviewMode = false;
-let storedFormData = {};
 
-// Collect all form data
-function collectFormData() {
-    // Start with stored data from sessionStorage (only contains submitted data)
-    const storedData = sessionStorage.getItem('registerData');
-    const data = storedData ? JSON.parse(storedData) : {};
-    
-    // Only read from form fields for steps that have been completed
-    // This prevents showing default values from forms that haven't been submitted yet
-    
-    // Step 1: Header & Greeting (Step 1 in the current flow)
-    if (completedSteps.has(1)) {
-        const step1Form = document.getElementById('header-greeting-form');
-        if (step1Form) {
-            const formData = new FormData(step1Form);
-            if (formData.get('company_name')) {
-                // Trim to prevent unwanted periods/whitespace
-                data.company_name = String(formData.get('company_name')).trim();
-            }
-            
-            // Logo
-            const logoInput = document.getElementById('company_logo');
-            if (logoInput && logoInput.files[0]) {
-                data.company_logo = URL.createObjectURL(logoInput.files[0]);
-            } else {
-                const logoPreview = document.querySelector('#logo-upload .upload-preview img');
-                if (logoPreview) data.company_logo = logoPreview.src;
-            }
-            
-            // Profile photo
-            const photoInput = document.getElementById('profile_photo_header');
-            if (photoInput && photoInput.files[0]) {
-                data.profile_photo = URL.createObjectURL(photoInput.files[0]);
-            } else {
-                const photoPreview = document.querySelector('#photo-upload-header .upload-preview img');
-                if (photoPreview) data.profile_photo = photoPreview.src;
-            }
-            
-            // Greetings
-            data.greetings = [];
-            const greetingTitles = formData.getAll('greeting_title[]');
-            const greetingContents = formData.getAll('greeting_content[]');
-            greetingTitles.forEach((title, index) => {
-                if (title && greetingContents[index]) {
-                    data.greetings.push({
-                        title: title,
-                        content: greetingContents[index]
-                    });
-                }
+// Show preview - Display card.php in modal (same as edit.php)
+async function showPreview() {
+    // Load saved business card data to get slug and check if data exists
+    let savedData = null;
+    if (typeof loadExistingBusinessCardData === 'function') {
+        await loadExistingBusinessCardData();
+        savedData = window.businessCardData || businessCardData;
+    } else {
+        // Fallback: fetch data directly
+        try {
+            const response = await fetch('../backend/api/business-card/get.php', {
+                method: 'GET',
+                credentials: 'include'
             });
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    savedData = result.data;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading business card data:', error);
         }
     }
-    
-    // Step 2: Company Profile
-    if (completedSteps.has(2)) {
-        const step2Form = document.getElementById('company-profile-form');
-        if (step2Form) {
-            const formData = new FormData(step2Form);
-            if (formData.get('company_name_profile')) {
-                // Trim to prevent unwanted periods/whitespace
-                data.company_name_profile = String(formData.get('company_name_profile')).trim();
-            }
-            if (formData.get('company_postal_code')) {
-                data.company_postal_code = formData.get('company_postal_code');
-            }
-            if (formData.get('company_address')) {
-                data.company_address = formData.get('company_address');
-            }
-            if (formData.get('company_phone')) {
-                data.company_phone = formData.get('company_phone');
-            }
-            if (formData.get('company_website')) {
-                data.company_website = formData.get('company_website');
-            }
-            if (formData.get('real_estate_license_prefecture')) {
-                data.real_estate_license_prefecture = formData.get('real_estate_license_prefecture');
-            }
-            if (formData.get('real_estate_license_renewal_number')) {
-                data.real_estate_license_renewal_number = formData.get('real_estate_license_renewal_number');
-            }
-            if (formData.get('real_estate_license_registration_number')) {
-                data.real_estate_license_registration_number = formData.get('real_estate_license_registration_number');
-            }
+
+    // Check if we have any data to display
+    const hasData = savedData && (
+        savedData.company_name ||
+        savedData.name ||
+        (savedData.greetings && savedData.greetings.length > 0) ||
+        savedData.company_logo ||
+        savedData.profile_photo ||
+        savedData.real_estate_license_prefecture ||
+        savedData.company_address ||
+        Object.keys(savedData).length > 5 // More than just id, user_id, etc.
+    );
+
+    if (!hasData || !savedData || !savedData.url_slug) {
+        if (typeof showWarning === 'function') {
+            showWarning('表示するデータがありません。まず情報を入力して保存してください。');
+        } else {
+            alert('表示するデータがありません。まず情報を入力して保存してください。');
         }
+        return;
     }
-    
-    // Step 3: Personal Info
-    if (completedSteps.has(3)) {
-        const step3Form = document.getElementById('personal-info-form');
-        if (step3Form) {
-            const formData = new FormData(step3Form);
-            // Combine last_name and first_name
-            const lastName = formData.get('last_name') || '';
-            const firstName = formData.get('first_name') || '';
-            if (lastName || firstName) {
-                data.name = (lastName + ' ' + firstName).trim();
-            }
-            // Combine romaji names
-            const lastNameRomaji = formData.get('last_name_romaji') || '';
-            const firstNameRomaji = formData.get('first_name_romaji') || '';
-            if (lastNameRomaji || firstNameRomaji) {
-                data.name_romaji = (lastNameRomaji + ' ' + firstNameRomaji).trim();
-            }
-            if (formData.get('branch_department')) {
-                data.branch_department = formData.get('branch_department');
-            }
-            if (formData.get('position')) {
-                data.position = formData.get('position');
-            }
-            if (formData.get('mobile_phone')) {
-                data.mobile_phone = formData.get('mobile_phone');
-            }
-            if (formData.get('birth_date')) {
-                data.birth_date = formData.get('birth_date');
-            }
-            if (formData.get('current_residence')) {
-                data.current_residence = formData.get('current_residence');
-            }
-            if (formData.get('hometown')) {
-                data.hometown = formData.get('hometown');
-            }
-            if (formData.get('alma_mater')) {
-                data.alma_mater = formData.get('alma_mater');
-            }
-            if (formData.get('hobbies')) {
-                data.hobbies = formData.get('hobbies');
-            }
-            if (formData.get('free_input_text')) {
-                data.free_input_text = formData.get('free_input_text');
-            }
-            if (formData.get('free_image_link')) {
-                data.free_image_link = formData.get('free_image_link');
-            }
-            
-            // Qualifications
-            const qualifications = [];
-            if (formData.get('qualification_takken')) qualifications.push('宅地建物取引士');
-            if (formData.get('qualification_kenchikushi')) qualifications.push('建築士');
-            const otherQuals = formData.get('qualifications_other');
-            if (otherQuals) qualifications.push(otherQuals);
-            if (qualifications.length > 0) {
-                data.qualifications = qualifications.join('、');
-            }
-            
-            // Free image
-            const freeImageInput = document.getElementById('free_image');
-            if (freeImageInput && freeImageInput.files[0]) {
-                data.free_image = URL.createObjectURL(freeImageInput.files[0]);
+
+    // Get the URL slug
+    const urlSlug = savedData.url_slug;
+
+    // Detect if user is on PC (desktop) - if so, load mobile version
+    const isPC = window.innerWidth > 768;
+
+    // Create modal overlay
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay preview-modal';
+    modalOverlay.id = 'register-preview-modal';
+    modalOverlay.style.cssText = 'visibility: visible; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; opacity: 0; transition: opacity 0.3s;';
+
+    // Create modal content
+    const modalContent = document.createElement('div');
+    modalContent.className = 'preview-modal-content';
+    modalContent.id = 'preview-modal-content';
+    // On PC, set initial width to mobile size, but allow expansion
+    if (isPC) {
+        modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center; min-width: 375px;';
             } else {
-                const freeImagePreview = document.querySelector('#free-image-upload .upload-preview img');
-                if (freeImagePreview) data.free_image = freeImagePreview.src;
-            }
-        }
+    modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: 100%; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;';
     }
     
-    // Step 4: Tech Tools
-    if (completedSteps.has(4)) {
-        const step4Form = document.getElementById('tech-tools-form');
-        if (step4Form) {
-            const formData = new FormData(step4Form);
-            const selectedTools = formData.getAll('tech_tools[]');
-            if (selectedTools.length > 0) {
-                data.tech_tools = selectedTools;
+    // Create iframe to load card.php with preview mode
+    const iframe = document.createElement('iframe');
+    iframe.src = `card.php?slug=${encodeURIComponent(urlSlug)}&preview=1&preview_from_pc=${isPC ? '1' : '0'}`;
+    // On PC, set iframe to mobile width to show smart version
+    if (isPC) {
+        iframe.style.cssText = 'width: 375px; height: 100%; border: none; flex: 1; min-height: 600px; max-width: 375px; margin: 0 auto;';
+        modalContent.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center;';
+            } else {
+    iframe.style.cssText = 'width: 100%; height: 100%; border: none; flex: 1; min-height: 600px;';
+    }
+    iframe.setAttribute('frameborder', '0');
+    iframe.setAttribute('scrolling', 'yes');
+
+    // Close button
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'preview-modal-close';
+    closeButton.innerHTML = '×';
+    closeButton.style.cssText = 'position: absolute; top: 1rem; right: 1rem; background: #fff; border: 2px solid #ddd; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 1.5rem; line-height: 1; display: flex; align-items: center; justify-content: center; color: #666; transition: all 0.3s; z-index: 10001;';
+    closeButton.onmouseover = function() {
+        this.style.background = '#f0f0f0';
+        this.style.borderColor = '#999';
+    };
+    closeButton.onmouseout = function() {
+        this.style.background = '#fff';
+        this.style.borderColor = '#ddd';
+    };
+    closeButton.onclick = function() {
+        hidePreview();
+    };
+
+    // Assemble modal
+    modalContent.appendChild(iframe);
+    modalContent.appendChild(closeButton);
+    modalOverlay.appendChild(modalContent);
+
+    // Close on overlay click
+    modalOverlay.onclick = function(e) {
+        if (e.target === modalOverlay) {
+            hidePreview();
+        }
+    };
+
+    // Add to body
+    document.body.appendChild(modalOverlay);
+
+    // Trigger animation
+    setTimeout(() => {
+        modalOverlay.style.opacity = '1';
+    }, 10);
+
+    // Handle resize to switch between PC/mobile views (optional UX enhancement)
+    window.addEventListener('resize', function resizeHandler() {
+        const modalContentEl = document.getElementById('preview-modal-content');
+        const iframeEl = modalContentEl ? modalContentEl.querySelector('iframe') : null;
+        if (!modalContentEl) {
+            window.removeEventListener('resize', resizeHandler);
+            return;
+        }
+        const newIsPC = window.innerWidth > 768;
+        if (newIsPC) {
+            modalContentEl.style.cssText = 'background: #fff; border-radius: 12px; max-width: 90%; width: auto; max-height: 90vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column; align-items: center; min-width: 375px;';
+            if (iframeEl) {
+                iframeEl.style.cssText = 'width: 375px; height: 100%; border: none; flex: 1; min-height: 600px; max-width: 375px; margin: 0 auto;';
             }
         }
-    }
-    
-    // Step 5: Communication
-    if (completedSteps.has(5)) {
-        const step5Form = document.getElementById('communication-form');
-        if (step5Form) {
-            const formData = new FormData(step5Form);
-            data.communication = {};
-            
-            // Message apps
-            if (formData.get('comm_line')) {
-                data.communication.line = {
-                    name: 'LINE',
-                    id: formData.get('comm_line_id') || '',
-                    icon: '<img src="assets/images/icons/line.png" alt="LINE">'
-                };
-            }
-            if (formData.get('comm_messenger')) {
-                data.communication.messenger = {
-                    name: 'Messenger',
-                    id: formData.get('comm_messenger_id') || '',
-                    icon: '<img src="assets/images/icons/messenger.png" alt="Messenger">'
-                };
-            }
-            if (formData.get('comm_chatwork')) {
-                data.communication.chatwork = {
-                    name: 'Chatwork',
-                    id: formData.get('comm_chatwork_id') || '',
-                    icon: '<img src="assets/images/icons/chatwork.png" alt="Chatwork">'
-                };
-            }
-            
-            // SNS
-            if (formData.get('comm_instagram')) {
-                data.communication.instagram = {
-                    name: 'Instagram',
-                    url: formData.get('comm_instagram_url') || '',
-                    icon: '<img src="assets/images/icons/instagram.png" alt="Instagram">'
-                };
-            }
-            if (formData.get('comm_facebook')) {
-                data.communication.facebook = {
-                    name: 'Facebook',
-                    url: formData.get('comm_facebook_url') || '',
-                    icon: '<img src="assets/images/icons/facebook.png" alt="Facebook">'
-                };
-            }
-            if (formData.get('comm_twitter')) {
-                data.communication.twitter = {
-                    name: 'X (Twitter)',
-                    url: formData.get('comm_twitter_url') || '',
-                    icon: '<img src="assets/images/icons/twitter.png" alt="X (Twitter)">'
-                };
-            }
-            if (formData.get('comm_youtube')) {
-                data.communication.youtube = {
-                    name: 'YouTube',
-                    url: formData.get('comm_youtube_url') || '',
-                    icon: '<img src="assets/images/icons/youtube.png" alt="YouTube">'
-                };
-            }
-            if (formData.get('comm_tiktok')) {
-                data.communication.tiktok = {
-                    name: 'TikTok',
-                    url: formData.get('comm_tiktok_url') || '',
-                    icon: '<img src="assets/images/icons/tiktok.png" alt="TikTok">'
-                };
-            }
-            if (formData.get('comm_note')) {
-                data.communication.note = {
-                    name: 'note',
-                    url: formData.get('comm_note_url') || '',
-                    icon: '<img src="assets/images/icons/note.png" alt="note">'
-                };
-            }
-            if (formData.get('comm_pinterest')) {
-                data.communication.pinterest = {
-                    name: 'Pinterest',
-                    url: formData.get('comm_pinterest_url') || '',
-                    icon: '<img src="assets/images/icons/pinterest.png" alt="Pinterest">'
-                };
-            }
-            if (formData.get('comm_threads')) {
-                data.communication.threads = {
-                    name: 'Threads',
-                    url: formData.get('comm_threads_url') || '',
-                    icon: '<img src="assets/images/icons/threads.png" alt="Threads">'
-                };
-            }
-        }
-    }
-    
-    return data;
+    });
+
+    isPreviewMode = true;
 }
 
-// Generate preview HTML - matches card.php layout
-function generatePreview(data) {
-    const techToolNames = {
-        'mdb': '全国マンションデータベース',
-        'rlp': '物件提案ロボ',
-        'llp': '土地情報ロボ',
-        'ai': 'AIマンション査定',
-        'slp': 'セルフィン',
-        'olp': 'オーナーコネクト'
-    };
+// Hide preview - Close the modal
+function hidePreview() {
+    const modalOverlay = document.getElementById('register-preview-modal');
+    if (modalOverlay) {
+        modalOverlay.style.opacity = '0';
+        setTimeout(() => {
+            if (document.body.contains(modalOverlay)) {
+                document.body.removeChild(modalOverlay);
+        }
+        }, 300);
+    }
+    isPreviewMode = false;
+}
+
+
+// Show image cropper modal for register page
+function showRegisterImageCropper(file, fieldName, originalEvent) {
+    const modal = document.getElementById('image-cropper-modal');
+    const cropperImage = document.getElementById('cropper-image');
     
-    const techToolDescriptions = {
-        'slp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><strong><span style="color: #000000;">AI評価付き『SelFin（セルフィン）』は消費者自ら</span></strong><span style="color: #ff0000;"><span style="font-weight: 700 !important;">「物件の資産性」を自動判定できる</span></span></span><span style="color: #000000;"><strong><span style="font-size: 14px;">ツールです。「価格の妥当性」「街力」「流動性」「耐震性」「管理費・修繕積立金の妥当性」を自動判定します。また物件提案ロボで配信される物件にはSelFin評価が付随します。</span></strong></span></p></div>',
-        'rlp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>AI評価付き『物件提案ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><strong><span style="color: #000000;">」で自動配信します。WEB上に登録になった</span></strong><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span></p></div>',
-        'llp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>『土地情報ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><span style="color: #000000;"><strong>」で自動配信します。WEB上に登録になった</strong></span><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span></p></div>',
-        'mdb': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span></p></div>',
-        'ai': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span></p></div>',
-        'olp': '<div class="j-module n j-text"><p><span style="font-size: 14px;"><span style="color: #000000;"><strong>オーナーコネクトはマンション所有者様向けのサービスで、</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">誰でも簡単に自宅の資産状況を確認できます。</span></span></span><span style="color: #000000;"><strong>登録されたマンションで新たに売り出し情報が出たらメールでお知らせいたします。</strong></span><span style="color: #000000;"><strong>また、</strong></span><span style="font-weight: 700 !important;"><span style="color: #ff0000;">毎週自宅の資産状況をまとめたレポートメールも送信</span></span><strong><span style="color: #000000;">いたします。</span></strong></span></p></div>'
+    if (!modal || !cropperImage) {
+        // Fallback to preview if modal doesn't exist
+        showRegisterImagePreview(file, fieldName, originalEvent);
+        return;
+    }
+
+    // Step 1: Clean up any previous cropper instance completely
+    if (registerCropper) {
+        try {
+            registerCropper.destroy();
+        } catch (e) {
+            console.warn('Error destroying previous cropper:', e);
+        }
+        registerCropper = null;
+    }
+
+    // Step 2: Reset cropper image (but keep it hidden until loaded)
+    cropperImage.style.display = 'none';
+    cropperImage.onload = null;
+    cropperImage.onerror = null;
+    cropperImage.src = '';
+    
+    // Clean up any previous object URL
+    if (registerImageObjectURL) {
+        try {
+            URL.revokeObjectURL(registerImageObjectURL);
+        } catch (e) {
+            console.warn('Error revoking previous object URL:', e);
+        }
+        registerImageObjectURL = null;
+    }
+    
+    // Clean up previous handlers
+    registerCropperImageLoadHandler = null;
+    
+    // Reset buttons to remove old click handlers
+    const cancelBtn = document.getElementById('crop-cancel-btn');
+    const confirmBtn = document.getElementById('crop-confirm-btn');
+    if (cancelBtn) {
+        cancelBtn.onclick = null; // Clear any existing handlers
+    }
+    if (confirmBtn) {
+        document.getElementById('crop-confirm-btn').onclick = null; // Clear any existing handlers
+    }
+    
+    // Step 3: Store file and field name for later use
+    registerCropFile = file;
+    registerCropFieldName = fieldName;
+    registerCropOriginalEvent = originalEvent;
+    
+    // Step 4: Create new object URL for the image
+    registerImageObjectURL = URL.createObjectURL(file);
+    
+    // Step 5: Show modal
+    modal.style.display = 'block';
+    
+    // Step 6: Set up image load handler (with timeout to ensure DOM is ready)
+    setTimeout(() => {
+        // Make image visible again
+        cropperImage.style.display = 'block';
+
+        registerCropperImageLoadHandler = function() {
+            // Destroy any existing cropper (defensive)
+            if (registerCropper) {
+                try {
+                    registerCropper.destroy();
+                } catch (e) {
+                    console.warn('Error destroying cropper in onload:', e);
+                }
+            }
+
+            // Small delay to ensure image is fully rendered
+            setTimeout(() => {
+                const aspectRatio = fieldName === 'company_logo' ? 1 : 1; // 1:1 for both logo and photo
+                try {
+                    registerCropper = new Cropper(cropperImage, {
+                        aspectRatio: aspectRatio,
+                        viewMode: 1,
+                        dragMode: 'move',
+                        autoCropArea: 0.8,
+                        restore: false,
+                        guides: true,
+                        center: true,
+                        highlight: false,
+                        cropBoxMovable: true,
+                        cropBoxResizable: true,
+                        toggleDragModeOnDblclick: false,
+                        ready: function() {
+                            console.log('Register cropper ready for', fieldName);
+                        }
+                    });
+                } catch (e) {
+                    console.error('Error initializing cropper:', e);
+                    showRegisterImagePreview(file, fieldName, originalEvent);
+                    closeRegisterImageCropper();
+                }
+            }, 100);
+        };
+        
+        cropperImage.onload = registerCropperImageLoadHandler;
+
+        cropperImage.onerror = function() {
+            console.error('Error loading image');
+            showError('画像の読み込みに失敗しました');
+            closeRegisterImageCropper();
+        };
+
+        // Step 7: Set the image source
+        cropperImage.src = registerImageObjectURL;
+
+        // If image is already cached, trigger load manually
+        if (cropperImage.complete) {
+            const currentSrc = cropperImage.src;
+            cropperImage.src = '';
+            setTimeout(() => {
+                cropperImage.src = currentSrc;
+                if (cropperImage.complete && registerCropperImageLoadHandler) {
+                    registerCropperImageLoadHandler();
+                }
+            }, 10);
+        }
+    }, 100);
+
+    // Set up cancel button
+    const newCancelBtn = document.getElementById('crop-cancel-btn');
+    if (newCancelBtn) {
+        newCancelBtn.onclick = function() {
+            // Store the file for upload even if cropper is cancelled
+            if (file && originalEvent && originalEvent.target) {
+                const uploadArea = originalEvent.target.closest('.upload-area');
+                if (uploadArea) {
+                    // Store file as data URL for later upload
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        uploadArea.dataset.originalFile = JSON.stringify({
+                            name: file.name,
+                            type: file.type,
+                            size: file.size
+                        });
+                        uploadArea.dataset.originalFileData = event.target.result;
+                        uploadArea.dataset.originalFieldName = fieldName;
+                        // Show preview
+                        const preview = uploadArea.querySelector('.upload-preview');
+                        if (preview) {
+                            preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+            closeRegisterImageCropper();
+            // Don't reset file input - keep it so we can upload it
+        };
+    }
+
+    // Set up confirm button
+    const newConfirmBtn = document.getElementById('crop-confirm-btn');
+    if (newConfirmBtn) {
+        newConfirmBtn.onclick = function() {
+            cropAndStoreForRegister();
+        };
+    }
+    
+    // Make sure modal is visible
+    modal.style.display = 'block';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+}
+
+// Close image cropper for register page
+function closeRegisterImageCropper() {
+    const modal = document.getElementById('image-cropper-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+
+    if (registerCropper) {
+        try {
+            registerCropper.destroy();
+        } catch (e) {
+            console.warn('Error destroying cropper on close:', e);
+        }
+        registerCropper = null;
+    }
+
+    const cropperImage = document.getElementById('cropper-image');
+    if (cropperImage) {
+        if (registerCropperImageLoadHandler) {
+            cropperImage.removeEventListener('load', registerCropperImageLoadHandler);
+            cropperImage.onload = null;
+            registerCropperImageLoadHandler = null;
+        }
+        cropperImage.onerror = null;
+
+        if (registerImageObjectURL) {
+            try {
+                URL.revokeObjectURL(registerImageObjectURL);
+            } catch (e) {
+                console.warn('Error revoking object URL:', e);
+            }
+            registerImageObjectURL = null;
+        }
+
+        cropperImage.src = '';
+    }
+
+    registerCropFile = null;
+    registerCropFieldName = null;
+    registerCropOriginalEvent = null;
+}
+
+// Crop and store image for register page (stores blob, uploads on form save)
+function cropAndStoreForRegister() {
+    if (!registerCropper || !registerCropFile || !registerCropFieldName) {
+        return;
+    }
+
+    let uploadArea = null;
+    if (registerCropOriginalEvent && registerCropOriginalEvent.target) {
+        uploadArea = registerCropOriginalEvent.target.closest('.upload-area');
+    }
+
+    if (!uploadArea && registerCropFieldName) {
+        const fieldId = registerCropFieldName === 'company_logo' ? 'company_logo' : 'profile_photo_header';
+        const fieldElement = document.getElementById(fieldId);
+        if (fieldElement) {
+            uploadArea = fieldElement.closest('.upload-area');
+        }
+    }
+
+    if (!uploadArea) {
+        showError('アップロードエリアが見つかりません');
+        return;
+    }
+    
+    const cropFileName = registerCropFile ? registerCropFile.name : 'cropped_image.png';
+    const cropFileType = registerCropFile ? registerCropFile.type : 'image/png';
+
+    try {
+        const canvas = registerCropper.getCroppedCanvas({
+            width: 800,
+            height: 800,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high'
+        });
+
+        canvas.toBlob(function(blob) {
+            if (!blob) {
+                showError('画像のトリミングに失敗しました');
+                return;
+            }
+    
+            // Show preview and store blob (will be uploaded on form save)
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const preview = uploadArea.querySelector('.upload-preview');
+                if (preview) {
+                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
+                }
+                // Store the blob data URL and the actual blob for later upload
+                uploadArea.dataset.croppedBlob = event.target.result;
+                uploadArea.dataset.croppedBlobFile = JSON.stringify({
+                    name: cropFileName,
+                    type: cropFileType
+                });
+                // Store the actual blob object (we'll need to recreate it from the data URL on upload)
+                uploadArea.dataset.croppedBlobData = event.target.result;
+                uploadArea.dataset.croppedFileName = cropFileName;
+                uploadArea.dataset.croppedFileType = cropFileType;
+                uploadArea.dataset.croppedFieldName = registerCropFieldName;
+            };
+            reader.readAsDataURL(blob);
+
+            closeRegisterImageCropper();
+            
+            // Reset file input so it can be used again
+            if (registerCropOriginalEvent && registerCropOriginalEvent.target) {
+                registerCropOriginalEvent.target.value = '';
+            }
+        }, cropFileType, 0.95);
+    } catch (error) {
+        console.error('Crop error:', error);
+        showError('画像のトリミング中にエラーが発生しました');
+    }
+}
+
+// Show image preview (fallback - stores file, uploads on form save)
+function showRegisterImagePreview(file, fieldName, originalEvent) {
+    const uploadArea = originalEvent.target.closest('.upload-area');
+    if (!uploadArea) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+            // Check if resizing is needed
+            let resizeNote = '';
+            if (img.width > 800 || img.height > 800) {
+                resizeNote = '<br><small style="color: #666;">※画像は自動的にリサイズされます</small>';
+            }
+            const preview = uploadArea.querySelector('.upload-preview');
+            if (preview) {
+                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
+            }
+        };
+        img.src = event.target.result;
+        // Store file reference for later upload
+        uploadArea.dataset.originalFile = JSON.stringify({
+            name: file.name,
+            type: file.type,
+            size: file.size
+        });
+        uploadArea.dataset.originalFileData = event.target.result;
+        uploadArea.dataset.originalFieldName = fieldName;
     };
+    reader.readAsDataURL(file);
+}
+
+// Photo upload previews with cropping for register page
+document.getElementById('profile_photo_header')?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        // より厳密な画像ファイルチェック
+        if (file.type && file.type.startsWith('image/')) {
+        showRegisterImageCropper(file, 'profile_photo_header', e);
+        } else {
+            console.warn('Invalid file type:', file.type);
+            if (typeof showWarning === 'function') {
+                showWarning('画像ファイルを選択してください');
+            } else {
+                alert('画像ファイルを選択してください');
+            }
+            // ファイル入力をリセット
+            e.target.value = '';
+        }
+    }
+});
+
+document.getElementById('company_logo')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        showRegisterImageCropper(file, 'company_logo', e);
+    }
+});
+
+// Free image upload preview (no cropping)
+document.getElementById('free_image')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        const uploadArea = e.target.closest('.upload-area');
+        if (uploadArea) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Check if resizing is needed
+                    let resizeNote = '';
+                    if (img.width > 800 || img.height > 800) {
+                        resizeNote = '<br><small style="color: #666;">※画像は自動的にリサイズされます</small>';
+                    }
+                    const preview = uploadArea.querySelector('.upload-preview');
+                    if (preview) {
+                        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
+                    }
+                };
+                img.src = event.target.result;
+                uploadArea.dataset.freeImageFile = JSON.stringify({
+                    name: file.name,
+                    type: file.type,
+                    size: file.size
+                });
+                uploadArea.dataset.freeImageData = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+});
+
+// Initialize free input pairs - add button handler using event delegation
+document.addEventListener('DOMContentLoaded', function() {
+    // Use event delegation for add/remove buttons
+    const container = document.querySelector('.section-content');
+    if (!container) return;
+
+    container.addEventListener('click', function(e) {
+        // Handle add button
+        if (e.target.id === 'add-free-input-pair' || e.target.closest('#add-free-input-pair')) {
+            addFreeInputPair();
+        }
+        // Handle remove button
+        if (e.target.classList.contains('remove-pair-btn') || e.target.closest('.remove-pair-btn')) {
+            const btn = e.target.classList.contains('remove-pair-btn') ? e.target : e.target.closest('.remove-pair-btn');
+            const pairItem = btn.closest('.free-input-pair-item');
+            if (pairItem) {
+                removeFreeInputPair(pairItem);
+            }
+        }
+    });
+});
+
+// Initialize file inputs for free input pairs
+function initializeFreeInputFileInput(pairItem) {
+    const fileInput = pairItem.querySelector('input[type="file"]');
+    if (!fileInput) return;
+    
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const uploadArea = pairItem.querySelector('.upload-area');
+        if (!uploadArea) return;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                let resizeNote = '';
+                if (img.width > 800 || img.height > 800) {
+                    resizeNote = '<br><small style="color: #666;">※画像は自動的にリサイズされます</small>';
+                }
+                const preview = uploadArea.querySelector('.upload-preview');
+                if (preview) {
+                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
+                }
+            };
+            img.src = event.target.result;
+            uploadArea.dataset.freeImageFile = JSON.stringify({
+                name: file.name,
+                type: file.type,
+                size: file.size
+            });
+            uploadArea.dataset.freeImageData = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// Initialize drag and drop for free input pairs
+function initializeFreeInputDragAndDrop(pairItem) {
+    const uploadArea = pairItem.querySelector('.upload-area');
+    const fileInput = pairItem.querySelector('input[type="file"]');
+    if (!uploadArea || !fileInput) return;
+    
+    // Remove existing listeners if any (by cloning the element)
+    const newFileInput = fileInput.cloneNode(true);
+    fileInput.parentNode.replaceChild(newFileInput, fileInput);
+    
+    newFileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                let resizeNote = '';
+                if (img.width > 800 || img.height > 800) {
+                    resizeNote = '<br><small style="color: #666;">※画像は自動的にリサイズされます</small>';
+                }
+                const preview = uploadArea.querySelector('.upload-preview');
+                if (preview) {
+                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
+                }
+            };
+            img.src = event.target.result;
+            uploadArea.dataset.freeImageFile = JSON.stringify({
+                name: file.name,
+                type: file.type,
+                size: file.size
+            });
+            uploadArea.dataset.freeImageData = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    // Drag and drop setup
+    if (uploadArea.dataset.dragInitialized === 'true') return;
+    uploadArea.dataset.dragInitialized = 'true';
+
+    uploadArea.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.add('drag-over');
+    });
+    
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('drag-over');
+    });
+    
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            if (file.type.startsWith('image/')) {
+                try {
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    newFileInput.files = dataTransfer.files;
+
+                    const event = new Event('change', { bubbles: true, cancelable: true });
+                    newFileInput.dispatchEvent(event);
+                } catch (error) {
+                    console.warn('DataTransfer not supported, using fallback:', error);
+                    try {
+                        newFileInput.files = files;
+                        const event = new Event('change', { bubbles: true, cancelable: true });
+                        newFileInput.dispatchEvent(event);
+                    } catch (fallbackError) {
+                        console.error('File assignment failed:', fallbackError);
+                        if (typeof showError === 'function') {
+                            showError('ファイルの読み込みに失敗しました。もう一度お試しください。');
+                        } else {
+                            alert('ファイルの読み込みに失敗しました。もう一度お試しください。');
+                        }
+                    }
+                }
+            } else {
+                if (typeof showWarning === 'function') {
+                    showWarning('画像ファイルを選択してください');
+                } else {
+                    alert('画像ファイルを選択してください');
+                }
+            }
+        }
+    });
+    
+    uploadArea.addEventListener('click', function(e) {
+        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'IMG') {
+            newFileInput.click();
+        }
+    });
+}
+
+// Restore form data from sessionStorage on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const savedData = sessionStorage.getItem('registerData');
+    if (savedData) {
+        try {
+            const data = JSON.parse(savedData);
+            console.log('Restoring form data from sessionStorage:', Object.keys(data));
+            
+            // Note: Only restore simple text fields
+            // Image blob URLs will be invalid after page refresh
+        } catch (error) {
+            console.error('Error restoring form data:', error);
+        }
+    }
+    
+    const savedCompletedSteps = sessionStorage.getItem('completedSteps');
+    if (savedCompletedSteps) {
+        try {
+            const steps = JSON.parse(savedCompletedSteps);
+            completedSteps = new Set(steps);
+            console.log('Restored completed steps:', steps);
+            
+            // If steps are completed, go to the latest step
+            if (steps.length > 0) {
+                const maxStep = Math.max(...steps);
+                // Go to the step after the last completed one
+                if (maxStep < 6) {
+                    goToStep(maxStep + 1);
+                }
+            }
+        } catch (error) {
+            console.error('Error restoring completed steps:', error);
+        }
+    }
+});
+
+// Add free input text textarea for register
+// Add a paired item (text + image) for register
+function addFreeInputPairForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const itemCount = container.querySelectorAll('.free-input-pair-item').length;
+    const newPairItem = document.createElement('div');
+    newPairItem.className = 'free-input-pair-item';
+    // No border/margin on new item (it's at the top)
+
+    const currentCount = container.querySelectorAll('.free-input-pair-item').length;
+    newPairItem.innerHTML = `
+        <div class="free-input-pair-header">
+            <span class="free-input-pair-number">${currentCount + 1}</span>
+            <div class="free-input-pair-actions">
+                <button type="button" class="btn-move-up" onclick="moveFreeInputPairForRegister(${currentCount}, 'up')">↑</button>
+                <button type="button" class="btn-move-down" onclick="moveFreeInputPairForRegister(${currentCount}, 'down')">↓</button>
+            </div>
+            <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)">削除</button>
+        </div>
+        <!-- Text Input -->
+        <div class="form-group">
+            <label>テキスト</label>
+        <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
+        </div>
+        <!-- Image Input -->
+        <div class="form-group">
+            <label>画像</label>
+            <div class="upload-area" data-upload-id="free_image_${currentCount}">
+                <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                <div class="upload-preview"></div>
+                <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
+                    画像をアップロード
+                </button>
+                <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
+            </div>
+            <div class="form-group" style="margin-top: 0.5rem;">
+                <label>画像のリンク先URL（任意）</label>
+                <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(newPairItem);
+    updateFreeInputPairNumbersForRegister();
+    updateFreeInputPairButtonsForRegister();
+    
+    // Initialize drag and drop for the new upload area
+    const uploadArea = newPairItem.querySelector('.upload-area');
+    if (uploadArea) {
+        initializeDragAndDropForUploadAreaForRegister(uploadArea);
+    }
+}
+
+// Remove a paired item for register
+function removeFreeInputPairForRegister(button) {
+    const pairItem = button.closest('.free-input-pair-item');
+    if (!pairItem) return;
+    
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    // Check if this is the last item
+    const items = container.querySelectorAll('.free-input-pair-item');
+    if (items.length <= 1) {
+        if (typeof showWarning === 'function') {
+            showWarning('少なくとも1つのアイテムが必要です');
+        } else {
+            alert('少なくとも1つのアイテムが必要です');
+        }
+        return;
+    }
+    
+    pairItem.remove();
+    updateFreeInputPairNumbersForRegister();
+    updateFreeInputPairButtonsForRegister();
+}
+
+// Update delete buttons visibility for register
+function updateFreeInputPairDeleteButtonsForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-input-pair-item');
+    items.forEach((item, index) => {
+        const deleteBtn = item.querySelector('.btn-delete-small');
+        if (deleteBtn) {
+            // Show delete button only if there's more than one item
+            deleteBtn.style.display = items.length > 1 ? 'block' : 'none';
+        }
+    });
+}
+
+// Remove free input text
+function removeFreeInputTextForRegister(button) {
+    // Not used anymore, keep for backwards compatibility
+}
+
+// Initialize drag and drop for free input pairs
+function initializeFreeInputPairDragAndDropForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    let draggedElement = null;
+    let isInitializing = false;
+    
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+        
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+        
+        attachDragListeners();
+        isInitializing = false;
+    }
+    
+    function attachDragListeners() {
+        const items = container.querySelectorAll('.free-input-pair-item');
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+            
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+            
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll('.free-input-pair-item').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+            
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+            });
+            
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+            
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.classList.remove('drag-over');
+                
+                if (draggedElement !== this) {
+                    const allItems = Array.from(container.querySelectorAll('.free-input-pair-item'));
+                    const draggedIndex = allItems.indexOf(draggedElement);
+                    const dropIndex = allItems.indexOf(this);
+                    
+                    if (draggedIndex < dropIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+                    
+                    updateFreeInputPairNumbersForRegister();
+                    updateFreeInputPairButtonsForRegister();
+                }
+            });
+        });
+    }
+    
+    makeItemsDraggable();
+    
+    // Observe for new items
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.addedNodes.length > 0) {
+                makeItemsDraggable();
+            }
+        });
+    });
+    
+    observer.observe(container, { childList: true });
+}
+
+// Move free input pair up or down
+function moveFreeInputPairForRegister(index, direction) {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateFreeInputPairNumbersForRegister();
+        updateFreeInputPairButtonsForRegister();
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateFreeInputPairNumbersForRegister();
+        updateFreeInputPairButtonsForRegister();
+    }
+}
+
+// Update free input pair move buttons
+function updateFreeInputPairButtonsForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveFreeInputPairForRegister(${index}, 'up')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveFreeInputPairForRegister(${index}, 'down')`);
+        }
+    });
+    
+    // Also update delete buttons visibility
+    updateFreeInputPairDeleteButtonsForRegister();
+}
+
+// Update free input pair numbers
+function updateFreeInputPairNumbersForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-input-pair-item');
+    items.forEach((item, index) => {
+        const numberSpan = item.querySelector('.free-input-pair-number');
+        if (numberSpan) {
+            numberSpan.textContent = index + 1;
+        }
+    });
+}
+
+// Update delete buttons visibility
+function updateFreeInputDeleteButtonsForRegister() {
+    const container = document.getElementById('free-input-pairs-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-input-pair-item');
+    items.forEach((item, index) => {
+        const deleteBtn = item.querySelector('.btn-delete-small');
+        if (deleteBtn) {
+            // Don't show delete button if it's the last remaining item
+            deleteBtn.style.display = items.length > 1 ? '' : 'none';
+        }
+    });
+}
+
+// Free image functions
+function removeFreeImageItemForRegister(button) {
+    const item = button.closest('.free-image-item');
+    if (!item) return;
+    
+    const container = document.getElementById('free-images-container');
+    const items = container.querySelectorAll('.free-image-item');
+    
+    if (items.length <= 1) {
+        if (typeof showWarning === 'function') {
+            showWarning('少なくとも1枚の画像アップロードエリアが必要です');
+        } else {
+            alert('少なくとも1枚の画像アップロードエリアが必要です');
+        }
+        return;
+    }
+    
+    item.remove();
+    updateFreeImageDeleteButtonsForRegister();
+}
+
+function updateFreeImageDeleteButtonsForRegister() {
+    const container = document.getElementById('free-images-container');
+    if (!container) return;
+    
+    const items = container.querySelectorAll('.free-image-item');
+    items.forEach((item, index) => {
+        const deleteBtn = item.querySelector('.btn-delete-small');
+        if (deleteBtn) {
+            deleteBtn.style.display = items.length > 1 ? '' : 'none';
+        }
+    });
+}
+
+function initializeFreeImageUploadForRegister(item) {
+    const uploadArea = item.querySelector('.upload-area');
+    const fileInput = item.querySelector('input[type="file"]');
+    if (!uploadArea || !fileInput) return;
+    
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const preview = uploadArea.querySelector('.upload-preview');
+                if (preview) {
+                    preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+// Initialize drag and drop for a specific upload area (register page)
+function initializeDragAndDropForUploadAreaForRegister(uploadArea) {
+    if (!uploadArea) return;
+    
+    const fileInput = uploadArea.querySelector('input[type="file"]');
+    if (!fileInput) return;
+    
+    // Check if already initialized to avoid duplicate listeners
+    if (uploadArea.dataset.dragInitialized === 'true') return;
+    uploadArea.dataset.dragInitialized = 'true';
+    
+    // ドラッグエンター時の処理（ブラウザのデフォルト動作を防止）
+    uploadArea.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    
+    // ドラッグオーバー時の処理
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.add('drag-over');
+    });
+    
+    // ドラッグリーブ時の処理
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('drag-over');
+    });
+    
+    // ドロップ時の処理
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            // 画像ファイルかチェック
+            if (file && file.type && file.type.startsWith('image/')) {
+                // より確実な方法でファイルを設定
+                try {
+                    // DataTransferオブジェクトを使用してファイルを設定
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    fileInput.files = dataTransfer.files;
+
+                // ファイル選択イベントをトリガー
+                    const event = new Event('change', { bubbles: true, cancelable: true });
+                fileInput.dispatchEvent(event);
+                } catch (error) {
+                    // フォールバック: 直接代入を試行
+                    console.warn('DataTransfer not supported, using fallback:', error);
+                    try {
+                        fileInput.files = files;
+                        const event = new Event('change', { bubbles: true, cancelable: true });
+                        fileInput.dispatchEvent(event);
+                    } catch (fallbackError) {
+                        console.error('File assignment failed:', fallbackError);
+                        if (typeof showError === 'function') {
+                            showError('ファイルの読み込みに失敗しました。もう一度お試しください。');
+                        } else {
+                            alert('ファイルの読み込みに失敗しました。もう一度お試しください。');
+                        }
+                    }
+                }
+            } else {
+                if (typeof showWarning === 'function') {
+                    showWarning('画像ファイルを選択してください');
+                } else {
+                    alert('画像ファイルを選択してください');
+                }
+            }
+        }
+    });
+    
+    // クリックでファイル選択も可能
+    uploadArea.addEventListener('click', function(e) {
+        // ボタンやプレビュー画像をクリックした場合は除外
+        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'IMG') {
+            fileInput.click();
+        }
+    });
+}
+
+// Move tech tool up or down for register
+function moveTechToolForRegister(index, direction) {
+    const container = document.getElementById('tech-tools-grid');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateTechToolButtonsForRegister();
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateTechToolButtonsForRegister();
+    }
+}
+
+// Update tech tool move buttons for register
+function updateTechToolButtonsForRegister() {
+    const container = document.getElementById('tech-tools-grid');
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveTechToolForRegister(${index}, 'up')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveTechToolForRegister(${index}, 'down')`);
+        }
+    });
+}
+
+// Initialize drag and drop for tech tools in register
+function initializeTechToolDragAndDropForRegister() {
+    const container = document.getElementById('tech-tools-grid');
+    if (!container) return;
+    
+    let draggedElement = null;
+    let isInitializing = false;
+    
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+        
+        const items = container.querySelectorAll('.tech-tool-banner-card');
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+        
+        attachDragListeners();
+        isInitializing = false;
+    }
+    
+    function attachDragListeners() {
+        const items = container.querySelectorAll('.tech-tool-banner-card');
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+            
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+            
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll('.tech-tool-banner-card').forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+            
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+                return false;
+            });
+            
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+            
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.classList.remove('drag-over');
+                
+                if (draggedElement !== this) {
+                    const allItems = Array.from(container.querySelectorAll('.tech-tool-banner-card'));
+                    const draggedIndex = allItems.indexOf(draggedElement);
+                    const dropIndex = allItems.indexOf(this);
+                    
+                    if (draggedIndex < dropIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+                    
+                    updateTechToolButtonsForRegister();
+                }
+            });
+        });
+    }
+    
+    makeItemsDraggable();
+    
+    // Observe for new items
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.addedNodes.length > 0) {
+                makeItemsDraggable();
+            }
+        });
+    });
+    
+    observer.observe(container, { childList: true });
+}
+
+// Move communication item up or down
+function moveCommunicationItem(index, direction, type) {
+    const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
+    const container = document.getElementById(gridId);
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
+    
+    if (direction === 'up' && index > 0) {
+        const currentItem = items[index];
+        const prevItem = items[index - 1];
+        container.insertBefore(currentItem, prevItem);
+        updateCommunicationButtons(type);
+    } else if (direction === 'down' && index < items.length - 1) {
+        const currentItem = items[index];
+        const nextItem = items[index + 1];
+        container.insertBefore(nextItem, currentItem);
+        updateCommunicationButtons(type);
+    }
+}
+
+// Update communication item move buttons
+function updateCommunicationButtons(type) {
+    const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
+    const container = document.getElementById(gridId);
+    if (!container) return;
+    
+    const items = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
+    items.forEach((item, index) => {
+        const upBtn = item.querySelector('.btn-move-up');
+        const downBtn = item.querySelector('.btn-move-down');
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+            upBtn.setAttribute('onclick', `moveCommunicationItem(${index}, 'up', '${type}')`);
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+            downBtn.setAttribute('onclick', `moveCommunicationItem(${index}, 'down', '${type}')`);
+        }
+    });
+}
+
+// Initialize drag and drop for communication items
+function initializeCommunicationDragAndDrop(type) {
+    const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
+    const container = document.getElementById(gridId);
+    if (!container) return;
+    
+    let draggedElement = null;
+    let isInitializing = false;
+    
+    function makeItemsDraggable() {
+        if (isInitializing) return;
+        isInitializing = true;
+        
+        const items = container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`);
+        items.forEach((item, index) => {
+            if (!item.hasAttribute('draggable')) {
+                item.draggable = true;
+            }
+            item.dataset.dragIndex = index;
+        });
+        
+        attachDragListeners();
+        isInitializing = false;
+    }
+    
+    function attachDragListeners() {
+        const items = container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`);
+        items.forEach((item) => {
+            if (item.dataset.dragInitialized === 'true') return;
+            item.dataset.dragInitialized = 'true';
+            
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', this.innerHTML);
+            });
+            
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`).forEach(item => {
+                    item.classList.remove('drag-over');
+                });
+            });
+            
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+                return false;
+            });
+            
+            item.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+            
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.classList.remove('drag-over');
+                
+                if (draggedElement !== this) {
+                    const allItems = Array.from(container.querySelectorAll(`.communication-item[data-comm-type="${type}"]`));
+                    const draggedIndex = allItems.indexOf(draggedElement);
+                    const dropIndex = allItems.indexOf(this);
+                    
+                    if (draggedIndex < dropIndex) {
+                        container.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        container.insertBefore(draggedElement, this);
+                    }
+                    
+                    updateCommunicationButtons(type);
+                }
+            });
+        });
+    }
+    
+    makeItemsDraggable();
+    
+    // Observe for new items
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.addedNodes.length > 0) {
+                makeItemsDraggable();
+            }
+        });
+    });
+    
+    observer.observe(container, { childList: true });
+}
+
+// ==============================================
+// Communication help modals (LINE / Facebook / Chatwork)
+// ==============================================
+function showCommunicationHelpModal(helpType) {
+    const titles = {
+        line: 'LINE の設定方法',
+        facebook: 'Facebook プロフィールリンクの取得方法',
+        chatwork: 'Chatwork ID / プロフィールリンクの取得方法'
+    };
+
+    const bodies = {
+        line: `
+            <p>【LINE】</p>
+            <p>●スマートフォンアプリの場合</p>
+            <ul>
+                <li>LINEアプリのホーム画面から「友達追加」をタップ</li>
+                <li>「QRコード」→「マイQRコード」で自分のQRコードを表示</li>
+                <li>画面下部の「リンクをコピー」をタップ</li>
+                <li>これで、LINE QRコードのリンクのコピーが完了します。</li>
+            </ul>
+        `,
+        facebook: `
+            <p>【Facebook】</p>
+            <p>●スマートフォンアプリの場合</p>
+            <ol>
+                <li>1) Facebookアプリを開く</li>
+                <li>2) 自分のプロフィールを開く</li>
+                <li>3) 画面上部またはプロフィール内の「…（三点）」をタップ</li>
+                <li>4) プロフィール設定画面一番下の「プロフィールリンクをコピー」からURLを取得</li>
+            </ol>
+            <p>●PC（ブラウザ）の場合</p>
+            <ol>
+                <li>1) Facebookにログイン</li>
+                <li>2) 画面左上の自分の名前をクリックしてプロフィールを開く</li>
+                <li>3) ブラウザ上部のURL欄に表示されているアドレスがプロフィールリンクです<br>（例：https://www.facebook.com/ユーザー名）</li>
+            </ol>
+        `,
+        chatwork: `
+            <p>【Chatwork】</p>
+            <p>Chatwork ID（チャットワークID）は初期設定では未設定の場合があります。</p>
+            <p>●スマートフォンアプリの場合</p>
+            <ol>
+                <li>1)  Chatworkアプリを開く</li>
+                <li>2) 「アカウント」→「プロフィール」を開く</li>
+                <li>3) 「Chatwork ID を伝える」をタップ</li>
+                <li>4) 「Chatwork ID を共有」を押す</li>
+                <li>5) 表示された情報からコピーします</li>
+            </ol>
+            <p>●PC（ブラウザ）の場合</p>
+            <ol>
+                <li>1) Chatworkにログイン</li>
+                <li>2) 右上の自分のアイコンをクリック</li>
+                <li>3) 「プロフィール」を開く</li>
+                <li>4) プロフィール画面のリンクをコピーして利用します</li>
+            </ol>
+        `
+    };
+
+    const title = titles[helpType] || '設定方法';
+    const bodyHtml = bodies[helpType] || '';
+
+    // Remove existing communication help modal if any
+    const existing = document.querySelector('.comm-help-modal-overlay');
+    if (existing) {
+        existing.parentNode.removeChild(existing);
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay comm-help-modal-overlay';
+    overlay.innerHTML = `
+        <div class="modal-container">
+            <div class="modal-header info">
+                <div class="modal-icon">
+                    <span>?</span>
+                </div>
+                <h2 class="modal-title">${title}</h2>
+            </div>
+            <div class="modal-body">
+                <div class="modal-message">
+                    ${bodyHtml}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn modal-btn-primary comm-help-close-btn">閉じる</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Trigger show animation
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
+
+    function close() {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 300);
+    }
+
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            close();
+        }
+    });
+
+    const closeBtn = overlay.querySelector('.comm-help-close-btn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', close);
+    }
+}
+
+// Attach click handlers to communication help buttons
+document.addEventListener('DOMContentLoaded', function() {
+    const helpButtons = document.querySelectorAll('.comm-help-button');
+    helpButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const helpType = this.getAttribute('data-help-type');
+            if (helpType) {
+                showCommunicationHelpModal(helpType);
+            }
+        });
+    });
+});
+
+// Initialize from session storage
+window.addEventListener('DOMContentLoaded', () => {
+    const savedData = sessionStorage.getItem('registerData');
+    if (savedData) {
+        formData = JSON.parse(savedData);
+    }
+    
+    // Load completed steps
+    const savedCompletedSteps = sessionStorage.getItem('completedSteps');
+    if (savedCompletedSteps) {
+        completedSteps = new Set(JSON.parse(savedCompletedSteps));
+    }
+    
+    // Initialize greeting buttons
+    updateGreetingButtons();
+    
+    // Initialize drag and drop for greeting items
+    initializeGreetingDragAndDrop();
+    
+    // Initialize free input pair drag and drop
+    setTimeout(() => {
+        initializeFreeInputPairDragAndDropForRegister();
+    }, 200);
+    
+    // Initialize tech tool drag and drop
+    setTimeout(() => {
+        initializeTechToolDragAndDropForRegister();
+        updateTechToolButtonsForRegister();
+    }, 100);
+
+    // Initialize communication drag and drop
+    setTimeout(() => {
+        initializeCommunicationDragAndDrop('message');
+        initializeCommunicationDragAndDrop('sns');
+    }, 300);
+    
+    // Initialize preview button
+    const previewBtn = document.getElementById('preview-btn');
+    if (previewBtn) {
+        previewBtn.addEventListener('click', showPreview);
+    }
+    
+    // Initialize close preview button
+    const closePreviewBtn = document.getElementById('close-preview-btn');
+    if (closePreviewBtn) {
+        closePreviewBtn.addEventListener('click', hidePreview);
+    }
+});
     
     const techToolBanners = {
         'slp': 'assets/images/tech_banner/slp.jpg',

@@ -997,7 +997,6 @@ $prefectures = [
         // Make BASE_URL available to JavaScript
         window.BASE_URL = <?php echo json_encode(BASE_URL); ?>;
     </script>
-    <script src="assets/js/auto-save.js"></script>
     <script src="assets/js/register.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script>
