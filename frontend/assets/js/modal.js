@@ -1,7 +1,10 @@
 /**
  * Modal Notification System
  * Replaces alert() with modern, UI/UX-friendly modals
+ * Wrapped in IIFE to avoid "Identifier already declared" when script loads multiple times
  */
+(function() {
+'use strict';
 
 // SVG Icons
 const MODAL_ICONS = {
@@ -230,4 +233,13 @@ function showConfirm(message, onConfirm, onCancel = null, title = '確認') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { showModal, showSuccess, showError, showWarning, showInfo, showConfirm };
 }
+
+// Expose to global scope for use in inline scripts
+window.showModal = showModal;
+window.showSuccess = showSuccess;
+window.showError = showError;
+window.showWarning = showWarning;
+window.showInfo = showInfo;
+window.showConfirm = showConfirm;
+})();
 

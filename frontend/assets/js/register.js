@@ -1494,18 +1494,32 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         uploadData.append('file_type', 'logo');
         
         try {
-            // Add timeout and keepalive for iOS
-            const uploadController = new AbortController();
-            const uploadTimeoutId = setTimeout(() => uploadController.abort(), 30000);
-
-            const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
-                method: 'POST',
-                body: uploadData,
-                credentials: 'include',
-                signal: uploadController.signal,
-                keepalive: true // Important for iOS
-            });
-            clearTimeout(uploadTimeoutId);
+            const uploadUrl = (typeof window.getUploadUrl === 'function') ? window.getUploadUrl() : (window.location.origin + (window.location.pathname.includes('/frontend/') ? window.location.pathname.split('/frontend/')[0] : '/php') + '/backend/api/business-card/upload.php');
+            const UPLOAD_TIMEOUT_MS = 120000; // 2 minutes - image processing can be slow
+            let uploadResponse;
+            let lastError;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                const uploadController = new AbortController();
+                const uploadTimeoutId = setTimeout(() => uploadController.abort(), UPLOAD_TIMEOUT_MS);
+                try {
+                    uploadResponse = await fetch(uploadUrl, {
+                        method: 'POST',
+                        body: uploadData,
+                        credentials: 'include',
+                        signal: uploadController.signal
+                    });
+                    clearTimeout(uploadTimeoutId);
+                    break;
+                } catch (err) {
+                    clearTimeout(uploadTimeoutId);
+                    lastError = err;
+                    if (attempt === 0 && (err.name === 'AbortError' || (err.message && err.message.includes('fetch')))) {
+                        await new Promise(r => setTimeout(r, 1000)); // Wait 1s before retry
+                        continue;
+                    }
+                    throw err;
+                }
+            }
 
             if (!uploadResponse.ok) {
                 throw new Error(`HTTP error! status: ${uploadResponse.status}`);
@@ -1572,6 +1586,20 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
             }
         } catch (error) {
             console.error('Logo upload error:', error);
+            const msg = (error && error.message === 'Failed to fetch')
+                ? 'サーバーに接続できません。ネットワーク接続とURLを確認してください。'
+                : (error && error.message) || 'ロゴのアップロードに失敗しました。';
+            if (typeof showError === 'function') {
+                showError(msg);
+            } else {
+                alert(msg);
+            }
+            isSubmittingStep1 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
+            return;
         }
     } else {
         // Preserve existing logo - check multiple sources
@@ -1610,12 +1638,34 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         uploadData.append('file_type', 'photo');
         
         try {
-            const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
-                method: 'POST',
-                body: uploadData,
-                credentials: 'include'
-            });
+            const uploadUrl = (typeof window.getUploadUrl === 'function') ? window.getUploadUrl() : (window.location.origin + (window.location.pathname.includes('/frontend/') ? window.location.pathname.split('/frontend/')[0] : '/php') + '/backend/api/business-card/upload.php');
+            const UPLOAD_TIMEOUT_MS = 120000;
+            let uploadResponse;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                const uploadController = new AbortController();
+                const uploadTimeoutId = setTimeout(() => uploadController.abort(), UPLOAD_TIMEOUT_MS);
+                try {
+                    uploadResponse = await fetch(uploadUrl, {
+                        method: 'POST',
+                        body: uploadData,
+                        credentials: 'include',
+                        signal: uploadController.signal
+                    });
+                    clearTimeout(uploadTimeoutId);
+                    break;
+                } catch (err) {
+                    clearTimeout(uploadTimeoutId);
+                    if (attempt === 0 && (err.name === 'AbortError' || (err.message && err.message.includes('fetch')))) {
+                        await new Promise(r => setTimeout(r, 1000));
+                        continue;
+                    }
+                    throw err;
+                }
+            }
 
+            if (!uploadResponse.ok) {
+                throw new Error(`HTTP error! status: ${uploadResponse.status}`);
+            }
             const uploadResult = await uploadResponse.json();
             if (uploadResult.success) {
                 // Extract relative path from absolute URL for database storage
@@ -1667,6 +1717,20 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
             }
         } catch (error) {
             console.error('Photo upload error:', error);
+            const msg = (error && error.message === 'Failed to fetch')
+                ? 'サーバーに接続できません。ネットワーク接続とURLを確認してください。'
+                : (error && error.message) || 'プロフィール写真のアップロードに失敗しました。';
+            if (typeof showError === 'function') {
+                showError(msg);
+            } else {
+                alert(msg);
+            }
+            isSubmittingStep1 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
+            return;
         }
     } else {
         // Preserve existing profile photo - check multiple sources
@@ -1741,6 +1805,11 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
+            isSubmittingStep1 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
             // Reload business card data to get updated company name
             await loadExistingBusinessCardData();
             goToStep(2);
@@ -1843,6 +1912,11 @@ document.getElementById('company-profile-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
+            isSubmittingStep2 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
             goToStep(3);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -1964,12 +2038,30 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
             uploadData.append('file_type', 'free');
             
             try {
-                const uploadResponse = await fetch('../backend/api/business-card/upload.php', {
-                    method: 'POST',
-                    body: uploadData,
-                    credentials: 'include'
-                });
-                
+                const uploadUrl = (typeof window.getUploadUrl === 'function') ? window.getUploadUrl() : (window.location.origin + (window.location.pathname.includes('/frontend/') ? window.location.pathname.split('/frontend/')[0] : '/php') + '/backend/api/business-card/upload.php');
+                const UPLOAD_TIMEOUT_MS = 120000;
+                let uploadResponse;
+                for (let attempt = 0; attempt < 2; attempt++) {
+                    const uploadController = new AbortController();
+                    const uploadTimeoutId = setTimeout(() => uploadController.abort(), UPLOAD_TIMEOUT_MS);
+                    try {
+                        uploadResponse = await fetch(uploadUrl, {
+                            method: 'POST',
+                            body: uploadData,
+                            credentials: 'include',
+                            signal: uploadController.signal
+                        });
+                        clearTimeout(uploadTimeoutId);
+                        break;
+                    } catch (err) {
+                        clearTimeout(uploadTimeoutId);
+                        if (attempt === 0 && (err.name === 'AbortError' || (err.message && err.message.includes('fetch')))) {
+                            await new Promise(r => setTimeout(r, 1000));
+                            continue;
+                        }
+                        throw err;
+                    }
+                }
                 const uploadResult = await uploadResponse.json();
                 if (uploadResult.success) {
                     const fullPath = uploadResult.data.file_path;
@@ -2036,6 +2128,11 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
         
         const result = await response.json();
         if (result.success) {
+            isSubmittingStep3 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
             goToStep(4);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2114,7 +2211,11 @@ document.getElementById('tech-tools-form')?.addEventListener('submit', async (e)
     await generateTechToolUrls(selectedTools);
 
         // Clear dirty flag to prevent "unsaved changes" popup
-    
+    isSubmittingStep4 = false;
+    if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
+    }
     goToStep(5);
     } catch (error) {
         console.error('Error saving tech tools:', error);
@@ -2347,6 +2448,11 @@ document.getElementById('communication-form')?.addEventListener('submit', async 
         
         const result = await response.json();
         if (result.success) {
+            isSubmittingStep5 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
             goToStep(6);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2583,74 +2689,177 @@ function hidePreview() {
 }
 
 
-// Show image cropper modal for register page
+// Ensure image cropper modal exists in DOM - create if missing (same as edit.js)
+function ensureRegisterCropperModalExists() {
+    let modal = document.getElementById('image-cropper-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'image-cropper-modal';
+        modal.className = 'modal-overlay';
+        modal.style.cssText = 'display: none; z-index: 10000; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center;';
+        modal.innerHTML = '<div class="modal-content" style="max-width: 90%; max-height: 90vh; overflow: auto; background: white; border-radius: 8px; padding: 0;"><div style="padding: 20px;"><h3 style="margin-bottom: 20px; color: #333;">画像をトリミング</h3><p style="margin-bottom: 15px; color: #666; font-size: 14px;">画像のサイズを調整し、必要な部分を選択してください。指でドラッグしてトリミングエリアを移動・拡大縮小できます。</p><div id="cropper-image-container" style="width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;"><img id="cropper-image" style="max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;"></div><div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;"><button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; width: auto; cursor: pointer;">キャンセル</button><button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px; width: auto;">トリミングを適用</button></div></div></div>';
+        document.body.appendChild(modal);
+    }
+    let cropperContainer = document.getElementById('cropper-image-container');
+    if (!cropperContainer) {
+        cropperContainer = modal.querySelector('[id="cropper-image-container"]') || modal.querySelector('div img#cropper-image')?.parentElement;
+        if (cropperContainer) {
+            cropperContainer.id = 'cropper-image-container';
+        } else {
+            cropperContainer = document.createElement('div');
+            cropperContainer.id = 'cropper-image-container';
+            cropperContainer.style.cssText = 'width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;';
+            const img = document.createElement('img');
+            img.id = 'cropper-image';
+            img.style.cssText = 'max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;';
+            cropperContainer.appendChild(img);
+            const inner = modal.querySelector('.modal-content > div');
+            if (inner) {
+                const btnDiv = inner.querySelector('div[style*="margin-top: 20px"]');
+                inner.insertBefore(cropperContainer, btnDiv || inner.firstChild);
+            } else {
+                modal.querySelector('.modal-content').appendChild(cropperContainer);
+            }
+        }
+    }
+    return { modal, cropperContainer };
+}
+
+// Show image cropper modal for register page (same flow as edit.js)
 function showRegisterImageCropper(file, fieldName, originalEvent) {
-    const modal = document.getElementById('image-cropper-modal');
-    const cropperImage = document.getElementById('cropper-image');
-    
-    if (!modal || !cropperImage) {
-        // Fallback to preview if modal doesn't exist
-        showRegisterImagePreview(file, fieldName, originalEvent);
-        return;
-    }
+    try {
+        const { modal, cropperContainer } = ensureRegisterCropperModalExists();
 
-    // Step 1: Clean up any previous cropper instance completely
-    if (registerCropper) {
-        try {
-            registerCropper.destroy();
-        } catch (e) {
-            console.warn('Error destroying previous cropper:', e);
+        if (!modal || !cropperContainer) {
+            console.warn('[showRegisterImageCropper] Modal or container not found after ensure, falling back to preview');
+            showRegisterImagePreview(file, fieldName, originalEvent);
+            return;
         }
-        registerCropper = null;
-    }
 
-    // Step 2: Reset cropper image (but keep it hidden until loaded)
-    cropperImage.style.display = 'none';
-    cropperImage.onload = null;
-    cropperImage.onerror = null;
-    cropperImage.src = '';
-    
-    // Clean up any previous object URL
-    if (registerImageObjectURL) {
+        // Ensure modal is direct child of body - prevents it from being hidden by section layout (same as edit.js)
         try {
-            URL.revokeObjectURL(registerImageObjectURL);
+            if (modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
         } catch (e) {
-            console.warn('Error revoking previous object URL:', e);
+            console.error('[showRegisterImageCropper] Failed to append modal to body:', e);
         }
-        registerImageObjectURL = null;
-    }
-    
-    // Clean up previous handlers
-    registerCropperImageLoadHandler = null;
-    
-    // Reset buttons to remove old click handlers
-    const cancelBtn = document.getElementById('crop-cancel-btn');
-    const confirmBtn = document.getElementById('crop-confirm-btn');
-    if (cancelBtn) {
-        cancelBtn.onclick = null; // Clear any existing handlers
-    }
-    if (confirmBtn) {
-        document.getElementById('crop-confirm-btn').onclick = null; // Clear any existing handlers
-    }
-    
-    // Step 3: Store file and field name for later use
-    registerCropFile = file;
+
+        // Ensure modal is visible immediately (same as edit.js)
+    modal.style.display = 'flex';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    modal.classList.add('show');
+    modal.style.zIndex = '10001';
+
+    // Close when clicking overlay background (same as edit.js)
+    const overlayClickHandler = function(e) {
+        if (e.target === modal) {
+            closeRegisterImageCropper();
+            modal.removeEventListener('click', overlayClickHandler);
+        }
+    };
+    modal.removeEventListener('click', overlayClickHandler);
+    modal.addEventListener('click', overlayClickHandler);
+
+        // Revoke previous object URL before creating new one (same as edit.js)
+        if (registerImageObjectURL) {
+            try {
+                URL.revokeObjectURL(registerImageObjectURL);
+            } catch (e) {
+                console.warn('[showRegisterImageCropper] Error revoking previous object URL:', e);
+            }
+            registerImageObjectURL = null;
+        }
+
+        try {
+            registerImageObjectURL = URL.createObjectURL(file);
+        } catch (e) {
+            console.error('[showRegisterImageCropper] Failed to create object URL:', e);
+            if (typeof showError === 'function') {
+                showError('画像の読み込みに失敗しました: ' + (e.message || ''));
+            } else {
+                alert('画像の読み込みに失敗しました: ' + (e.message || ''));
+            }
+            return;
+        }
+
+        registerCropFile = file;
     registerCropFieldName = fieldName;
     registerCropOriginalEvent = originalEvent;
-    
-    // Step 4: Create new object URL for the image
-    registerImageObjectURL = URL.createObjectURL(file);
-    
-    // Step 5: Show modal
-    modal.style.display = 'block';
-    
-    // Step 6: Set up image load handler (with timeout to ensure DOM is ready)
-    setTimeout(() => {
-        // Make image visible again
-        cropperImage.style.display = 'block';
 
+    // Helper: setup cancel/confirm button handlers (same as edit.js)
+    function setupRegisterCropperButtons() {
+        const newCancelBtn = document.getElementById('crop-cancel-btn');
+        const newConfirmBtn = document.getElementById('crop-confirm-btn');
+        if (newCancelBtn) {
+            newCancelBtn.onclick = function() {
+                // Cancel: do not proceed with cropping - clear new selection and close
+                if (originalEvent && originalEvent.target) {
+                    const uploadArea = originalEvent.target.closest('.upload-area');
+                    if (uploadArea) {
+                        const preview = uploadArea.querySelector('.upload-preview');
+                        if (preview) {
+                            // Restore existing image if any, otherwise clear
+                            const existingPath = uploadArea.dataset.existingImage;
+                            preview.innerHTML = existingPath
+                                ? `<img src="${existingPath.startsWith('http') ? existingPath : (window.BASE_URL || '') + '/' + existingPath.replace(/^\/+/, '')}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none'">`
+                                : '';
+                        }
+                        delete uploadArea.dataset.croppedBlob;
+                        delete uploadArea.dataset.croppedFileName;
+                        delete uploadArea.dataset.originalFile;
+                        delete uploadArea.dataset.originalFileData;
+                        delete uploadArea.dataset.originalFieldName;
+                    }
+                    if (originalEvent.target && originalEvent.target.value) {
+                        originalEvent.target.value = '';
+                    }
+                }
+                closeRegisterImageCropper();
+            };
+        }
+        if (newConfirmBtn) {
+            newConfirmBtn.onclick = function() { cropAndStoreForRegister(); };
+        }
+    }
+
+    // Case A: Cropper already exists - use replace() for 2nd+ image (same as edit.js)
+    if (registerCropper) {
+        try {
+            registerCropper.replace(registerImageObjectURL);
+            setupRegisterCropperButtons();
+            return;
+        } catch (e) {
+            console.warn('Cropper replace failed, falling back to full reinit:', e);
+            try {
+                registerCropper.destroy();
+            } catch (e2) { /* ignore */ }
+            registerCropper = null;
+        }
+    }
+
+    // Case B: No cropper - full init. Reset container (same as edit.js)
+    registerCropperImageLoadHandler = null;
+    cropperContainer.innerHTML = '';
+    const newImg = document.createElement('img');
+    newImg.id = 'cropper-image';
+    newImg.style.cssText = 'max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;';
+    cropperContainer.appendChild(newImg);
+
+    // Remove old event listeners from buttons (clone to clear) - same as edit.js
+    const cancelBtn = document.getElementById('crop-cancel-btn');
+    const confirmBtn = document.getElementById('crop-confirm-btn');
+    if (cancelBtn && cancelBtn.parentNode) {
+        cancelBtn.parentNode.replaceChild(cancelBtn.cloneNode(true), cancelBtn);
+    }
+    if (confirmBtn && confirmBtn.parentNode) {
+        confirmBtn.parentNode.replaceChild(confirmBtn.cloneNode(true), confirmBtn);
+    }
+
+    // Set up image load handler (same as edit.js)
+    setTimeout(() => {
         registerCropperImageLoadHandler = function() {
-            // Destroy any existing cropper (defensive)
             if (registerCropper) {
                 try {
                     registerCropper.destroy();
@@ -2658,12 +2867,13 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
                     console.warn('Error destroying cropper in onload:', e);
                 }
             }
-
-            // Small delay to ensure image is fully rendered
             setTimeout(() => {
-                const aspectRatio = fieldName === 'company_logo' ? 1 : 1; // 1:1 for both logo and photo
+                const aspectRatio = fieldName === 'company_logo' ? 1 : 1;
                 try {
-                    registerCropper = new Cropper(cropperImage, {
+                    if (typeof Cropper === 'undefined') {
+                        throw new Error('Cropper.js is not loaded');
+                    }
+                    registerCropper = new Cropper(newImg, {
                         aspectRatio: aspectRatio,
                         viewMode: 1,
                         dragMode: 'move',
@@ -2675,86 +2885,54 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
                         cropBoxMovable: true,
                         cropBoxResizable: true,
                         toggleDragModeOnDblclick: false,
-                        ready: function() {
-                            console.log('Register cropper ready for', fieldName);
-                        }
+                        responsive: true,
+                        minContainerWidth: 300,
+                        minContainerHeight: 300
                     });
                 } catch (e) {
                     console.error('Error initializing cropper:', e);
                     showRegisterImagePreview(file, fieldName, originalEvent);
                     closeRegisterImageCropper();
                 }
-            }, 100);
+            }, 50);
         };
-        
-        cropperImage.onload = registerCropperImageLoadHandler;
 
-        cropperImage.onerror = function() {
+        newImg.onerror = function() {
             console.error('Error loading image');
-            showError('画像の読み込みに失敗しました');
+            if (typeof showError === 'function') {
+                showError('画像の読み込みに失敗しました');
+            } else {
+                alert('画像の読み込みに失敗しました');
+            }
             closeRegisterImageCropper();
         };
 
-        // Step 7: Set the image source
-        cropperImage.src = registerImageObjectURL;
+        newImg.src = registerImageObjectURL;
 
-        // If image is already cached, trigger load manually
-        if (cropperImage.complete) {
-            const currentSrc = cropperImage.src;
-            cropperImage.src = '';
+        if (newImg.complete) {
+            const currentSrc = newImg.src;
+            newImg.src = '';
             setTimeout(() => {
-                cropperImage.src = currentSrc;
-                if (cropperImage.complete && registerCropperImageLoadHandler) {
+                newImg.src = currentSrc;
+                if (newImg.complete && registerCropperImageLoadHandler) {
                     registerCropperImageLoadHandler();
                 }
             }, 10);
+        } else {
+            newImg.onload = registerCropperImageLoadHandler;
         }
-    }, 100);
+    }, 150);
 
-    // Set up cancel button
-    const newCancelBtn = document.getElementById('crop-cancel-btn');
-    if (newCancelBtn) {
-        newCancelBtn.onclick = function() {
-            // Store the file for upload even if cropper is cancelled
-            if (file && originalEvent && originalEvent.target) {
-                const uploadArea = originalEvent.target.closest('.upload-area');
-                if (uploadArea) {
-                    // Store file as data URL for later upload
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        uploadArea.dataset.originalFile = JSON.stringify({
-                            name: file.name,
-                            type: file.type,
-                            size: file.size
-                        });
-                        uploadArea.dataset.originalFileData = event.target.result;
-                        uploadArea.dataset.originalFieldName = fieldName;
-                        // Show preview
-                        const preview = uploadArea.querySelector('.upload-preview');
-                        if (preview) {
-                            preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
-                        }
-                    };
-                    reader.readAsDataURL(file);
-                }
-            }
-            closeRegisterImageCropper();
-            // Don't reset file input - keep it so we can upload it
-        };
+        setupRegisterCropperButtons();
+    } catch (e) {
+        console.error('[showRegisterImageCropper] Unhandled error:', e);
+        if (typeof showError === 'function') {
+            showError('画像トリミングの表示に失敗しました: ' + (e.message || ''));
+        } else {
+            alert('画像トリミングの表示に失敗しました: ' + (e.message || ''));
+        }
+        closeRegisterImageCropper();
     }
-
-    // Set up confirm button
-    const newConfirmBtn = document.getElementById('crop-confirm-btn');
-    if (newConfirmBtn) {
-        newConfirmBtn.onclick = function() {
-            cropAndStoreForRegister();
-        };
-    }
-    
-    // Make sure modal is visible
-    modal.style.display = 'block';
-    modal.style.visibility = 'visible';
-    modal.style.opacity = '1';
 }
 
 // Close image cropper for register page
@@ -2762,7 +2940,16 @@ function closeRegisterImageCropper() {
     const modal = document.getElementById('image-cropper-modal');
     if (modal) {
         modal.style.display = 'none';
+        modal.style.visibility = 'hidden';
+        modal.style.opacity = '0';
+        modal.classList.remove('show');
     }
+
+    // Reset file inputs so change event fires on next upload (same as edit.js)
+    const logoInput = document.getElementById('company_logo');
+    const photoInput = document.getElementById('profile_photo_header');
+    if (logoInput) logoInput.value = '';
+    if (photoInput) photoInput.value = '';
 
     if (registerCropper) {
         try {
@@ -2861,12 +3048,7 @@ function cropAndStoreForRegister() {
             };
             reader.readAsDataURL(blob);
 
-            closeRegisterImageCropper();
-            
-            // Reset file input so it can be used again
-            if (registerCropOriginalEvent && registerCropOriginalEvent.target) {
-                registerCropOriginalEvent.target.value = '';
-            }
+            closeRegisterImageCropper(); // Also resets file inputs for next upload
         }, cropFileType, 0.95);
     } catch (error) {
         console.error('Crop error:', error);
@@ -2907,29 +3089,24 @@ function showRegisterImagePreview(file, fieldName, originalEvent) {
 }
 
 // Photo upload previews with cropping for register page
-document.getElementById('profile_photo_header')?.addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-        // より厳密な画像ファイルチェック
-        if (file.type && file.type.startsWith('image/')) {
-        showRegisterImageCropper(file, 'profile_photo_header', e);
-        } else {
-            console.warn('Invalid file type:', file.type);
-            if (typeof showWarning === 'function') {
-                showWarning('画像ファイルを選択してください');
+// Use event delegation to handle file changes (same as edit.js - works for subsequent uploads)
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'profile_photo_header' || e.target.id === 'company_logo') {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.type && file.type.startsWith('image/')) {
+                const fieldName = e.target.id === 'company_logo' ? 'company_logo' : 'profile_photo_header';
+                showRegisterImageCropper(file, fieldName, e);
             } else {
-                alert('画像ファイルを選択してください');
+                console.warn('Invalid file type:', file.type);
+                if (typeof showWarning === 'function') {
+                    showWarning('画像ファイルを選択してください');
+                } else {
+                    alert('画像ファイルを選択してください');
+                }
+                e.target.value = '';
             }
-            // ファイル入力をリセット
-            e.target.value = '';
         }
-    }
-});
-
-document.getElementById('company_logo')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-        showRegisterImageCropper(file, 'company_logo', e);
     }
 });
 
@@ -3153,15 +3330,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const steps = JSON.parse(savedCompletedSteps);
             completedSteps = new Set(steps);
             console.log('Restored completed steps:', steps);
-            
-            // If steps are completed, go to the latest step
-            if (steps.length > 0) {
-                const maxStep = Math.max(...steps);
-                // Go to the step after the last completed one
-                if (maxStep < 6) {
-                    goToStep(maxStep + 1);
-                }
-            }
+            // Keep step 1 active on load - user can click step indicators to jump to completed steps
         } catch (error) {
             console.error('Error restoring completed steps:', error);
         }
@@ -4018,7 +4187,9 @@ window.addEventListener('DOMContentLoaded', () => {
         closePreviewBtn.addEventListener('click', hidePreview);
     }
 });
-    
+
+// Build card HTML from data (used for preview/display)
+function buildCardHtmlForRegister(data) {
     const techToolBanners = {
         'slp': 'assets/images/tech_banner/slp.jpg',
         'rlp': 'assets/images/tech_banner/rlp.jpg',
@@ -4499,227 +4670,6 @@ function hidePreview() {
     isPreviewMode = false;
 }
 
-
-// Show image cropper modal for register page
-function showRegisterImageCropper(file, fieldName, originalEvent) {
-    const modal = document.getElementById('image-cropper-modal');
-    const cropperImage = document.getElementById('cropper-image');
-    
-    if (!modal || !cropperImage) {
-        // Fallback to preview if modal doesn't exist
-        showRegisterImagePreview(file, fieldName, originalEvent);
-        return;
-    }
-    
-    // Step 1: Clean up previous state completely
-    if (registerCropper) {
-        try {
-            registerCropper.destroy();
-        } catch (e) {
-            console.warn('Error destroying previous cropper:', e);
-        }
-        registerCropper = null;
-    }
-    
-    // Step 1.5: Reset image element completely BEFORE revoking URL (to prevent errors)
-    cropperImage.onload = null;
-    cropperImage.onerror = null;
-    cropperImage.removeAttribute('src'); // Use removeAttribute instead of setting to empty string
-    cropperImage.style.display = 'none'; // Hide while resetting
-
-    // Remove any cropper wrapper elements that might be left behind
-    const cropperContainer = cropperImage.parentElement;
-    if (cropperContainer) {
-        // Remove any cropper-related classes and data attributes
-        cropperContainer.querySelectorAll('.cropper-container, .cropper-wrap-box, .cropper-canvas, .cropper-drag-box, .cropper-crop-box, .cropper-modal').forEach(el => el.remove());
-    }
-
-    // Revoke previous object URL if exists (after clearing src)
-    if (registerImageObjectURL) {
-        try {
-            URL.revokeObjectURL(registerImageObjectURL);
-        } catch (e) {
-            console.warn('Error revoking previous object URL:', e);
-        }
-        registerImageObjectURL = null;
-    }
-
-    // Remove previous onload handler if exists
-    if (registerCropperImageLoadHandler) {
-        cropperImage.removeEventListener('load', registerCropperImageLoadHandler);
-        registerCropperImageLoadHandler = null;
-    }
-    
-    // Step 2: Remove old event listeners from buttons (create new handlers)
-    const cancelBtn = document.getElementById('crop-cancel-btn');
-    const confirmBtn = document.getElementById('crop-confirm-btn');
-    
-    // Clone buttons to remove all event listeners
-    if (cancelBtn) {
-        const newCancelBtn = cancelBtn.cloneNode(true);
-        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-        document.getElementById('crop-cancel-btn').onclick = null; // Clear any existing handlers
-    }
-    
-    if (confirmBtn) {
-        const newConfirmBtn = confirmBtn.cloneNode(true);
-        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-        document.getElementById('crop-confirm-btn').onclick = null; // Clear any existing handlers
-    }
-    
-    // Step 3: Store file and field name for later use
-    registerCropFile = file;
-    registerCropFieldName = fieldName;
-    registerCropOriginalEvent = originalEvent;
-    
-    // Step 4: Create new object URL for the image
-    registerImageObjectURL = URL.createObjectURL(file);
-    
-    // Step 5: Show modal
-    modal.style.display = 'block';
-    
-    // Step 6: Set up image load handler (with timeout to ensure DOM is ready)
-    setTimeout(() => {
-        // Make image visible again
-        cropperImage.style.display = 'block';
-
-        registerCropperImageLoadHandler = function() {
-            // Destroy any existing cropper (defensive)
-            if (registerCropper) {
-                try {
-                    registerCropper.destroy();
-                } catch (e) {
-                    console.warn('Error destroying cropper in onload:', e);
-                }
-            }
-
-            // Small delay to ensure image is fully rendered
-            setTimeout(() => {
-                // Initialize cropper with aspect ratio
-                const aspectRatio = fieldName === 'company_logo' ? 1 : 1; // Square for both
-                try {
-                    registerCropper = new Cropper(cropperImage, {
-                        aspectRatio: aspectRatio,
-                        viewMode: 1,
-                        dragMode: 'move',
-                        autoCropArea: 0.8,
-                        restore: false,
-                        guides: true,
-                        center: true,
-                        highlight: false,
-                        cropBoxMovable: true,
-                        cropBoxResizable: true,
-                        toggleDragModeOnDblclick: false,
-                        responsive: true,
-                        minContainerWidth: 300,
-                        minContainerHeight: 300
-                    });
-                } catch (e) {
-                    console.error('Error initializing cropper:', e);
-                    showError('画像の読み込みに失敗しました');
-                    closeRegisterImageCropper();
-                }
-            }, 50);
-        };
-        
-        cropperImage.onerror = function() {
-            console.error('Error loading image');
-            showError('画像の読み込みに失敗しました');
-            closeRegisterImageCropper();
-        };
-
-        // Set image src (this will trigger onload)
-        cropperImage.src = registerImageObjectURL;
-
-        // Force reload by adding timestamp to break cache (for re-uploads)
-        if (cropperImage.complete) {
-            // If already loaded, reload it
-            const currentSrc = cropperImage.src;
-            cropperImage.src = '';
-            setTimeout(() => {
-                cropperImage.src = currentSrc;
-                // Manually trigger onload for cached images
-                if (cropperImage.complete && registerCropperImageLoadHandler) {
-                    registerCropperImageLoadHandler();
-                }
-            }, 10);
-        } else {
-            cropperImage.onload = registerCropperImageLoadHandler;
-        }
-    }, 100); // Small delay to ensure cleanup completes
-    
-    // Step 7: Setup cancel button (after recreating it)
-    const newCancelBtn = document.getElementById('crop-cancel-btn');
-    if (newCancelBtn) {
-        newCancelBtn.onclick = function() {
-            // Simply close the modal without uploading, cropping, or updating preview
-            closeRegisterImageCropper();
-            // Reset file input so user can select the same file again if needed
-            if (originalEvent && originalEvent.target) {
-                originalEvent.target.value = '';
-            }
-        };
-    }
-    
-    // Step 8: Setup confirm button (after recreating it)
-    const newConfirmBtn = document.getElementById('crop-confirm-btn');
-    if (newConfirmBtn) {
-        newConfirmBtn.onclick = function() {
-            cropAndStoreForRegister();
-        };
-    }
-}
-
-// Close image cropper for register page
-function closeRegisterImageCropper() {
-    const modal = document.getElementById('image-cropper-modal');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.style.alignItems = '';
-        modal.style.justifyContent = '';
-    }
-    
-    // Destroy cropper instance
-    if (registerCropper) {
-        try {
-            registerCropper.destroy();
-        } catch (e) {
-            console.warn('Error destroying cropper on close:', e);
-        }
-        registerCropper = null;
-    }
-    
-    // Clean up object URL
-    const cropperImage = document.getElementById('cropper-image');
-    if (cropperImage) {
-        // Remove event handlers
-        if (registerCropperImageLoadHandler) {
-            cropperImage.removeEventListener('load', registerCropperImageLoadHandler);
-            cropperImage.onload = null;
-            registerCropperImageLoadHandler = null;
-        }
-        cropperImage.onerror = null;
-        
-        // Revoke object URL
-        if (registerImageObjectURL) {
-            try {
-                URL.revokeObjectURL(registerImageObjectURL);
-            } catch (e) {
-                console.warn('Error revoking object URL:', e);
-            }
-            registerImageObjectURL = null;
-        }
-        
-        // Clear image src
-        cropperImage.src = '';
-    }
-    
-    // Clear state
-    registerCropFile = null;
-    registerCropFieldName = null;
-    registerCropOriginalEvent = null;
-}
-
 // Crop and store image for register page
 function cropAndStoreForRegister() {
     if (!registerCropper || !registerCropFile || !registerCropFieldName) {
@@ -4808,33 +4758,6 @@ function showRegisterImagePreview(file, fieldName, originalEvent) {
     };
     reader.readAsDataURL(file);
 }
-
-// Photo upload previews with cropping
-document.getElementById('profile_photo_header')?.addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-        // より厳密な画像ファイルチェック
-        if (file.type && file.type.startsWith('image/')) {
-        showRegisterImageCropper(file, 'profile_photo_header', e);
-        } else {
-            console.warn('Invalid file type:', file.type);
-            if (typeof showWarning === 'function') {
-                showWarning('画像ファイルを選択してください');
-            } else {
-                alert('画像ファイルを選択してください');
-            }
-            // ファイル入力をリセット
-            e.target.value = '';
-        }
-    }
-});
-
-document.getElementById('company_logo')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-        showRegisterImageCropper(file, 'company_logo', e);
-    }
-});
 
 document.getElementById('free_image')?.addEventListener('change', (e) => {
     const file = e.target.files[0];

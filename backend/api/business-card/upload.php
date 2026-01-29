@@ -8,13 +8,18 @@
  * - free: 1200x1200px
  */
 
+// CRITICAL: Set limits FIRST before any other code (prevents timeout before script runs)
+ini_set('display_errors', 0);
+error_reporting(0);
+ini_set('memory_limit', '256M');
+@set_time_limit(120); // 2 minutes - must run before any require
+
 // CRITICAL: Send CORS headers FIRST before anything else
-// This ensures the browser doesn't block the response even if PHP crashes
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*';
 header('Access-Control-Allow-Origin: ' . $origin);
 header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-Requested-With');
+header('Access-Control-Allow-Headers: Content-Type, X-Requested-With, Accept');
 header('Access-Control-Max-Age: 86400');
 
 // Handle preflight OPTIONS request immediately
@@ -23,15 +28,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-// Ensure clean JSON output - disable all error display
-ini_set('display_errors', 0);
-error_reporting(0);
+// Diagnostic: GET returns 200 so client can verify endpoint is reachable
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode(['ready' => true, 'message' => 'Upload endpoint is reachable']);
+    exit;
+}
 
-// Increase memory limit for large image processing
-ini_set('memory_limit', '256M');
-
-// Start output buffering first
+// Start output buffering
 ob_start();
+
+// Fatal error handler - ensures we always send a response even on PHP crash
+register_shutdown_function(function() {
+    if (headers_sent()) return; // Already sent response
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        while (ob_get_level() > 0) ob_end_clean();
+        http_response_code(500);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode(['success' => false, 'message' => 'サーバーエラーが発生しました'], JSON_UNESCAPED_UNICODE);
+    }
+});
 
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -40,6 +57,7 @@ require_once __DIR__ . '/../middleware/auth.php';
 
 // Re-disable display errors (config.php may have enabled it)
 ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 // CRITICAL: Release session lock early to prevent blocking concurrent requests
 // The auth middleware has already validated the session, so we can close it now

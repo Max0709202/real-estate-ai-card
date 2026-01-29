@@ -2346,26 +2346,27 @@ function showEditImageCropper(file, fieldName, originalEvent) {
                 const newConfirmBtn = document.getElementById('crop-confirm-btn');
                 if (newCancelBtn) {
                     newCancelBtn.onclick = function() {
+                        // Cancel: do not proceed with cropping - clear new selection and close
                         try {
-                            if (file && originalEvent && originalEvent.target) {
+                            if (originalEvent && originalEvent.target) {
                                 const uploadArea = originalEvent.target.closest('.upload-area');
                                 if (uploadArea) {
-                                    const reader = new FileReader();
-                                    reader.onload = (event) => {
-                                        try {
-                                            uploadArea.dataset.originalFile = JSON.stringify({ name: file.name, type: file.type, size: file.size });
-                                            uploadArea.dataset.originalFileData = event.target.result;
-                                            uploadArea.dataset.originalFieldName = fieldName;
-                                            const preview = uploadArea.querySelector('.upload-preview');
-                                            if (preview) {
-                                                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
-                                            }
-                                        } catch (e) {
-                                            console.error('[showEditImageCropper] Cancel handler - reader.onload error:', e);
-                                        }
-                                    };
-                                    reader.onerror = () => console.error('[showEditImageCropper] FileReader error');
-                                    reader.readAsDataURL(file);
+                                    const preview = uploadArea.querySelector('.upload-preview');
+                                    if (preview) {
+                                        // Restore existing image if any, otherwise clear
+                                        const existingPath = uploadArea.dataset.existingImage;
+                                        preview.innerHTML = existingPath
+                                            ? `<img src="${existingPath.startsWith('http') ? existingPath : (window.BASE_URL || '') + '/' + existingPath.replace(/^\/+/, '')}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none'">`
+                                            : '';
+                                    }
+                                    delete uploadArea.dataset.croppedBlob;
+                                    delete uploadArea.dataset.croppedFileName;
+                                    delete uploadArea.dataset.originalFile;
+                                    delete uploadArea.dataset.originalFileData;
+                                    delete uploadArea.dataset.originalFieldName;
+                                }
+                                if (originalEvent.target && originalEvent.target.value) {
+                                    originalEvent.target.value = '';
                                 }
                             }
                         } catch (e) {

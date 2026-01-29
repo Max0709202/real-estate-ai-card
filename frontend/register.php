@@ -971,18 +971,18 @@ $prefectures = [
     </div>
     <?php endif; ?>
 
-    <!-- Image Cropper Modal -->
+    <!-- Image Cropper Modal (same structure as edit.php) -->
     <div id="image-cropper-modal" class="modal-overlay" style="display: none; z-index: 10000; opacity: 1; visibility: visible;">
-        <div class="modal-content" style="max-width: 90%; max-height: 90vh; overflow: auto;">
+        <div class="modal-content" style="max-width: 90%; max-height: 90vh; overflow: auto; background: white; border-radius: 8px; padding: 0;">
             <div style="padding: 20px;">
-                <h3 style="margin-bottom: 20px;">画像をトリミング</h3>
+                <h3 style="margin-bottom: 20px; color: #333;">画像をトリミング</h3>
                 <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
                     画像のサイズを調整し、必要な部分を選択してください。指でドラッグしてトリミングエリアを移動・拡大縮小できます。
                 </p>
-                <div style="width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;">
+                <div id="cropper-image-container" style="width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;">
                     <img id="cropper-image" style="max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;">
                 </div>
-                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                     <button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; width: auto; cursor: pointer;">キャンセル</button>
                     <button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px; width: auto;">トリミングを適用</button>
                 </div>
@@ -990,12 +990,26 @@ $prefectures = [
         </div>
     </div>
 
-    <script src="assets/js/modal.js"></script>
-    <!-- Cropper.js -->
+    <!-- Cropper.js (modal.js loaded via header.php) -->
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
     <script>
-        // Make BASE_URL available to JavaScript
+        // Make BASE_URL and upload URL available to JavaScript
         window.BASE_URL = <?php echo json_encode(BASE_URL); ?>;
+        // Upload URL: ALWAYS use current page origin (same host) to avoid cross-origin / unreachable server
+        // Path is extracted from current URL - works for localhost, IP, or domain
+        window.getUploadUrl = function() {
+            const pathParts = window.location.pathname.split('/').filter(Boolean);
+            const frontendIdx = pathParts.indexOf('frontend');
+            let basePath = '';
+            if (frontendIdx > 0) {
+                basePath = '/' + pathParts.slice(0, frontendIdx).join('/');
+            } else if (frontendIdx === 0 && pathParts.length > 1) {
+                basePath = '';
+            } else if (pathParts.length > 0) {
+                basePath = '/' + pathParts[0];
+            }
+            return window.location.origin + basePath + '/backend/api/business-card/upload.php';
+        };
     </script>
     <script src="assets/js/register.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
