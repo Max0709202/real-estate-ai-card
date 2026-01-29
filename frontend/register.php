@@ -686,106 +686,68 @@ $prefectures = [
                         <h3>メッセージアプリ部</h3>
                         <p class="section-note">一番簡単につながる方法を教えてください。ここが重要になります。</p>
 
-                        <div class="communication-grid" id="message-apps-grid">
+                        <div class="communication-grid" id="message-apps-grid" style="display: flex; flex-direction: column; gap: 0.75rem;">
                             <div class="communication-item" data-comm-type="message">
                                 <div class="comm-actions">
                                     <button type="button" class="btn-move-up" onclick="moveCommunicationItem(0, 'up', 'message')" disabled>↑</button>
                                     <button type="button" class="btn-move-down" onclick="moveCommunicationItem(0, 'down', 'message')">↓</button>
                                 </div>
-                                <label class="communication-checkbox">
-                                    <input type="checkbox" name="comm_line" value="1">
-                                    <div class="comm-icon">
-                                        <img src="assets/images/icons/line.png" alt="LINE">
+                                <div class="comm-details-wrapper">
+                                    <label class="communication-checkbox">
+                                        <input type="checkbox" name="comm_line" value="1">
+                                        <div class="comm-icon">
+                                            <img src="assets/images/icons/line.png" alt="LINE">
+                                        </div>
+                                        <span>LINE</span>
+                                    </label>
+                                    <div class="comm-details">
+                                        <input type="text" name="comm_line_id" class="form-control" placeholder="QRコードのリンクを入力">
                                     </div>
-                                    <span>LINE</span>
-                                </label>
-                                <div class="comm-details" style="display: none;">
-                                    <input type="text" name="comm_line_id" class="form-control" placeholder="LINE IDまたはURL">
+                                    <div class="comm-help-button-wrapper">
+                                        <button type="button" class="comm-help-button" data-help-type="line">設定方法</button>
+                                    </div>
                                 </div>
                             </div>
-
                             <div class="communication-item" data-comm-type="message">
                                 <div class="comm-actions">
                                     <button type="button" class="btn-move-up" onclick="moveCommunicationItem(1, 'up', 'message')">↑</button>
                                     <button type="button" class="btn-move-down" onclick="moveCommunicationItem(1, 'down', 'message')">↓</button>
                                 </div>
-                                <label class="communication-checkbox">
-                                    <input type="checkbox" name="comm_messenger" value="1">
-                                    <div class="comm-icon">
-                                        <img src="assets/images/icons/messenger.png" alt="Messenger">
+                                <div class="comm-details-wrapper">
+                                    <label class="communication-checkbox">
+                                        <input type="checkbox" name="comm_messenger" value="1">
+                                        <div class="comm-icon">
+                                            <img src="assets/images/icons/messenger.png" alt="Messenger">
+                                        </div>
+                                        <span>Messenger</span>
+                                    </label>
+                                    <div class="comm-details">
+                                        <input type="text" name="comm_messenger_id" class="form-control" placeholder="プロフィールURLを入力">
                                     </div>
-                                    <span>Messenger</span>
-                                </label>
-                                <div class="comm-details" style="display: none;">
-                                    <input type="text" name="comm_messenger_id" class="form-control" placeholder="Messenger IDまたはURL">
+                                    <div class="comm-help-button-wrapper">
+                                        <button type="button" class="comm-help-button" data-help-type="facebook">設定方法</button>
+                                    </div>
                                 </div>
                             </div>
-
                             <div class="communication-item" data-comm-type="message">
                                 <div class="comm-actions">
                                     <button type="button" class="btn-move-up" onclick="moveCommunicationItem(2, 'up', 'message')">↑</button>
-                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(2, 'down', 'message')">↓</button>
+                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(2, 'down', 'message')" disabled>↓</button>
                                 </div>
-                                <label class="communication-checkbox">
-                                    <input type="checkbox" name="comm_whatsapp" value="1">
-                                    <div class="comm-icon">
-                                        <img src="assets/images/icons/whatsapp.png" alt="WhatsApp">
+                                <div class="comm-details-wrapper">
+                                    <label class="communication-checkbox">
+                                        <input type="checkbox" name="comm_chatwork" value="1">
+                                        <div class="comm-icon">
+                                            <img src="assets/images/icons/chatwork.png" alt="Chatwork">
+                                        </div>
+                                        <span>Chatwork</span>
+                                    </label>
+                                    <div class="comm-details">
+                                        <input type="text" name="comm_chatwork_id" class="form-control" placeholder="チャットワークIDを入力">
                                     </div>
-                                    <span>WhatsApp</span>
-                                </label>
-                                <div class="comm-details" style="display: none;">
-                                    <input type="text" name="comm_whatsapp_id" class="form-control" placeholder="WhatsApp IDまたはURL">
-                                </div>
-                            </div>
-
-                            <div class="communication-item" data-comm-type="message">
-                                <div class="comm-actions">
-                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(3, 'up', 'message')">↑</button>
-                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(3, 'down', 'message')">↓</button>
-                                </div>
-                                <label class="communication-checkbox">
-                                    <input type="checkbox" name="comm_plus_message" value="1">
-                                    <div class="comm-icon">
-                                        <img src="assets/images/icons/message.png" alt="+メッセージ">
+                                    <div class="comm-help-button-wrapper">
+                                        <button type="button" class="comm-help-button" data-help-type="chatwork">設定方法</button>
                                     </div>
-                                    <span>+メッセージ</span>
-                                </label>
-                                <div class="comm-details" style="display: none;">
-                                    <input type="text" name="comm_plus_message_id" class="form-control" placeholder="+メッセージ IDまたはURL">
-                                </div>
-                            </div>
-
-                            <div class="communication-item" data-comm-type="message">
-                                <div class="comm-actions">
-                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(4, 'up', 'message')">↑</button>
-                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(4, 'down', 'message')">↓</button>
-                                </div>
-                                <label class="communication-checkbox">
-                                    <input type="checkbox" name="comm_chatwork" value="1">
-                                    <div class="comm-icon">
-                                        <img src="assets/images/icons/chatwork.png" alt="Chatwork">
-                                    </div>
-                                    <span>Chatwork</span>
-                                </label>
-                                <div class="comm-details" style="display: none;">
-                                    <input type="text" name="comm_chatwork_id" class="form-control" placeholder="Chatwork IDまたはURL">
-                                </div>
-                            </div>
-
-                            <div class="communication-item" data-comm-type="message">
-                                <div class="comm-actions">
-                                    <button type="button" class="btn-move-up" onclick="moveCommunicationItem(5, 'up', 'message')">↑</button>
-                                    <button type="button" class="btn-move-down" onclick="moveCommunicationItem(5, 'down', 'message')" disabled>↓</button>
-                                </div>
-                                <label class="communication-checkbox">
-                                    <input type="checkbox" name="comm_andpad" value="1">
-                                    <div class="comm-icon">
-                                        <img src="assets/images/icons/andpad.png" alt="Andpad">
-                                    </div>
-                                    <span>Andpad</span>
-                                </label>
-                                <div class="comm-details" style="display: none;">
-                                    <input type="text" name="comm_andpad_id" class="form-control" placeholder="Andpad IDまたはURL">
                                 </div>
                             </div>
                         </div>

@@ -1193,8 +1193,63 @@ input.form-control {
     width: 100%;
 }
 
-.comm-details input {
+.comm-details-wrapper .comm-details {
+    margin-top: 0;
+}
+
+.comm-details-wrapper .comm-details input {
     width: 100%;
+    padding: 1.5rem;
+    margin-bottom: 0rem;
+}
+
+.comm-details-wrapper {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+}
+
+.comm-details-wrapper .communication-checkbox {
+    justify-content: flex-start;
+}
+
+.comm-help-button-wrapper {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.comm-help-button {
+    background: #fff;
+    border: 1px solid #0066cc;
+    border-radius: 4px;
+    padding: 1.5rem;
+    font-size: 0.85rem;
+    color: #0066cc;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+}
+
+.comm-help-button:hover {
+    background: #0066cc;
+    color: #fff;
+    border-color: #0066cc;
+}
+
+/* Communication help modal - message area */
+.comm-help-modal-overlay .modal-message {
+    font-size: 16px;
+    margin: 0;
+    white-space: normal;
+    word-wrap: break-word;
+    /* word-break: keep-all; */
+    overflow-wrap: break-word;
+}
+
+.comm-help-modal-overlay .modal-message ol {
+    list-style: none;
 }
 
 /* License Lookup Button */

@@ -946,6 +946,13 @@ body {
     width: 100%;
 }
 
+.comm-details-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .comm-actions {
     display: flex;
     gap: 0.25rem;

@@ -300,6 +300,13 @@ body {
     object-fit: contain;
 }
 
+.comm-details-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 /* Details Button */
 .comm-details-button {
     display: inline-block;

@@ -201,8 +201,7 @@ unset($tool);
 // コミュニケーション方法取得 - Message Apps first, then SNS
 // Mapping from method_type to icon filename (some method types don't match icon filenames)
 $iconMapping = [
-    'plus_message' => 'message',  // plus_message uses message.png
-    // All other types use their method_type as the filename
+    // Method types use their method_type as the icon filename (line, messenger, chatwork)
 ];
 
 // Function to get icon filename from method_type
@@ -211,7 +210,7 @@ function getIconFilename($methodType, $iconMapping) {
 }
 
 // Message app types (safe - hardcoded list)
-$messageAppTypes = ['line', 'messenger', 'whatsapp', 'plus_message', 'chatwork', 'andpad'];
+$messageAppTypes = ['line', 'messenger', 'chatwork'];
 $placeholders = implode(',', array_fill(0, count($messageAppTypes), '?'));
 $stmt = $db->prepare("SELECT method_type, method_name, method_url, method_id FROM communication_methods WHERE business_card_id = ? AND is_active = 1 AND method_type IN ($placeholders) ORDER BY display_order ASC");
 $stmt->execute(array_merge([$card['id']], $messageAppTypes));

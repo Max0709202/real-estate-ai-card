@@ -176,7 +176,7 @@ require_once __DIR__ . '/../backend/config/config.php';
                         QRコードを読み込むだけで、その場で顧客とLINEでつながれます。名刺交換後の失注を防ぎ、確実なコミュニケーション手段を確立します。
                     </p>
                     <ul class="feature-list">
-                        <li><span class="check-icon">✓</span> LINE、Messenger、WhatsAppなど主要メッセージアプリに対応</li>
+                        <li><span class="check-icon">✓</span> LINE、Messenger、Chatworkに対応</li>
                         <li><span class="check-icon">✓</span> 顧客の連絡先を自動保存可能</li>
                         <li><span class="check-icon">✓</span> SNSアカウントも同時に共有できる</li>
                     </ul>

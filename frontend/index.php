@@ -371,10 +371,7 @@ if ($isTokenBased) {
                                 <ul class="communication-list">
                                     <li><img src="assets/images/icons/line.png" alt="LINE"></li>
                                     <li><img src="assets/images/icons/messenger.png" alt="Messenger"></li>
-                                    <li><img src="assets/images/icons/whatsapp.png" alt="WhatsApp"></li>
-                                    <li><img src="assets/images/icons/message.png" alt="+メッセージ"></li>
                                     <li><img src="assets/images/icons/chatwork.png" alt="Chatwork"></li>
-                                    <li><img src="assets/images/icons/andpad.png" alt="Andpad"></li>
                                 </ul>
                                 <p class="category-future">※近い将来、「不動産MYページ」という独自コミュニケーションツールをリリースし、追加する予定です。</p>
                             </div>
@@ -400,7 +397,7 @@ if ($isTokenBased) {
                         QRコードを読み込むだけで、その場で顧客とつながれます。名刺交換後の失注を防ぎ、確実なコミュニケーション手段を確立します。
                     </p>
                     <ul class="feature-list">
-                        <li><span class="check-icon">✓</span> LINE、Messenger、WhatsAppなど主要メッセージアプリに対応</li>
+                        <li><span class="check-icon">✓</span> LINE、Messenger、Chatworkに対応</li>
                         <li><span class="check-icon">✓</span> 顧客の連絡先を自動保存可能</li>
                         <li><span class="check-icon">✓</span> SNSアカウントも同時に共有できる</li>
                     </ul>

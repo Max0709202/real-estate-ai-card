@@ -970,10 +970,7 @@ async function saveCommunicationMethods() {
     const methodTypeMap = {
         'line': { key: 'comm_line', idField: 'comm_line_id', isUrl: false },
         'messenger': { key: 'comm_messenger', idField: 'comm_messenger_id', isUrl: false },
-        'whatsapp': { key: 'comm_whatsapp', idField: 'comm_whatsapp_id', isUrl: false },
-        'plus_message': { key: 'comm_plus_message', idField: 'comm_plus_message_id', isUrl: false },
         'chatwork': { key: 'comm_chatwork', idField: 'comm_chatwork_id', isUrl: false },
-        'andpad': { key: 'comm_andpad', idField: 'comm_andpad_id', isUrl: false },
         'instagram': { key: 'comm_instagram', urlField: 'comm_instagram_url', isUrl: true },
         'facebook': { key: 'comm_facebook', urlField: 'comm_facebook_url', isUrl: true },
         'twitter': { key: 'comm_twitter', urlField: 'comm_twitter_url', isUrl: true },
@@ -1178,6 +1175,120 @@ function setupArchitectCheckboxMutualExclusivity() {
     });
 }
 
+// ==============================================
+// Communication help modals (LINE / Facebook / Chatwork)
+// ==============================================
+function showCommunicationHelpModal(helpType) {
+    const titles = {
+        line: 'LINE の設定方法',
+        facebook: 'Facebook プロフィールリンクの取得方法',
+        chatwork: 'Chatwork ID / プロフィールリンクの取得方法'
+    };
+
+    const bodies = {
+        line: `
+            <p>【LINE】</p>
+            <p>●スマートフォンアプリの場合</p>
+            <ul>
+                <li>LINEアプリのホーム画面から「友達追加」をタップ</li>
+                <li>「QRコード」→「マイQRコード」で自分のQRコードを表示</li>
+                <li>画面下部の「リンクをコピー」をタップ</li>
+                <li>これで、LINE QRコードのリンクのコピーが完了します。</li>
+            </ul>
+        `,
+        facebook: `
+            <p>【Facebook】</p>
+            <p>●スマートフォンアプリの場合</p>
+            <ol>
+                <li>Facebookアプリを開く</li>
+                <li>自分のプロフィールを開く</li>
+                <li>画面上部またはプロフィール内の「…（三点）」をタップ</li>
+                <li>プロフィール設定画面一番下の「プロフィールリンクをコピー」からURLを取得</li>
+            </ol>
+            <p>●PC（ブラウザ）の場合</p>
+            <ol>
+                <li>Facebookにログイン</li>
+                <li>画面左上の自分の名前をクリックしてプロフィールを開く</li>
+                <li>ブラウザ上部のURL欄に表示されているアドレスがプロフィールリンクです<br>（例：https://www.facebook.com/ユーザー名）</li>
+            </ol>
+        `,
+        chatwork: `
+            <p>【Chatwork】</p>
+            <p>Chatwork ID（チャットワークID）は初期設定では未設定の場合があります。</p>
+            <p>●スマートフォンアプリの場合</p>
+            <ol>
+                <li>Chatworkアプリを開く</li>
+                <li>「アカウント」→「プロフィール」を開く</li>
+                <li>「Chatwork ID を伝える」をタップ</li>
+                <li>「Chatwork ID を共有」を押す</li>
+                <li>表示された情報からコピーします</li>
+            </ol>
+            <p>●PC（ブラウザ）の場合</p>
+            <ol>
+                <li>Chatworkにログイン</li>
+                <li>右上の自分のアイコンをクリック</li>
+                <li>「プロフィール」を開く</li>
+                <li>プロフィール画面のリンクをコピーして利用します</li>
+            </ol>
+        `
+    };
+
+    const title = titles[helpType] || '設定方法';
+    const bodyHtml = bodies[helpType] || '';
+
+    const existing = document.querySelector('.comm-help-modal-overlay');
+    if (existing) {
+        existing.parentNode.removeChild(existing);
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay comm-help-modal-overlay';
+    overlay.innerHTML = `
+        <div class="modal-container">
+            <div class="modal-header info">
+                <div class="modal-icon">
+                    <span>?</span>
+                </div>
+                <h2 class="modal-title">${title}</h2>
+            </div>
+            <div class="modal-body">
+                <div class="modal-message">
+                    ${bodyHtml}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn modal-btn-primary comm-help-close-btn">閉じる</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
+
+    function close() {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 300);
+    }
+
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            close();
+        }
+    });
+
+    const closeBtn = overlay.querySelector('.comm-help-close-btn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', close);
+    }
+}
+
 // Initialize communication drag and drop on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Load existing business card data
@@ -1197,6 +1308,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Setup communication checkboxes
     setupCommunicationCheckboxes();
+
+    // Communication help buttons (LINE / Facebook / Chatwork)
+    document.querySelectorAll('.comm-help-button').forEach(button => {
+        button.addEventListener('click', function() {
+            const helpType = this.getAttribute('data-help-type');
+            if (helpType) {
+                showCommunicationHelpModal(helpType);
+            }
+        });
+    });
     
     // Set up mutual exclusivity for architect qualification checkboxes
     setTimeout(() => {
