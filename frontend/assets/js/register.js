@@ -899,15 +899,17 @@ async function goToStep(step, skipSave = false) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }, 100);
     
-    // Load company name from database when step 2 becomes active
+    // Sync company name from step 1 (header-greeting) to step 2 (company-profile) when step 2 becomes active
     if (step === 2) {
-        // Wait a bit for DOM to be ready, then load company name
         setTimeout(() => {
-            if (businessCardData && businessCardData.company_name) {
-                const companyProfileInput = document.querySelector('input[name="company_name_profile"]');
-                if (companyProfileInput) {
-                    companyProfileInput.value = businessCardData.company_name;
-                }
+            const companyNameInput = document.querySelector('#header-greeting-form input[name="company_name"]');
+            const companyProfileInput = document.querySelector('input[name="company_name_profile"]');
+            if (companyProfileInput) {
+                // Prioritize live input from step 1; fall back to database value
+                const valueToUse = (companyNameInput && companyNameInput.value.trim())
+                    ? companyNameInput.value.trim()
+                    : (businessCardData && businessCardData.company_name) || '';
+                companyProfileInput.value = valueToUse;
             }
         }, 100);
     }
@@ -1805,11 +1807,6 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
-            isSubmittingStep1 = false;
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent = originalButtonText;
-            }
             // Reload business card data to get updated company name
             await loadExistingBusinessCardData();
             goToStep(2);
@@ -1912,11 +1909,6 @@ document.getElementById('company-profile-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
-            isSubmittingStep2 = false;
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent = originalButtonText;
-            }
             goToStep(3);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2128,11 +2120,6 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
         
         const result = await response.json();
         if (result.success) {
-            isSubmittingStep3 = false;
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent = originalButtonText;
-            }
             goToStep(4);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2211,11 +2198,7 @@ document.getElementById('tech-tools-form')?.addEventListener('submit', async (e)
     await generateTechToolUrls(selectedTools);
 
         // Clear dirty flag to prevent "unsaved changes" popup
-    isSubmittingStep4 = false;
-    if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = originalButtonText;
-    }
+    
     goToStep(5);
     } catch (error) {
         console.error('Error saving tech tools:', error);
@@ -2448,11 +2431,6 @@ document.getElementById('communication-form')?.addEventListener('submit', async 
         
         const result = await response.json();
         if (result.success) {
-            isSubmittingStep5 = false;
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent = originalButtonText;
-            }
             goToStep(6);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2794,26 +2772,20 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
         const newConfirmBtn = document.getElementById('crop-confirm-btn');
         if (newCancelBtn) {
             newCancelBtn.onclick = function() {
-                // Cancel: do not proceed with cropping - clear new selection and close
-                if (originalEvent && originalEvent.target) {
+                if (file && originalEvent && originalEvent.target) {
                     const uploadArea = originalEvent.target.closest('.upload-area');
                     if (uploadArea) {
-                        const preview = uploadArea.querySelector('.upload-preview');
-                        if (preview) {
-                            // Restore existing image if any, otherwise clear
-                            const existingPath = uploadArea.dataset.existingImage;
-                            preview.innerHTML = existingPath
-                                ? `<img src="${existingPath.startsWith('http') ? existingPath : (window.BASE_URL || '') + '/' + existingPath.replace(/^\/+/, '')}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none'">`
-                                : '';
-                        }
-                        delete uploadArea.dataset.croppedBlob;
-                        delete uploadArea.dataset.croppedFileName;
-                        delete uploadArea.dataset.originalFile;
-                        delete uploadArea.dataset.originalFileData;
-                        delete uploadArea.dataset.originalFieldName;
-                    }
-                    if (originalEvent.target && originalEvent.target.value) {
-                        originalEvent.target.value = '';
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            uploadArea.dataset.originalFile = JSON.stringify({ name: file.name, type: file.type, size: file.size });
+                            uploadArea.dataset.originalFileData = event.target.result;
+                            uploadArea.dataset.originalFieldName = fieldName;
+                            const preview = uploadArea.querySelector('.upload-preview');
+                            if (preview) {
+                                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
+                            }
+                        };
+                        reader.readAsDataURL(file);
                     }
                 }
                 closeRegisterImageCropper();

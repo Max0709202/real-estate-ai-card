@@ -854,6 +854,11 @@ body {
     .tech-tool-info p {
         font-size: 0.85rem;
     }
+
+    /* SP: comm-details-wrapper stacks vertically */
+    .comm-details-wrapper {
+        flex-direction: column !important;
+    }
 }
 
 /* Communication Section */

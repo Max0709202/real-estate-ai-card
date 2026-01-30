@@ -279,11 +279,19 @@ if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
                 const result = await response.json();
 
                 if (result.success) {
+                    // Clear auto-save drafts on success
+                    // if (window.autoSave) {
+                    //     await window.autoSave.clearDraftsOnSuccess();
+                    // }
                     // Prevent further submissions
                     submitButton.textContent = '登録完了';
                     // Show success modal with email verification message
                     showEmailVerificationModal();
                 } else {
+                    // Mark submission as failed (keep drafts)
+                    if (window.autoSave) {
+                        window.autoSave.markSubmissionFailed();
+                    }
                     // Re-enable button on error
                     isSubmitting = false;
                     submitButton.disabled = false;
@@ -294,6 +302,10 @@ if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
                 }
             } catch (error) {
                 console.error('Error:', error);
+                // Mark submission as failed (keep drafts)
+                if (window.autoSave) {
+                    window.autoSave.markSubmissionFailed();
+                }
                 // Re-enable button on error
                 isSubmitting = false;
                 submitButton.disabled = false;
@@ -302,6 +314,7 @@ if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
             }
         });
     </script>
+    <!-- <script src="assets/js/auto-save.js"></script> -->
     <script src="assets/js/modal.js"></script>
     <script src="assets/js/error-handler.js"></script>
 </body>

@@ -7,6 +7,8 @@
     </If>
 </FilesMatch>
 
-# CORS headers are handled in PHP for each endpoint to support credentials
-# DO NOT set Access-Control-Allow-Origin: * here as it conflicts with credentials
+# CORS headers (already in config.php, but adding here for safety)
+Header set Access-Control-Allow-Origin "*"
+Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
 

@@ -46,10 +46,11 @@ if (!empty($token)) {
                     $stmt = $db->prepare("UPDATE users SET email_verified = 1, verification_token = NULL, verification_token_expires_at = NULL, status = 'active' WHERE id = ?");
                     $stmt->execute([$user['id']]);
 
-                    // セッションを更新（ログインしている場合）
-                    if (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $user['id']) {
-                        $_SESSION['email_verified'] = true;
-                    }
+                    // メール認証完了後、自動ログインして編集画面へ遷移できるようにする
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['user_email'] = $user['email'];
+                    $_SESSION['user_type'] = $user['user_type'];
+                    $_SESSION['email_verified'] = true;
 
                     // Prepare redirect URL with invitation_token and user_type if available
                     $userTypeForRedirect = $user['user_type'];

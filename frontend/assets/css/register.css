@@ -858,6 +858,11 @@ input.form-control {
         height: 100%;
     }
 
+    /* SP: comm-details-wrapper stacks vertically */
+    .comm-details-wrapper {
+        flex-direction: column !important;
+    }
+
     /* Upload area mobile */
     .upload-area {
         padding: 1rem;

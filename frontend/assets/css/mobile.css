@@ -713,7 +713,6 @@
         margin-top: 1rem;
         width: 100%;
         padding-top: 0.875rem;
-        border-top: 1px solid #e0e0e0;
         animation: slideDown 0.3s ease;
     }
 
@@ -2060,7 +2059,6 @@
         margin-top: 1.25rem;
         width: 100%;
         padding-top: 1rem;
-        border-top: 1px solid #e0e0e0;
         animation: slideDown 0.3s ease;
     }
 

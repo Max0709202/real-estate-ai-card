@@ -223,6 +223,15 @@ if ($paymentId) {
         .error-message.active {
             display: block;
         }
+
+        @media (max-width: 420px) {
+            #card-element {
+                padding-inline: 6px !important;
+            }
+            .payment-card {
+                padding: 1rem;
+            }
+        }
     </style>
 </head>
 <body>

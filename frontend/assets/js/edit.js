@@ -2159,6 +2159,15 @@ window.goToEditSection = function(sectionId) {
         targetSection.classList.add('active');
         targetSection.style.display = 'block';
         
+        // Sync company name from step 1 (header-greeting) to step 2 (company-profile) when navigating to company-profile
+        if (sectionId === 'company-profile-section') {
+            const companyNameInput = document.querySelector('#header-greeting-form input[name="company_name"]');
+            const companyProfileInput = document.querySelector('input[name="company_name_profile"]');
+            if (companyNameInput && companyProfileInput && companyNameInput.value.trim()) {
+                companyProfileInput.value = companyNameInput.value.trim();
+            }
+        }
+        
         // Update active nav item
         const navItems = document.querySelectorAll('.edit-nav .nav-item');
         navItems.forEach(item => item.classList.remove('active'));
@@ -2225,6 +2234,15 @@ function initializeEditNavigation() {
                 if (targetSection) {
                     targetSection.classList.add('active');
                     targetSection.style.display = 'block';
+                    
+                    // Sync company name from step 1 to step 2 when navigating to company-profile
+                    if (targetSectionId === 'company-profile-section') {
+                        const companyNameInput = document.querySelector('#header-greeting-form input[name="company_name"]');
+                        const companyProfileInput = document.querySelector('input[name="company_name_profile"]');
+                        if (companyNameInput && companyProfileInput && companyNameInput.value.trim()) {
+                            companyProfileInput.value = companyNameInput.value.trim();
+                        }
+                    }
                     
                     // Update active nav item
                     navItems.forEach(item => item.classList.remove('active'));
@@ -2346,27 +2364,26 @@ function showEditImageCropper(file, fieldName, originalEvent) {
                 const newConfirmBtn = document.getElementById('crop-confirm-btn');
                 if (newCancelBtn) {
                     newCancelBtn.onclick = function() {
-                        // Cancel: do not proceed with cropping - clear new selection and close
                         try {
-                            if (originalEvent && originalEvent.target) {
+                            if (file && originalEvent && originalEvent.target) {
                                 const uploadArea = originalEvent.target.closest('.upload-area');
                                 if (uploadArea) {
-                                    const preview = uploadArea.querySelector('.upload-preview');
-                                    if (preview) {
-                                        // Restore existing image if any, otherwise clear
-                                        const existingPath = uploadArea.dataset.existingImage;
-                                        preview.innerHTML = existingPath
-                                            ? `<img src="${existingPath.startsWith('http') ? existingPath : (window.BASE_URL || '') + '/' + existingPath.replace(/^\/+/, '')}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none'">`
-                                            : '';
-                                    }
-                                    delete uploadArea.dataset.croppedBlob;
-                                    delete uploadArea.dataset.croppedFileName;
-                                    delete uploadArea.dataset.originalFile;
-                                    delete uploadArea.dataset.originalFileData;
-                                    delete uploadArea.dataset.originalFieldName;
-                                }
-                                if (originalEvent.target && originalEvent.target.value) {
-                                    originalEvent.target.value = '';
+                                    const reader = new FileReader();
+                                    reader.onload = (event) => {
+                                        try {
+                                            uploadArea.dataset.originalFile = JSON.stringify({ name: file.name, type: file.type, size: file.size });
+                                            uploadArea.dataset.originalFileData = event.target.result;
+                                            uploadArea.dataset.originalFieldName = fieldName;
+                                            const preview = uploadArea.querySelector('.upload-preview');
+                                            if (preview) {
+                                                preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">`;
+                                            }
+                                        } catch (e) {
+                                            console.error('[showEditImageCropper] Cancel handler - reader.onload error:', e);
+                                        }
+                                    };
+                                    reader.onerror = () => console.error('[showEditImageCropper] FileReader error');
+                                    reader.readAsDataURL(file);
                                 }
                             }
                         } catch (e) {
