@@ -222,14 +222,20 @@ try {
         $stmt->execute([$newStatus, $subscription['id']]);
 
         // Update business card status
-        $stmt = $db->prepare("
-            UPDATE business_cards
-            SET card_status = 'canceled',
-                is_published = FALSE,
-                updated_at = NOW()
-            WHERE id = ?
-        ");
-        $stmt->execute([$subscription['business_card_id']]);
+        // When cancel_immediately: revoke access immediately
+        // When cancel_at_period_end (Stripe): user keeps access until period end; Stripe webhook (customer.subscription.deleted) will revoke when period ends
+        // When no Stripe (e.g. bank transfer): revoke immediately as we cannot schedule cancel_at_period_end
+        $shouldRevokeNow = $cancelImmediately || empty($subscription['stripe_subscription_id']);
+        if ($shouldRevokeNow) {
+            $stmt = $db->prepare("
+                UPDATE business_cards
+                SET card_status = 'canceled',
+                    is_published = FALSE,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$subscription['business_card_id']]);
+        }
 
         // Log the cancellation
         // Only log to admin_change_logs if operation is performed by admin

@@ -308,12 +308,14 @@ $communicationMethods = array_merge($messageApps, $snsApps);
     }
     echo !empty($bodyClasses) ? ' class="' . implode(' ', $bodyClasses) . '"' : '';
 ?>>
-    <!-- View Toggle Button -->
+    <?php if ($preview): ?>
+    <!-- View Toggle Button (only shown when displayed in modal) -->
     <div class="view-toggle-container" id="view-toggle-container">
         <button type="button" class="view-toggle-btn" id="view-toggle-btn" aria-label="表示切り替え">
             <span id="view-toggle-text">PC版</span>
         </button>
     </div>
+    <?php endif; ?>
     
     <div class="card-container">
         <!-- 名刺部 -->

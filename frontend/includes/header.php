@@ -521,7 +521,6 @@ if ($isLoggedIn) {
           '・マイページからお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
           '・不動産DXツールをご利用いただいているお客様からの反響は配信されなくなります。\n\n' +
           '・期間終了時（' + headerEndDateDisplay + '）に不動産AI名刺がご利用いただけなくなります。\n\n' +
-          '・即座に停止する場合は「OK」ボタンを押した後、確認画面で選択してください。\n\n\n' +
           '利用を停止しますか？（次回のご請求はございません。）';
 
         // ✅ If showConfirm is missing, fallback to native confirm so it still works
@@ -536,15 +535,22 @@ if ($isLoggedIn) {
           return;
         }
 
-        // ✅ Normal modal flow
+        // ✅ Normal modal flow (利用停止関連のため確認ボタンは「利用停止する」)
+        // 1st modal: Cancel = abort. 2nd modal: キャンセル = abort, 期間終了後 = secondary, 即座 = confirm
         showConfirmFn(headerConfirmMessage, async () => {
           showConfirmFn(
-            '即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル',
+            '即座に利用停止しますか？\n\n「即座」：即座にキャンセル\n「期間終了後」：期間終了後にキャンセル\n「キャンセル」：利用停止をキャンセル',
             async () => { await processHeaderCancellation(cancelBtn, true); },
-            async () => { await processHeaderCancellation(cancelBtn, false); },
-            '即座にキャンセル'
+            null,
+            '即座に利用停止',
+            {
+              confirmButtonText: '即座',
+              secondaryButtonText: '期間終了後',
+              onSecondary: async () => { await processHeaderCancellation(cancelBtn, false); },
+              cancelButtonText: 'キャンセル'
+            }
           );
-        }, null, '利用を停止しますか？');
+        }, null, '利用を停止しますか？', { confirmButtonText: '利用停止する' });
         });
       });
     } else {

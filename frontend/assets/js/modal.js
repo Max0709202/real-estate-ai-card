@@ -29,6 +29,10 @@ const MODAL_TITLES = {
  * @param {Function} options.onClose - Callback when modal closes
  * @param {boolean} options.showCancel - Show cancel button (default: false)
  * @param {Function} options.onConfirm - Callback when confirm button is clicked
+ * @param {string} options.confirmButtonText - Custom confirm button text (e.g. '利用停止する' for cancellation modals)
+ * @param {string} options.secondaryButtonText - Optional secondary button text (e.g. '期間終了時にキャンセル')
+ * @param {Function} options.onSecondary - Callback when secondary button is clicked
+ * @param {string} options.cancelButtonText - Custom cancel button text (default: 'キャンセル')
  */
 function showModal(message, type = 'info', options = {}) {
     // Remove existing modal if any
@@ -44,8 +48,20 @@ function showModal(message, type = 'info', options = {}) {
         onClose = null,
         showCancel = false,
         onConfirm = null,
-        customMessage = null
+        customMessage = null,
+        confirmButtonText = null,
+        secondaryButtonText = null,
+        onSecondary = null,
+        cancelButtonText = 'キャンセル'
     } = options;
+
+    // When showCancel is true: use confirmButtonText if provided, else default to '確認'
+    // When showCancel is false: use 'OK'
+    const confirmBtnLabel = showCancel
+        ? (confirmButtonText || '確認')
+        : 'OK';
+
+    const hasSecondary = secondaryButtonText && onSecondary;
 
     // Format message
     let messageHTML = '';
@@ -76,8 +92,9 @@ function showModal(message, type = 'info', options = {}) {
                     <div class="modal-message">${messageHTML}</div>
                 </div>
                 <div class="modal-footer">
-                    ${showCancel ? `<button class="modal-btn modal-btn-secondary" id="modal-cancel">キャンセル</button>` : ''}
-                    <button class="modal-btn modal-btn-primary" id="modal-confirm">${showCancel ? '確認' : 'OK'}</button>
+                    ${showCancel ? `<button class="modal-btn modal-btn-secondary" id="modal-cancel">${escapeHtml(cancelButtonText)}</button>` : ''}
+                    <button class="modal-btn modal-btn-primary" id="modal-confirm">${escapeHtml(confirmBtnLabel)}</button>
+                    ${hasSecondary ? `<button class="modal-btn modal-btn-secondary" id="modal-secondary">${escapeHtml(secondaryButtonText)}</button>` : ''}
                 </div>
             </div>
         </div>
@@ -105,6 +122,7 @@ function showModal(message, type = 'info', options = {}) {
     // Button handlers
     const confirmBtn = document.getElementById('modal-confirm');
     const cancelBtn = document.getElementById('modal-cancel');
+    const secondaryBtn = document.getElementById('modal-secondary');
 
     confirmBtn.addEventListener('click', () => {
         if (onConfirm) {
@@ -116,6 +134,13 @@ function showModal(message, type = 'info', options = {}) {
     if (cancelBtn) {
         cancelBtn.addEventListener('click', () => {
             closeModal(false);
+        });
+    }
+
+    if (secondaryBtn && onSecondary) {
+        secondaryBtn.addEventListener('click', () => {
+            closeModal(true);
+            onSecondary();
         });
     }
 
@@ -212,8 +237,9 @@ function showInfo(message, options = {}) {
  * @param {Function} onConfirm - Callback when user confirms
  * @param {Function} onCancel - Optional callback when user cancels
  * @param {string} title - Optional custom title (default: '確認')
+ * @param {Object} options - Optional additional options (e.g. { confirmButtonText: '利用停止する' } for cancellation modals)
  */
-function showConfirm(message, onConfirm, onCancel = null, title = '確認') {
+function showConfirm(message, onConfirm, onCancel = null, title = '確認', options = {}) {
     return showModal(message, 'info', {
         title: title,
         showCancel: true,
@@ -222,7 +248,8 @@ function showConfirm(message, onConfirm, onCancel = null, title = '確認') {
             if (!confirmed && onCancel) {
                 onCancel();
             }
-        }
+        },
+        ...options
     });
 }
 

@@ -115,11 +115,11 @@
                 e.stopPropagation();
                 closeMobileMenu();
                 
-                if (!confirm('利用を停止しますか？\n\n期間終了時に停止されます。即座に停止する場合は「OK」を押した後、確認画面で選択してください。')) {
+                if (!confirm('利用を停止しますか？\n\n期間終了時に停止されます。')) {
                     return;
                 }
                 
-                const cancelImmediately = confirm('即座にキャンセルしますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了時にキャンセル');
+                const cancelImmediately = confirm('即座に利用停止しますか？\n\n「OK」: 即座にキャンセル\n「キャンセル」: 期間終了後にキャンセル');
                 
                 cancelBtn.disabled = true;
                 const originalText = cancelBtn.querySelector('span')?.textContent || '利用を停止する';
