@@ -406,7 +406,7 @@ if ($isLoggedIn) {
                         <a href="auth/forgot-password.php" class="dropdown-item">
                             <span>パスワードリセット</span>
                         </a>
-                        <a href="#" id="logout-link" class="dropdown-item">
+                        <a href="#" id="logout-link" class="dropdown-item logout-link">
                             <span>ログアウト</span>
                         </a>
                     </div>
@@ -429,7 +429,6 @@ if ($isLoggedIn) {
   function initHeaderScripts() {
     const userIcon = document.getElementById('user-icon');
     const userMenu = document.querySelector('.user-menu');
-    const logoutLink = document.getElementById('logout-link');
 
     // Toggle dropdown on click
     if (userIcon && userMenu) {
@@ -552,23 +551,24 @@ if ($isLoggedIn) {
       console.warn('cancelSubscriptionBtns not found in DOM (.cancel-subscription-btn)');
     }
 
-    // Logout
-    if (logoutLink) {
-      logoutLink.addEventListener('click', async (e) => {
-        e.preventDefault();
-        try {
-          await fetch('../backend/api/auth/logout.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include'
-          });
-          window.location.href = 'index.php';
-        } catch (error) {
-          console.error('Error:', error);
-          window.location.href = 'index.php';
-        }
-      });
-    }
+    // Logout - use event delegation so both desktop and mobile menu (cloned) links work
+    const logoutApiUrl = <?php echo json_encode(rtrim(BASE_URL, '/') . '/backend/api/auth/logout.php'); ?>;
+    const logoutRedirectUrl = <?php echo json_encode(rtrim(BASE_URL, '/') . '/frontend/index.php'); ?>;
+    document.addEventListener('click', async function(e) {
+      const link = e.target.closest('.logout-link, #logout-link');
+      if (!link) return;
+      e.preventDefault();
+      try {
+        await fetch(logoutApiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+      } catch (err) {
+        console.error('Logout fetch error:', err);
+      }
+      window.location.href = logoutRedirectUrl;
+    });
   }
 
   if (document.readyState === 'loading') {

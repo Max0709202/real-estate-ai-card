@@ -266,7 +266,7 @@ body {
 
 .admin-user-dropdown {
     position: absolute;
-    top: calc(100% + 10px);
+    top: 100%;
     right: 0;
     background: #fff;
     border-radius: 8px;
@@ -278,7 +278,18 @@ body {
     transition: all 0.3s ease;
     z-index: 1001;
     overflow: hidden;
-    margin-top: 5px;
+    margin-top: 0;
+    padding-top: 15px; /* Invisible bridge so hover doesn't break when moving from icon to dropdown */
+}
+
+.admin-user-dropdown::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 15px;
+    margin-top: -15px;
 }
 
 .admin-user-menu:hover .admin-user-dropdown {

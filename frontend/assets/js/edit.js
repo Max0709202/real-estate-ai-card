@@ -2728,5 +2728,34 @@ document.addEventListener('change', function(e) {
                 e.target.value = '';
             }
         }
+    } else if (e.target.matches('#free-input-pairs-container input[type="file"]') || e.target.name === 'free_image[]') {
+        // Free input image - show preview (no cropping) - works for all pairs including initial
+        const file = e.target.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+            const uploadArea = e.target.closest('.upload-area');
+            if (uploadArea) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const resizeNote = (img.width > 1200 || img.height > 1200)
+                            ? '<p style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">アップロード時に自動リサイズされます (最大1200×1200px)</p>'
+                            : '';
+                        const preview = uploadArea.querySelector('.upload-preview');
+                        if (preview) {
+                            preview.innerHTML = `<img src="${event.target.result}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: contain;">${resizeNote}`;
+                        }
+                    };
+                    img.src = event.target.result;
+                    uploadArea.dataset.freeImageFile = JSON.stringify({
+                        name: file.name,
+                        type: file.type,
+                        size: file.size
+                    });
+                    uploadArea.dataset.freeImageData = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
     }
 });

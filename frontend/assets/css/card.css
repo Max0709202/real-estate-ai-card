@@ -966,6 +966,7 @@ ease;
 /* Free Input Section - Enhanced UI/UX */
 .free-input-section {
     text-align: center !important;
+    grid-column: 1 / -1; /* Span full width across the grid */
 }
 
 .free-input-content {
@@ -974,7 +975,8 @@ ease;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 4rem;
-    padding-inline: 5rem !important;
+    padding-inline: 1rem !important;
+    max-width: 100%;
 }
 
 .free-input-pair {
