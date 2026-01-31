@@ -948,6 +948,191 @@ function queueEmailForLater($to, $subject, $htmlMessage, $textMessage, $emailTyp
 }
 
 /**
+ * 管理者にサブスクリプションキャンセル通知メールを送信
+ *
+ * @param string $userEmail User email address
+ * @param int $userId User ID
+ * @param int $subscriptionId Subscription ID
+ * @param int $businessCardId Business card ID
+ * @param string $urlSlug Business card URL slug
+ * @param bool $cancelImmediately Whether cancellation was immediate or at period end
+ * @param bool $isAdminInitiated Whether cancellation was initiated by admin
+ * @return bool Success status
+ */
+function sendAdminCancellationEmail($userEmail, $userId, $subscriptionId, $businessCardId, $urlSlug, $cancelImmediately, $isAdminInitiated = false) {
+    $adminEmail = 'nishio@rchukai.jp';
+
+    $cancellationType = $cancelImmediately ? '即座にキャンセル' : '期間終了時にキャンセル';
+    $initiatedBy = $isAdminInitiated ? '管理者' : 'ユーザー';
+    $cancellationDate = date('Y年m月d日 H:i:s');
+    $cardFullUrl = defined('QR_CODE_BASE_URL') ? QR_CODE_BASE_URL . $urlSlug : '';
+
+    $emailSubject = '【不動産AI名刺】サブスクリプションキャンセル通知（' . $cancellationType . '）';
+
+    $emailBody = "
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <style>
+            body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.6; color: #333; }
+            .container { border: 3px solid #a3a3a3; border-radius: 1%; max-width: 600px; margin: 0 auto;}
+            .header { color: #000000; padding: 30px 20px; text-align: center; }
+            .header .logo-container { background: #ffffff; padding: 15px; display: inline-block; margin: 0 auto; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; }
+            .info-table th { background: #e9ecef; padding: 12px; text-align: left; border: 1px solid #dee2e6; font-weight: bold; width: 30%; }
+            .info-table td { padding: 12px; border: 1px solid #dee2e6; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+            .highlight { background: #fff3cd; padding: 2px 6px; border-radius: 3px; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <div class='logo-container'>
+                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                </div>
+            </div>
+            <div class='content'>
+                <p>サブスクリプションがキャンセルされました。（{$initiatedBy}による操作）</p>
+                <table class='info-table'>
+                    <tr>
+                        <th>ユーザーID</th>
+                        <td>{$userId}</td>
+                    </tr>
+                    <tr>
+                        <th>メールアドレス</th>
+                        <td>{$userEmail}</td>
+                    </tr>
+                    <tr>
+                        <th>サブスクリプションID</th>
+                        <td>{$subscriptionId}</td>
+                    </tr>
+                    <tr>
+                        <th>ビジネスカードID</th>
+                        <td>{$businessCardId}</td>
+                    </tr>
+                    <tr>
+                        <th>URLスラッグ</th>
+                        <td><span class='highlight'>{$urlSlug}</span></td>
+                    </tr>
+                    <tr>
+                        <th>キャンセル種別</th>
+                        <td>{$cancellationType}</td>
+                    </tr>
+                    <tr>
+                        <th>操作者</th>
+                        <td>{$initiatedBy}</td>
+                    </tr>
+                    <tr>
+                        <th>キャンセル日時</th>
+                        <td>{$cancellationDate}</td>
+                    </tr>" .
+                    ($cardFullUrl ? "
+                    <tr>
+                        <th>名刺URL</th>
+                        <td><a href='{$cardFullUrl}' target='_blank'>{$cardFullUrl}</a></td>
+                    </tr>" : "") . "
+                </table>
+                <div class='footer'>
+                    <p>このメールは自動送信されています。返信はできません。</p>
+                    <p>© " . date('Y') . " 不動産AI名刺 All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+
+    $emailBodyText =
+        "サブスクリプションがキャンセルされました。（{$initiatedBy}による操作）\n\n" .
+        "ユーザーID: {$userId}\n" .
+        "メールアドレス: {$userEmail}\n" .
+        "サブスクリプションID: {$subscriptionId}\n" .
+        "ビジネスカードID: {$businessCardId}\n" .
+        "URLスラッグ: {$urlSlug}\n" .
+        "キャンセル種別: {$cancellationType}\n" .
+        "操作者: {$initiatedBy}\n" .
+        "キャンセル日時: {$cancellationDate}\n";
+
+    return sendEmail($adminEmail, $emailSubject, $emailBody, $emailBodyText, 'admin_cancellation_notification', null, $subscriptionId);
+}
+
+/**
+ * ユーザーにサブスクリプションキャンセル確認メールを送信
+ *
+ * @param string $userEmail User email address
+ * @param bool $cancelImmediately Whether cancellation was immediate or at period end
+ * @return bool Success status
+ */
+function sendUserCancellationConfirmationEmail($userEmail, $cancelImmediately) {
+    if (empty($userEmail)) {
+        error_log("sendUserCancellationConfirmationEmail: User email is empty");
+        return false;
+    }
+
+    $cancellationDate = date('Y年m月d日 H:i:s');
+
+    if ($cancelImmediately) {
+        $emailSubject = '【不動産AI名刺】サブスクリプションのキャンセルが完了しました';
+        $mainMessage = 'サブスクリプションを即座にキャンセルいたしました。';
+        $detailMessage = 'デジタル名刺の公開は停止されました。再度ご利用いただく場合は、新規登録が必要となります。';
+    } else {
+        $emailSubject = '【不動産AI名刺】サブスクリプションの期間終了時キャンセルを設定しました';
+        $mainMessage = 'サブスクリプションを期間終了時にキャンセルするよう設定いたしました。';
+        $detailMessage = '現在の課金期間の終了日まで、デジタル名刺は引き続きご利用いただけます。期間終了後、自動的に公開が停止されます。';
+    }
+
+    $emailBody = "
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <style>
+            body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.6; color: #333; }
+            .container { border: 3px solid #a3a3a3; border-radius: 1%; max-width: 600px; margin: 0 auto;}
+            .header { color: #000000; padding: 30px 20px; text-align: center; }
+            .header .logo-container { background: #ffffff; padding: 15px; display: inline-block; margin: 0 auto; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .info-box { background: #fff; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #667eea; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <div class='logo-container'>
+                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                </div>
+            </div>
+            <div class='content'>
+                <p>いつも不動産AI名刺をご利用いただき、ありがとうございます。</p>
+                <p>{$mainMessage}</p>
+                <div class='info-box'>
+                    <p><strong>{$detailMessage}</strong></p>
+                </div>
+                <p>キャンセル日時: {$cancellationDate}</p>
+                <div class='footer'>
+                    <p>ご不明な点がございましたら、お気軽にお問い合わせください。</p>
+                    <p>このメールは自動送信されています。</p>
+                    <p>© " . date('Y') . " 不動産AI名刺 All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+
+    $emailBodyText =
+        "いつも不動産AI名刺をご利用いただき、ありがとうございます。\n\n" .
+        "{$mainMessage}\n\n" .
+        "{$detailMessage}\n\n" .
+        "キャンセル日時: {$cancellationDate}\n\n" .
+        "ご不明な点がございましたら、お気軽にお問い合わせください。\n";
+
+    return sendEmail($userEmail, $emailSubject, $emailBody, $emailBodyText, 'user_cancellation_confirmation', null, null);
+}
+
+/**
  * 管理者に新規登録通知メールを送信
  */
 function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {

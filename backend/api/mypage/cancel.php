@@ -258,6 +258,27 @@ try {
 
         $db->commit();
 
+        // Send email notifications
+        $isAdminInitiated = !empty($_SESSION['admin_id']);
+        try {
+            sendAdminCancellationEmail(
+                $subscription['email'],
+                $userId,
+                $subscription['id'],
+                $subscription['business_card_id'],
+                $businessCard['url_slug'],
+                $cancelImmediately,
+                $isAdminInitiated
+            );
+        } catch (Exception $e) {
+            error_log("Failed to send admin cancellation email: " . $e->getMessage());
+        }
+        try {
+            sendUserCancellationConfirmationEmail($subscription['email'], $cancelImmediately);
+        } catch (Exception $e) {
+            error_log("Failed to send user cancellation confirmation email: " . $e->getMessage());
+        }
+
         $message = $cancelImmediately 
             ? 'サブスクリプションを即座にキャンセルしました'
             : 'サブスクリプションを期間終了時にキャンセルするよう設定しました';
