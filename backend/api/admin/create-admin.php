@@ -61,7 +61,7 @@ try {
     $adminId = $db->lastInsertId();
 
     // Send verification email
-    $verificationLink = BASE_URL . "/frontend/admin/verify.php?token=" . urlencode($verificationToken);
+    $verificationLink = BASE_URL . "/admin/verify.php?token=" . urlencode($verificationToken);
     
     $emailSubject = '【不動産AI名刺】管理者アカウント登録';
     $emailBody = "

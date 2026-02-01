@@ -134,7 +134,7 @@ try {
     // 🔹 URLは必ずドメイン + HTTPS（IP NG）
     // Include user_type in verification link to distinguish user type during verification
     $userTypeParam = !empty($input['user_type']) ? '&type=' . urlencode($input['user_type']) : '';
-    $verificationLink = "http://103.179.45.108/php/frontend/auth/verify.php?token=" . urlencode($verificationToken) . $userTypeParam;
+    $verificationLink = "http://103.179.45.108/php/auth/verify.php?token=" . urlencode($verificationToken) . $userTypeParam;
 
     // 件名
     $emailSubject = '【不動産AI名刺】メール認証のお願い';
@@ -159,7 +159,7 @@ try {
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                 </div>
             </div>
             <div class='content'>

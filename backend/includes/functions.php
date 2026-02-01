@@ -990,7 +990,7 @@ function sendAdminCancellationEmail($userEmail, $userId, $subscriptionId, $busin
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                 </div>
             </div>
             <div class='content'>
@@ -1101,7 +1101,7 @@ function sendUserCancellationConfirmationEmail($userEmail, $cancelImmediately) {
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                 </div>
             </div>
             <div class='content'>
@@ -1177,7 +1177,7 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                 </div>
             </div>
             <div class='content'>
@@ -1267,7 +1267,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                 </div>
                 <h1>QRコード発行完了</h1>
             </div>
@@ -1303,7 +1303,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
                         <li>SNSやメールで簡単に共有できます</li>
                     </ul>
                     <p>
-                        <a href='" . BASE_URL . "/frontend/edit.php' class='button'>マイページで編集する</a>
+                        <a href='" . BASE_URL . "/edit.php' class='button'>マイページで編集する</a>
                     </p>
                 </div>";
 
@@ -1342,7 +1342,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
         "- 名刺の内容を確認・編集できます\n" .
         "- QRコードを名刺に印刷して配布できます\n" .
         "- SNSやメールで簡単に共有できます\n\n" .
-        "マイページ: " . BASE_URL . "/frontend/edit.php\n\n" .
+        "マイページ: " . BASE_URL . "/edit.php\n\n" .
         ($paymentAmount ? "【お支払い情報】\nお支払い金額: ¥" . number_format($paymentAmount) . "\n発行日時: {$issuedDate}\n\n" : "") .
         "発行日時: {$issuedDate}\n";
 
@@ -1383,7 +1383,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                 </div>
                 <h1>QRコード発行通知</h1>
             </div>

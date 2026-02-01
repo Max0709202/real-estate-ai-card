@@ -61,18 +61,18 @@ try {
         $baseUrl = BASE_URL;
         switch ($invitation['role_type']) {
             case 'new':
-                $landingPage = "{$baseUrl}/frontend/register.php";
+                $landingPage = "{$baseUrl}/register.php";
                 break;
             case 'existing':
                 // Use token-based URL format for existing users with type parameter
-                $landingPage = "http://103.179.45.108/php/frontend/index.php?type=existing&token=" . urlencode($token);
+                $landingPage = "http://103.179.45.108/php/index.php?type=existing&token=" . urlencode($token);
                 break;
             case 'free':
                 // Use token-based URL format for free users with type parameter
-                $landingPage = "http://103.179.45.108/php/frontend/index.php?type=free&token=" . urlencode($token);
+                $landingPage = "http://103.179.45.108/php/index.php?type=free&token=" . urlencode($token);
                 break;
             default:
-                $landingPage = "{$baseUrl}/frontend/register.php";
+                $landingPage = "{$baseUrl}/register.php";
         }
 
         // Prepare email content

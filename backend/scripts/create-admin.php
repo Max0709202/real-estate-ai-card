@@ -73,7 +73,7 @@ try {
     echo "Email: {$email}\n";
     echo "Role: {$role}\n";
     echo "Email verified: Yes (auto-verified for CLI creation)\n";
-    echo "\nYou can now login at: " . BASE_URL . "/frontend/admin/login.php\n";
+    echo "\nYou can now login at: " . BASE_URL . "/admin/login.php\n";
 
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage() . "\n";

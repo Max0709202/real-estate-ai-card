@@ -19,7 +19,7 @@ function requireAdminAuth($requiredRole = null) {
         echo json_encode([
             'success' => false,
             'message' => '認証が必要です',
-            'redirect' => BASE_URL . '/frontend/admin/login.php'
+            'redirect' => BASE_URL . '/admin/login.php'
         ]);
         exit();
     }

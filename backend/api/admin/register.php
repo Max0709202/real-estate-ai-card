@@ -146,7 +146,7 @@ try {
     // Skip email sending for admin@rchukai.jp
     if (!$skipVerification) {
         // Create verification link (different URL from regular users)
-        $verificationLink = BASE_URL . "/frontend/admin/verify.php?token=" . urlencode($verificationToken);
+        $verificationLink = BASE_URL . "/admin/verify.php?token=" . urlencode($verificationToken);
 
         // Email subject (different from regular users)
         $emailSubject = '【管理者登録】メール認証のお願い - 不動産AI名刺管理システム';
@@ -176,7 +176,7 @@ try {
             <div class='container'>
                 <div class='header'>
                     <div class='logo-container'>
-                        <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                        <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                     </div>
                 </div>
                 <div class='content'>

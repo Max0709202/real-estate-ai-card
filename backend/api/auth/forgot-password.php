@@ -62,7 +62,7 @@ try {
     }
 
     // パスワードリセットリンク
-    $resetLink = BASE_URL . "/frontend/auth/reset-password.php?token=" . urlencode($resetToken);
+    $resetLink = BASE_URL . "/auth/reset-password.php?token=" . urlencode($resetToken);
     
     // メール本文の作成
     $emailSubject = '【不動産AI名刺】パスワードリセットのお願い';
@@ -85,7 +85,7 @@ try {
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                 </div>
             </div>
             <div class='content'>

@@ -71,7 +71,7 @@ try {
     }
 
     // メールアドレス確認リンク
-    $verificationLink = BASE_URL . "/frontend/auth/verify-email-reset.php?token=" . urlencode($resetToken);
+    $verificationLink = BASE_URL . "/auth/verify-email-reset.php?token=" . urlencode($resetToken);
     
     // メール本文の作成
     $emailSubject = '【不動産AI名刺】メールアドレス変更の確認';
@@ -94,7 +94,7 @@ try {
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/frontend/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                 </div>
             </div>
             <div class='content'>
