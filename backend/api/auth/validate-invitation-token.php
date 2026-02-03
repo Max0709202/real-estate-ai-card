@@ -25,7 +25,7 @@ try {
     
     // Check if token exists and get invitation details
     $stmt = $db->prepare("
-        SELECT id, email, role_type, email_sent, sent_at
+        SELECT id, email, role_type, email_sent, sent_at, invitation_token_expires_at
         FROM email_invitations
         WHERE invitation_token = ?
     ");
@@ -34,6 +34,14 @@ try {
     
     if (!$invitation) {
         sendErrorResponse('無効なトークンです', 404);
+    }
+    
+    // Check if token has expired (for existing users with expiration set)
+    if (!empty($invitation['invitation_token_expires_at'])) {
+        $expiresAt = strtotime($invitation['invitation_token_expires_at']);
+        if (time() > $expiresAt) {
+            sendErrorResponse('招待リンクの有効期限が切れています。管理者に再送信を依頼してください。', 410);
+        }
     }
     
     // Check if user already registered with this email

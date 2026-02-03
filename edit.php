@@ -3,42 +3,121 @@
  * Business Card Editor Page
  */
 require_once __DIR__ . '/backend/config/config.php';
+require_once __DIR__ . '/backend/config/database.php';
 require_once __DIR__ . '/backend/includes/functions.php';
 
 startSessionIfNotStarted();
 
-// 認証チェック
-if (empty($_SESSION['user_id'])) {
+// Check for token-based guest access (existing users with valid invitation token)
+$isGuestAccess = false;
+$guestInvitationData = null;
+$userType = $_GET['type'] ?? '';
+$invitationToken = $_GET['token'] ?? '';
+
+if (empty($_SESSION['user_id']) && $userType === 'existing' && !empty($invitationToken)) {
+    // Validate invitation token for guest access
+    try {
+        $database = new Database();
+        $db = $database->getConnection();
+        
+        $stmt = $db->prepare("
+            SELECT id, email, role_type, invitation_token_expires_at
+            FROM email_invitations
+            WHERE invitation_token = ? AND role_type = 'existing'
+        ");
+        $stmt->execute([$invitationToken]);
+        $invitation = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($invitation) {
+            // Check if token has expired
+            $tokenValid = true;
+            if (!empty($invitation['invitation_token_expires_at'])) {
+                $expiresAt = strtotime($invitation['invitation_token_expires_at']);
+                if (time() > $expiresAt) {
+                    $tokenValid = false;
+                }
+            }
+            
+            if ($tokenValid) {
+                $isGuestAccess = true;
+                $guestInvitationData = $invitation;
+                // Store in session for this visit
+                $_SESSION['guest_invitation_id'] = $invitation['id'];
+                $_SESSION['guest_invitation_email'] = $invitation['email'];
+                $_SESSION['guest_invitation_token'] = $invitationToken;
+                $_SESSION['guest_user_type'] = 'existing';
+            } else {
+                // Token expired - redirect to error page
+                header('Location: auth/existing-user-verify.php?token=' . urlencode($invitationToken) . '&error=expired');
+                exit();
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Guest access token validation error: " . $e->getMessage());
+    }
+}
+
+// 認証チェック (allow guest access for existing users with valid token)
+if (empty($_SESSION['user_id']) && !$isGuestAccess) {
     header('Location: login.php');
     exit();
 }
 
-$userId = $_SESSION['user_id'];
+$userId = $_SESSION['user_id'] ?? null;
 
-// Get subscription information
+// Get subscription information (only for logged-in users, not guests)
 $subscriptionInfo = null;
 $hasActiveSubscription = false;
+$endDate = null;
+$endDateObj = null;
+$isActive = false;
+$needsPayment = true;
+$usagePeriodDisplay = null;
+$paymentMethod = null;
+$endDateForRenewal = null;
+$canRenew = false;
+$paymentStatus = 'UNUSED';
+$isCanceledAccount = false;
+$hasCompletedPayment = false;
+
+// For guest users, set the user type from session/invitation
+if ($isGuestAccess) {
+    $userType = 'existing'; // Guest access is always for existing users
+} else {
+    $userType = 'new'; // Default, will be overwritten by DB query
+}
+
 try {
-    require_once __DIR__ . '/backend/config/database.php';
-    $database = new Database();
-    $db = $database->getConnection();
+    // Database connection is already established above for guest check, reuse if possible
+    if (!isset($db)) {
+        require_once __DIR__ . '/backend/config/database.php';
+        $database = new Database();
+        $db = $database->getConnection();
+    }
 
-    // Get subscription information - check for any subscription (not just active ones)
-    $stmt = $db->prepare("
-        SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
-               bc.id as business_card_id, bc.card_status, bc.payment_status
-        FROM subscriptions s
-        JOIN business_cards bc ON s.business_card_id = bc.id
-        WHERE s.user_id = ?
-        ORDER BY s.created_at DESC
-        LIMIT 1
-    ");
-    $stmt->execute([$userId]);
-    $subscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+    // Skip user-specific queries for guest access - guests have no existing data
+    if ($userId) {
+        // Get subscription information - check for any subscription (not just active ones)
+        $stmt = $db->prepare("
+            SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
+                   bc.id as business_card_id, bc.card_status, bc.payment_status
+            FROM subscriptions s
+            JOIN business_cards bc ON s.business_card_id = bc.id
+            WHERE s.user_id = ?
+            ORDER BY s.created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        $subscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+    } else {
+        // Guest user - skip to after the user-specific block
+        $subscriptionInfo = null;
+    }
 
+    // All following queries require a logged-in user
+    if ($userId) {
+    
     // Calculate end date (period end date)
-    $endDate = null;
-    $endDateObj = null; // DateTime object for calculations
     if ($subscriptionInfo) {
         if ($subscriptionInfo['next_billing_date']) {
             // End date is the day before next billing date (last day of current period)
@@ -349,6 +428,8 @@ try {
             }
         }
     }
+    
+    } // End of if ($userId) block
 
 } catch (Exception $e) {
     error_log("Error fetching subscription info: " . $e->getMessage());

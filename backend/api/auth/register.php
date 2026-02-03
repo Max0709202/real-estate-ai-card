@@ -99,11 +99,22 @@ try {
         // パスワードハッシュ
         $passwordHash = hashPassword($input['password']);
 
+        // Check for pending ERA membership from session (set during existing user verification)
+        $isEraMember = 0;
+        if (!empty($_SESSION['pending_era_membership']) && 
+            !empty($_SESSION['pending_invitation_email']) && 
+            $_SESSION['pending_invitation_email'] === $input['email']) {
+            $isEraMember = $_SESSION['pending_era_membership'] ? 1 : 0;
+            // Clear the session data after using it
+            unset($_SESSION['pending_era_membership']);
+            unset($_SESSION['pending_invitation_email']);
+        }
+
         // ユーザー登録
-        // Include invitation_token if provided
+        // Include invitation_token and ERA membership if provided
         $stmt = $db->prepare("
-        INSERT INTO users (email, password_hash, phone_number, user_type, verification_token, verification_token_expires_at, invitation_token, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+        INSERT INTO users (email, password_hash, phone_number, user_type, verification_token, verification_token_expires_at, invitation_token, is_era_member, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         ");
 
         $stmt->execute([
@@ -113,7 +124,8 @@ try {
             $input['user_type'],
             $verificationToken,
             $tokenExpiresAt,
-            !empty($invitationToken) ? $invitationToken : null
+            !empty($invitationToken) ? $invitationToken : null,
+            $isEraMember
         ]);
 
         $userId = $db->lastInsertId();

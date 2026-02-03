@@ -867,7 +867,7 @@ function sendEmail(
         $fromName  = getenv('SMTP_FROM_NAME')  ?: '不動産AI名刺';
 
         // Reply-To should usually be a real inbox (not no-reply)
-        $replyToEmail = getenv('SMTP_REPLY_TO') ?: 'info@ai-fcard.com';
+        $replyToEmail = getenv('SMTP_REPLY_TO') ?: 'no-reply@ai-fcard.com';
         $replyToName  = getenv('SMTP_REPLY_TO_NAME') ?: $fromName;
 
         $mail->Host = $smtpHost;

@@ -42,19 +42,22 @@ try {
             continue;
         }
 
-        // Generate token for existing users if not exists
+        // Generate token for existing users (always regenerate to reset expiration)
         $token = $invitation['invitation_token'];
-        if ($invitation['role_type'] === 'existing' && empty($token)) {
+        if ($invitation['role_type'] === 'existing') {
             // Generate unique token (64 characters)
             do {
                 $token = bin2hex(random_bytes(32)); // 64 character hex string
-                $checkStmt = $db->prepare("SELECT id FROM email_invitations WHERE invitation_token = ?");
-                $checkStmt->execute([$token]);
+                $checkStmt = $db->prepare("SELECT id FROM email_invitations WHERE invitation_token = ? AND id != ?");
+                $checkStmt->execute([$token, $id]);
             } while ($checkStmt->fetch());
 
-            // Store token in database
-            $updateStmt = $db->prepare("UPDATE email_invitations SET invitation_token = ? WHERE id = ?");
-            $updateStmt->execute([$token, $id]);
+            // Set token expiration to 15 minutes from now
+            $tokenExpiresAt = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+
+            // Store token and expiration in database
+            $updateStmt = $db->prepare("UPDATE email_invitations SET invitation_token = ?, invitation_token_expires_at = ? WHERE id = ?");
+            $updateStmt->execute([$token, $tokenExpiresAt, $id]);
         }
 
         // Determine landing page URL based on role type
@@ -64,8 +67,8 @@ try {
                 $landingPage = "{$baseUrl}/register.php";
                 break;
             case 'existing':
-                // Use token-based URL format for existing users with type parameter
-                $landingPage = BASE_URL . "/index.php?type=existing&token=" . urlencode($token);
+                // Use token-based URL format for existing users - dedicated verification page
+                $landingPage = BASE_URL . "/auth/existing-user-verify.php?token=" . urlencode($token);
                 break;
             default:
                 $landingPage = "{$baseUrl}/register.php";

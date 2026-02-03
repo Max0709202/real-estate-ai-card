@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
     email_reset_token VARCHAR(255),
     email_reset_token_expires_at TIMESTAMP NULL,
     email_reset_new_email VARCHAR(255),
+    is_era_member TINYINT(1) DEFAULT 0 COMMENT 'ERA会員かどうか',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_login_at TIMESTAMP NULL,

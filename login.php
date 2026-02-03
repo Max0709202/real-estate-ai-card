@@ -7,6 +7,11 @@ require_once __DIR__ . '/backend/includes/functions.php';
 
 startSessionIfNotStarted();
 
+// Get URL parameters for redirect after login
+$userType = $_GET['type'] ?? '';
+$invitationToken = $_GET['token'] ?? '';
+$redirectPage = $_GET['redirect'] ?? '';
+
 // 既にログイン済みの場合はダッシュボードへ
 // if (!empty($_SESSION['user_id'])) {
 //     header('Location: index.php');
@@ -192,7 +197,17 @@ startSessionIfNotStarted();
                     if (result.data.is_admin && result.data.redirect) {
                         window.location.href = result.data.redirect;
                     } else {
-                        window.location.href = 'edit.php';
+                        // Preserve type and token parameters if present
+                        const userType = <?php echo json_encode($userType); ?>;
+                        const invitationToken = <?php echo json_encode($invitationToken); ?>;
+                        let redirectUrl = 'edit.php';
+                        if (userType === 'existing') {
+                            redirectUrl += '?type=existing';
+                            if (invitationToken) {
+                                redirectUrl += '&token=' + encodeURIComponent(invitationToken);
+                            }
+                        }
+                        window.location.href = redirectUrl;
                     }
                 } else {
                     const errorMsg = result.message || 'ログインに失敗しました';
