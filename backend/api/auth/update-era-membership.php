@@ -78,6 +78,16 @@ try {
         $userId = $db->lastInsertId();
         $userCreated = true;
         
+        // Create business_cards record for the new user (with empty url_slug for admin to fill)
+        // Generate a temporary url_slug based on user ID
+        $tempSlug = 'user-' . $userId . '-' . bin2hex(random_bytes(4));
+        
+        $bcStmt = $db->prepare("
+            INSERT INTO business_cards (user_id, url_slug, payment_status, is_published, created_at)
+            VALUES (?, ?, 'UNUSED', 0, NOW())
+        ");
+        $bcStmt->execute([$userId, $tempSlug]);
+        
         // Get the newly created user
         $userStmt->execute([$invitation['email']]);
         $user = $userStmt->fetch(PDO::FETCH_ASSOC);

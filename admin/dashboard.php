@@ -87,6 +87,7 @@ $sql = "
         u.id as user_id,
         u.email,
         u.user_type,
+        u.is_era_member,
         bc.company_name,
         bc.name,
         bc.mobile_phone,
@@ -121,7 +122,7 @@ $sql = "
         ) s2 ON s1.business_card_id = s2.business_card_id AND s1.created_at = s2.max_created_at
     ) s ON s.business_card_id = bc.id
     $whereClause
-    GROUP BY bc.id, u.id, u.email, u.user_type, bc.company_name, bc.name, bc.mobile_phone, bc.url_slug,
+    GROUP BY bc.id, u.id, u.email, u.user_type, u.is_era_member, bc.company_name, bc.name, bc.mobile_phone, bc.url_slug,
              bc.is_published, bc.admin_notes, bc.payment_status, bc.created_at, u.last_login_at,
              s.next_billing_date, s.cancelled_at
     ORDER BY $sortField $sortOrder
@@ -278,6 +279,7 @@ $users = $stmt->fetchAll();
                         <th class="sortable" data-sort="payment_status">入金状況</th>
                         <th class="sortable" data-sort="is_open">OPEN</th>
                         <th class="sortable" data-sort="company_name">社名</th>
+                        <th class="sortable" data-sort="url_slug">企業URL</th>
                         <th class="sortable" data-sort="name">名前</th>
                         <th class="sortable" data-sort="mobile_phone">携帯</th>
                         <th class="sortable" data-sort="email">メール</th>
@@ -337,19 +339,20 @@ $users = $stmt->fetchAll();
                     <tr class="<?php echo ($index % 2 === 0) ? 'even-row' : 'odd-row'; ?>">
                         <td data-label="分類">
                             <?php
-                            $userTypeText = [
-                                'new' => '新規',
-                                'existing' => '既存',
-                            ];
-                            $userTypeClass = [
-                                'new' => 'user-type-new',
-                                'existing' => 'user-type-existing',
-                            ];
                             $type = $user['user_type'] ?? 'new';
+                            $isEra = $user['is_era_member'] ?? 0;
+                            // Determine effective classification
+                            $classification = $isEra ? 'era' : $type;
                             ?>
-                            <span class="user-type-badge-text <?php echo $userTypeClass[$type] ?? 'user-type-new'; ?>">
-                                <?php echo htmlspecialchars($userTypeText[$type] ?? '新規'); ?>
-                            </span>
+                            <select class="user-classification-select"
+                                    data-user-id="<?php echo $user['user_id']; ?>"
+                                    data-bc-id="<?php echo $user['id']; ?>"
+                                    style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 0.85rem; min-width: 70px;
+                                           <?php echo $classification === 'era' ? 'color: #dc3545; font-weight: bold;' : ''; ?>">
+                                <option value="new" <?php echo ($classification === 'new') ? 'selected' : ''; ?>>新規</option>
+                                <option value="existing" <?php echo ($classification === 'existing') ? 'selected' : ''; ?>>既存</option>
+                                <option value="era" <?php echo ($classification === 'era') ? 'selected' : ''; ?> style="color: #dc3545; font-weight: bold;">ＥＲＡ</option>
+                            </select>
                         </td>
                         <td data-label="入金状況">
                             <?php
@@ -406,6 +409,32 @@ $users = $stmt->fetchAll();
                             <?php endif; ?>
                         </td>
                         <td data-label="社名"><?php echo htmlspecialchars($user['company_name'] ?? ''); ?></td>
+                        <td data-label="企業URL">
+                            <?php
+                            $isEraUser = $user['is_era_member'] ?? 0;
+                            $currentSlug = $user['url_slug'] ?? '';
+                            $baseUrl = $isEraUser ? 'https://era.self-in.com/' : 'https://self-in.com/';
+                            ?>
+                            <div style="display: flex; align-items: center; gap: 2px; white-space: nowrap; font-size: 0.8rem;">
+                                <?php if ($isEraUser): ?>
+                                    <span>https://</span><span style="color: #dc3545; font-weight: bold;">era</span><span>.self-in.com/</span>
+                                <?php else: ?>
+                                    <span>https://self-in.com/</span>
+                                <?php endif; ?>
+                                <input type="text" class="url-slug-input"
+                                       data-user-id="<?php echo $user['user_id']; ?>"
+                                       data-bc-id="<?php echo $user['id']; ?>"
+                                       value="<?php echo htmlspecialchars($currentSlug); ?>"
+                                       placeholder="スラッグ"
+                                       style="width: 80px; padding: 3px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 0.8rem;">
+                                <span>/</span>
+                                <button type="button" class="btn-save-slug"
+                                        data-bc-id="<?php echo $user['id']; ?>"
+                                        style="padding: 2px 6px; font-size: 0.7rem; background: #28a745; color: #fff; border: none; border-radius: 3px; cursor: pointer; display: none;">
+                                    保存
+                                </button>
+                            </div>
+                        </td>
                         <td data-label="名前">
                             <?php if (!empty($user['url_slug'])): ?>
                                 <a href="<?php echo BASE_URL; ?>/card.php?slug=<?php echo htmlspecialchars($user['url_slug']); ?>" target="_blank" style="color: #0066cc; text-decoration: underline; cursor: pointer;">
@@ -614,6 +643,161 @@ $users = $stmt->fetchAll();
                     }
                 });
             }
+        })();
+
+        // User Classification Dropdown Handler
+        (function() {
+            const classificationSelects = document.querySelectorAll('.user-classification-select');
+            
+            classificationSelects.forEach(function(select) {
+                const originalValue = select.value;
+                
+                select.addEventListener('change', function() {
+                    const userId = this.dataset.userId;
+                    const bcId = this.dataset.bcId;
+                    const newValue = this.value;
+                    
+                    // Update select color based on selection
+                    if (newValue === 'era') {
+                        this.style.color = '#dc3545';
+                        this.style.fontWeight = 'bold';
+                    } else {
+                        this.style.color = '';
+                        this.style.fontWeight = '';
+                    }
+                    
+                    // Confirm change
+                    const classificationText = {
+                        'new': '新規',
+                        'existing': '既存',
+                        'era': 'ＥＲＡ'
+                    };
+                    
+                    if (!confirm('分類を「' + classificationText[newValue] + '」に変更しますか？')) {
+                        this.value = originalValue;
+                        if (originalValue === 'era') {
+                            this.style.color = '#dc3545';
+                            this.style.fontWeight = 'bold';
+                        } else {
+                            this.style.color = '';
+                            this.style.fontWeight = '';
+                        }
+                        return;
+                    }
+                    
+                    // Send update to server
+                    fetch('../backend/api/admin/update-user-classification.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            user_id: parseInt(userId),
+                            business_card_id: parseInt(bcId),
+                            classification: newValue
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            // Reload page to update URL display
+                            window.location.reload();
+                        } else {
+                            alert('エラー: ' + (result.message || '更新に失敗しました'));
+                            this.value = originalValue;
+                            if (originalValue === 'era') {
+                                this.style.color = '#dc3545';
+                                this.style.fontWeight = 'bold';
+                            } else {
+                                this.style.color = '';
+                                this.style.fontWeight = '';
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('エラーが発生しました');
+                        this.value = originalValue;
+                    });
+                });
+            });
+        })();
+
+        // URL Slug Input Handler
+        (function() {
+            const slugInputs = document.querySelectorAll('.url-slug-input');
+            
+            slugInputs.forEach(function(input) {
+                const bcId = input.dataset.bcId;
+                const saveBtn = document.querySelector('.btn-save-slug[data-bc-id="' + bcId + '"]');
+                const initialValue = input.value;
+                
+                // Show save button when value changes
+                input.addEventListener('input', function() {
+                    if (this.value !== initialValue && saveBtn) {
+                        saveBtn.style.display = 'inline-block';
+                    } else if (saveBtn) {
+                        saveBtn.style.display = 'none';
+                    }
+                });
+                
+                // Save on button click
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', function() {
+                        const newSlug = input.value.trim();
+                        const userId = input.dataset.userId;
+                        
+                        if (!newSlug) {
+                            alert('スラッグを入力してください');
+                            return;
+                        }
+                        
+                        // Validate slug format (alphanumeric and hyphens only)
+                        if (!/^[a-zA-Z0-9\-]+$/.test(newSlug)) {
+                            alert('スラッグは英数字とハイフンのみ使用できます');
+                            return;
+                        }
+                        
+                        fetch('../backend/api/admin/update-url-slug.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                user_id: parseInt(userId),
+                                business_card_id: parseInt(bcId),
+                                url_slug: newSlug
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(result => {
+                            if (result.success) {
+                                saveBtn.style.display = 'none';
+                                input.style.borderColor = '#28a745';
+                                setTimeout(function() {
+                                    input.style.borderColor = '#ddd';
+                                }, 2000);
+                            } else {
+                                alert('エラー: ' + (result.message || '更新に失敗しました'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('エラーが発生しました');
+                        });
+                    });
+                }
+                
+                // Save on Enter key
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter' && saveBtn) {
+                        e.preventDefault();
+                        saveBtn.click();
+                    }
+                });
+            });
         })();
     </script>
     <script src="../assets/js/modal.js"></script>
