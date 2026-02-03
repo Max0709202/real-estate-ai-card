@@ -1,5 +1,18 @@
 <?php
 /**
+ * Send an email using PHPMailer + SMTP (Xserver / business mail friendly).
+ *
+ * Requirements:
+ * - Define env vars (recommended):
+ *   SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD,
+ *   SMTP_FROM_EMAIL, SMTP_FROM_NAME, SMTP_REPLY_TO
+ *
+ * Expected helper functions (you already referenced them):
+ * - logEmail($to, $subject, $emailType, $status, $deliveryTimeMs, $smtpResponseSafe, $errorMessage, $userId, $relatedId)
+ * - queueEmailForLater(...)
+ *
+ **/
+/**
  * Common Utility Functions
  */
 
@@ -820,98 +833,177 @@ function logEmail($recipientEmail, $subject, $emailType, $status, $deliveryTimeM
 /**
  * Send email with logging and timing
  */
-function sendEmail($to, $subject, $htmlMessage, $textMessage = '', $emailType = 'general', $userId = null, $relatedId = null) {
+
+function sendEmail(
+    string $to,
+    string $subject,
+    string $htmlMessage,
+    string $textMessage = '',
+    string $emailType = 'general',
+    ?int $userId = null,
+    $relatedId = null
+): bool {
+    // Basic email validation (prevents obvious errors)
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        error_log("[Email Error] Invalid recipient email: {$to}");
+        return false;
+    }
+
     $mail = new PHPMailer(true);
     $startTime = microtime(true);
-    $logId = null;
-    $status = 'pending';
-    $errorMessage = null;
     $smtpResponse = null;
 
     try {
-        // SMTP 設定
+        // ---------- SMTP CONFIG ----------
         $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'maxlucky0709@gmail.com'; // あなたのGmail
-        $mail->Password = 'jtbqdrigrrysyfqy'; // Gmailアプリパスワード
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
 
-        // Enable verbose debug output (only for logging, not for user)
-        $mail->SMTPDebug = 0; // 0 = off, 2 = client and server messages
-        $mail->Debugoutput = function($str, $level) use (&$smtpResponse) {
+        // Environment variables (fallbacks for Xserver)
+        $smtpHost = getenv('SMTP_HOST') ?: 'sv16576.xserver.jp';
+        $smtpPort = (int)(getenv('SMTP_PORT') ?: 587);
+        $smtpUser = getenv('SMTP_USERNAME') ?: 'no-reply@ai-fcard.com';
+        $smtpPass = getenv('SMTP_PASSWORD') ?: 'Renewal4329';
+        $fromEmail = getenv('SMTP_FROM_EMAIL') ?: 'no-reply@ai-fcard.com';
+        $fromName  = getenv('SMTP_FROM_NAME')  ?: '不動産AI名刺';
+
+        // Reply-To should usually be a real inbox (not no-reply)
+        $replyToEmail = getenv('SMTP_REPLY_TO') ?: 'info@ai-fcard.com';
+        $replyToName  = getenv('SMTP_REPLY_TO_NAME') ?: $fromName;
+
+        $mail->Host = $smtpHost;
+        $mail->Username = $smtpUser;
+        $mail->Password = $smtpPass;
+        $mail->Port = $smtpPort;
+
+        // Encryption based on port
+        if ($smtpPort === 465) {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        } else {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // 587 recommended
+        }
+
+        // Prevent long hangs
+        $mail->Timeout = (int)(getenv('SMTP_TIMEOUT') ?: 20);
+        $mail->SMTPKeepAlive = false;
+
+        // TLS options
+        // Xserver's certificate chain can fail strict verification from some PHP/OpenSSL builds.
+        // Relax verification here so SMTP can connect reliably from the app server.
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer'       => false,
+                'verify_peer_name'  => false,
+                'allow_self_signed' => true,
+            ],
+        ];
+
+        // Debug (keep OFF in production)
+        $mail->SMTPDebug = (int)(getenv('SMTP_DEBUG') ?: 0);
+        $mail->Debugoutput = function ($str, $level) use (&$smtpResponse) {
             if ($smtpResponse === null) {
                 $smtpResponse = '';
             }
             $smtpResponse .= $str . "\n";
         };
 
-        // 送信者情報
-        $mail->setFrom('maxlucky0709@gmail.com', '不動産AI名刺');
-        $mail->addReplyTo('maxlucky0709@gmail.com');
+        // ---------- HEADERS ----------
+        $mail->setFrom($fromEmail, $fromName);
+        $mail->addReplyTo($replyToEmail, $replyToName);
 
-        // 宛先
+        // ---------- RECIPIENT ----------
         $mail->addAddress($to);
 
-        // メール内容
+        // ---------- CONTENT ----------
         $mail->isHTML(true);
-        $mail->CharSet = 'UTF-8';
+        $mail->CharSet  = 'UTF-8';
         $mail->Encoding = 'quoted-printable';
+
+        // Subject + body
         $mail->Subject = $subject;
         $mail->Body    = $htmlMessage;
-        $mail->AltBody = $textMessage ?: strip_tags($htmlMessage);
+        $mail->AltBody = $textMessage !== '' ? $textMessage : trim(strip_tags($htmlMessage));
 
-        // Send email
+        // Optional: set a message-id domain for better deliverability
+        // $mail->MessageID = sprintf('<%s@%s>', bin2hex(random_bytes(16)), 'ai-fcard.com');
+
+        // ---------- SEND ----------
         $result = $mail->send();
 
-        // Calculate delivery time
-        $endTime = microtime(true);
-        $deliveryTimeMs = round(($endTime - $startTime) * 1000, 2);
-
+        $deliveryTimeMs = round((microtime(true) - $startTime) * 1000, 2);
         $status = $result ? 'sent' : 'failed';
 
-        // Log success
-        $smtpResponseSafe = ($smtpResponse !== null) ? substr($smtpResponse, 0, 500) : null;
-        logEmail($to, $subject, $emailType, $status, $deliveryTimeMs,
-                 $smtpResponseSafe, null, $userId, $relatedId);
+        // Safely truncate debug output
+        $smtpResponseSafe = ($smtpResponse !== null) ? mb_substr($smtpResponse, 0, 500) : null;
+
+        // Log
+        if (function_exists('logEmail')) {
+            logEmail(
+                $to,
+                $subject,
+                $emailType,
+                $status,
+                $deliveryTimeMs,
+                $smtpResponseSafe,
+                null,
+                $userId,
+                $relatedId
+            );
+        }
 
         if ($result) {
-            error_log("[Email Success] Sent to {$to} in {$deliveryTimeMs}ms - Type: " . detectEmailType($to));
+            error_log("[Email Success] Sent to {$to} in {$deliveryTimeMs}ms - Type: {$emailType}");
+        } else {
+            error_log("[Email Error] Failed to send to {$to} (unknown reason) - Time: {$deliveryTimeMs}ms");
         }
 
         return $result;
 
     } catch (Exception $e) {
-        $endTime = microtime(true);
-        $deliveryTimeMs = round(($endTime - $startTime) * 1000, 2);
+        $deliveryTimeMs = round((microtime(true) - $startTime) * 1000, 2);
         $errorMessage = $mail->ErrorInfo ?: $e->getMessage();
-        $status = 'failed';
 
-        // Check for Gmail daily sending limit error
-        $isGmailLimitError = false;
-        if (strpos($errorMessage, 'Daily user sending limit exceeded') !== false ||
-            strpos($errorMessage, '550') !== false && strpos($errorMessage, '5.4.5') !== false ||
-            strpos($errorMessage, 'DATA command failed') !== false) {
-            $isGmailLimitError = true;
-            $errorMessage .= ' [GMAIL_DAILY_LIMIT_EXCEEDED]';
-            error_log("[Email Error] Gmail daily sending limit exceeded. Consider using email queue or alternative SMTP service.");
-        }
+        $smtpResponseSafe = ($smtpResponse !== null) ? mb_substr($smtpResponse, 0, 500) : null;
 
         // Log failure
-        $smtpResponseSafe = ($smtpResponse !== null) ? substr($smtpResponse, 0, 500) : null;
-        logEmail($to, $subject, $emailType, $status, $deliveryTimeMs,
-                 $smtpResponseSafe, $errorMessage, $userId, $relatedId);
+        if (function_exists('logEmail')) {
+            logEmail(
+                $to,
+                $subject,
+                $emailType,
+                'failed',
+                $deliveryTimeMs,
+                $smtpResponseSafe,
+                $errorMessage,
+                $userId,
+                $relatedId
+            );
+        }
 
-        // If it's a Gmail limit error, try to queue the email for later
-        if ($isGmailLimitError) {
+        // Optional: queue for later (generic retry)
+        // Only queue for temporary errors, not permanent address errors
+        $temporaryError = false;
+        $msg = strtolower($errorMessage);
+
+        // Typical temporary SMTP/network errors
+        if (strpos($msg, 'timed out') !== false ||
+            strpos($msg, 'connection failed') !== false ||
+            strpos($msg, 'could not connect') !== false ||
+            strpos($msg, 'try again later') !== false ||
+            strpos($msg, '4.') !== false // many SMTP temp errors include 4.x.x
+        ) {
+            $temporaryError = true;
+        }
+
+        if ($temporaryError && function_exists('queueEmailForLater')) {
             queueEmailForLater($to, $subject, $htmlMessage, $textMessage, $emailType, $userId, $relatedId);
+            error_log("[Email Queue] Temporary failure. Queued email to {$to}");
         }
 
         error_log("[Email Error] Failed to send to {$to}: {$errorMessage} - Time: {$deliveryTimeMs}ms");
         return false;
     }
 }
+
 
 /**
  * Queue email for later sending (when Gmail limit is exceeded)
