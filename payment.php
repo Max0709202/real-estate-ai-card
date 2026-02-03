@@ -11,6 +11,8 @@ startSessionIfNotStarted();
 
 $paymentId = $_GET['payment_id'] ?? '';
 $clientSecret = $_GET['client_secret'] ?? '';
+$userType = $_GET['type'] ?? ($_SESSION['user_type'] ?? 'new');
+$urlTypeParam = ($userType === 'existing') ? '&type=existing' : '';
 
 // If no payment_id, redirect back to register
 if (empty($paymentId)) {

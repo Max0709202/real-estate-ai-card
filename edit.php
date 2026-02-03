@@ -80,12 +80,19 @@ $paymentStatus = 'UNUSED';
 $isCanceledAccount = false;
 $hasCompletedPayment = false;
 
-// For guest users, set the user type from session/invitation
+// Determine user type: from session (logged-in user), URL parameter, or guest access
 if ($isGuestAccess) {
     $userType = 'existing'; // Guest access is always for existing users
+} elseif (!empty($_SESSION['user_type'])) {
+    $userType = $_SESSION['user_type']; // Use session value for logged-in users
+} elseif (!empty($_GET['type']) && $_GET['type'] === 'existing') {
+    $userType = 'existing'; // Use URL parameter
 } else {
-    $userType = 'new'; // Default, will be overwritten by DB query
+    $userType = 'new'; // Default, may be overwritten by DB query
 }
+
+// Store userType in a variable for URL generation in the page
+$urlTypeParam = ($userType === 'existing') ? '?type=existing' : '';
 
 try {
     // Database connection is already established above for guest check, reuse if possible
@@ -561,6 +568,12 @@ $defaultGreetings = [
                         <div class="form-group">
                             <label>会社名 <span class="required">*</span></label>
                             <input type="text" name="company_name" class="form-control" required>
+                            <?php if ($userType === 'existing'): ?>
+                            <div class="lixil-era-badge" style="margin-top: 10px; padding: 10px 14px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border: 1px solid #81c784; border-radius: 6px; display: inline-flex; align-items: center; gap: 8px; user-select: none; pointer-events: none;">
+                                <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #4caf50; border-radius: 50%; color: white; font-size: 12px; font-weight: bold;">✓</span>
+                                <span style="font-size: 14px; font-weight: 600; color: #2e7d32;">LIXIL 不動産球果加盟店</span>
+                            </div>
+                            <?php endif; ?>
                         </div>
 
                         <div class="form-section">
@@ -672,6 +685,12 @@ $defaultGreetings = [
                         <div class="form-group">
                             <label>会社名 <span class="required">*</span></label>
                             <input type="text" name="company_name_profile" class="form-control" required>
+                            <?php if ($userType === 'existing'): ?>
+                            <div class="lixil-era-badge" style="margin-top: 10px; padding: 10px 14px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border: 1px solid #81c784; border-radius: 6px; display: inline-flex; align-items: center; gap: 8px; user-select: none; pointer-events: none;">
+                                <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #4caf50; border-radius: 50%; color: white; font-size: 12px; font-weight: bold;">✓</span>
+                                <span style="font-size: 14px; font-weight: 600; color: #2e7d32;">LIXIL 不動産球果加盟店</span>
+                            </div>
+                            <?php endif; ?>
                         </div>
 
                         <div class="form-group">
@@ -2841,12 +2860,18 @@ $defaultGreetings = [
                         const result = await response.json();
 
                         if (result.success) {
+                            // Get user type for URL parameter preservation
+                            const currentUserType = '<?php echo $userType; ?>';
+                            
                             if (paymentMethod === 'credit_card') {
                                 // Redirect to payment page with payment_id and client_secret
                                 const params = new URLSearchParams({
                                     payment_id: result.data.payment_id,
                                     client_secret: result.data.client_secret || ''
                                 });
+                                if (currentUserType === 'existing') {
+                                    params.set('type', 'existing');
+                                }
                                 const paymentUrl = 'payment.php?' + params.toString();
                                 window.location.href = paymentUrl;
                             } else {
@@ -2855,6 +2880,9 @@ $defaultGreetings = [
                                     payment_id: result.data.payment_id,
                                     pi: result.data.stripe_payment_intent_id || ''
                                 });
+                                if (currentUserType === 'existing') {
+                                    params.set('type', 'existing');
+                                }
                                 const bankTransferUrl = 'bank-transfer-info.php?' + params.toString();
                                 window.location.href = bankTransferUrl;
                             }

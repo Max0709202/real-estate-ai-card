@@ -15,6 +15,8 @@ startSessionIfNotStarted();
 
 $paymentId = $_GET['payment_id'] ?? '';
 $paymentIntentId = $_GET['pi'] ?? '';
+$userType = $_GET['type'] ?? ($_SESSION['user_type'] ?? 'new');
+$urlTypeParam = ($userType === 'existing') ? '&type=existing' : '';
 
 $paymentInfo = null;
 $bankTransferInfo = null;
@@ -416,7 +418,7 @@ if ($paymentId && $paymentIntentId) {
                     </div>
                     
                     <div class="action-buttons">
-                        <a href="edit.php" class="btn btn-primary">マイページへ</a>
+                        <a href="edit.php<?php echo ($userType === 'existing') ? '?type=existing' : ''; ?>" class="btn btn-primary">マイページへ</a>
                     </div>
                 </div>
             </div>
@@ -440,7 +442,7 @@ if ($paymentId && $paymentIntentId) {
                     </div>
                     <div class="action-buttons">
                         <a href="<?php echo $_SERVER['REQUEST_URI']; ?>" class="btn btn-primary">更新する</a>
-                        <a href="edit.php" class="btn btn-primary">マイページへ戻る</a>
+                        <a href="edit.php<?php echo ($userType === 'existing') ? '?type=existing' : ''; ?>" class="btn btn-primary">マイページへ戻る</a>
                     </div>
                 </div>
             </div>

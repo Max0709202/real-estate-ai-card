@@ -363,7 +363,7 @@ if ($isLoggedIn) {
                             <span>マイ名刺</span>
                         </a>
                         <?php endif; ?>
-                        <a href="edit.php" class="dropdown-item">
+                        <a href="edit.php<?php echo (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'existing') ? '?type=existing' : ''; ?>" class="dropdown-item">
                             <span>マイページ</span>
                         </a>
                         <?php if ($headerHasActiveSubscription): ?>

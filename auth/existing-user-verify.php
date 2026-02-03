@@ -303,6 +303,42 @@ if (!empty($token)) {
         </div>
     </div>
 
+    <!-- Password Notification Modal -->
+    <div class="modal-overlay" id="password-modal">
+        <div class="modal-content">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="width: 70px; height: 70px; background: #d4edda; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 36px; color: #28a745;">✓</div>
+                <h2 class="modal-title" style="margin-bottom: 8px;">アカウント作成完了</h2>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 16px; color: #333; font-size: 15px; text-align: center;">
+                    アカウントが正常に作成されました。<br>
+                    以下の情報でログインできます。
+                </p>
+                
+                <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">メールアドレス</label>
+                        <div id="display-email" style="font-size: 15px; font-weight: 600; color: #333; word-break: break-all;"></div>
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">初期パスワード</label>
+                        <div style="font-size: 18px; font-weight: 700; color: #0066cc; font-family: monospace; letter-spacing: 1px;">Renewal4329</div>
+                    </div>
+                </div>
+                
+                <p style="color: #dc3545; font-size: 13px; text-align: center; margin-bottom: 0;">
+                    ⚠️ セキュリティのため、ログイン後にパスワードを変更してください。
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-modal-continue" id="password-modal-btn" style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);">
+                    マイページへ進む
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const token = <?php echo json_encode($token); ?>;
         const userType = 'existing';
@@ -340,7 +376,12 @@ if (!empty($token)) {
             updateOptionStyles();
         });
         
-        // Modal continue button - save ERA membership and navigate to edit.php
+        // Password modal elements
+        const passwordModal = document.getElementById('password-modal');
+        const passwordModalBtn = document.getElementById('password-modal-btn');
+        const displayEmail = document.getElementById('display-email');
+        
+        // Modal continue button - save ERA membership, create account, and auto-login
         modalContinueBtn.addEventListener('click', async function() {
             const isEraMember = eraYes.checked;
             
@@ -348,7 +389,7 @@ if (!empty($token)) {
             modalContinueBtn.textContent = '処理中...';
             
             try {
-                // Save ERA membership status
+                // Save ERA membership status, create account, and auto-login
                 const response = await fetch('../backend/api/auth/update-era-membership.php', {
                     method: 'POST',
                     headers: {
@@ -363,8 +404,17 @@ if (!empty($token)) {
                 const result = await response.json();
                 
                 if (result.success) {
-                    // Go directly to edit.php with token-based guest access
-                    window.location.href = '../edit.php?type=' + userType + '&token=' + encodeURIComponent(token);
+                    // Close ERA modal
+                    modal.classList.remove('active');
+                    
+                    // Show password notification modal if account was created
+                    if (result.data.user_created) {
+                        displayEmail.textContent = result.data.email;
+                        passwordModal.classList.add('active');
+                    } else {
+                        // User already existed, just redirect to edit.php
+                        window.location.href = '../edit.php?type=' + userType;
+                    }
                 } else {
                     alert(result.message || 'エラーが発生しました。');
                     modalContinueBtn.disabled = false;
@@ -378,7 +428,12 @@ if (!empty($token)) {
             }
         });
         
-        // Close modal when clicking outside
+        // Password modal button - redirect to edit.php (user is already logged in)
+        passwordModalBtn.addEventListener('click', function() {
+            window.location.href = '../edit.php?type=' + userType;
+        });
+        
+        // Close ERA modal when clicking outside (but not password modal - user must acknowledge)
         modal.addEventListener('click', function(e) {
             if (e.target === modal) {
                 modal.classList.remove('active');

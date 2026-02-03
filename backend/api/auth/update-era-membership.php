@@ -53,25 +53,58 @@ try {
     $userStmt->execute([$invitation['email']]);
     $user = $userStmt->fetch(PDO::FETCH_ASSOC);
 
+    $userCreated = false;
+    
     if ($user) {
         // Update existing user's ERA membership status
         $updateStmt = $db->prepare("UPDATE users SET is_era_member = ? WHERE id = ?");
         $updateStmt->execute([$isEraMember ? 1 : 0, $user['id']]);
+    } else {
+        // Create new account for existing user with default password
+        $defaultPassword = 'Renewal4329';
+        $passwordHash = hashPassword($defaultPassword);
+        
+        $insertStmt = $db->prepare("
+            INSERT INTO users (email, password_hash, phone_number, user_type, status, email_verified, is_era_member, invitation_token, created_at)
+            VALUES (?, ?, '', 'existing', 'active', 1, ?, ?, NOW())
+        ");
+        $insertStmt->execute([
+            $invitation['email'],
+            $passwordHash,
+            $isEraMember ? 1 : 0,
+            $token
+        ]);
+        
+        $userId = $db->lastInsertId();
+        $userCreated = true;
+        
+        // Get the newly created user
+        $userStmt->execute([$invitation['email']]);
+        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
     }
     
-    // Always store ERA membership in the invitation record for guest access
+    // Always store ERA membership in the invitation record
     $updateInvStmt = $db->prepare("UPDATE email_invitations SET is_era_member = ? WHERE id = ?");
     $updateInvStmt->execute([$isEraMember ? 1 : 0, $invitation['id']]);
     
-    // Also store in session for the current visit
-    $_SESSION['guest_era_membership'] = $isEraMember;
-    $_SESSION['guest_invitation_email'] = $invitation['email'];
+    // Auto-login: Set session variables for the user
+    $_SESSION['user_id'] = $user['id'];
+    $_SESSION['user_email'] = $invitation['email'];
+    $_SESSION['user_type'] = 'existing';
+    
+    // Update last login time
+    $updateLoginStmt = $db->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?");
+    $updateLoginStmt->execute([$user['id']]);
 
     sendSuccessResponse([
         'is_era_member' => $isEraMember,
         'email' => $invitation['email'],
-        'user_exists' => $user !== false
-    ], 'ERA会員情報を更新しました');
+        'user_id' => $user['id'],
+        'user_exists' => true,
+        'user_created' => $userCreated,
+        'default_password' => $userCreated ? 'Renewal4329' : null,
+        'auto_logged_in' => true
+    ], $userCreated ? 'アカウントが作成されました。' : 'ログインしました。');
 
 } catch (Exception $e) {
     error_log("Update ERA Membership Error: " . $e->getMessage());

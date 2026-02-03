@@ -11,6 +11,7 @@ startSessionIfNotStarted();
 $userType = $_GET['type'] ?? '';
 $invitationToken = $_GET['token'] ?? '';
 $redirectPage = $_GET['redirect'] ?? '';
+$prefillEmail = $_GET['email'] ?? '';
 
 // 既にログイン済みの場合はダッシュボードへ
 // if (!empty($_SESSION['user_id'])) {
@@ -113,7 +114,7 @@ $redirectPage = $_GET['redirect'] ?? '';
             <form id="login-form">
                 <div class="form-group">
                     <label>メールアドレス</label>
-                    <input type="email" name="email" class="form-control" required>
+                    <input type="email" name="email" class="form-control" required value="<?php echo htmlspecialchars($prefillEmail); ?>">
                 </div>
                 <div class="form-group">
                     <label>パスワード</label>
@@ -197,11 +198,14 @@ $redirectPage = $_GET['redirect'] ?? '';
                     if (result.data.is_admin && result.data.redirect) {
                         window.location.href = result.data.redirect;
                     } else {
-                        // Preserve type and token parameters if present
-                        const userType = <?php echo json_encode($userType); ?>;
+                        // Check user_type from login response - always include type=existing for existing users
+                        const actualUserType = result.data.user_type;
+                        const urlUserType = <?php echo json_encode($userType); ?>;
                         const invitationToken = <?php echo json_encode($invitationToken); ?>;
                         let redirectUrl = 'edit.php';
-                        if (userType === 'existing') {
+                        
+                        // Include type=existing if user is an existing user (from DB or URL)
+                        if (actualUserType === 'existing' || urlUserType === 'existing') {
                             redirectUrl += '?type=existing';
                             if (invitationToken) {
                                 redirectUrl += '&token=' + encodeURIComponent(invitationToken);
