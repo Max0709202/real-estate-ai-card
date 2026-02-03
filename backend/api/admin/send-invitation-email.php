@@ -65,11 +65,11 @@ try {
                 break;
             case 'existing':
                 // Use token-based URL format for existing users with type parameter
-                $landingPage = "http://103.179.45.108/php/index.php?type=existing&token=" . urlencode($token);
+                $landingPage = BASE_URL . "/index.php?type=existing&token=" . urlencode($token);
                 break;
             case 'free':
                 // Use token-based URL format for free users with type parameter
-                $landingPage = "http://103.179.45.108/php/index.php?type=free&token=" . urlencode($token);
+                $landingPage = BASE_URL . "/index.php?type=free&token=" . urlencode($token);
                 break;
             default:
                 $landingPage = "{$baseUrl}/register.php";
