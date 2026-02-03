@@ -47,9 +47,9 @@ if ($isTokenBased && !$isLoggedIn) {
                 $tokenUserType = $result['data']['role_type'] ?? null;
 
                 // Set registration URL based on token type (use token's role_type, fallback to URL type)
-                if (in_array($tokenUserType, ['existing', 'free'])) {
+                if ($tokenUserType === 'existing') {
                     $registerPageUrl = 'new_register.php?type=' . $tokenUserType . '&token=' . urlencode($invitationToken);
-                } elseif (in_array($urlUserType, ['existing', 'free'])) {
+                } elseif ($urlUserType === 'existing') {
                     // If token validation didn't return type but URL has it, use URL type
                     $registerPageUrl = 'new_register.php?type=' . $urlUserType . '&token=' . urlencode($invitationToken);
                 }
@@ -58,7 +58,7 @@ if ($isTokenBased && !$isLoggedIn) {
     } catch (Exception $e) {
         error_log("Header token validation error: " . $e->getMessage());
     }
-} elseif ($urlUserType && in_array($urlUserType, ['existing', 'free']) && !$isLoggedIn) {
+} elseif ($urlUserType === 'existing' && !$isLoggedIn) {
     // If type is in URL but no token, still set the URL (though token should be present)
     $registerPageUrl = 'new_register.php?type=' . $urlUserType;
     if ($invitationToken) {

@@ -306,18 +306,6 @@ document.querySelectorAll('.payment-checkbox').forEach(checkbox => {
         // Check if checkbox is disabled
         if (this.disabled) {
             this.checked = !this.checked; // Revert change
-            
-            // Check if it's a free user
-            const row = this.closest('tr');
-            const userTypeCell = row.querySelector('td[data-label="ユーザータイプ"]');
-            if (userTypeCell) {
-                const userTypeBadge = userTypeCell.querySelector('.user-type-free');
-                if (userTypeBadge) {
-                    showError('無料ユーザーは入金確認できません');
-                    return;
-                }
-            }
-            
             showError('この操作を実行できません');
             return;
         }

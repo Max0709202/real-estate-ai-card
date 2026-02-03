@@ -32,8 +32,8 @@ if ($isTokenBased) {
             if ($result && $result['success']) {
                 $tokenValid = true;
                 $tokenData = $result['data'];
-                // Use token's role_type if available, otherwise use URL parameter
-                if (in_array($tokenData['role_type'], ['existing', 'free'])) {
+                // Use token's role_type if available and it is 'existing'
+                if (($tokenData['role_type'] ?? null) === 'existing') {
                     $userType = $tokenData['role_type'];
                 }
             }

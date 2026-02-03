@@ -56,8 +56,8 @@ if (!empty($token)) {
                     $userTypeForRedirect = $user['user_type'];
                     $invitationToken = $user['invitation_token'];
                     
-                    // Only redirect with token for existing/free users who have an invitation_token
-                    if (in_array($userTypeForRedirect, ['existing', 'free']) && !empty($invitationToken)) {
+                    // Only redirect with token for existing users who have an invitation_token
+                    if ($userTypeForRedirect === 'existing' && !empty($invitationToken)) {
                         $redirectUrl = "../register.php?type=" . urlencode($userTypeForRedirect) . "&token=" . urlencode($invitationToken);
                     } else {
                         // For new users or users without invitation_token, redirect normally

@@ -81,7 +81,7 @@ try {
         $paymentTypeInput = $userType;
     }
 
-    // データベーススキーマに合わせて変換（'new' -> 'new_user', 'existing' -> 'existing_user', 'free' -> 'free_user'）
+    // データベーススキーマに合わせて変換（'new' -> 'new_user', 'existing' -> 'existing_user'）
     // 停止されたアカウントの場合は必ず'new_user'として扱う
     if ($isCanceledAccount) {
         $paymentType = 'new_user';
@@ -91,8 +91,6 @@ try {
             $paymentType = 'new_user';
         } elseif ($paymentTypeInput === 'existing') {
             $paymentType = 'existing_user';
-        } elseif ($paymentTypeInput === 'free') {
-            $paymentType = 'free_user';
         }
     }
 
@@ -115,17 +113,11 @@ try {
         $amount = PRICING_EXISTING_USER_INITIAL; // ¥20,000
         $taxAmount = $amount * TAX_RATE;
         $totalAmount = $amount + $taxAmount;
-    } elseif ($paymentType === 'free_user') {
-        // Free users have no initial payment, but may have monthly fee
-        $amount = 0;
-        $taxAmount = 0;
-        $totalAmount = 0;
-        $monthlyAmount = 0;
     }
 
     // Validate that amount is greater than 0
     if ($totalAmount <= 0) {
-        sendErrorResponse('決済金額が0円です。無料ユーザーの場合は決済は不要です。', 400);
+        sendErrorResponse('決済金額が0円です。', 400);
     }
 
     // Stripe APIキー設定

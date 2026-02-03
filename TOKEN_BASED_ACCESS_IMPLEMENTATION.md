@@ -258,7 +258,7 @@ URL: {BASE_URL}/frontend/register.php?type=free&token={64-char-token}
 CREATE TABLE email_invitations (
     id INT PRIMARY KEY,
     email VARCHAR(255) UNIQUE,
-    role_type ENUM('new', 'existing', 'free'),
+    role_type ENUM('new', 'existing'),
     invitation_token VARCHAR(64) UNIQUE,  -- NEW
     email_sent TINYINT(1),
     ...
@@ -272,7 +272,7 @@ CREATE TABLE users (
     id INT PRIMARY KEY,
     email VARCHAR(255) UNIQUE,
     invitation_token VARCHAR(64) UNIQUE,  -- NEW
-    user_type ENUM('new', 'existing', 'free'),
+    user_type ENUM('new', 'existing'),
     ...
     INDEX idx_invitation_token (invitation_token)  -- NEW
 );
@@ -282,7 +282,6 @@ CREATE TABLE users (
 
 ### Token Generation
 - [ ] Token generated for existing users
-- [ ] Token generated for free users
 - [ ] Token NOT generated for new users
 - [ ] Token is unique (no collisions)
 - [ ] Token stored in database

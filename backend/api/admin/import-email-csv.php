@@ -35,17 +35,34 @@ try {
     $db = $database->getConnection();
     $adminId = $_SESSION['admin_id'];
     
-    // Read CSV file
-    $handle = fopen($file['tmp_name'], 'r');
-    if ($handle === false) {
+    // Read entire file and normalize encoding
+    $raw = file_get_contents($file['tmp_name']);
+    if ($raw === false) {
         sendErrorResponse('CSVファイルの読み込みに失敗しました', 500);
     }
+    // Strip UTF-8 BOM
+    if (substr($raw, 0, 3) === "\xEF\xBB\xBF") {
+        $raw = substr($raw, 3);
+    }
+    // Convert to UTF-8 if not (e.g. Shift-JIS from Excel)
+    $enc = mb_detect_encoding($raw, ['UTF-8', 'SJIS', 'CP932', 'ISO-8859-1'], true);
+    if ($enc && $enc !== 'UTF-8') {
+        $raw = mb_convert_encoding($raw, 'UTF-8', $enc);
+    }
+    $lines = preg_split('/\r\n|\r|\n/', $raw, -1, PREG_SPLIT_NO_EMPTY);
     
-    // Skip BOM if present
-    $firstLine = fgets($handle);
-    rewind($handle);
-    if (substr($firstLine, 0, 3) === "\xEF\xBB\xBF") {
-        fseek($handle, 3);
+    // Auto-detect delimiter from first line (comma, semicolon, tab)
+    $delimiter = ',';
+    if (!empty($lines)) {
+        $first = $lines[0];
+        $commaCount = substr_count($first, ',');
+        $semiCount = substr_count($first, ';');
+        $tabCount = substr_count($first, "\t");
+        if ($tabCount >= 1 && $tabCount >= $commaCount && $tabCount >= $semiCount) {
+            $delimiter = "\t";
+        } elseif ($semiCount >= 1 && $semiCount >= $commaCount && $semiCount >= $tabCount) {
+            $delimiter = ';';
+        }
     }
     
     $imported = 0;
@@ -58,20 +75,21 @@ try {
     $db->beginTransaction();
     
     try {
-        while (($data = fgetcsv($handle, 1000, ',')) !== false) {
+        foreach ($lines as $line) {
             $lineNumber++;
+            $data = str_getcsv($line, $delimiter);
             
-            // Skip header row (assume first row is header)
+            // Skip header row (first row)
             if ($lineNumber === 1) {
                 continue;
             }
             
             // Skip empty rows
-            if (empty(array_filter($data))) {
+            if (empty(array_filter(array_map('trim', $data)))) {
                 continue;
             }
             
-            // Expected format: username, email
+            // Expected format: username, email (columns 0 and 1)
             $username = trim($data[0] ?? '');
             $email = trim($data[1] ?? '');
             
@@ -84,7 +102,7 @@ try {
             
             // Validate email
             if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $errors[] = "行 {$lineNumber}: 無効なメールアドレス - " . htmlspecialchars($email);
+                $errors[] = "行 {$lineNumber}: 無効なメールアドレス - " . htmlspecialchars($email ?: '(空)');
                 $skipped++;
                 continue;
             }
@@ -116,7 +134,6 @@ try {
         }
         
         $db->commit();
-        fclose($handle);
         
         // Log admin change
         logAdminChange($db, $adminId, $_SESSION['admin_email'] ?? '', 'other', 'email_invitations', null, "CSVインポート: {$imported}件登録, {$updated}件更新, {$skipped}件スキップ");
@@ -130,7 +147,6 @@ try {
         
     } catch (Exception $e) {
         $db->rollBack();
-        fclose($handle);
         error_log("CSV Import Error: " . $e->getMessage());
         sendErrorResponse('インポート中にエラーが発生しました: ' . $e->getMessage(), 500);
     }

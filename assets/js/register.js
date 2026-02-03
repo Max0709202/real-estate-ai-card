@@ -17,7 +17,7 @@ let businessCardData = null; // Store loaded business card data
 
 // Helper function to build URLs with token and type parameters (security: preserve token)
 function buildUrlWithToken(baseUrl) {
-    if (typeof window !== 'undefined' && window.invitationToken && (window.userType === 'existing' || window.userType === 'free')) {
+    if (typeof window !== 'undefined' && window.invitationToken && window.userType === 'existing') {
         return baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=' + encodeURIComponent(window.userType) + '&token=' + encodeURIComponent(window.invitationToken);
     }
     return baseUrl;

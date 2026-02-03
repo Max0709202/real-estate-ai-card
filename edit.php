@@ -1015,12 +1015,10 @@ $defaultGreetings = [
                                 <input type="radio" name="payment_method" value="credit_card" checked>
                                 <span>クレジットカード決済</span>
                             </label>
-                            <?php if ($userType !== 'free'): ?>
                             <label class="payment-option">
                                 <input type="radio" name="payment_method" value="bank_transfer">
                                 <span>お振込み</span>
                             </label>
-                            <?php endif; ?>
                         </div>
 
                         <div class="payment-amount">
@@ -1032,8 +1030,6 @@ $defaultGreetings = [
                             <?php endif; ?>
                             <?php elseif ($userType === 'existing'): ?>
                             <p>初期費用: ¥20,000（税別）</p>
-                            <?php else: ?>
-                            <p>無料</p>
                             <?php endif; ?>
                         </div>
                     </div>

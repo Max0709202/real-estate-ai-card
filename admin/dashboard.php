@@ -340,12 +340,10 @@ $users = $stmt->fetchAll();
                             $userTypeText = [
                                 'new' => '新規',
                                 'existing' => '既存',
-                                'free' => '無料'
                             ];
                             $userTypeClass = [
                                 'new' => 'user-type-new',
                                 'existing' => 'user-type-existing',
-                                'free' => 'user-type-free'
                             ];
                             $type = $user['user_type'] ?? 'new';
                             ?>
@@ -372,9 +370,8 @@ $users = $stmt->fetchAll();
                             ];
                             $label = $paymentStatusLabels[$paymentStatus] ?? '未利用';
                             $class = $paymentStatusClasses[$paymentStatus] ?? 'payment-badge-unused';
-                            $isFreeUser = ($user['user_type'] ?? 'new') === 'free';
                             // Allow toggling between BANK_PENDING and BANK_PAID
-                            $canToggle = $isAdmin && !$isFreeUser && in_array($paymentStatus, ['BANK_PENDING', 'BANK_PAID']);
+                            $canToggle = $isAdmin && in_array($paymentStatus, ['BANK_PENDING', 'BANK_PAID']);
                             $toggleTitle = $paymentStatus === 'BANK_PENDING' 
                                 ? 'クリックして「振込済」に変更' 
                                 : 'クリックして「振込予定」に戻す';

@@ -8,7 +8,7 @@ require_once __DIR__ . '/backend/includes/functions.php';
 startSessionIfNotStarted();
 
 // Get initial userType and token from URL
-$userType = $_GET['type'] ?? 'new'; // new, existing, free
+$userType = $_GET['type'] ?? 'new'; // new, existing
 $invitationToken = $_GET['token'] ?? '';
 $isTokenBased = !empty($invitationToken);
 $tokenValid = false;
@@ -32,12 +32,9 @@ if ($isTokenBased) {
                 $tokenData = $result['data'];
                 $tokenRoleType = $tokenData['role_type'] ?? null;
 
-                // Use token's role_type for existing/free users (validates and sets correct type)
-                if (in_array($tokenRoleType, ['existing', 'free'])) {
+                // Use token's role_type for existing users (validates and sets correct type)
+                if ($tokenRoleType === 'existing') {
                     $userType = $tokenRoleType;
-                } elseif (in_array($userType, ['existing', 'free'])) {
-                    // If URL has type=existing/free but token doesn't match, still use URL type
-                    // This allows the registration to proceed with the URL type
                 }
             }
         }
@@ -46,9 +43,9 @@ if ($isTokenBased) {
     }
 }
 
-// Ensure that if type is existing/free, token is also present (security check)
-// If type is existing/free but no token, log warning but allow registration to proceed
-if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
+// Ensure that if type is existing, token is also present (security check)
+// If type is existing but no token, log warning but allow registration to proceed
+if ($userType === 'existing' && empty($invitationToken)) {
     error_log("Warning: Registration with type={$userType} but no token provided");
 }
 ?>
@@ -70,7 +67,7 @@ if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
 <body>
     <div class="register-container">
         <!-- <div class="register-header">
-            <a href="index.php<?php echo ($isTokenBased && !empty($invitationToken)) ? '?token=' . urlencode($invitationToken) . (in_array($userType, ['existing', 'free']) ? '&type=' . $userType : '') : ''; ?>" class="logo-link">
+            <a href="index.php<?php echo ($isTokenBased && !empty($invitationToken)) ? '?token=' . urlencode($invitationToken) . ($userType === 'existing' ? '&type=' . $userType : '') : ''; ?>" class="logo-link">
                 <img src="assets/images/logo.png" alt="不動産AI名刺">
             </a>
         </div> -->
@@ -155,7 +152,7 @@ if (in_array($userType, ['existing', 'free']) && empty($invitationToken)) {
 
                     <div class="form-group" style="text-align: center; margin-top: 1rem;">
                         <p style="color: #666; font-size: 0.9rem;">
-                            既にアカウントをお持ちの方は<a href="login.php<?php echo ($isTokenBased && !empty($invitationToken)) ? '?token=' . urlencode($invitationToken) . (in_array($userType, ['existing', 'free']) ? '&type=' . $userType : '') : ''; ?>" style="color: #0066cc; text-decoration: underline;">こちらからログイン</a>してください
+                            既にアカウントをお持ちの方は<a href="login.php<?php echo ($isTokenBased && !empty($invitationToken)) ? '?token=' . urlencode($invitationToken) . ($userType === 'existing' ? '&type=' . $userType : '') : ''; ?>" style="color: #0066cc; text-decoration: underline;">こちらからログイン</a>してください
                         </p>
                     </div>
                     <div class="login-link" style="margin-top: 1rem; display: flex; justify-content: center;">

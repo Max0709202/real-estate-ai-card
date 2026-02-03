@@ -25,7 +25,7 @@ try {
         sendErrorResponse('IDとロールタイプは必須です', 400);
     }
     
-    if (!in_array($roleType, ['new', 'existing', 'free'])) {
+    if (!in_array($roleType, ['new', 'existing'])) {
         sendErrorResponse('無効なロールタイプです', 400);
     }
     

@@ -624,6 +624,10 @@ if (empty($_SESSION['admin_id'])) {
                 const result = await response.json();
 
                 if (result.success) {
+                    const errors = result.data.errors || [];
+                    const errorsHtml = errors.length > 0
+                        ? `<p style="margin: 8px 0 0 0; color: #744210; font-size: 12px;"><strong>スキップ理由:</strong><br>${errors.slice(0, 10).join('<br>')}${errors.length > 10 ? '<br>...他 ' + (errors.length - 10) + ' 件' : ''}</p>`
+                        : '';
                     resultDiv.innerHTML = `
                         <div style="background: #c6f6d5; padding: 15px; border-radius: 4px; border-left: 4px solid #38a169;">
                             <p style="margin: 0; color: #22543d;"><strong>✅ 成功:</strong> ${result.message}</p>
@@ -632,6 +636,7 @@ if (empty($_SESSION['admin_id'])) {
                                 更新: ${result.data.updated}件 |
                                 スキップ: ${result.data.skipped}件
                             </p>
+                            ${errorsHtml}
                         </div>
                     `;
 
@@ -714,7 +719,6 @@ if (empty($_SESSION['admin_id'])) {
                             <select class="role-select" onchange="updateRole(${inv.id}, this.value)" ${inv.email_sent == 1 ? 'disabled' : ''}>
                                 <option value="new" ${inv.role_type === 'new' ? 'selected' : ''}>新規</option>
                                 <option value="existing" ${inv.role_type === 'existing' ? 'selected' : ''}>既存</option>
-                                <option value="free" ${inv.role_type === 'free' ? 'selected' : ''}>無料</option>
                             </select>
                         </td>
                         <td>${sentBadge}</td>

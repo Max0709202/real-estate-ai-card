@@ -52,7 +52,6 @@ try {
             CASE 
                 WHEN u.user_type = 'new' THEN '新規'
                 WHEN u.user_type = 'existing' THEN '既存'
-                WHEN u.user_type = 'free' THEN '無料'
                 ELSE '新規'
             END as user_type,
             CASE 

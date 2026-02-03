@@ -1147,7 +1147,6 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
     $userTypeLabels = [
         'new' => '新規ユーザー',
         'existing' => '既存ユーザー',
-        'free' => '無料ユーザー'
     ];
     $userTypeLabel = $userTypeLabels[$userType] ?? $userType;
 

@@ -40,9 +40,9 @@ try {
             sendErrorResponse('無効な招待トークンです', 400);
         }
 
-        // For token-based registration, always use the token's role_type (existing or free)
+        // For token-based registration, always use the token's role_type when it is 'existing'
         // This ensures the database user_type matches the invitation type
-        if (in_array($tokenData['role_type'], ['existing', 'free'])) {
+        if (($tokenData['role_type'] ?? null) === 'existing') {
             $input['user_type'] = $tokenData['role_type'];
         }
 
@@ -67,7 +67,7 @@ try {
         $errors['phone_number'] = '携帯電話番号の入力内容にエラーがあります。';
     }
 
-    if (empty($input['user_type']) || !in_array($input['user_type'], ['new', 'existing', 'free'])) {
+    if (empty($input['user_type']) || !in_array($input['user_type'], ['new', 'existing'])) {
         $errors['user_type'] = 'ユーザータイプを選択してください。';
     }
 

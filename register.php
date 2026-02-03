@@ -136,7 +136,7 @@ if ($isTokenBased) {
     try {
         // Use enhanced validation that checks if token belongs to logged-in user
         $validationUrl = BASE_URL . '/backend/api/auth/validate-user-invitation-token.php?token=' . urlencode($invitationToken);
-        if (!empty($userType) && in_array($userType, ['existing', 'free'])) {
+        if (!empty($userType) && $userType === 'existing') {
             $validationUrl .= '&type=' . urlencode($userType);
         }
 
@@ -154,9 +154,9 @@ if ($isTokenBased) {
             if ($result && $result['success']) {
                 $tokenValid = true;
                 $tokenData = $result['data'];
-                // Override userType from token/response if it's existing or free
+                // Override userType from token/response if it's existing
                 $responseUserType = $tokenData['user_type'] ?? $tokenData['role_type'] ?? null;
-                if (in_array($responseUserType, ['existing', 'free'])) {
+                if ($responseUserType === 'existing') {
                     $userType = $responseUserType;
                 }
             }
@@ -173,7 +173,7 @@ if ($isTokenBased) {
 
 // Helper function to build URLs with token and type parameters
 function buildUrlWithToken($baseUrl, $userType, $invitationToken) {
-    if (!empty($invitationToken) && in_array($userType, ['existing', 'free'])) {
+    if (!empty($invitationToken) && $userType === 'existing') {
         return $baseUrl . '?type=' . urlencode($userType) . '&token=' . urlencode($invitationToken);
     }
     return $baseUrl;
@@ -370,8 +370,8 @@ $prefectures = [
                             </div>
                     <div class="form-group">
                         <label>登録番号</label>
-                        <?php if ($isTokenBased && in_array($userType, ['existing', 'free'])): ?>
-                            <!-- Existing/Free users must enter registration number manually -->
+                        <?php if ($isTokenBased && $userType === 'existing'): ?>
+                            <!-- Existing users must enter registration number manually -->
                             <input type="text" name="real_estate_license_registration_number" id="license_registration" class="form-control" placeholder="登録番号を入力してください（例：12345）" required>
                             <small style="color: #718096; font-size: 12px; display: block; margin-top: 5px;">
                                 登録番号を手動で入力してください
@@ -460,8 +460,8 @@ $prefectures = [
 
                     <div class="form-group">
                         <label>電話番号 <span class="required">*</span></label>
-                        <?php if ($isTokenBased && in_array($userType, ['existing', 'free'])): ?>
-                            <!-- Existing/Free users must enter phone number manually -->
+                        <?php if ($isTokenBased && $userType === 'existing'): ?>
+                            <!-- Existing users must enter phone number manually -->
                             <input type="tel" name="mobile_phone" id="mobile_phone" class="form-control" required placeholder="例：090-1234-5678" autocomplete="tel">
                             <small style="color: #718096; font-size: 12px; display: block; margin-top: 5px;">
                                 電話番号を手動で入力してください
@@ -919,12 +919,10 @@ $prefectures = [
                             <input type="radio" name="payment_method" value="credit_card" checked>
                             <span>クレジットカード決済</span>
                         </label>
-                        <?php if ($userType !== 'free'): ?>
                         <label class="payment-option">
                             <input type="radio" name="payment_method" value="bank_transfer">
                             <span>お振込み</span>
                         </label>
-                        <?php endif; ?>
                     </div>
 
                     <div class="payment-amount">
@@ -936,8 +934,6 @@ $prefectures = [
                         <?php endif; ?>
                         <?php elseif ($userType === 'existing'): ?>
                         <p>初期費用: ¥20,000（税別）</p>
-                        <?php else: ?>
-                        <p>無料</p>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1021,7 +1017,7 @@ $prefectures = [
 
         // Helper function to build URLs with token and type parameters
         function buildUrlWithToken(baseUrl) {
-            if (window.invitationToken && (window.userType === 'existing' || window.userType === 'free')) {
+            if (window.invitationToken && window.userType === 'existing') {
                 return baseUrl + '?type=' + encodeURIComponent(window.userType) + '&token=' + encodeURIComponent(window.invitationToken);
             }
             return baseUrl;
@@ -1037,8 +1033,8 @@ $prefectures = [
                 }, 3000);
             }
 
-            // For existing/free users, ensure phone number field is empty and required
-            if (window.isTokenBased && (window.userType === 'existing' || window.userType === 'free')) {
+            // For existing users, ensure phone number field is empty and required
+            if (window.isTokenBased && window.userType === 'existing') {
                 const phoneInput = document.getElementById('mobile_phone');
                 if (phoneInput && phoneInput.value === '090-1234-5678') {
                     phoneInput.value = '';

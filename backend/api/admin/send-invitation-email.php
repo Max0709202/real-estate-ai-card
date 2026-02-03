@@ -42,9 +42,9 @@ try {
             continue;
         }
 
-        // Generate token for existing/free users if not exists
+        // Generate token for existing users if not exists
         $token = $invitation['invitation_token'];
-        if (in_array($invitation['role_type'], ['existing', 'free']) && empty($token)) {
+        if ($invitation['role_type'] === 'existing' && empty($token)) {
             // Generate unique token (64 characters)
             do {
                 $token = bin2hex(random_bytes(32)); // 64 character hex string
@@ -67,10 +67,6 @@ try {
                 // Use token-based URL format for existing users with type parameter
                 $landingPage = BASE_URL . "/index.php?type=existing&token=" . urlencode($token);
                 break;
-            case 'free':
-                // Use token-based URL format for free users with type parameter
-                $landingPage = BASE_URL . "/index.php?type=free&token=" . urlencode($token);
-                break;
             default:
                 $landingPage = "{$baseUrl}/register.php";
         }
@@ -80,7 +76,6 @@ try {
         $roleTypeJa = [
             'new' => '新規ユーザー',
             'existing' => '既存ユーザー',
-            'free' => '無料ユーザー'
         ];
         $roleLabel = $roleTypeJa[$invitation['role_type']] ?? '新規ユーザー';
 
