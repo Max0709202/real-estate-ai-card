@@ -97,10 +97,31 @@ try {
     $updateInvStmt = $db->prepare("UPDATE email_invitations SET is_era_member = ? WHERE id = ?");
     $updateInvStmt->execute([$isEraMember ? 1 : 0, $invitation['id']]);
     
+    // --- IPアドレスの記録（既存ユーザー／ERA会員向け招待リンクアクセス時） ---
+    // 招待リンクをクリックして編集画面に進む端末のIPアドレスを記録し、
+    // 後でトップページアクセス時の自動判別に利用する
+    $clientIp  = $_SERVER['REMOTE_ADDR']     ?? '';
+    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+    if (!empty($clientIp)) {
+        $existingUserId = (int)($user['id'] ?? 0);
+        if ($existingUserId > 0) {
+            // existing_user_ips テーブルに記録（同一ユーザー＋IPは1レコードに統一）
+            $ipStmt = $db->prepare("
+                INSERT INTO existing_user_ips (user_id, ip_address, user_agent)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    user_agent = VALUES(user_agent),
+                    created_at = created_at
+            ");
+            $ipStmt->execute([$existingUserId, $clientIp, $userAgent]);
+        }
+    }
+    
     // Auto-login: Set session variables for the user
-    $_SESSION['user_id'] = $user['id'];
+    $_SESSION['user_id']   = $user['id'];
     $_SESSION['user_email'] = $invitation['email'];
-    $_SESSION['user_type'] = 'existing';
+    $_SESSION['user_type']  = 'existing';
     
     // Update last login time
     $updateLoginStmt = $db->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?");
