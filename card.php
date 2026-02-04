@@ -71,7 +71,7 @@ $db = $database->getConnection();
 
 // ビジネスカード情報取得
 $stmt = $db->prepare("
-    SELECT bc.*, u.status as user_status, bc.payment_status
+    SELECT bc.*, u.status as user_status, bc.payment_status, u.is_era_member
     FROM business_cards bc
     JOIN users u ON bc.user_id = u.id
     WHERE bc.url_slug = ? AND u.status = 'active'
@@ -192,9 +192,40 @@ $toolNames = [
     'alp' => '統合LP'
 ];
 
-// ツール名を追加
+// ERA会員かどうかでベースURLを変更
+$isEraMember = $card['is_era_member'] ?? 0;
+$selfInBase = $isEraMember ? 'https://era.self-in.com/' : 'https://self-in.com/';
+$selfInNetBase = $isEraMember ? 'https://era.self-in.net/' : 'https://self-in.net/';
+$urlSlug = $card['url_slug'];
+
+// ツール名とURLを動的に生成
 foreach ($techTools as &$tool) {
     $tool['tool_name'] = $toolNames[$tool['tool_type']] ?? 'テックツール';
+    
+    // ERA会員に応じて正しいURLを動的に生成
+    switch ($tool['tool_type']) {
+        case 'mdb':
+            $tool['tool_url'] = $selfInBase . $urlSlug . '/mdb/';
+            break;
+        case 'ai':
+            $tool['tool_url'] = $selfInBase . $urlSlug . '/ai/';
+            break;
+        case 'rlp':
+            $tool['tool_url'] = $selfInNetBase . 'rlp/index.php?id=' . $urlSlug . '/';
+            break;
+        case 'llp':
+            $tool['tool_url'] = $selfInNetBase . 'llp/index.php?id=' . $urlSlug . '/';
+            break;
+        case 'slp':
+            $tool['tool_url'] = $selfInNetBase . 'slp/index.php?id=' . $urlSlug . '/';
+            break;
+        case 'olp':
+            $tool['tool_url'] = $selfInNetBase . 'olp/index.php?id=' . $urlSlug . '/';
+            break;
+        case 'alp':
+            $tool['tool_url'] = $selfInNetBase . 'alp/index.php?id=' . $urlSlug . '/';
+            break;
+    }
 }
 unset($tool);
 
