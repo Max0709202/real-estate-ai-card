@@ -116,7 +116,7 @@ if ($isLoggedIn) {
     <div class="container">
         <div class="header-content">
             <div class="logo">
-                <a href="index.php">
+                <a href="index.php<?php echo (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'existing') ? '?type=existing' : ''; ?>">
                     <img src="assets/images/logo.png" alt="不動産AI名刺">
                 </a>
             </div>

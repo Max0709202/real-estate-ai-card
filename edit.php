@@ -1511,7 +1511,21 @@ $defaultGreetings = [
                 Object.keys(savedData).length > 5 // More than just id, user_id, etc.
             );
 
-            if (!hasData || !savedData || !savedData.url_slug) {
+            // For existing users, allow preview even without data (they can see empty preview)
+            const currentUserType = '<?php echo $userType; ?>';
+            const isExistingUser = (currentUserType === 'existing');
+
+            if (!savedData || !savedData.url_slug) {
+                if (typeof showWarning === 'function') {
+                    showWarning('プレビューを表示できません。データの読み込みに失敗しました。');
+                } else {
+                    alert('プレビューを表示できません。データの読み込みに失敗しました。');
+                }
+                return;
+            }
+
+            // For non-existing users, require data to be entered first
+            if (!isExistingUser && !hasData) {
                 if (typeof showWarning === 'function') {
                     showWarning('表示するデータがありません。まず情報を入力してください。');
                 } else {
