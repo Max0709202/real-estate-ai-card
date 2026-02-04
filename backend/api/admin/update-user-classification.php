@@ -22,11 +22,15 @@ try {
 
     $input = json_decode(file_get_contents('php://input'), true);
     
-    $userId = $input['user_id'] ?? null;
-    $bcId = $input['business_card_id'] ?? null;
+    // Log the raw input for debugging
+    error_log("Classification Update Request: " . json_encode($input));
+    
+    $userId = isset($input['user_id']) ? intval($input['user_id']) : null;
+    $bcId = isset($input['business_card_id']) ? intval($input['business_card_id']) : null;
     $classification = $input['classification'] ?? '';
 
-    if (empty($userId) || empty($classification)) {
+    if (!$userId || empty($classification)) {
+        error_log("Classification Update Validation Failed: user_id={$userId}, classification={$classification}");
         sendErrorResponse('ユーザーIDと分類が必要です', 400);
     }
 
@@ -68,7 +72,14 @@ try {
 
     // Update user
     $stmt = $db->prepare("UPDATE users SET user_type = ?, is_era_member = ? WHERE id = ?");
-    $stmt->execute([$newUserType, $newIsEraMember, $userId]);
+    $result = $stmt->execute([$newUserType, $newIsEraMember, $userId]);
+    
+    // Log for debugging
+    error_log("Classification Update: user_id={$userId}, new_type={$newUserType}, is_era={$newIsEraMember}, affected_rows=" . $stmt->rowCount());
+    
+    if (!$result || $stmt->rowCount() === 0) {
+        error_log("Classification Update Failed: user_id={$userId}, execute_result=" . ($result ? 'true' : 'false'));
+    }
 
     // Log the change
     $adminId = $_SESSION['admin_id'];
@@ -86,7 +97,7 @@ try {
         $db, 
         $adminId, 
         $adminEmail, 
-        'classification_changed', 
+        'other',  // 'classification_changed' is not in the ENUM, use 'other' 
         'user', 
         $userId,
         "分類変更: {$classificationText[$oldClassification]} → {$classificationText[$classification]} (ユーザー: {$user['email']})"

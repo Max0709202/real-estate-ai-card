@@ -1319,8 +1319,17 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
 
 /**
  * ユーザーにQRコード発行完了メールを送信
+ * @param string $userEmail ユーザーメールアドレス
+ * @param string $userName ユーザー名
+ * @param string $cardUrl 名刺URL
+ * @param string $qrCodeUrl QRコードURL
+ * @param string $urlSlug URLスラッグ
+ * @param float|null $paymentAmount 支払い金額
+ * @param string $userType ユーザータイプ ('new' or 'existing')
+ * @param int $isEraMember ERA会員かどうか (0 or 1)
+ * @param string|null $paymentType 支払い方法 ('credit_card', 'bank_transfer', etc.)
  */
-function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl, $urlSlug, $paymentAmount = null) {
+function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl, $urlSlug, $paymentAmount = null, $userType = 'new', $isEraMember = 0, $paymentType = null) {
     if (empty($userEmail)) {
         error_log("sendQRCodeIssuedEmailToUser: User email is empty");
         return false;
@@ -1328,6 +1337,25 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
 
     $issuedDate = date('Y年m月d日 H:i:s');
     $cardFullUrl = QR_CODE_BASE_URL . $urlSlug;
+    
+    // 既存/ERA会員で企業URLが未設定かチェック（url_slugが"user-"で始まる場合は仮URL）
+    $isExistingOrEra = ($userType === 'existing' || $isEraMember);
+    $isUrlSlugPending = (strpos($urlSlug, 'user-') === 0);
+    $showPendingUrlNotice = $isExistingOrEra && $isUrlSlugPending;
+    
+    // 支払い方法の表示テキスト
+    $paymentTypeText = '';
+    if ($paymentType) {
+        $paymentTypeLabels = [
+            'credit_card' => 'クレジットカード',
+            'bank_transfer' => '銀行振込',
+            'stripe' => 'クレジットカード',
+            'CR' => 'クレジットカード',
+            'BANK_PAID' => '銀行振込',
+            'ST' => 'Stripe送金'
+        ];
+        $paymentTypeText = $paymentTypeLabels[$paymentType] ?? $paymentType;
+    }
 
     // メール件名
     $emailSubject = '【不動産AI名刺】デジタル名刺のQRコード発行完了';
@@ -1350,6 +1378,8 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
             .button:hover { background: #5568d3; }
             .qr-info { background: #e8f4f8; padding: 15px; border-radius: 6px; margin: 15px 0; }
             .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+            .warning-box { background: #fff3cd; border: 2px solid #ffc107; padding: 20px; margin: 20px 0; border-radius: 8px; }
+            .warning-box h3 { margin-top: 0; color: #856404; }
             ul { padding-left: 20px; }
             li { margin: 8px 0; }
         </style>
@@ -1365,12 +1395,26 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
             <div class='content'>
                 <p>{$userName} 様</p>
                 <p>お支払いいただき、ありがとうございます。<br>
-                デジタル名刺のQRコードが正常に発行されました。</p>
+                デジタル名刺のQRコードが正常に発行されました。</p>";
+    
+    // 既存/ERA会員で企業URLが未設定の場合、注意書きを追加
+    if ($showPendingUrlNotice) {
+        $emailBody .= "
+                <div class='warning-box'>
+                    <h3>⚠️ 企業URLについてのお知らせ</h3>
+                    <p>現在、お客様の企業URL（名刺URL）は管理者による設定待ちの状態です。</p>
+                    <p>企業URLの設定が完了次第、正式なURLでご利用いただけるようになります。</p>
+                    <p>設定完了までしばらくお待ちいただくか、お急ぎの場合は管理者までお問い合わせください。</p>
+                    <p><strong>お問い合わせ先:</strong> nishio@rchukai.jp</p>
+                </div>";
+    }
 
+    $emailBody .= "
                 <div class='info-box'>
                     <h3>📱 あなたのデジタル名刺</h3>
                     <p><strong>名刺URL:</strong><br>
-                    <a href='{$cardFullUrl}' target='_blank'>{$cardFullUrl}</a></p>
+                    <a href='{$cardFullUrl}' target='_blank'>{$cardFullUrl}</a></p>" .
+                    ($showPendingUrlNotice ? "<p style='color: #856404; font-size: 0.9em;'>※このURLは仮URLです。正式なURLは管理者設定後に変更されます。</p>" : "") . "
                     <p>
                         <a href='{$cardFullUrl}' class='button' target='_blank'>名刺を表示する</a>
                     </p>
@@ -1420,12 +1464,28 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
     ";
 
     // プレーンテキスト版
+    $pendingUrlNoticeText = '';
+    if ($showPendingUrlNotice) {
+        $pendingUrlNoticeText = 
+            "【⚠️ 企業URLについてのお知らせ】\n" .
+            "現在、お客様の企業URL（名刺URL）は管理者による設定待ちの状態です。\n" .
+            "企業URLの設定が完了次第、正式なURLでご利用いただけるようになります。\n" .
+            "設定完了までしばらくお待ちいただくか、お急ぎの場合は管理者までお問い合わせください。\n" .
+            "お問い合わせ先: nishio@rchukai.jp\n\n";
+    }
+    
     $emailBodyText =
         "{$userName} 様\n\n" .
         "お支払いいただき、ありがとうございます。\n" .
         "デジタル名刺のQRコードが正常に発行されました。\n\n" .
-        "【あなたのデジタル名刺】\n" .
-        "名刺URL: {$cardFullUrl}\n\n" .
+        $pendingUrlNoticeText .
+        // 名刺URLのテキスト表記も、新規ユーザー以外には表示しない
+        (!$isExistingOrEra
+            ? "【あなたのデジタル名刺】\n" .
+              "名刺URL: {$cardFullUrl}\n" .
+              ($showPendingUrlNotice ? "※このURLは仮URLです。正式なURLは管理者設定後に変更されます。\n" : "") . "\n"
+            : ""
+        ) .
         "【QRコードについて】\n" .
         "QRコードは名刺ページに表示されています。\n" .
         "このQRコードをスキャンすると、上記の名刺URLに直接アクセスできます。\n\n" .
@@ -1434,23 +1494,109 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
         "- QRコードを名刺に印刷して配布できます\n" .
         "- SNSやメールで簡単に共有できます\n\n" .
         "マイページ: " . BASE_URL . "/edit.php\n\n" .
-        ($paymentAmount ? "【お支払い情報】\nお支払い金額: ¥" . number_format($paymentAmount) . "\n発行日時: {$issuedDate}\n\n" : "") .
+        ($paymentAmount ? "【お支払い情報】\nお支払い金額: ¥" . number_format($paymentAmount) . ($paymentTypeText ? "\nお支払い方法: {$paymentTypeText}" : "") . "\n発行日時: {$issuedDate}\n\n" : "") .
         "発行日時: {$issuedDate}\n";
+
+    // 既存/ERA会員向けメールからは、HTML本文の名刺URLセクションも削除する
+    if ($isExistingOrEra) {
+        $emailBody = preg_replace(
+            "/<div class='info-box'>\\s*<h3>📱 あなたのデジタル名刺<\\/h3>[\\s\\S]*?<\\/div>/u",
+            '',
+            $emailBody
+        );
+    }
 
     return sendEmail($userEmail, $emailSubject, $emailBody, $emailBodyText, 'qr_code_issued', null, null);
 }
 
 /**
  * 管理者にQRコード発行通知メールを送信
+ * @param string $userEmail ユーザーメールアドレス
+ * @param string $userName ユーザー名
+ * @param int $userId ユーザーID
+ * @param string $urlSlug URLスラッグ
+ * @param float|null $paymentAmount 支払い金額
+ * @param string|null $companyName 会社名
+ * @param string|null $name 名前
+ * @param string|null $nameRomaji ローマ字表記
+ * @param string|null $phoneNumber 電話番号
+ * @param string $userType ユーザータイプ ('new' or 'existing')
+ * @param int $isEraMember ERA会員かどうか (0 or 1)
+ * @param string|null $paymentType 支払い方法 ('CR', 'BANK_PAID', 'ST', etc.)
  */
-function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, $paymentAmount = null, $companyName = null, $name = null, $nameRomaji = null, $phoneNumber = null) {
+function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, $paymentAmount = null, $companyName = null, $name = null, $nameRomaji = null, $phoneNumber = null, $userType = 'new', $isEraMember = 0, $paymentType = null) {
     $adminEmail = 'nishio@rchukai.jp';
 
     $issuedDate = date('Y年m月d日 H:i:s');
     $cardFullUrl = QR_CODE_BASE_URL . $urlSlug;
+    
+    // 既存/ERA会員で企業URLが未設定かチェック（url_slugが"user-"で始まる場合は仮URL）
+    $isExistingOrEra = ($userType === 'existing' || $isEraMember);
+    $isUrlSlugPending = (strpos($urlSlug, 'user-') === 0);
+    $showUrgentUrlNotice = $isExistingOrEra && $isUrlSlugPending;
+    
+    // 支払い方法の表示テキスト
+    $paymentTypeText = '';
+    if ($paymentType) {
+        $paymentTypeLabels = [
+            'credit_card' => 'クレジットカード',
+            'bank_transfer' => '銀行振込',
+            'stripe' => 'クレジットカード',
+            'CR' => 'クレジットカード',
+            'BANK_PAID' => '銀行振込',
+            'ST' => 'Stripe送金'
+        ];
+        $paymentTypeText = $paymentTypeLabels[$paymentType] ?? $paymentType;
+    }
 
-    // メール件名
-    $emailSubject = '【不動産AI名刺】QRコード発行通知';
+    // ユーザータイプに応じてメール件名とヘッダーを変更
+    $subjectPrefix = '';
+    $headerPrefix = '';
+    $headerPrefixStyle = '';
+    $userTypeLabel = '新規';
+    $urgentNotice = '';
+    
+    if ($isEraMember) {
+        // ERA会員
+        $subjectPrefix = '【ERA/';
+        $headerPrefix = '<span style="color: #dc3545; font-weight: bold;">ERA/</span>';
+        $userTypeLabel = 'ERA';
+        if ($showUrgentUrlNotice) {
+            $urgentNotice = '
+                <div style="background: #dc3545; color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                    <h2 style="margin: 0 0 10px 0; font-size: 20px;">🚨 【緊急】ERA会員の企業URL未設定</h2>
+                    <p style="margin: 0; font-size: 16px;">ERA会員のQRコードが発行されましたが、<strong>企業URLがまだ設定されていません。</strong></p>
+                    <p style="margin: 10px 0 0 0; font-size: 16px;">至急、管理画面で企業URLの入力をお願いします。</p>
+                </div>';
+        } else {
+            $urgentNotice = '<p style="color: #dc3545; font-weight: bold; font-size: 16px; background: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 20px;">⚠️ ERA会員です。企業URLの確認をお願いします。</p>';
+        }
+    } elseif ($userType === 'existing') {
+        // 既存会員
+        $subjectPrefix = '【既存/';
+        $headerPrefix = '<span style="color: #dc3545; font-weight: bold;">既存/</span>';
+        $userTypeLabel = '既存';
+        if ($showUrgentUrlNotice) {
+            $urgentNotice = '
+                <div style="background: #dc3545; color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                    <h2 style="margin: 0 0 10px 0; font-size: 20px;">🚨 【緊急】既存会員の企業URL未設定</h2>
+                    <p style="margin: 0; font-size: 16px;">既存会員のQRコードが発行されましたが、<strong>企業URLがまだ設定されていません。</strong></p>
+                    <p style="margin: 10px 0 0 0; font-size: 16px;">至急、管理画面で企業URLの入力をお願いします。</p>
+                </div>';
+        } else {
+            $urgentNotice = '<p style="color: #dc3545; font-weight: bold; font-size: 16px; background: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 20px;">⚠️ 既存会員です。企業URLの確認をお願いします。</p>';
+        }
+    } else {
+        // 新規会員
+        $subjectPrefix = '【';
+    }
+
+    // メール件名（緊急の場合は件名にも反映）
+    if ($showUrgentUrlNotice) {
+        $emailSubject = $subjectPrefix . '不動産AI名刺】🚨 QRコード発行通知 - 企業URL未設定';
+    } else {
+        $emailSubject = $subjectPrefix . '不動産AI名刺】QRコード発行通知';
+    }
 
     // HTML本文
     $emailBody = "
@@ -1459,8 +1605,8 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
         <meta charset='UTF-8'>
         <style>
             body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.6; color: #333; }
-            .container { border: 3px solid #a3a3a3; border-radius: 1%; max-width: 600px; margin: 0 auto;}
-            .header { color: #000000; padding: 30px 20px; text-align: center; }
+            .container { border: 3px solid " . ($showUrgentUrlNotice ? '#dc3545' : '#a3a3a3') . "; border-radius: 1%; max-width: 600px; margin: 0 auto;}
+            .header { color: #000000; padding: 30px 20px; text-align: center; " . ($showUrgentUrlNotice ? "background: #fff5f5;" : "") . " }
             .header .logo-container { padding: 15px; display: inline-block; margin: 0 auto; }
             .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
             .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; }
@@ -1468,6 +1614,9 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
             .info-table td { padding: 12px; border: 1px solid #dee2e6; }
             .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
             .highlight { background: #fff3cd; padding: 2px 6px; border-radius: 3px; }
+            .highlight-danger { background: #f8d7da; color: #721c24; padding: 2px 6px; border-radius: 3px; font-weight: bold; }
+            .user-type-era { color: #dc3545; font-weight: bold; }
+            .user-type-existing { color: #dc3545; font-weight: bold; }
         </style>
     </head>
     <body>
@@ -1476,14 +1625,19 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
                 <div class='logo-container'>
                     <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                 </div>
-                <h1>QRコード発行通知</h1>
+                <h1 style='" . ($showUrgentUrlNotice ? "color: #dc3545;" : "") . "'>{$headerPrefix}QRコード発行通知</h1>
             </div>
             <div class='content'>
+                {$urgentNotice}
                 <p>新しいQRコードが発行されました。</p>
                 <table class='info-table'>
                     <tr>
                         <th>ユーザーID</th>
                         <td>{$userId}</td>
+                    </tr>
+                    <tr>
+                        <th>ユーザータイプ</th>
+                        <td>" . ($isEraMember ? "<span class='user-type-era'>{$userTypeLabel}</span>" : ($userType === 'existing' ? "<span class='user-type-existing'>{$userTypeLabel}</span>" : $userTypeLabel)) . "</td>
                     </tr>
                     <tr>
                         <th>ユーザー名</th>
@@ -1508,6 +1662,11 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
                         <th>メールアドレス</th>
                         <td>{$userEmail}</td>
                     </tr>" .
+                    ($paymentTypeText ? "
+                    <tr>
+                        <th>支払い方法</th>
+                        <td>{$paymentTypeText}</td>
+                    </tr>" : "") .
                     ($phoneNumber ? "
                     <tr>
                         <th>電話番号</th>
@@ -1515,7 +1674,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
                     </tr>" : "") . "
                     <tr>
                         <th>URLスラッグ</th>
-                        <td><span class='highlight'>{$urlSlug}</span></td>
+                        <td><span class='" . ($showUrgentUrlNotice ? "highlight-danger" : "highlight") . "'>{$urlSlug}</span>" . ($showUrgentUrlNotice ? " <strong style='color: #dc3545;'>（仮URL - 要設定）</strong>" : "") . "</td>
                     </tr>
                     <tr>
                         <th>名刺URL</th>
@@ -1546,18 +1705,55 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
     </html>
     ";
 
+    // 既存/ERA会員の場合、HTML本文からURLスラッグおよび名刺URLの行を削除（ダッシュボード側でのみ管理）
+    if ($isExistingOrEra) {
+        // URLスラッグ行
+        $emailBody = preg_replace(
+            "/<tr>\\s*<th>URLスラッグ<\\/th>[\\s\\S]*?<\\/tr>/u",
+            '',
+            $emailBody
+        );
+        // 名刺URL行
+        $emailBody = preg_replace(
+            "/<tr>\\s*<th>名刺URL<\\/th>[\\s\\S]*?<\\/tr>/u",
+            '',
+            $emailBody
+        );
+    }
+
     // プレーンテキスト版
+    $urgentNoticeText = '';
+    if ($showUrgentUrlNotice) {
+        if ($isEraMember) {
+            $urgentNoticeText = "🚨【緊急】ERA会員の企業URL未設定\n" .
+                "ERA会員のQRコードが発行されましたが、企業URLがまだ設定されていません。\n" .
+                "至急、管理画面で企業URLの入力をお願いします。\n\n";
+        } else {
+            $urgentNoticeText = "🚨【緊急】既存会員の企業URL未設定\n" .
+                "既存会員のQRコードが発行されましたが、企業URLがまだ設定されていません。\n" .
+                "至急、管理画面で企業URLの入力をお願いします。\n\n";
+        }
+    } elseif ($isEraMember) {
+        $urgentNoticeText = "⚠️ ERA会員です。企業URLの確認をお願いします。\n\n";
+    } elseif ($userType === 'existing') {
+        $urgentNoticeText = "⚠️ 既存会員です。企業URLの確認をお願いします。\n\n";
+    }
+    
     $emailBodyText =
+        $urgentNoticeText .
         "新しいQRコードが発行されました。\n\n" .
         "ユーザーID: {$userId}\n" .
+        "ユーザータイプ: {$userTypeLabel}\n" .
         "ユーザー名: {$userName}\n" .
         ($companyName ? "会社名: {$companyName}\n" : "") .
         ($name ? "名前: {$name}\n" : "") .
         ($nameRomaji ? "ローマ字表記: {$nameRomaji}\n" : "") .
         "メールアドレス: {$userEmail}\n" .
+        ($paymentTypeText ? "支払い方法: {$paymentTypeText}\n" : "") .
         ($phoneNumber ? "電話番号: {$phoneNumber}\n" : "") .
-        "URLスラッグ: {$urlSlug}\n" .
-        "名刺URL: {$cardFullUrl}\n" .
+        // 既存/ERA会員にはテキストでもURLスラッグ・名刺URLを表示しない
+        (!$isExistingOrEra ? "URLスラッグ: {$urlSlug}" . ($showUrgentUrlNotice ? "（仮URL - 要設定）" : "") . "\n" : "") .
+        (!$isExistingOrEra ? "名刺URL: {$cardFullUrl}\n" : "") .
         ($paymentAmount ? "支払い金額: ¥" . number_format($paymentAmount) . "\n" : "") .
         "発行日時: {$issuedDate}\n";
 

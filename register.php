@@ -29,6 +29,15 @@ if ($isLoggedIn) {
 
         $userId = $_SESSION['user_id'];
 
+        // ユーザータイプを取得（ログイン済みの場合はDBの値を優先）
+        $stmt = $db->prepare("SELECT user_type FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $userTypeFromDb = $stmt->fetchColumn();
+        if ($userTypeFromDb && in_array($userTypeFromDb, ['new', 'existing'])) {
+            // DBに保存されているuser_typeを優先（既存ユーザーの場合）
+            $userType = $userTypeFromDb;
+        }
+
         // サブスクリプションとビジネスカードの情報を取得
         $stmt = $db->prepare("
             SELECT s.status as subscription_status, s.next_billing_date, s.cancelled_at,

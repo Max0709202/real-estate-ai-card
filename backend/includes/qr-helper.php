@@ -127,6 +127,35 @@ function generateBusinessCardQRCode($businessCardId, $db) {
             $qrCodeFullUrl = BASE_URL . '/' . $qrCodeRelativePath;
             $paymentAmount = !empty($card['total_amount']) ? $card['total_amount'] : null;
             
+            // Get user info for emails first
+            $userId = null;
+            $companyName = null;
+            $name = null;
+            $nameRomaji = null;
+            $phoneNumber = $card['phone_number'] ?? null;
+            $userType = 'new';
+            $isEraMember = 0;
+            $paymentType = $card['payment_status'] ?? null;
+            
+            $stmt = $db->prepare("
+                SELECT bc.user_id, bc.company_name, bc.name, bc.name_romaji, bc.payment_status,
+                       u.user_type, u.is_era_member
+                FROM business_cards bc
+                JOIN users u ON bc.user_id = u.id
+                WHERE bc.id = ?
+            ");
+            $stmt->execute([$businessCardId]);
+            $bcData = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($bcData) {
+                $userId = $bcData['user_id'];
+                $companyName = $bcData['company_name'] ?? null;
+                $name = $bcData['name'] ?? null;
+                $nameRomaji = $bcData['name_romaji'] ?? null;
+                $userType = $bcData['user_type'] ?? 'new';
+                $isEraMember = $bcData['is_era_member'] ?? 0;
+                $paymentType = $bcData['payment_status'] ?? $paymentType;
+            }
+            
             // Send email to user
             if (!empty($card['email'])) {
                 $userEmailSent = sendQRCodeIssuedEmailToUser(
@@ -135,7 +164,10 @@ function generateBusinessCardQRCode($businessCardId, $db) {
                     $qrUrl,
                     $qrCodeFullUrl,
                     $card['url_slug'],
-                    $paymentAmount
+                    $paymentAmount,
+                    $userType,
+                    $isEraMember,
+                    $paymentType
                 );
                 
                 if ($userEmailSent) {
@@ -145,23 +177,7 @@ function generateBusinessCardQRCode($businessCardId, $db) {
                 }
             }
             
-            // Send email to admin
-            $userId = null;
-            $companyName = null;
-            $name = null;
-            $nameRomaji = null;
-            $phoneNumber = $card['phone_number'] ?? null;
-            
-            $stmt = $db->prepare("SELECT user_id, company_name, name, name_romaji FROM business_cards WHERE id = ?");
-            $stmt->execute([$businessCardId]);
-            $bcData = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($bcData) {
-                $userId = $bcData['user_id'];
-                $companyName = $bcData['company_name'] ?? null;
-                $name = $bcData['name'] ?? null;
-                $nameRomaji = $bcData['name_romaji'] ?? null;
-            }
-            
+            // Send admin email (user info already fetched above)
             $adminEmailSent = sendQRCodeIssuedEmailToAdmin(
                 $card['email'] ?? 'Unknown',
                 $userName,
@@ -171,7 +187,10 @@ function generateBusinessCardQRCode($businessCardId, $db) {
                 $companyName,
                 $name,
                 $nameRomaji,
-                $phoneNumber
+                $phoneNumber,
+                $userType,
+                $isEraMember,
+                $paymentType
             );
             
             if ($adminEmailSent) {
