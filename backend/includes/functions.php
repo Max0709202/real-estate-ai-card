@@ -1556,32 +1556,39 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
     $userTypeLabel = '新規';
     $urgentNotice = '';
     
+    // 管理画面ログインURL（企業URL変更用）
+    $adminLoginUrl = rtrim(BASE_URL, '/') . '/admin/login.php';
+
     if ($isEraMember) {
-        // ERA会員
+        // ERA会員 … オレンジで表示
         $subjectPrefix = '【ERA/';
-        $headerPrefix = '<span style="color: #dc3545; font-weight: bold;">ERA/</span>';
+        $headerPrefix = '<span style="color: #fd7e14; font-weight: bold;">ERA/</span>';
         $userTypeLabel = 'ERA';
+        $urgentColor = '#fd7e14'; // オレンジ
         if ($showUrgentUrlNotice) {
             $urgentNotice = '
-                <div style="background: #dc3545; color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                <div style="background: #fd7e14; color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
                     <h2 style="margin: 0 0 10px 0; font-size: 20px;">🚨 【緊急】ERA会員の企業URL未設定</h2>
                     <p style="margin: 0; font-size: 16px;">ERA会員のQRコードが発行されましたが、<strong>企業URLがまだ設定されていません。</strong></p>
                     <p style="margin: 10px 0 0 0; font-size: 16px;">至急、管理画面で企業URLの入力をお願いします。</p>
+                    <p style="margin: 16px 0 0 0;"><a href="' . $adminLoginUrl . '" target="_blank" style="display: inline-block; padding: 12px 24px; background: #fff; color: #fd7e14; font-weight: bold; text-decoration: none; border-radius: 6px;">管理画面へ</a></p>
                 </div>';
         } else {
-            $urgentNotice = '<p style="color: #dc3545; font-weight: bold; font-size: 16px; background: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 20px;">⚠️ ERA会員です。企業URLの確認をお願いします。</p>';
+            $urgentNotice = '<p style="color: #fd7e14; font-weight: bold; font-size: 16px; background: #fff8f0; padding: 10px; border-radius: 5px; margin-bottom: 20px;">⚠️ ERA会員です。企業URLの確認をお願いします。</p>';
         }
     } elseif ($userType === 'existing') {
-        // 既存会員
+        // 既存会員 … 赤で表示
         $subjectPrefix = '【既存/';
         $headerPrefix = '<span style="color: #dc3545; font-weight: bold;">既存/</span>';
         $userTypeLabel = '既存';
+        $urgentColor = '#dc3545'; // 赤
         if ($showUrgentUrlNotice) {
             $urgentNotice = '
                 <div style="background: #dc3545; color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
                     <h2 style="margin: 0 0 10px 0; font-size: 20px;">🚨 【緊急】既存会員の企業URL未設定</h2>
                     <p style="margin: 0; font-size: 16px;">既存会員のQRコードが発行されましたが、<strong>企業URLがまだ設定されていません。</strong></p>
                     <p style="margin: 10px 0 0 0; font-size: 16px;">至急、管理画面で企業URLの入力をお願いします。</p>
+                    <p style="margin: 16px 0 0 0;"><a href="' . $adminLoginUrl . '" target="_blank" style="display: inline-block; padding: 12px 24px; background: #fff; color: #dc3545; font-weight: bold; text-decoration: none; border-radius: 6px;">管理画面へ</a></p>
                 </div>';
         } else {
             $urgentNotice = '<p style="color: #dc3545; font-weight: bold; font-size: 16px; background: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 20px;">⚠️ 既存会員です。企業URLの確認をお願いします。</p>';
@@ -1589,6 +1596,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
     } else {
         // 新規会員
         $subjectPrefix = '【';
+        $urgentColor = '#dc3545';
     }
 
     // メール件名（緊急の場合は件名にも反映）
@@ -1598,15 +1606,15 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
         $emailSubject = $subjectPrefix . '不動産AI名刺】QRコード発行通知';
     }
 
-    // HTML本文
+    // HTML本文（ERA=オレンジ / 既存=赤）
     $emailBody = "
     <html>
     <head>
         <meta charset='UTF-8'>
         <style>
             body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif; line-height: 1.6; color: #333; }
-            .container { border: 3px solid " . ($showUrgentUrlNotice ? '#dc3545' : '#a3a3a3') . "; border-radius: 1%; max-width: 600px; margin: 0 auto;}
-            .header { color: #000000; padding: 30px 20px; text-align: center; " . ($showUrgentUrlNotice ? "background: #fff5f5;" : "") . " }
+            .container { border: 3px solid " . ($showUrgentUrlNotice ? $urgentColor : '#a3a3a3') . "; border-radius: 1%; max-width: 600px; margin: 0 auto;}
+            .header { color: #000000; padding: 30px 20px; text-align: center; " . ($showUrgentUrlNotice ? "background: #fff8f5;" : "") . " }
             .header .logo-container { padding: 15px; display: inline-block; margin: 0 auto; }
             .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
             .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; }
@@ -1615,7 +1623,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
             .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
             .highlight { background: #fff3cd; padding: 2px 6px; border-radius: 3px; }
             .highlight-danger { background: #f8d7da; color: #721c24; padding: 2px 6px; border-radius: 3px; font-weight: bold; }
-            .user-type-era { color: #dc3545; font-weight: bold; }
+            .user-type-era { color: #fd7e14; font-weight: bold; }
             .user-type-existing { color: #dc3545; font-weight: bold; }
         </style>
     </head>
@@ -1625,7 +1633,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
                 <div class='logo-container'>
                     <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
                 </div>
-                <h1 style='" . ($showUrgentUrlNotice ? "color: #dc3545;" : "") . "'>{$headerPrefix}QRコード発行通知</h1>
+                <h1 style='" . ($showUrgentUrlNotice ? "color: " . $urgentColor . ";" : "") . "'>{$headerPrefix}QRコード発行通知</h1>
             </div>
             <div class='content'>
                 {$urgentNotice}
@@ -1674,7 +1682,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
                     </tr>" : "") . "
                     <tr>
                         <th>URLスラッグ</th>
-                        <td><span class='" . ($showUrgentUrlNotice ? "highlight-danger" : "highlight") . "'>{$urlSlug}</span>" . ($showUrgentUrlNotice ? " <strong style='color: #dc3545;'>（仮URL - 要設定）</strong>" : "") . "</td>
+                        <td><span class='" . ($showUrgentUrlNotice ? "highlight-danger" : "highlight") . "'>{$urlSlug}</span>" . ($showUrgentUrlNotice ? " <strong style='color: " . $urgentColor . ";'>（仮URL - 要設定）</strong>" : "") . "</td>
                     </tr>
                     <tr>
                         <th>名刺URL</th>
@@ -1727,11 +1735,13 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
         if ($isEraMember) {
             $urgentNoticeText = "🚨【緊急】ERA会員の企業URL未設定\n" .
                 "ERA会員のQRコードが発行されましたが、企業URLがまだ設定されていません。\n" .
-                "至急、管理画面で企業URLの入力をお願いします。\n\n";
+                "至急、管理画面で企業URLの入力をお願いします。\n" .
+                "管理画面へ: {$adminLoginUrl}\n\n";
         } else {
             $urgentNoticeText = "🚨【緊急】既存会員の企業URL未設定\n" .
                 "既存会員のQRコードが発行されましたが、企業URLがまだ設定されていません。\n" .
-                "至急、管理画面で企業URLの入力をお願いします。\n\n";
+                "至急、管理画面で企業URLの入力をお願いします。\n" .
+                "管理画面へ: {$adminLoginUrl}\n\n";
         }
     } elseif ($isEraMember) {
         $urgentNoticeText = "⚠️ ERA会員です。企業URLの確認をお願いします。\n\n";

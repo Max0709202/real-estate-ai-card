@@ -412,6 +412,8 @@ $users = $stmt->fetchAll();
                         <td data-label="企業URL">
                             <?php
                             $isEraUser = $user['is_era_member'] ?? 0;
+                            $userTypeForUrl = $user['user_type'] ?? 'new';
+                            $canEditCorporateUrl = ($userTypeForUrl === 'existing' || $isEraUser);
                             $currentSlug = $user['url_slug'] ?? '';
                             $baseUrl = $isEraUser ? 'https://era.self-in.com/' : 'https://self-in.com/';
                             ?>
@@ -421,18 +423,23 @@ $users = $stmt->fetchAll();
                                 <?php else: ?>
                                     <span>https://self-in.com/</span>
                                 <?php endif; ?>
-                                <input type="text" class="url-slug-input"
-                                       data-user-id="<?php echo $user['user_id']; ?>"
-                                       data-bc-id="<?php echo $user['id']; ?>"
-                                       value="<?php echo htmlspecialchars($currentSlug); ?>"
-                                       placeholder="スラッグ"
-                                       style="width: 80px; padding: 3px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 0.8rem;">
-                                <span>/</span>
-                                <button type="button" class="btn-save-slug"
-                                        data-bc-id="<?php echo $user['id']; ?>"
-                                        style="padding: 2px 6px; font-size: 0.7rem; background: #28a745; color: #fff; border: none; border-radius: 3px; cursor: pointer; display: none;">
-                                    保存
-                                </button>
+                                <?php if ($canEditCorporateUrl): ?>
+                                    <input type="text" class="url-slug-input"
+                                           data-user-id="<?php echo $user['user_id']; ?>"
+                                           data-bc-id="<?php echo $user['id']; ?>"
+                                           value="<?php echo htmlspecialchars($currentSlug); ?>"
+                                           placeholder="スラッグ"
+                                           style="width: 80px; padding: 3px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 0.8rem;">
+                                    <span>/</span>
+                                    <button type="button" class="btn-save-slug"
+                                            data-bc-id="<?php echo $user['id']; ?>"
+                                            style="padding: 2px 6px; font-size: 0.7rem; background: #28a745; color: #fff; border: none; border-radius: 3px; cursor: pointer; display: none;">
+                                        保存
+                                    </button>
+                                <?php else: ?>
+                                    <span><?php echo htmlspecialchars($currentSlug); ?></span><?php if ($currentSlug !== ''): ?><span>/</span><?php endif; ?>
+                                    <span style="color: #999; font-size: 0.7rem;">（新規は編集不可）</span>
+                                <?php endif; ?>
                             </div>
                         </td>
                         <td data-label="名前">

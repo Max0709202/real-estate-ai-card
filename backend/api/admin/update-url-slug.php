@@ -41,11 +41,11 @@ try {
     $database = new Database();
     $db = $database->getConnection();
 
-    // Get current business card info
+    // Get current business card info and user type
     $stmt = $db->prepare("
-        SELECT bc.url_slug, bc.user_id, u.email 
-        FROM business_cards bc 
-        JOIN users u ON bc.user_id = u.id 
+        SELECT bc.url_slug, bc.user_id, u.email, u.user_type, u.is_era_member
+        FROM business_cards bc
+        JOIN users u ON bc.user_id = u.id
         WHERE bc.id = ?
     ");
     $stmt->execute([$bcId]);
@@ -53,6 +53,13 @@ try {
 
     if (!$bcInfo) {
         sendErrorResponse('ビジネスカードが見つかりません', 404);
+    }
+
+    // 新規ユーザーの企業URLは編集不可（既存・ERAのみ編集可）
+    $userType = $bcInfo['user_type'] ?? 'new';
+    $isEraMember = !empty($bcInfo['is_era_member']);
+    if ($userType === 'new' && !$isEraMember) {
+        sendErrorResponse('新規ユーザーの企業URLは編集できません。既存・ERA会員のみ編集可能です。', 403);
     }
 
     $oldSlug = $bcInfo['url_slug'];
@@ -78,7 +85,7 @@ try {
         $db, 
         $adminId, 
         $adminEmail, 
-        'url_slug_changed', 
+        'other', 
         'business_card', 
         $bcId,
         "URLスラッグ変更: {$oldSlug} → {$urlSlug} (ユーザー: {$bcInfo['email']})"
