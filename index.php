@@ -264,6 +264,36 @@ if ($isTokenBased) {
         </div>
     </section>
 
+    
+    <!-- Problems Section -->
+    <section class="problems-section">
+        <div class="problems-inner">
+            <div class="problems-content">
+                <h2 class="problems-title">こんなお悩みありませんか?</h2>
+                <ul class="problems-list">
+                    <li class="problem-item">
+                        <div class="problem-text">
+                            <h3 class="problem-title">①名刺交換後、連絡が途絶える</h3>
+                            <p class="problem-description">せっかく出会った見込み客と、<br> その後のコミュニケーションが取れない</p>
+                        </div>
+                    </li>
+                    <li class="problem-item">
+                        <div class="problem-text">
+                            <h3 class="problem-title">②他社との差別化ができない</h3>
+                            <p class="problem-description">競合エージェントとの違いを明確に示せず、<br>選ばれる理由が弱い</p>
+                        </div>
+                    </li>
+                    <li class="problem-item">
+                        <div class="problem-text">
+                            <h3 class="problem-title">③顧客への情報提供が不十分</h3>
+                            <p class="problem-description">物件情報や市場データを効果的に共有できず、<br>信頼構築に時間がかかる</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
     <!-- Three Steps Section -->
     <section class="steps-section">
         <div class="container">
@@ -298,36 +328,7 @@ if ($isTokenBased) {
             </div>
         </div>
     </section>
-
-    <!-- Problems Section -->
-    <section class="problems-section">
-        <div class="problems-inner">
-            <div class="problems-content">
-                <h2 class="problems-title">こんなお悩みありませんか?</h2>
-                <ul class="problems-list">
-                    <li class="problem-item">
-                        <div class="problem-text">
-                            <h3 class="problem-title">①名刺交換後、連絡が途絶える</h3>
-                            <p class="problem-description">せっかく出会った見込み客と、<br> その後のコミュニケーションが取れない</p>
-                        </div>
-                    </li>
-                    <li class="problem-item">
-                        <div class="problem-text">
-                            <h3 class="problem-title">②他社との差別化ができない</h3>
-                            <p class="problem-description">競合エージェントとの違いを明確に示せず、<br>選ばれる理由が弱い</p>
-                        </div>
-                    </li>
-                    <li class="problem-item">
-                        <div class="problem-text">
-                            <h3 class="problem-title">③顧客への情報提供が不十分</h3>
-                            <p class="problem-description">物件情報や市場データを効果的に共有できず、<br>信頼構築に時間がかかる</p>
-                        </div>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </section>
-
+    
     <!-- Automation Process Section -->
     <section class="automation-section">
         <div class="container">
@@ -422,21 +423,22 @@ if ($isTokenBased) {
             </div>
         </div>
     </section>
+       
 
     <!-- Features & Pricing Introduction -->
     <section class="features-intro-section" id="features">
         <div class="container">
-            <h2 class="section-title">『不動産 AI 名刺』の機能と料金について</h2>
+            <h2 class="section-title">主な機能と作成手順</h2>
         </div>
     </section>
 
     <!-- Feature 01: LINE Integration -->
     <section class="feature-section feature-01">
         <div class="container">
-            <div class="feature-content">
-                <div class="feature-visual">
+            <div class="feature-content"">
+                <div class="feature-visual feature-visual-desktop-only">
                     <div class="feature-image-wrapper line-feature">
-                        <div id="communication-alternate" style="width:100%;" class="crossfade-container">
+                        <div id="communication-alternate" style="width:100%; margin-bottom: 20px; opacity: 0;" class="crossfade-container">
                             <div class="communication-category" id="comm-category-1">
                                 <ul class="communication-list">
                                     <li><img src="assets/images/icons/line.png" alt="LINE"></li>
@@ -458,6 +460,9 @@ if ($isTokenBased) {
                                 </ul>
                             </div>
                         </div>
+                        <div class="category-future-card">
+                            <p class="category-future-card-text">※近い将来、「不動産MYページ」という独自コミュニケーションツールをリリースし、追加する予定です。</p>
+                        </div>
                     </div>
                 </div>
                 <div class="feature-text">
@@ -471,6 +476,9 @@ if ($isTokenBased) {
                         <li><span class="check-icon">✓</span> 顧客の連絡先を自動保存可能</li>
                         <li><span class="check-icon">✓</span> SNSアカウントも同時に共有できる</li>
                     </ul>
+                    <div class="category-future-card category-future-card-mobile-only">
+                        <p class="category-future-card-text">※近い将来、「不動産MYページ」という独自コミュニケーションツールをリリースし、追加する予定です。</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -502,107 +510,73 @@ if ($isTokenBased) {
                             <!-- Hexagon 1: 全国マンションデータベース -->
                             <div class="tech-tools-hex-item">
                                 <div class="tech-tools-hex-icon">
-                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <rect x="10" y="15" width="40" height="30" rx="2" stroke="#555" stroke-width="2" fill="none"/>
-                                        <rect x="15" y="20" width="8" height="8" rx="1" fill="#555"/>
-                                        <rect x="26" y="20" width="8" height="8" rx="1" fill="#555"/>
-                                        <rect x="37" y="20" width="8" height="8" rx="1" fill="#555"/>
-                                        <rect x="15" y="31" width="8" height="8" rx="1" fill="#555"/>
-                                        <rect x="26" y="31" width="8" height="8" rx="1" fill="#555"/>
-                                        <rect x="37" y="31" width="8" height="8" rx="1" fill="#555"/>
-                                    </svg>
+                                    <img src="assets/images/icons/ic (1).png" alt="全国マンションデータベース" loading="lazy">
                                 </div>
                                 <h4 class="tech-tools-hex-item-title">全国マンションデータベース</h4>
                                 <p class="tech-tools-hex-item-desc">全国の分譲マンションの95%以上を網羅。</p>
                                 <div class="tech-tools-hex-buttons">
                                     <!-- <span class="tech-tools-hex-btn">売り</span> -->
-                                    <span class="tech-tools-hex-btn">買い</span>
+                                    <a href="https://self-in.com/demo/mdb" class="tech-tools-hex-btn" target="_blank" rel="noopener noreferrer">買い</a>
                                 </div>
                             </div>
                             
                             <!-- Hexagon 2: 物件提案ロボ -->
                             <div class="tech-tools-hex-item">
                                 <div class="tech-tools-hex-icon">
-                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <rect x="15" y="12" width="30" height="36" rx="4" stroke="#555" stroke-width="2" fill="none"/>
-                                        <circle cx="30" cy="25" r="4" fill="#555"/>
-                                        <path d="M 20 35 Q 30 38 40 35" stroke="#555" stroke-width="2" fill="none"/>
-                                        <rect x="20" y="8" width="20" height="6" rx="2" fill="#555"/>
-                                    </svg>
+                                    <img src="assets/images/icons/ic (2).png" alt="物件提案ロボ" loading="lazy">
                                 </div>
                                 <h4 class="tech-tools-hex-item-title">物件提案ロボ</h4>
                                 <p class="tech-tools-hex-item-desc">希望条件に合う物件をAI評価付きで自動配信。</p>
                                 <div class="tech-tools-hex-buttons">
-                                    <span class="tech-tools-hex-btn">買い</span>
+                                    <a href="https://self-in.net/rlp/index.php?id=demo" class="tech-tools-hex-btn" target="_blank" rel="noopener noreferrer">買い</a>
                                 </div>
                             </div>
                             
                             <!-- Hexagon 3: 土地情報ロボ -->
                             <div class="tech-tools-hex-item">
                                 <div class="tech-tools-hex-icon">
-                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <circle cx="30" cy="25" r="8" stroke="#555" stroke-width="2" fill="none"/>
-                                        <path d="M 30 33 L 30 50 L 38 45" stroke="#555" stroke-width="2" fill="none"/>
-                                        <path d="M 35 30 L 45 30" stroke="#555" stroke-width="2"/>
-                                    </svg>
+                                    <img src="assets/images/icons/ic (3).png" alt="土地情報ロボ" loading="lazy">
                                 </div>
                                 <h4 class="tech-tools-hex-item-title">土地情報ロボ</h4>
                                 <p class="tech-tools-hex-item-desc">希望条件に合う土地情報を自動でお届け。</p>
                                 <div class="tech-tools-hex-buttons">
-                                    <span class="tech-tools-hex-btn">買い</span>
+                                    <a href="https://self-in.net/llp/index.php?id=demo" class="tech-tools-hex-btn" target="_blank" rel="noopener noreferrer">買い</a>
                                 </div>
                             </div>
                             
                             <!-- Hexagon 4: AIマンション査定 -->
                             <div class="tech-tools-hex-item">
                                 <div class="tech-tools-hex-icon">
-                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <line x1="15" y1="45" x2="20" y2="35" stroke="#555" stroke-width="2"/>
-                                        <line x1="20" y1="35" x2="30" y2="25" stroke="#555" stroke-width="2"/>
-                                        <line x1="30" y1="25" x2="40" y2="20" stroke="#555" stroke-width="2"/>
-                                        <line x1="40" y1="20" x2="45" y2="15" stroke="#555" stroke-width="2"/>
-                                        <circle cx="20" cy="35" r="2" fill="#555"/>
-                                        <circle cx="30" cy="25" r="2" fill="#555"/>
-                                        <circle cx="40" cy="20" r="2" fill="#555"/>
-                                        <circle cx="45" cy="15" r="2" fill="#555"/>
-                                    </svg>
+                                    <img src="assets/images/icons/ic (4).png" alt="AIマンション査定" loading="lazy">
                                 </div>
                                 <h4 class="tech-tools-hex-item-title">AIマンション査定</h4>
                                 <p class="tech-tools-hex-item-desc">個人情報不要でマンションの査定を実施。</p>
                                 <div class="tech-tools-hex-buttons">
-                                    <span class="tech-tools-hex-btn">売り</span>
+                                    <a href="https://self-in.com/demo/ai" class="tech-tools-hex-btn" target="_blank" rel="noopener noreferrer">売り</a>
                                 </div>
                             </div>
                             
                             <!-- Hexagon 5: セルフィン -->
                             <div class="tech-tools-hex-item">
                                 <div class="tech-tools-hex-icon">
-                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <circle cx="30" cy="30" r="12" stroke="#555" stroke-width="2" fill="none"/>
-                                        <circle cx="30" cy="30" r="6" fill="#555"/>
-                                        <path d="M 30 18 L 30 12 M 30 42 L 30 48 M 18 30 L 12 30 M 42 30 L 48 30" stroke="#555" stroke-width="2"/>
-                                        <path d="M 22 22 L 18 18 M 38 22 L 42 18 M 22 38 L 18 42 M 38 38 L 42 42" stroke="#555" stroke-width="2"/>
-                                    </svg>
+                                    <img src="assets/images/icons/ic (5).png" alt="セルフィン" loading="lazy">
                                 </div>
                                 <h4 class="tech-tools-hex-item-title">セルフィン</h4>
                                 <p class="tech-tools-hex-item-desc">物件の良し悪しをAIが自動判定。</p>
                                 <div class="tech-tools-hex-buttons">
-                                    <span class="tech-tools-hex-btn">買い</span>
+                                    <a href=" https://self-in.net/slp/index.php?id=demo" class="tech-tools-hex-btn" target="_blank" rel="noopener noreferrer">買い</a>
                                 </div>
                             </div>
                             
                             <!-- Hexagon 6: オーナーコネクト -->
                             <div class="tech-tools-hex-item">
                                 <div class="tech-tools-hex-icon">
-                                    <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M 30 15 L 20 25 L 20 40 L 30 50 L 40 40 L 40 25 Z" stroke="#555" stroke-width="2" fill="none"/>
-                                        <path d="M 28 32 L 32 32 M 30 30 L 30 34" stroke="#555" stroke-width="2"/>
-                                    </svg>
+                                    <img src="assets/images/icons/ic (6).png" alt="オーナーコネクト" loading="lazy">
                                 </div>
                                 <h4 class="tech-tools-hex-item-title">オーナーコネクト</h4>
                                 <p class="tech-tools-hex-item-desc">マンション所有者向けの資産ウォッチツール。</p>
                                 <div class="tech-tools-hex-buttons">
-                                    <span class="tech-tools-hex-btn">売り</span>
+                                    <a href="https://self-in.net/olp/index.php?id=demo" class="tech-tools-hex-btn" target="_blank" rel="noopener noreferrer">売り</a>
                                 </div>
                             </div>
                         </div>
@@ -616,7 +590,7 @@ if ($isTokenBased) {
     <section class="feature-section feature-03" style="margin-bottom: 6.5rem;">
         <div class="container">
             <div class="feature-content">
-                <div class="feature-visual">
+                <div class="feature-visual" style="opacity: 0;">
                     <img src="assets/images/sec-3.jpg" alt="Phone" class="feature-image">
                     <!-- <div class="feature-image-wrapper phone">
                         <div class="phone-placeholder">
