@@ -303,6 +303,12 @@ $prefectures = [
                     <div class="form-group">
                         <label>会社名 <span class="required">*</span></label>
                         <input type="text" name="company_name" class="form-control" required>
+                        <?php if ($userType === 'existing'): ?>
+                            <div class="lixil-era-badge" style="margin-top: 10px; padding: 10px 14px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border: 1px solid #81c784; border-radius: 6px; display: inline-flex; align-items: center; gap: 8px; user-select: none; pointer-events: none;">
+                                <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #4caf50; border-radius: 50%; color: white; font-size: 12px; font-weight: bold;">✓</span>
+                                <span style="font-size: 14px; font-weight: 600; color: #2e7d32;">LIXIL 不動産球果加盟店</span>
+                            </div>
+                        <?php endif; ?>
                     </div>
 
                     <div class="form-section">

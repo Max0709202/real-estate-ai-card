@@ -3,6 +3,33 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
+    // First-view rotating messages
+    (function () {
+        const container = document.getElementById('first-view-top');
+        if (!container) return;
+
+        const lines = Array.prototype.slice.call(container.querySelectorAll('.fv-line'));
+        if (!lines.length) return;
+
+        let index = 0;
+        const duration = 2600; // ms
+
+        function showNext() {
+            lines.forEach(function (el, i) {
+                if (i === index) {
+                    el.classList.add('is-active');
+                } else {
+                    el.classList.remove('is-active');
+                }
+            });
+
+            index = (index + 1) % lines.length;
+        }
+
+        showNext();
+        setInterval(showNext, duration);
+    })();
+
     // Initialize Hero Swiper
     const heroSwiper = new Swiper('.hero-swiper', {
         slidesPerView: 1,

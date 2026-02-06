@@ -102,6 +102,39 @@ if ($isTokenBased) {
 <body>
     <?php include __DIR__ . '/includes/header.php'; ?>
     
+    <!-- First View Section -->
+    <section class="first-view">
+        <div class="first-view-inner">
+            <div class="first-view-image-wrap">
+                <img src="assets/images/hero.jpg" alt="不動産AI名刺のイメージ" class="first-view-image">
+            </div>
+            <div class="first-view-overlay">
+                <div class="first-view-top" id="first-view-top">
+                    <p class="fv-line">莫大なデータの中からお客様の最適解を自動提案。</p>
+                    <p class="fv-line">お客様が必要な情報をワンストップで提供可能。</p>
+                    <p class="fv-line">成約が多くて忙しい営業の方こそ使ってほしい。</p>
+                </div>
+                <div class="first-view-main">
+                    <div class="first-view-copy">
+                        <p class="first-view-tagline">不動産関連の</p>
+                        <h1 class="first-view-title">
+                            <span class="text-red">出会い</span>を<span class="text-red">売上</span>に<br>
+                            変える！
+                        </h1>
+                    </div>
+                    <div class="first-view-right">
+                        <img src="assets/images/hero-right.png" alt="不動産エージェントのイメージ" class="first-view-agent-image">
+                    </div>
+                </div>
+                <div class="first-view-bottom-text">
+                    <p class="first-view-bottom-caption">
+                        ～<span class="text-red">失注率低減</span>と<span class="text-red">コミュニケーション活性化</span>による営業効果最大化～
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
     <!-- Hero Slider Section -->
     <section class="hero-slider">
         <div class="hero-swiper-container">
@@ -170,62 +203,29 @@ if ($isTokenBased) {
                 <!-- Pagination -->
                 <div class="swiper-pagination"></div>
             </div>
-            <div class="hero-cta">
-                <a href="#features" class="btn-primary btn-large">不動産 AI 名刺とは？！</a>
+            <!-- <div class="hero-cta">
+                <a href="#features" class="btn-primary btn-large">不動産AI名刺を作ってみる</a> -->
                 <!-- <span class="hero-cta-text">※3分で完成</span> -->
-            </div>
+            <!-- </div> -->
         </div>
 
         <div class="hero-slide-right">
-            <!-- <img src="assets/images/first.jpg" alt="効率化" class="hero-slide-image"> -->
+            <!-- <img src="assets/images/first.png" alt="効率化" class="hero-slide-image"> -->
             <div class="container">
-                <h2 style="margin-bottom: 1rem;">有効的な活用方法が簡単に理解できる</h2>
+                <!-- <h2 style="margin-bottom: 1rem;">有効的な活用方法が簡単に理解できる</h2> -->
                 <div class="video-container">
                     <div class="video-wrapper">
-                        <video class="service-video" controls>
+                        <video class="service-video" controls loop autoplay muted>
                             <source src="assets/video/card.mp4" type="video/mp4">
-                            お使いのブラウザは動画再生に対応していません。
                         </video>
                     </div>
-                    <!-- <p class="video-description">新規店舗・既存店舗共通でご利用いただける、契約を促す動画サンプルです。</p> -->
                 </div>
             </div>
         </div>
 
     </section>
 
-    <!-- Philosophy Section: Two Faces of Digital Business Cards -->
-    <section class="philosophy-section">
-        <div class="container">
-            <!-- Odd-numbered images displayed horizontally side by side -->
-            <div class="philosophy-images-row">
-                <div class="philosophy-image-wrapper">
-                    <div class="philosophy-image-layer">
-                        <!-- Even image hidden beneath -->
-                        <img src="assets/images/lp/sec-2-2.png" alt="「つながり」を、成約へ。" class="philosophy-image-even" loading="lazy">
-                        <!-- Odd image on top -->
-                        <img src="assets/images/lp/sec-2-1.png" alt="デジタル名刺、2つの顔" class="philosophy-image-odd" loading="lazy">
-                    </div>
-                </div>
-                <div class="philosophy-image-wrapper">
-                    <div class="philosophy-image-layer">
-                        <!-- Even image hidden beneath -->
-                        <img src="assets/images/lp/sec-2-4.png" alt="紙の名刺からデジタル名刺への進化" class="philosophy-image-even" loading="lazy">
-                        <!-- Odd image on top -->
-                        <img src="assets/images/lp/sec-2-3.png" alt="「出会い」を、デザインする。" class="philosophy-image-odd" loading="lazy">
-                    </div>
-                </div>
-                <div class="philosophy-image-wrapper">
-                    <div class="philosophy-image-layer">
-                        <!-- Even image hidden beneath -->
-                        <img src="assets/images/lp/sec-2-6.png" alt="体験・表現・思想" class="philosophy-image-even" loading="lazy">
-                        <!-- Odd image on top -->
-                        <img src="assets/images/lp/sec-2-5.png" alt="デジタル名刺の進化" class="philosophy-image-odd" loading="lazy">
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+
 
     <!-- DX Tool Integration Section -->
     <section class="dx-integration-section">
@@ -238,9 +238,20 @@ if ($isTokenBased) {
                 <p class="dx-subtitle">
                     AI・ロボット・ビッグデータで不動産営業のDX化を強力にサポート！
                 </p>
+                <p class="dx-subtitle-text">
+                    例えば、４５０万件以上の過去の販売履歴や毎日６０００件以上の新規売り出し情報。
+                    そして、
+                    物件の良し悪しが一瞬で判定でき、
+                    今日の価格と欲しい人が分かる。
+                    QRコードを読み込むだけで、
+                    ビッグデータを自由に操る。<br>
+                    お客様が私を選ぶようになる。
+                    それが不動産AI名刺です。
+
+                </p>
                 <div class="dx-product-info">
                     <div class="dx-logo-wrapper">
-                        <img src="assets/images/logo.png" alt="不動産AI名刺 ロゴ" class="dx-logo" loading="lazy">
+                        <img src="assets/images/logo-1.png" alt="不動産AI名刺 ロゴ" class="dx-logo" loading="lazy">
                     </div>
                     <!-- <div class="dx-product-name-wrapper">
                         <span class="dx-tool-label">DXツール付き</span>
@@ -253,40 +264,66 @@ if ($isTokenBased) {
         </div>
     </section>
 
+    <!-- Three Steps Section -->
+    <section class="steps-section">
+        <div class="container">
+            <div class="steps-grid">
+                <div class="step-card">
+                    <span class="step-badge">1</span>
+                    <div class="step-image">
+                        <img src="assets/images/card-QR.png" alt="QRコード" loading="lazy">
+                    </div>
+                    <h3 class="step-title">QRコードをかざすだけ</h3>
+                    <p class="step-desc">名刺にQRコードを印刷したり、携帯でQRコードを表示させ、お客様のカメラで読み込んでもらうだけ。</p>
+                    <p class="step-desc">お客様へ必要なツールの提供が始まり、コミュニケーションツールで、より確実な連絡手段を確立します。</p>
+                </div>
+                <div class="step-card">
+                    <span class="step-badge">2</span>
+                    <div class="step-image">
+                        <img src="assets/images/news.png" alt="最新情報" loading="lazy">
+                    </div>
+                    <h3 class="step-title">あなたから届く最新情報</h3>
+                    <p class="step-desc">例えば、本日売却したらいくらになるのか。あなたから1週間に1度、お客様に自動的に配信できます。</p>
+                    <p class="step-desc">例えば、お客様の希望条件に合致した、本日売り出しになった物件情報を24時間以内に、365日休みなく、あなたがお届けできます。</p>
+                </div>
+                <div class="step-card">
+                    <span class="step-badge">3</span>
+                    <div class="step-image">
+                        <img src="assets/images/communication.png" alt="コミュニケーションツール" loading="lazy">
+                    </div>
+                    <h3 class="step-title">コミュニケーションツール</h3>
+                    <p class="step-desc">ただLINEでつながるだけならLINEで十分です。お客様が必要なAIツールが提供できるところが大きな違いです。</p>
+                    <p class="step-desc">そして、お客様からの問い合わせは直接あなたに届くようになります。お客様から連絡が来る、頼られる営業マンです。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Problems Section -->
     <section class="problems-section">
-        <div class="container">
-            <h2 class="problems-title">こんなお悩みありませんか?</h2>
-            <div class="problems-grid">
-                <div class="problem-card problem-card-1">
-                    <div class="problem-icon">
-                        <span>!</span>
-                    </div>
-                    <h3 class="problem-title">名刺交換後、連絡が途絶える</h3>
-                    <p class="problem-description">
-                        せっかく出会った見込み客と、その後のコミュニケーションが取れない
-                    </p>
-                </div>
-                
-                <div class="problem-card problem-card-2">
-                    <div class="problem-icon">
-                        <span>!</span>
-                    </div>
-                    <h3 class="problem-title">他社との差別化ができない</h3>
-                    <p class="problem-description">
-                        競合エージェントとの違いを明確に示せず、選ばれる理由が弱い
-                    </p>
-                </div>
-                
-                <div class="problem-card problem-card-3">
-                    <div class="problem-icon">
-                        <span>!</span>
-                    </div>
-                    <h3 class="problem-title">顧客への情報提供が不十分</h3>
-                    <p class="problem-description">
-                        物件情報や市場データを効果的に共有できず、信頼構築に時間がかかる
-                    </p>
-                </div>
+        <div class="problems-inner">
+            <div class="problems-content">
+                <h2 class="problems-title">こんなお悩みありませんか?</h2>
+                <ul class="problems-list">
+                    <li class="problem-item">
+                        <div class="problem-text">
+                            <h3 class="problem-title">①名刺交換後、連絡が途絶える</h3>
+                            <p class="problem-description">せっかく出会った見込み客と、<br> その後のコミュニケーションが取れない</p>
+                        </div>
+                    </li>
+                    <li class="problem-item">
+                        <div class="problem-text">
+                            <h3 class="problem-title">②他社との差別化ができない</h3>
+                            <p class="problem-description">競合エージェントとの違いを明確に示せず、<br>選ばれる理由が弱い</p>
+                        </div>
+                    </li>
+                    <li class="problem-item">
+                        <div class="problem-text">
+                            <h3 class="problem-title">③顧客への情報提供が不十分</h3>
+                            <p class="problem-description">物件情報や市場データを効果的に共有できず、<br>信頼構築に時間がかかる</p>
+                        </div>
+                    </li>
+                </ul>
             </div>
         </div>
     </section>

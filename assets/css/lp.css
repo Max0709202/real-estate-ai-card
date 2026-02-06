@@ -6,6 +6,189 @@ html {
     font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Yu Gothic', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Hiragino Kaku Gothic Pro', Meiryo, 'MS PGothic', sans-serif;
 }
 
+.first-view {
+    position: relative;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.first-view-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.first-view-image-wrap {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+}
+
+.first-view-image {
+    width: 100%;
+    height: 100%;
+    object-position: center;
+    display: block;
+    opacity: 0.4;
+}
+.first-view-top {
+    font-size: 1.3rem;
+}
+
+.first-view-overlay {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    text-align: center;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-direction: column;
+    height: 80%;
+    gap: 5rem;
+}
+
+.first-view-main {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2.5rem;
+}
+
+.first-view-copy {
+    max-width: 840px;
+    margin: 0 auto;
+    rotate: -10deg;
+}
+
+.first-view-tagline {
+    font-size: 4.4rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #111;
+    margin-bottom: 0.75rem;
+}
+
+.first-view-title {
+    font-size: 4.4rem;
+    font-weight: 900;
+    line-height: 1.25;
+    color: #111;
+}
+
+.first-view-bottom-text {
+    margin-top: 2rem;
+}
+
+.first-view-bottom-caption {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0066cc;
+}
+
+.first-view-right {
+    flex: 0 0 auto;
+    position: relative;
+    width: 400px;
+    height: 400px;
+}
+
+.first-view-agent-image {
+    display: block;
+    max-height: 360px;
+    position: absolute;
+    top: 0;
+    left: -21px;
+    scale: 1.5;
+}
+
+.first-view-top {
+    margin-bottom: 1.5rem;
+    position: relative;
+    min-height: 2.5rem;
+    color: #1a4dbf;
+    font-weight: bold;
+}
+
+.first-view-top p {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, 10px);
+    opacity: 0;
+    transition: opacity 0.6s ease, transform 0.6s ease;
+    white-space: nowrap;
+}
+
+.first-view-top p.is-active {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+@media (max-width: 768px) {
+    .first-view {
+        height: auto;
+        padding: 60px 0 40px;
+    }
+
+    .first-view-inner {
+        height: auto;
+        align-items: flex-start;
+    }
+
+    .first-view-image {
+        opacity: 0.2;
+    }
+
+    .first-view-overlay {
+        gap: 2.5rem;
+    }
+
+    .first-view-main {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .first-view-right {
+        display: none;
+    }
+
+    .first-view-copy {
+        text-align: center;
+        rotate: 0deg;
+    }
+
+    .first-view-tagline {
+        font-size: 2.2rem;
+        letter-spacing: 0.08em;
+    }
+
+    .first-view-title {
+        font-size: 2.4rem;
+        line-height: 1.3;
+    }
+
+    .first-view-bottom-caption {
+        font-size: 1.1rem;
+    }
+
+    .first-view-top {
+        font-size: 1.1rem;
+    }
+
+}
+
+.text-red {
+    color: #e53935;
+}
 /* Fixed CTA Button */
 .fixed-cta-button {
     position: fixed;
@@ -83,7 +266,6 @@ html {
 
 .hero-slide-right {
     width: 50%;
-    display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
@@ -209,103 +391,143 @@ html {
 
 /* Problems Section */
 .problems-section {
-    padding: 100px 0;
-    background: #ebebeb;
-    padding: 0 0 6.5rem 0;
+    padding: 4rem 0 6rem;
+    background: #f5f5f5 url('../images/think.png') no-repeat right center;
+    background-size: cover;
+    position: relative;
+    overflow: hidden;
+}
+
+.problems-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.problems-section .problems-inner {
+    position: relative;
+    z-index: 1;
+}
+
+.problems-inner {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    max-width: 1200px;
+    margin: 0 auto;
+    gap: 3rem;
+    padding: 0 20px;
+}
+
+.problems-content {
+    flex: 0 1 52%;
+    min-width: 800px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .problems-title {
-    text-align: center;
-    font-size: 1.6rem;
+    font-size: 2.6rem;
     font-weight: 900;
-    color: black;
-    margin-bottom: 60px;
+    color: #286beb;
+    margin-bottom: 2rem;
+    line-height: 1.3;
 }
 
-.problems-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 30px;
-    max-width: 1200px;
-    margin: 0 auto;
+.problems-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
 
-.problem-card {
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    border-radius: 1rem;
-    padding: 4rem 1.5rem 3rem;
-    text-align: left;
-    transition: transform 0.3s, box-shadow 0.3s;
-}
-
-.problem-card-1 {
-    background-image: url('../images/lp/image1.png');
-}
-
-.problem-card-2 {
-    background-image: url('../images/lp/image2.png');
-}
-
-.problem-card-3 {
-    background-image: url('../images/lp/image3.png');
-}
-
-.problem-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-}
-
-.problem-icon {
-    width: 1.8rem;
-    height: 1.8rem;
-    background: rgb(255 255 255 / 0%);
-    border-radius: 50%;
-    border-color: #fff;
-    border-width: 1px;
-    border-style: solid;
+.problem-item {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-block: 25px;
-    font-size: 1.2rem;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+}
+
+.problem-item:last-child {
+    margin-bottom: 0;
+}
+
+.problem-num {
+    flex-shrink: 0;
+    font-size: 1.5rem;
     font-weight: 700;
-    color: #fff;
+    color: #333;
+    line-height: 1.2;
+}
+
+.problem-text {
+    flex: 1;
+    min-width: 0;
 }
 
 .problem-title {
-    font-size: 1rem;
-    font-weight: bold;
-    color: #ffffff;
-    margin-bottom: 1rem;
-    line-height: 1.5;
+    font-size: 2.1rem;
+    font-weight: bolder;
+    color: #e53935;
+    margin: 0 0 0.5rem 0;
+    line-height: 1.45;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    display: inline-block;
+    stroke: 2px solid #ddd;
+    text-shadow: -2px -2px 0 #ffffff, 2px -2px 0 #ffffff, -2px 2px 0 #ffffff, 2px 2px 0 #ffffff;
 }
 
 .problem-description {
-    font-size: 0.9rem;
-    color: #ffffff;
-    line-height: 1.8;
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #000000;
+    line-height: 1.7;
+    margin: 0;
+    text-shadow: -2px -2px 0 #ffffff, 2px -2px 0 #ffffff, -2px 2px 0 #ffffff, 2px 2px 0 #ffffff;
 }
 
 @media (max-width: 1024px) {
-    .problems-grid {
-        grid-template-columns: 1fr;
-        gap: 30px;
-    }
-    
-    .problems-title {
-        font-size: 2rem;
+    .problems-inner {
+        gap: 2rem;
     }
 }
 
 @media (max-width: 768px) {
     .problems-section {
-        padding: 60px 0;
+        padding: 3rem 0 4rem;
     }
-    
-    .problem-card {
-        padding: 30px 20px;
+
+    .problems-inner {
+        flex-direction: column;
+        gap: 2rem;
+        padding: 0 16px;
+    }
+
+    .problems-content {
+        order: 1;
+        flex: 1 1 100%;
+        max-width: none;
+    }
+
+    .problems-title {
+        font-size: 1.4rem;
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+
+    .problem-item {
+        margin-bottom: 1.5rem;
+    }
+
+    .problem-title {
+        font-size: 1rem;
+        padding: 0.4rem 0.6rem;
+    }
+
+    .problem-description {
+        font-size: 0.85rem;
     }
 }
 
@@ -2474,39 +2696,29 @@ html {
     
     /* Problems Section */
     .problems-section {
-        padding: 50px 0;
+        padding: 2.5rem 0 3.5rem;
     }
     
     .problems-title {
-        font-size: 1.6rem;
-        margin-bottom: 40px;
-        padding: 0 20px;
+        font-size: 1.25rem;
+        margin-bottom: 1.25rem;
     }
     
-    .problems-grid {
-        grid-template-columns: 1fr;
-        gap: 25px;
-        padding: 0 20px;
+    .problem-item {
+        margin-bottom: 1.25rem;
     }
     
-    .problem-card {
-        padding: 25px 20px;
-    }
-    
-    .problem-icon {
-        width: 50px;
-        height: 50px;
-        font-size: 1.5rem;
-        margin-bottom: 20px;
+    .problem-num {
+        font-size: 1.25rem;
     }
     
     .problem-title {
-        font-size: 1.1rem;
-        margin-bottom: 12px;
+        font-size: 0.95rem;
+        padding: 0.35rem 0.5rem;
     }
     
     .problem-description {
-        font-size: 0.9rem;
+        font-size: 0.8rem;
     }
     
     /* Feature Sections */
