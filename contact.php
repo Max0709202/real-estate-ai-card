@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($errors)) {
-        $mailTo   = defined('NOTIFICATION_EMAIL') ? NOTIFICATION_EMAIL : (getenv('SMTP_FROM_EMAIL') ?: 'no-reply@ai-fcard.com');
+        $mailTo   = defined('NOTIFICATION_EMAIL') ? NOTIFICATION_EMAIL : (getenv('SMTP_FROM_EMAIL') ?: 'info@ai-fcard.com');
         $mailSubj = $subject !== '' ? $subject : '不動産AI名刺サイトからのお問い合わせ';
 
         $htmlMessage = '<p>不動産AI名刺サイトよりお問い合わせが届きました。</p>'
@@ -89,10 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <main class="contact-main">
         <section class="contact-hero">
-            <div class="container">
+            <div class="contact-hero-bg" aria-hidden="true"></div>
+            <div class="container contact-hero-inner">
                 <h1 class="contact-title">お問い合わせ</h1>
                 <p class="contact-lead">
-                    サービスに関するご質問・ご相談・お見積もりのご依頼など、<br>
+                    サービスに関するご質問・ご相談・お見積もりのご依頼など、<br class="contact-br-pc">
                     下記フォームよりお気軽にお問い合わせください。
                 </p>
             </div>
@@ -101,86 +102,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <section class="contact-form-section">
             <div class="container">
                 <?php if (!empty($successMessage)): ?>
-                    <div class="contact-alert contact-alert-success">
+                    <div class="contact-alert contact-alert-success" role="alert">
+                        <span class="contact-alert-icon" aria-hidden="true">✓</span>
                         <?php echo htmlspecialchars($successMessage, ENT_QUOTES, 'UTF-8'); ?>
                     </div>
                 <?php endif; ?>
 
                 <?php if (!empty($errors['general'])): ?>
-                    <div class="contact-alert contact-alert-error">
+                    <div class="contact-alert contact-alert-error" role="alert">
+                        <span class="contact-alert-icon" aria-hidden="true">!</span>
                         <?php echo htmlspecialchars($errors['general'], ENT_QUOTES, 'UTF-8'); ?>
                     </div>
                 <?php endif; ?>
 
-                <form class="contact-form" action="contact.php" method="post" novalidate>
-                    <div class="contact-form-grid">
+                <div class="contact-form-wrap">
+                    <form class="contact-form" action="contact.php" method="post" novalidate>
+                        <div class="contact-form-grid">
+                            <div class="contact-form-group">
+                                <label for="contact-name">お名前 <span class="contact-required">必須</span></label>
+                                <input
+                                    type="text"
+                                    id="contact-name"
+                                    name="name"
+                                    class="contact-input<?php echo isset($errors['name']) ? ' has-error' : ''; ?>"
+                                    value="<?php echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?>"
+                                    placeholder="山田 太郎"
+                                    autocomplete="name"
+                                >
+                                <?php if (isset($errors['name'])): ?>
+                                    <p class="contact-error-text"><?php echo htmlspecialchars($errors['name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="contact-form-group">
+                                <label for="contact-email">メールアドレス <span class="contact-required">必須</span></label>
+                                <input
+                                    type="email"
+                                    id="contact-email"
+                                    name="email"
+                                    class="contact-input<?php echo isset($errors['email']) ? ' has-error' : ''; ?>"
+                                    value="<?php echo htmlspecialchars($email, ENT_QUOTES, 'UTF-8'); ?>"
+                                    placeholder="example@domain.jp"
+                                    autocomplete="email"
+                                >
+                                <?php if (isset($errors['email'])): ?>
+                                    <p class="contact-error-text"><?php echo htmlspecialchars($errors['email'], ENT_QUOTES, 'UTF-8'); ?></p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
                         <div class="contact-form-group">
-                            <label for="contact-name">お名前 <span class="contact-required">必須</span></label>
+                            <label for="contact-subject">件名</label>
                             <input
                                 type="text"
-                                id="contact-name"
-                                name="name"
-                                class="contact-input<?php echo isset($errors['name']) ? ' has-error' : ''; ?>"
-                                value="<?php echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?>"
-                                placeholder="山田 太郎"
+                                id="contact-subject"
+                                name="subject"
+                                class="contact-input"
+                                value="<?php echo htmlspecialchars($subject, ENT_QUOTES, 'UTF-8'); ?>"
+                                placeholder="お問い合わせ内容の概要をご記入ください"
                             >
-                            <?php if (isset($errors['name'])): ?>
-                                <p class="contact-error-text"><?php echo htmlspecialchars($errors['name'], ENT_QUOTES, 'UTF-8'); ?></p>
-                            <?php endif; ?>
                         </div>
 
                         <div class="contact-form-group">
-                            <label for="contact-email">メールアドレス <span class="contact-required">必須</span></label>
-                            <input
-                                type="email"
-                                id="contact-email"
-                                name="email"
-                                class="contact-input<?php echo isset($errors['email']) ? ' has-error' : ''; ?>"
-                                value="<?php echo htmlspecialchars($email, ENT_QUOTES, 'UTF-8'); ?>"
-                                placeholder="example@domain.jp"
-                            >
-                            <?php if (isset($errors['email'])): ?>
-                                <p class="contact-error-text"><?php echo htmlspecialchars($errors['email'], ENT_QUOTES, 'UTF-8'); ?></p>
+                            <label for="contact-message">お問い合わせ内容 <span class="contact-required">必須</span></label>
+                            <textarea
+                                id="contact-message"
+                                name="message"
+                                class="contact-textarea<?php echo isset($errors['message']) ? ' has-error' : ''; ?>"
+                                rows="8"
+                                placeholder="できるだけ詳しくご記入いただけますと、よりスムーズにご案内できます。"
+                            ><?php echo htmlspecialchars($body, ENT_QUOTES, 'UTF-8'); ?></textarea>
+                            <?php if (isset($errors['message'])): ?>
+                                <p class="contact-error-text"><?php echo htmlspecialchars($errors['message'], ENT_QUOTES, 'UTF-8'); ?></p>
                             <?php endif; ?>
                         </div>
-                    </div>
 
-                    <div class="contact-form-group">
-                        <label for="contact-subject">件名</label>
-                        <input
-                            type="text"
-                            id="contact-subject"
-                            name="subject"
-                            class="contact-input"
-                            value="<?php echo htmlspecialchars($subject, ENT_QUOTES, 'UTF-8'); ?>"
-                            placeholder="お問い合わせ内容の概要をご記入ください"
-                        >
-                    </div>
-
-                    <div class="contact-form-group">
-                        <label for="contact-message">お問い合わせ内容 <span class="contact-required">必須</span></label>
-                        <textarea
-                            id="contact-message"
-                            name="message"
-                            class="contact-textarea<?php echo isset($errors['message']) ? ' has-error' : ''; ?>"
-                            rows="8"
-                            placeholder="できるだけ詳しくご記入いただけますと、よりスムーズにご案内できます。"
-                        ><?php echo htmlspecialchars($body, ENT_QUOTES, 'UTF-8'); ?></textarea>
-                        <?php if (isset($errors['message'])): ?>
-                            <p class="contact-error-text"><?php echo htmlspecialchars($errors['message'], ENT_QUOTES, 'UTF-8'); ?></p>
-                        <?php endif; ?>
-                    </div>
-
-                    <div class="contact-form-footer">
-                        <p class="contact-privacy-note">
-                            ご入力いただいた情報は、お問い合わせへの回答およびサービスのご案内のみに使用し、<br class="only-pc">
-                            当社のプライバシーポリシーに基づき、適切に管理いたします。
-                        </p>
-                        <button type="submit" class="btn-primary contact-submit-button">
-                            送信する
-                        </button>
-                    </div>
-                </form>
+                        <div class="contact-form-footer">
+                            <p class="contact-privacy-note">
+                                ご入力いただいた情報は、お問い合わせへの回答およびサービスのご案内のみに使用し、<br class="contact-br-pc">
+                                当社のプライバシーポリシーに基づき、適切に管理いたします。
+                            </p>
+                            <button type="submit" class="contact-submit-button">
+                                送信する
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </section>
     </main>

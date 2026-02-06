@@ -92,5 +92,5 @@ define('TECH_TOOL_OLP_BASE', 'https://self-in.net/olp/index.php?id=');
 define('TECH_TOOL_ALP_BASE', 'https://self-in.net/alp/index.php?id=');
 
 // 通知メール設定
-define('NOTIFICATION_EMAIL', 'web@rchukai.jp');
+define('NOTIFICATION_EMAIL', 'info@ai-fcard.com');
 

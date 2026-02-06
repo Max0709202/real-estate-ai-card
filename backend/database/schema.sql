@@ -261,7 +261,7 @@ VALUES ('admin@rchukai.jp', '$2y$10$d3CQNK1ciFvSGyyC6e2swuZwgEDpB0fa5P4nU6ZtDDfv
 
 -- 通知メール設定
 INSERT IGNORE INTO settings (setting_key, setting_value, description) VALUES
-('notification_email', 'web@rchukai.jp', '新規登録通知メール送信先'),
+('notification_email', 'info@ai-fcard.com', '新規登録通知メール送信先'),
 ('base_url', 'https://www.ai-fcard.com', 'ベースURL'),
 ('stripe_publishable_key', '', 'Stripe公開キー'),
 ('stripe_secret_key', '', 'Stripeシークレットキー'),
