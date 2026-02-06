@@ -841,8 +841,8 @@ ease;
     }
 
     .comm-details-button {
-        width: 100%;
-        max-width: 100%;
+        width: 50%;
+        max-width: 50%;
         padding: 0.875rem 1.5rem;
         font-size: 0.95rem;
         font-weight: 600;

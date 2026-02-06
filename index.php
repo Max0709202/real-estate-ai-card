@@ -216,7 +216,7 @@ if ($isTokenBased) {
                 <div class="video-container">
                     <div class="video-wrapper">
                         <video class="service-video" controls loop autoplay muted>
-                            <source src="assets/video/card.mp4" type="video/mp4">
+                            <source src="assets/video/card.mp4" type="video/mp4" id="concept">
                         </video>
                     </div>
                 </div>
@@ -413,7 +413,7 @@ if ($isTokenBased) {
                             </div>
                             <div class="automation-card-content">
                                 <h3 class="automation-card-title">顧客育成 <span class="automation-subtitle">(Lead Nurturing)</span></h3>
-                                <p class="automation-description">
+                                <p class="automation-description" id="features">
                                     AIが顧客の希望条件に合う物件情報を毎日自動配信。常に顧客の第一想起を維持し、エンゲージメントを高めます。
                                 </p>
                             </div>
@@ -426,7 +426,7 @@ if ($isTokenBased) {
        
 
     <!-- Features & Pricing Introduction -->
-    <section class="features-intro-section" id="features">
+    <section class="features-intro-section">
         <div class="container">
             <h2 class="section-title">主な機能と作成手順</h2>
         </div>
@@ -767,9 +767,103 @@ if ($isTokenBased) {
         </div>
     </section>
 
+    <!-- Profile Landing Section -->
+    <section class="profile-landing-section">
+        <div class="container">
+            <div class="profile-landing-card">
+                <div class="profile-landing-phone-column">
+                    <div class="profile-landing-phone-wrapper">
+                        <!-- <div class="profile-landing-phone">
+                            <div class="profile-landing-phone-header">
+                                <div class="profile-landing-phone-indicator"></div>
+                            </div>
+                            <div class="profile-landing-phone-body">
+                                <div class="profile-landing-phone-profile">
+                                    <div class="profile-landing-avatar"></div>
+                                    <div class="profile-landing-profile-text">
+                                        <p class="profile-landing-role">スタジオプレーヤー/同年代</p>
+                                        <p class="profile-landing-name">さかき あかね</p>
+                                    </div>
+                                </div>
+                                <div class="profile-landing-description">
+                                    <p>
+                                        #Prairie Cardリレーションカード利用代理店<br>
+                                        サブスクメンバーを募っておりこの回の運営人<br>
+                                        兼1stアーティストです。
+                                    </p>
+                                </div>
+                                <button type="button" class="profile-landing-main-button">
+                                    連絡先の表示と保存
+                                </button>
+                                <div class="profile-landing-social-grid">
+                                    <span class="profile-landing-social-chip">Facebook</span>
+                                    <span class="profile-landing-social-chip">Instagram</span>
+                                    <span class="profile-landing-social-chip">X</span>
+                                    <span class="profile-landing-social-chip">Eight</span>
+                                    <span class="profile-landing-social-chip">LINE</span>
+                                    <span class="profile-landing-social-chip">LinkedIn</span>
+                                </div>
+                            </div>
+                        </div> -->
+                    </div>
+                </div>
+                <div class="profile-landing-text-column">
+                    <h2 class="profile-landing-title">あなただけのプロフィールページを作成</h2>
+                    <p class="profile-landing-lead">
+                        基本情報・SNSアイコン・自由リンクと大きく3つのパートに分かれています。
+                    </p>
+                    <p class="profile-landing-text">
+                        シンプルで使いやすいデザインです。<br>
+                        最新のお知らせや肩書きが変わっても、その場で更新できます。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Profile Multi Features Section -->
+    <section class="profile-multi-section">
+        <div class="container">
+            <div class="profile-multi-grid">
+                <!-- Card 1 -->
+                <div class="profile-multi-item">
+                    <div class="profile-multi-phone" style="background-image: url('assets/images/phone2.png')">
+                    </div>
+                    <h3 class="profile-multi-title">ワンタップで、LINEと不動産テックツールへつながる</h3>
+                    <p class="profile-multi-text">
+                    名刺を読み取ったその場で、公式LINE・Messenger・WhatsAppなどにすぐ接続。<br>
+                    さらに、全国マンションDBやAI査定などの不動産テックツールへもワンタップで案内できます。
+                    </p>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="profile-multi-item">
+                    <div class="profile-multi-phone" style="background-image: url('assets/images/phone3.png')">
+                    </div>
+                    <h3 class="profile-multi-title">物件提案・査定に役立つリンクを自由に掲載</h3>
+                    <p class="profile-multi-text">
+                    物件紹介ページ、会社HP、売却査定フォーム、説明資料（PDF）、YouTube動画、来店予約など、
+                    営業に必要なURLをまとめて設置可能です。
+                    </p>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="profile-multi-item">
+                    <div class="profile-multi-phone" style="background-image: url('assets/images/phone4.png')">
+                    </div>
+                    <h3 class="profile-multi-title">つながり方が増えるから、失注が減る</h3>
+                    <p class="profile-multi-text" id="pricing">
+                    LINEで即連絡先交換、名刺情報の保存、アクセス履歴の把握などで「連絡が途切れる」を防止。<br>
+                    コミュニケーションの起点を増やし、商談化までスムーズに導きます。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <?php if (!$isTokenBased || $userType === 'new'): ?>
     <!-- New User Pricing Section -->
-    <section class="lp-new-pricing-section" id="price">
+    <section class="lp-new-pricing-section">
         <div class="container">
             <h2 class="lp-new-title">費用・決済方法について</h2>
             <p class="lp-new-subtitle">初期費用 + 月額課金</p>
@@ -777,16 +871,20 @@ if ($isTokenBased) {
             <div class="lp-new-content-grid">
                 <!-- Left Column: Benefits List -->
                 <div class="lp-new-benefits">
-                    <h3 class="lp-new-benefits-title">ご利用いただけるサービス</h3>
+                    <h3 class="lp-new-benefits-title">QRコードをかざすだけ</h3>
                     <ul class="lp-new-benefits-list">
                         <li class="lp-new-benefit-item">デジタル名刺の作成・管理</li>
                         <li class="lp-new-benefit-item">QRコード自動生成機能</li>
                         <li class="lp-new-benefit-item">LINE、SNS連携機能</li>
                         <li class="lp-new-benefit-item">6つの不動産テックツール連携</li>
-                        <li class="lp-new-benefit-item">全国マンションデータベース</li>
-                        <li class="lp-new-benefit-item">AI査定・物件提案ロボ</li>
-                        <li class="lp-new-benefit-item">顧客管理機能</li>
-                        <li class="lp-new-benefit-item">24時間365日のサポート</li>
+                        <li class="lp-new-benefit-item-small">全国マンションデータベース</li>
+                        <li class="lp-new-benefit-item-small">物件提案ロボ</li>
+                        <li class="lp-new-benefit-item-small">土地情報ロボ</li>
+                        <li class="lp-new-benefit-item-small">セルフィン</li>
+                        <li class="lp-new-benefit-item-small">AIマンション査定</li>
+                        <li class="lp-new-benefit-item-small">オーナーコネクト</li>
+                        <li class="lp-new-benefit-item">自分の名前で顧客に情報が届く</li>
+                        <li class="lp-new-benefit-item">顧客からの問い合わせが直接届く</li>
                     </ul>
                 </div>
                 
@@ -864,10 +962,9 @@ if ($isTokenBased) {
                 <div class="footer-section">
                     <h4>サービス</h4>
                     <ul>
+                        <li><a href="#concept">不動産AI名刺とは</a></li>
                         <li><a href="#features">特徴</a></li>
                         <li><a href="#pricing">料金</a></li>
-                        <li><a href="#tools">テックツール</a></li>
-                        <li><a href="help.php">よくある質問</a></li>
                         <li><a href="contact.php">お問い合わせ</a></li>
                     </ul>
                 </div>
