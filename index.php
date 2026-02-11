@@ -861,7 +861,64 @@ if ($isTokenBased) {
         </div>
     </section>
 
-    <?php if (!$isTokenBased || $userType === 'new'): ?>
+    <?php if ($userType === 'existing'): ?>
+    <!-- Existing User Pricing Section -->
+    <section class="lp-new-pricing-section">
+        <div class="container">
+            <h2 class="lp-new-title">費用・決済方法について</h2>
+            <p class="lp-new-subtitle">初期費用 + 月額課金</p>
+            
+            <div class="lp-new-content-grid">
+                <!-- Left Column: Benefits List -->
+                <div class="lp-new-benefits">
+                    <h3 class="lp-new-benefits-title">QRコードをかざすだけ</h3>
+                    <ul class="lp-new-benefits-list">
+                        <li class="lp-new-benefit-item">デジタル名刺の作成・管理</li>
+                        <li class="lp-new-benefit-item">QRコード自動生成機能</li>
+                        <li class="lp-new-benefit-item">LINE、SNS連携機能</li>
+                        <li class="lp-new-benefit-item">6つの不動産テックツール連携</li>
+                        <li class="lp-new-benefit-item-small">全国マンションデータベース</li>
+                        <li class="lp-new-benefit-item-small">物件提案ロボ</li>
+                        <li class="lp-new-benefit-item-small">土地情報ロボ</li>
+                        <li class="lp-new-benefit-item-small">セルフィン</li>
+                        <li class="lp-new-benefit-item-small">AIマンション査定</li>
+                        <li class="lp-new-benefit-item-small">オーナーコネクト</li>
+                        <li class="lp-new-benefit-item">自分の名前で顧客に情報が届く</li>
+                        <li class="lp-new-benefit-item">顧客からの問い合わせが直接届く</li>
+                    </ul>
+                </div>
+                
+                <!-- Right Column: Pricing Card (Existing User) -->
+                <div class="lp-new-pricing-card">
+                    <div class="lp-new-pricing-content">
+                        <!-- Badge for existing -->
+                        <div class="lp-new-popular-badge">既存ユーザー向け</div>
+                        
+                        <!-- Plan Title -->
+                        <h3 class="lp-new-plan-title">不動産AI名刺プラン</h3>
+                        
+                        <!-- Main Price Display -->
+                        <div class="lp-new-main-price">
+                            <span class="lp-new-price-symbol">¥</span>
+                            <span class="lp-new-price-number">500</span>
+                            <span class="lp-new-price-period">/月</span>
+                        </div>
+                        
+                        <!-- Initial Fee Note (existing: 20,000) -->
+                        <p class="lp-new-initial-fee-note">+初期費用 <?php echo number_format(PRICING_EXISTING_USER_INITIAL); ?>円（税別）</p>
+                        
+                        <!-- CTA Button -->
+                        <a href="register.php?type=existing" class="lp-new-inquire-button">詳細を問い合わせる</a>
+                        
+                        <!-- Disclaimer -->
+                        <p class="lp-new-disclaimer-note">※初月は無料トライアル期間です</p>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </section>
+    <?php elseif (!$isTokenBased || $userType === 'new'): ?>
     <!-- New User Pricing Section -->
     <section class="lp-new-pricing-section">
         <div class="container">
@@ -891,31 +948,19 @@ if ($isTokenBased) {
                 <!-- Right Column: Pricing Card -->
                 <div class="lp-new-pricing-card">
                     <div class="lp-new-pricing-content">
-                        <!-- Popular Badge -->
                         <div class="lp-new-popular-badge">人気</div>
-                        
-                        <!-- Plan Title -->
                         <h3 class="lp-new-plan-title">不動産AI名刺プラン</h3>
-                        
-                        <!-- Main Price Display -->
                         <div class="lp-new-main-price">
                             <span class="lp-new-price-symbol">¥</span>
                             <span class="lp-new-price-number">500</span>
                             <span class="lp-new-price-period">/月</span>
                         </div>
-                        
-                        <!-- Initial Fee Note -->
                         <p class="lp-new-initial-fee-note">+初期費用 30,000円（税別）</p>
-                        
-                        <!-- CTA Button -->
                         <a href="register.php?type=new" class="lp-new-inquire-button">詳細を問い合わせる</a>
-                        
-                        <!-- Disclaimer -->
                         <p class="lp-new-disclaimer-note">※初月は無料トライアル期間です</p>
                     </div>
                 </div>
             </div>
-            
         </div>
     </section>
     <?php endif; ?>
@@ -972,13 +1017,13 @@ if ($isTokenBased) {
                 <div class="footer-section">
                     <h4>サポート</h4>
                     <ul class="social-links">
-                        <li>
+                        <!-- <li>
                             <a href="#" class="social-link">
                                 <span>ヘルプセンター</span>
                             </a>
-                        </li>
+                        </li> -->
                         <li>
-                            <a href="#" class="social-link">
+                            <a href="contact.php" class="social-link">
                                 <span>お問い合わせ</span>
                             </a>
                         </li>

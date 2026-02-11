@@ -43,10 +43,14 @@ if ($isTokenBased) {
     }
 }
 
-// Ensure that if type is existing, token is also present (security check)
-// If type is existing but no token, log warning but allow registration to proceed
-if ($userType === 'existing' && empty($invitationToken)) {
-    error_log("Warning: Registration with type={$userType} but no token provided");
+// Existing users: redirect to login (no registration required)
+if ($userType === 'existing') {
+    $loginUrl = 'login.php?type=existing';
+    if (!empty($invitationToken)) {
+        $loginUrl .= '&token=' . urlencode($invitationToken);
+    }
+    header('Location: ' . $loginUrl);
+    exit;
 }
 ?>
 <!DOCTYPE html>
