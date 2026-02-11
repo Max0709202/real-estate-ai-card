@@ -1,0 +1,644 @@
+/**
+ * New LP - Section styles
+ * Used by lp.php
+ */
+
+/* ========== Section 1: Hero (tagline, headline, video placeholder) ========== */
+.new-lp-sec-1 {
+    position: relative;
+    min-height: 70vh;
+    background-image: url('../images/new_LP/sec-1-background.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: flex;
+    align-items: center;
+    padding: 4rem 0;
+}
+
+.new-lp-sec-1-inner {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3rem;
+}
+
+.new-lp-sec-1-left {
+    flex: 0 1 auto;
+    max-width: 50%;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Tagline: dashed box with L-shaped corners */
+.new-lp-sec-1-tagline-wrap {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 1rem;
+    padding: 0.3rem 0.8rem;
+}
+
+.new-lp-sec-1-tagline-bracket {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: #333;
+    border-style: solid;
+    border-width: 0;
+}
+.new-lp-sec-1-tr {
+    top: -2px;
+    right: -2px;
+    border-top-width: 2px;
+    border-right-width: 2px;
+}
+.new-lp-sec-1-br {
+    bottom: -2px;
+    right: -2px;
+    border-bottom-width: 2px;
+    border-right-width: 2px;
+}
+.new-lp-sec-1-tl {
+    top: -2px;
+    left: -2px;
+    border-top-width: 2px;
+    border-left-width: 2px;
+}
+.new-lp-sec-1-bl {
+    bottom: -2px;
+    left: -2px;
+    border-bottom-width: 2px;
+    border-left-width: 2px;
+}
+
+.new-lp-sec-1-tagline {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: #222;
+    margin: 0;
+    letter-spacing: 0.02em;
+}
+
+/* Title: first part outline, second part solid */
+.new-lp-sec-1-title {
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    font-weight: 900;
+    line-height: 1.2;
+    margin: 1rem 0 1.5rem 0;
+    letter-spacing: -0.02em;
+}
+.new-lp-sec-1-title-outline {
+    color: white;
+    -webkit-text-stroke: 3px #000000;
+    text-stroke: 3px #fff;
+    paint-order: stroke fill;
+}
+.new-lp-sec-1-title-solid {
+    color: #1a2d4a;
+}
+
+.new-lp-sec-1-sub {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #0066CC;
+    margin: 0;
+    display: inline-block;
+    padding-bottom: 0.2rem;
+    line-height: 1.4;
+    position: relative;
+}
+.new-lp-sec-1-sub::after {
+    content: '';
+    position: absolute;
+    left: 0em;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+    background: #0066CC;
+}
+
+.new-lp-sec-1-right {
+    flex: 0 1 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.new-lp-sec-1-video-wrap {
+    width: 100%;
+    max-width: 520px;
+    aspect-ratio: 16 / 10;
+    background: #fff;
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 20px 50px rgba(30, 90, 158, 0.15);
+    height: 38rem;
+}
+
+.new-lp-sec-1-video-label {
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: #1e5a9e;
+}
+
+/* Responsive */
+@media (max-width: 968px) {
+    .new-lp-sec-1-inner {
+        flex-direction: column;
+        text-align: center;
+        padding: 0 1.5rem;
+    }
+
+    .new-lp-sec-1-left {
+        max-width: 100%;
+    }
+
+    .new-lp-sec-1-title {
+        -webkit-text-stroke: 1.5px #1e5a9e;
+        text-stroke: 1.5px #1e5a9e;
+    }
+
+    .new-lp-sec-1-sub {
+        margin: 0 auto;
+    }
+
+    .new-lp-sec-1-right {
+        flex: 0 1 auto;
+        width: 100%;
+    }
+
+    .new-lp-sec-1-video-wrap {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    .new-lp-sec-1 {
+        min-height: auto;
+        padding: 3rem 0;
+    }
+
+    .new-lp-sec-1-tagline {
+        font-size: 1.1rem;
+    }
+
+    .new-lp-sec-1-title {
+        font-size: 2.25rem;
+    }
+
+    .new-lp-sec-1-sub {
+        font-size: 1.15rem;
+    }
+
+    .new-lp-sec-1-video-wrap {
+        aspect-ratio: 16 / 9;
+        border-radius: 16px;
+    }
+}
+
+/* ========== Section 2: 連絡する営業 から 連絡が来る営業へ ========== */
+.new-lp-sec-2 {
+    position: relative;
+    background-color: #f0f8ff;
+    background-image: url('../images/new_LP/section2-bg.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    padding: 7rem 2rem 8.25rem;
+}
+
+.new-lp-sec-2-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.new-lp-sec-2-title {
+    font-size: clamp(1.35rem, 2.5vw, 2.75rem);
+    font-weight: 700;
+    color: #1a2d4a;
+    line-height: 1.6;
+    margin: 0 0 2rem 0;
+    letter-spacing: 0.02em;
+}
+
+.new-lp-sec-2-title-box {
+    display: inline-block;
+    padding: 0.1em 0.1em;
+    border: 2px solid #1e5a9e;
+    color: #1a2d4a;
+    margin:5px;
+}
+
+.new-lp-sec-2-body {
+    font-size: 1.5rem;
+    line-height: 2;
+    color: #2d3d5a;
+    font-weight: 600;
+}
+
+.new-lp-sec-2-body p {
+    margin: 0 0 1.5em 0;
+}
+
+.new-lp-sec-2-body p:last-child {
+    margin-bottom: 0;
+}
+
+.new-lp-sec-2-highlight {
+    color: #1e5a9e;
+    font-weight: 600;
+}
+
+@media (max-width: 640px) {
+    .new-lp-sec-2 {
+        padding: 3rem 1.25rem 3rem;
+    }
+
+    .new-lp-sec-2-title {
+        font-size: 1.15rem;
+    }
+
+    .new-lp-sec-2-body {
+        font-size: 0.95rem;
+        line-height: 1.9;
+    }
+}
+
+/* ========== Section 3: 不動産AI名刺とは ========== */
+.new-lp-sec-3 {
+    padding: 5.6rem 2rem 5.6rem;
+    background-color: #ffffff;
+}
+
+.new-lp-sec-3-inner {
+    max-width: 1040px;
+    margin: 0 auto;
+}
+
+.new-lp-sec-3-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+.new-lp-sec-3-label-row {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 3.1rem;
+}
+
+.new-lp-sec-3-logo {
+    max-width: 360px;
+    width: 100%;
+    height: auto;
+    display: block;
+    scale: 1.5;
+}
+
+.new-lp-sec-3-tagline {
+    font-size: 2.1rem;
+    font-weight: 700;
+    color: #0066CC;
+    margin-bottom: 3.15rem;
+}
+
+.new-lp-sec-3-subheading {
+    font-size: 1rem;
+    color: #192B49;
+    margin: 0;
+    font-weight: 600;
+    margin-bottom: 1.4rem;
+}
+
+.new-lp-sec-3-card {
+    margin-top: 2.5rem;
+    background-color: #EFFAFF;
+    border-radius: 24px;
+    padding: 3.3rem 3.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+    align-items: center;
+    position: relative;
+}
+
+.new-lp-sec-3-card-inner {
+    display: flex;
+    flex-direction: row;
+    gap: 2rem;
+    align-items: stretch;
+    justify-content: center;
+}
+
+.new-lp-sec-3-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.new-lp-sec-3-left-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1a2d4a;
+    margin: 0 0 1.25rem;
+    line-height: 1.7;
+}
+
+.new-lp-sec-3-left {
+    width: 50%;
+    font-size: 0.95rem;
+    color: #374151;
+    line-height: 1.9;
+    padding: 4rem 2rem;
+    background-color: #fff;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.new-lp-sec-3-left p {
+    margin: 0 0 0.75rem;
+}
+
+.new-lp-sec-3-left-footer {
+    margin-top: 0.5rem;
+    font-weight: 600;
+}
+
+.new-lp-sec-3-strong {
+    color: #1e5a9e;
+    font-weight: 700;
+}
+
+.new-lp-sec-3-right {
+    width: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+
+.new-lp-sec-3-phone-frame {
+    width: 100%;
+    max-width: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.new-lp-sec-3-phone-img {
+    display: block;
+    height: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+.new-lp-sec-2-tl {
+    width: 4.7rem;
+    height: 4.7rem;
+    border-top-width: 0.75rem;
+    border-left-width: 0.75rem;
+    border-color: #0066CC;
+    border-top-left-radius: 2rem;
+    top:-10px;
+    left:-10px;
+}
+
+.new-lp-sec-2-bl {
+    width: 4.7rem;
+    height: 4.7rem;
+    border-bottom-width: 0.75rem;
+    border-left-width: 0.75rem;
+    border-color: #0066CC;
+    border-bottom-left-radius: 2rem;
+    bottom:-10px;
+    left:-10px;
+}
+
+.new-lp-sec-2-br {
+    width: 4.7rem;
+    height: 4.7rem;
+    border-bottom-width: 0.75rem;
+    border-right-width: 0.75rem;
+    border-color: #0066CC;
+    border-bottom-right-radius: 2rem;
+    bottom:-10px;
+    right:-10px;
+}
+
+.new-lp-sec-2-tr {
+    width: 4.7rem;
+    height: 4.7rem;
+    border-top-width: 0.75rem;
+    border-right-width: 0.75rem;
+    border-color: #0066CC;
+    border-top-right-radius: 2rem;
+    top:-10px;
+    right:-10px;
+}
+
+@media (max-width: 968px) {
+    .new-lp-sec-3 {
+        padding: 4rem 1.5rem 4.5rem;
+    }
+
+    .new-lp-sec-3-card {
+        padding: 2.25rem 2rem;
+    }
+
+    .new-lp-sec-3-card-inner {
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .new-lp-sec-3-left,
+    .new-lp-sec-3-right {
+        width: 100%;
+        padding: 2.5rem 1.75rem;
+    }
+
+    .new-lp-sec-3-left {
+        order: 2;
+    }
+
+    .new-lp-sec-3-right {
+        order: 1;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 640px) {
+    .new-lp-sec-3 {
+        padding: 3rem 1.25rem 3.5rem;
+    }
+
+    .new-lp-sec-3-heading-main {
+        font-size: 1.4rem;
+    }
+
+    .new-lp-sec-3-card {
+        padding: 2rem 1.5rem;
+    }
+
+    .new-lp-sec-3-left,
+    .new-lp-sec-3-right {
+        padding: 2rem 1.25rem;
+    }
+
+    .new-lp-sec-3-left-title {
+        font-size: 1.3rem;
+    }
+}
+
+/* ========== Section 4: 米国不動産業界におけるデジタル名刺の背景 ========== */
+.new-lp-sec-4 {
+    padding: 5rem 2rem 5.5rem;
+    background-color: #e5f0ff;
+}
+
+.new-lp-sec-4-inner {
+    max-width: 1120px;
+    margin: 0 auto;
+}
+
+.new-lp-sec-4-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1a2d4a;
+    text-align: center;
+    line-height: 1.6;
+    margin: 0 0 2.75rem;
+}
+
+.new-lp-sec-4-main {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2.5rem;
+}
+
+.new-lp-sec-4-left {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 3.1rem;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.new-lp-sec-4-row {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    gap: 3.75rem;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.new-lp-sec-4-card {
+    border-radius: 20px;
+    background-image: url('../images/new_LP/section-4-bg-small.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: flex;
+    align-items: center;
+    padding: 5.3rem 5.3rem;
+    color: #ffffff;
+    box-shadow: 20px 19px 5px 0px rgba(74, 74, 75, 0.5);
+}
+
+.new-lp-sec-4-card-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.6;
+    text-align: center;
+    min-width: 280px;
+}
+
+.new-lp-sec-4-text {
+    font-size: 1.25rem;
+    color: #374151;
+    line-height: 1.9;
+    margin: 0;
+}
+
+.new-lp-sec-4-right-bottom {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+}
+
+.new-lp-sec-4-bottom-text {
+    font-size: 0.98rem;
+    color: #1f2933;
+    line-height: 1.9;
+    text-align: left;
+}
+
+.new-lp-sec-4-strong {
+    color: #0066cc;
+    font-weight: 700;
+}
+
+.new-lp-sec-4-illustration-wrap {
+    max-width: 360px;
+}
+
+.new-lp-sec-4-illustration {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.new-lp-sec-4-right {
+    width: 100%;
+}
+
+@media (max-width: 968px) {
+    .new-lp-sec-4 {
+        padding: 4rem 1.5rem 4.5rem;
+    }
+
+    .new-lp-sec-4-main {
+        grid-template-columns: 1fr;
+    }
+
+    .new-lp-sec-4-row {
+        grid-template-columns: 1fr;
+    }
+
+    .new-lp-sec-4-bottom-text {
+        text-align: center;
+    }
+
+    .new-lp-sec-4-right-bottom {
+        align-items: center;
+    }
+}
+
+@media (max-width: 640px) {
+    .new-lp-sec-3-label-row img {
+        width : 60%;
+    }
+
+    .new-lp-sec-4-title {
+        font-size: 1.3rem;
+    }
+
+    .new-lp-sec-4-card {
+        height: auto;
+    }
+}
