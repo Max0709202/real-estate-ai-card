@@ -50,17 +50,26 @@ try {
         if ($admin) {
             // セキュリティチェック: このメールアドレスが管理画面から削除されたユーザーかどうかを確認
             // Check if this email was deleted from users table via admin panel
-            $checkDeletedStmt = $db->prepare("
-                SELECT id 
-                FROM admin_change_logs 
-                WHERE change_type = 'user_deleted' 
-                AND description LIKE ?
-                ORDER BY changed_at DESC
-                LIMIT 1
-            ");
-            $emailPattern = '%ユーザー削除: ' . $input['email'] . '%';
-            $checkDeletedStmt->execute([$emailPattern]);
-            $deletedLog = $checkDeletedStmt->fetch(PDO::FETCH_ASSOC);
+            $deletedLog = null;
+            try {
+                $checkDeletedStmt = $db->prepare("
+                    SELECT id 
+                    FROM admin_change_logs 
+                    WHERE change_type = 'user_deleted' 
+                    AND description LIKE ?
+                    ORDER BY changed_at DESC
+                    LIMIT 1
+                ");
+                $emailPattern = '%ユーザー削除: ' . $input['email'] . '%';
+                $checkDeletedStmt->execute([$emailPattern]);
+                $deletedLog = $checkDeletedStmt->fetch(PDO::FETCH_ASSOC);
+            } catch (PDOException $e) {
+                // admin_change_logs テーブルが存在しない場合はスキップ（マイグレーション未実行時）
+                if (strpos($e->getMessage(), "doesn't exist") === false) {
+                    throw $e;
+                }
+                error_log("Login: admin_change_logs table not found - run add_admin_change_log.sql migration");
+            }
             
             // 削除されたユーザーの場合は管理者ログインを拒否
             if ($deletedLog) {
@@ -155,8 +164,11 @@ try {
         'status' => $user['status']
     ], 'ログインに成功しました');
 
+} catch (PDOException $e) {
+    error_log("Login DB Error: " . $e->getMessage() . " | " . $e->getTraceAsString());
+    sendErrorResponse('データベースエラーが発生しました。管理者に連絡してください。', 500);
 } catch (Exception $e) {
-    error_log("Login Error: " . $e->getMessage());
+    error_log("Login Error: " . $e->getMessage() . " | File: " . $e->getFile() . ":" . $e->getLine());
     sendErrorResponse('サーバーエラーが発生しました', 500);
 }
 

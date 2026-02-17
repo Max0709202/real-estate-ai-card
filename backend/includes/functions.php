@@ -17,10 +17,21 @@
  */
 
 // Load Composer autoloader for PHPMailer and other dependencies
-// require_once __DIR__ . '/../vendor/autoload.php';
-// require __DIR__ . '/../config/config.php';
-// require __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../../vendor/autoload.php';
+$autoloadPaths = [
+    __DIR__ . '/../vendor/autoload.php',   // backend/vendor (composer run from backend/)
+    __DIR__ . '/../../vendor/autoload.php' // project root vendor
+];
+$autoloadLoaded = false;
+foreach ($autoloadPaths as $path) {
+    if (file_exists($path)) {
+        require_once $path;
+        $autoloadLoaded = true;
+        break;
+    }
+}
+if (!$autoloadLoaded) {
+    throw new RuntimeException('Composer autoload not found. Run: composer install in backend/');
+}
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;

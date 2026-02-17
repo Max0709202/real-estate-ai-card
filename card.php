@@ -1150,7 +1150,7 @@ if (!empty($card['profile_photo'])) {
 
     <?php if ($chatbotEnabled): ?>
     <!-- Chatbot widget (floating button + panel) -->
-    <div id="chat-widget-root" style="display: none;" class="chat-widget-root"
+    <div id="chat-widget-root" class="chat-widget-root"
          data-card-slug="<?php echo htmlspecialchars($card['url_slug'] ?? ''); ?>"
          data-agent-name="<?php echo htmlspecialchars($card['name'] ?? ''); ?>"
          data-agent-photo="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>"

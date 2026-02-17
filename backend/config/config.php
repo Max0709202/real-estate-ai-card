@@ -47,7 +47,7 @@ if (is_dir($sessionPath) && is_writable($sessionPath)) {
 }
 
 // ベースURL（画像・リンクはこのドメインで統一。wwwありで表示）
-define('BASE_URL', 'https://www.ai-fcard.com');
+define('BASE_URL', 'http://103.179.45.108/php/');
 define('API_BASE_URL', BASE_URL . '/backend/api');
 
 // ファイルアップロード設定
@@ -79,7 +79,7 @@ define('PRICING_EXISTING_USER_INITIAL', 20000); // 税別
 define('TAX_RATE', 0.1); // 10%
 
 // QRコード設定
-define('QR_CODE_BASE_URL', 'https://www.ai-fcard.com');
+define('QR_CODE_BASE_URL', 'http://103.179.45.108/php/');
 define('QR_CODE_DIR', __DIR__ . '/../uploads/qr_codes/');
 
 // テックツールベースURL

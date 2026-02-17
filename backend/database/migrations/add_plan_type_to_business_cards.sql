@@ -2,5 +2,5 @@
 -- Run once. If the column already exists, this ALTER will error - safe to ignore.
 
 ALTER TABLE business_cards
-ADD COLUMN plan_type VARCHAR(20) NOT NULL DEFAULT 'standard'
+ADD COLUMN plan_type VARCHAR(20) NOT NULL DEFAULT 'entry'
 COMMENT 'entry=DX+SNS only, standard=+chatbot+loan_sim';

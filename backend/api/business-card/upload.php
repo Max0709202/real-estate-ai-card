@@ -19,7 +19,7 @@ ini_set('memory_limit', '256M');
 ob_start();
 
 // CORS: when request uses credentials, browser requires a specific origin (not *).
-$allowedOrigins = ['https://ai-fcard.com', 'https://www.ai-fcard.com'];
+$allowedOrigins = ['https://ai-fcard.com', 'https://www.ai-fcard.com', 'http://103.179.45.108/php/'];
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? trim($_SERVER['HTTP_ORIGIN']) : '';
 if (in_array($origin, $allowedOrigins, true)) {
     header('Access-Control-Allow-Origin: ' . $origin);
