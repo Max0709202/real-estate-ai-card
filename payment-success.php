@@ -71,6 +71,22 @@ if ($paymentId) {
                                 }
                             }
                         }
+                        // Make card viewable immediately (no wait for webhook): update business_cards
+                        if (!empty($paymentInfo['business_card_id']) && !empty($paymentInfo['user_id'])) {
+                            $newPaymentStatus = ($paymentInfo['payment_method'] === 'credit_card') ? 'CR' : 'BANK_PAID';
+                            $stmt = $db->prepare("
+                                UPDATE business_cards
+                                SET payment_status = ?,
+                                    card_status = 'active',
+                                    is_published = 1,
+                                    updated_at = NOW()
+                                WHERE id = ? AND user_id = ?
+                            ");
+                            $stmt->execute([$newPaymentStatus, $paymentInfo['business_card_id'], $paymentInfo['user_id']]);
+                            if (function_exists('enforceOpenPaymentStatusRule')) {
+                                enforceOpenPaymentStatusRule($db, $paymentInfo['business_card_id'], $newPaymentStatus);
+                            }
+                        }
                     } elseif ($paymentIntent->status === 'requires_payment_method' ||
                               $paymentIntent->status === 'canceled') {
                         // Payment failed
@@ -88,6 +104,28 @@ if ($paymentId) {
             header('Location: payment.php?payment_id=' . $paymentId);
             exit;
         }
+
+        // Ensure card is viewable: if payment is completed but business_cards not yet updated (e.g. webhook lag), update now
+        if (!empty($paymentInfo['business_card_id']) && !empty($paymentInfo['user_id'])) {
+            $stmt = $db->prepare("SELECT payment_status, is_published FROM business_cards WHERE id = ? AND user_id = ?");
+            $stmt->execute([$paymentInfo['business_card_id'], $paymentInfo['user_id']]);
+            $bc = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($bc && (!in_array($bc['payment_status'], ['CR', 'BANK_PAID', 'ST']) || (int)$bc['is_published'] !== 1)) {
+                $newPaymentStatus = ($paymentInfo['payment_method'] === 'credit_card') ? 'CR' : 'BANK_PAID';
+                $stmt = $db->prepare("
+                    UPDATE business_cards
+                    SET payment_status = ?,
+                        card_status = 'active',
+                        is_published = 1,
+                        updated_at = NOW()
+                    WHERE id = ? AND user_id = ?
+                ");
+                $stmt->execute([$newPaymentStatus, $paymentInfo['business_card_id'], $paymentInfo['user_id']]);
+                if (function_exists('enforceOpenPaymentStatusRule')) {
+                    enforceOpenPaymentStatusRule($db, $paymentInfo['business_card_id'], $newPaymentStatus);
+                }
+            }
+        }
     } catch (Exception $e) {
         error_log("Payment success page error: " . $e->getMessage());
         header('Location: register.php');
@@ -103,6 +141,8 @@ if ($paymentId) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=32&v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=16&v=2">
     <title>お支払い完了 - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/register.css">
@@ -247,6 +287,10 @@ if ($paymentId) {
                 </div>
             </div>
             <?php endif; ?>
+
+            <p class="success-note" style="font-size: 0.9rem; color: #666; margin: 1rem 0 1.25rem 0;">
+                名刺の準備が完了するまで少々お待ちください（通常数秒）。表示されない場合は、しばらく経ってから再度「名刺を見る」をクリックしてください。
+            </p>
             
             <div class="action-buttons">
                 <?php if ($paymentInfo && $paymentInfo['url_slug']): ?>

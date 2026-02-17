@@ -71,7 +71,7 @@ try {
             .container { border: 3px solid #a3a3a3; border-radius: 1%; max-width: 600px; margin: 0 auto; }
             .header { color: #000000; padding: 30px 20px; text-align: center; }
             .header .logo-container { background: #ffffff; padding: 15px; display: inline-block; margin: 0 auto; }
-            .header img { max-width: 200px; height: auto; display: block; margin: 0 auto; }
+            .header img { max-width: 100px; height: auto; display: block; margin: 0 auto; }
             .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
             .button { display: inline-block; padding: 12px 30px; background: #0066cc; color: #fff; text-decoration: none; border-radius: 4px; margin: 20px 0; }
             .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
@@ -81,7 +81,7 @@ try {
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 100px; height: auto;'>
                 </div>
             </div>
             <div class='content'>

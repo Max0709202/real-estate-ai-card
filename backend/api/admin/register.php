@@ -161,7 +161,7 @@ try {
                 .container { border: 3px solid #a3a3a3; border-radius: 1%; max-width: 650px; margin: 30px auto; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
                 .header { color: #000000; padding: 30px 20px; text-align: center; }
                 .header .logo-container {padding: 15px;  border-radius: 8px; display: inline-block; margin: 0 auto; }
-                .header img { max-width: 200px; height: auto; display: block; margin: 0 auto; }
+                .header img { max-width: 100px; height: auto; display: block; margin: 0 auto; }
                 .content { padding: 40px 30px; }
                 .info-box { background: #f8f9fa; border-left: 4px solid #667eea; padding: 15px; margin: 20px 0; border-radius: 4px; }
                 .button-container { text-align: center; margin: 30px 0; }
@@ -176,7 +176,7 @@ try {
             <div class='container'>
                 <div class='header'>
                     <div class='logo-container'>
-                        <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                        <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 100px; height: auto;'>
                     </div>
                 </div>
                 <div class='content'>

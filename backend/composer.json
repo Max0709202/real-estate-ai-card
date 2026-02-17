@@ -5,7 +5,7 @@
     "require": {
         "php": ">=7.4",
         "stripe/stripe-php": "^10.0",
-        "endroid/qr-code": "^4.0",
+        "endroid/qr-code": "4.8.2",
         "phpmailer/phpmailer": "*"
     },
     "autoload": {

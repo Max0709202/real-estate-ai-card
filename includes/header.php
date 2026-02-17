@@ -48,10 +48,12 @@ if ($isTokenBased && !$isLoggedIn) {
 
                 // Set registration URL based on token type (use token's role_type, fallback to URL type)
                 if ($tokenUserType === 'existing') {
-                    $registerPageUrl = 'new_register.php?type=' . $tokenUserType . '&token=' . urlencode($invitationToken);
+                    // Existing users should login (not re-register)
+                    $registerPageUrl = 'login.php?type=' . $tokenUserType . '&token=' . urlencode($invitationToken);
                 } elseif ($urlUserType === 'existing') {
                     // If token validation didn't return type but URL has it, use URL type
-                    $registerPageUrl = 'new_register.php?type=' . $urlUserType . '&token=' . urlencode($invitationToken);
+                    // Existing users should login (not re-register)
+                    $registerPageUrl = 'login.php?type=' . $urlUserType . '&token=' . urlencode($invitationToken);
                 }
             }
         }
@@ -60,7 +62,8 @@ if ($isTokenBased && !$isLoggedIn) {
     }
 } elseif ($urlUserType === 'existing' && !$isLoggedIn) {
     // If type is in URL but no token, still set the URL (though token should be present)
-    $registerPageUrl = 'new_register.php?type=' . $urlUserType;
+    // Existing users should login (not re-register)
+    $registerPageUrl = 'login.php?type=' . $urlUserType;
     if ($invitationToken) {
         $registerPageUrl .= '&token=' . urlencode($invitationToken);
     }
@@ -137,9 +140,9 @@ if ($isLoggedIn) {
                                 $database = new Database();
                                 $db = $database->getConnection();
 
-                    // Get user name and profile photo from business_cards
+                    // Get user name, profile photo, payment_status and card_status from business_cards
                     $stmt = $db->prepare("
-                        SELECT name, profile_photo FROM business_cards WHERE user_id = ? LIMIT 1
+                        SELECT name, profile_photo, payment_status, card_status FROM business_cards WHERE user_id = ? LIMIT 1
                     ");
                     $stmt->execute([$_SESSION['user_id']]);
                     $bcData = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -147,6 +150,7 @@ if ($isLoggedIn) {
                         $headerUserName = $bcData['name'];
                     }
                     $headerProfilePhoto = $bcData['profile_photo'] ?? null;
+                    $headerCardStatus = ($bcData && isset($bcData['card_status'])) ? $bcData['card_status'] : null;
 
                                 $stmt = $db->prepare("
                                     SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
@@ -298,6 +302,15 @@ if ($isLoggedIn) {
                         }
                     }
 
+                    // Determine if account is cancelled (利用停止) — don't show "クレジット支払い" for cancelled or unpaid
+                    $headerIsCanceled = false;
+                    if ($headerSubscriptionInfo && isset($headerSubscriptionInfo['status']) && $headerSubscriptionInfo['status'] === 'canceled') {
+                        $headerIsCanceled = true;
+                    } elseif ($headerCardStatus === 'canceled') {
+                        $headerIsCanceled = true;
+                    }
+                    $headerShowAsPaid = in_array($headerPaymentStatus, ['CR', 'BANK_PAID', 'ST']) && !$headerIsCanceled;
+
                                 if ($headerSubscriptionInfo && in_array($headerSubscriptionInfo['status'], ['active', 'trialing', 'past_due', 'incomplete'])) {
                                     $headerHasActiveSubscription = true;
                                 } elseif (!$headerSubscriptionInfo) {
@@ -349,10 +362,12 @@ if ($isLoggedIn) {
                             <div class="user-name">
                                 <?php echo htmlspecialchars($headerUserName); ?>様
                             </div>
-                            <?php if ($headerUsagePeriodDisplay): ?>
+                            <?php if ($headerShowAsPaid && $headerUsagePeriodDisplay): ?>
                             <div class="user-period">
                                 <?php echo htmlspecialchars($headerUsagePeriodDisplay); ?>
                             </div>
+                            <?php else: ?>
+                            <div class="user-period user-period-unpaid" style="color: #c00;">未入金</div>
                             <?php endif; ?>
                         </div>
                         <?php endif; ?>
@@ -459,7 +474,7 @@ if ($isLoggedIn) {
       else cancelBtn.textContent = '処理中...';
 
       try {
-        const apiUrl = window.location.origin + '/php/backend/api/mypage/cancel.php';
+        const apiUrl = window.location.origin + '/backend/api/mypage/cancel.php';
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

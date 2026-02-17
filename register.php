@@ -233,6 +233,8 @@ $prefectures = [
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
     <meta name="googlebot" content="noindex, nofollow">
     <?php endif; ?>
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=32&v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=16&v=2">
     <title>アカウント作成 - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/register.css">
@@ -548,7 +550,7 @@ $prefectures = [
                         <h3>フリー入力欄</h3>
                         <p class="section-note">自由にアピールポイントや追加情報を入力できます。YouTubeのリンクなども貼り付けられます。</p>
                         <div class="form-group">
-                            <label>テキスト・画像セット <button type="button" class="btn-add-small" onclick="addFreeInputPairForRegister()">追加</button></label>
+                            <label>フリー入力欄を追加します <button type="button" class="btn-add-small" onclick="addFreeInputPairForRegister()">追加</button></label>
                             <div id="free-input-pairs-container">
                                 <div class="free-input-pair-item">
                                     <div class="free-input-pair-header">
@@ -557,7 +559,7 @@ $prefectures = [
                                             <button type="button" class="btn-move-up" onclick="moveFreeInputPairForRegister(0, 'up')" disabled>↑</button>
                                             <button type="button" class="btn-move-down" onclick="moveFreeInputPairForRegister(0, 'down')" disabled>↓</button>
                                         </div>
-                                        <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)" style="display: none;">削除</button>
+                                        <button type="button" class="btn-delete" onclick="removeFreeInputPairForRegister(this)" style="display: none;">削除</button>
                                     </div>
                                     <!-- Text Input -->
                                     <div class="form-group">
@@ -568,9 +570,9 @@ $prefectures = [
                                     <div class="form-group">
                                         <label>画像・バナー（リンク付き画像）</label>
                                         <div class="upload-area" data-upload-id="free_image_0">
-                                            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                                            <input type="file" id="free_image_0" name="free_image[]" accept="image/*" style="display: none;">
                                             <div class="upload-preview"></div>
-                                            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\"file\"]').click()">
+                                            <button type="button" class="btn-outline" onclick="document.getElementById('free_image_0').click()">
                                                 画像をアップロード
                                             </button>
                                             <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
@@ -1013,10 +1015,8 @@ $prefectures = [
             if (window.BASE_URL) {
                 return window.BASE_URL + '/backend/api/business-card/upload.php';
             }
-            // Fallback: extract first path segment (e.g., /php/register.php -> /php)
-            const pathParts = window.location.pathname.split('/').filter(p => p);
-            const basePath = pathParts.length > 0 ? '/' + pathParts[0] : '';
-            return window.location.origin + basePath + '/backend/api/business-card/upload.php';
+            // Fallback: backend is at site root (no /php/ in URL)
+            return window.location.origin + '/backend/api/business-card/upload.php';
         };
     </script>
     <script src="assets/js/register.js"></script>

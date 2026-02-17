@@ -43,14 +43,10 @@ if ($isTokenBased) {
     }
 }
 
-// Existing users: redirect to login (no registration required)
-if ($userType === 'existing') {
-    $loginUrl = 'login.php?type=existing';
-    if (!empty($invitationToken)) {
-        $loginUrl .= '&token=' . urlencode($invitationToken);
-    }
-    header('Location: ' . $loginUrl);
-    exit;
+// Ensure that if type is existing, token is also present (security check)
+// If type is existing but no token, log warning but allow registration to proceed
+if ($userType === 'existing' && empty($invitationToken)) {
+    error_log("Warning: Registration with type={$userType} but no token provided");
 }
 ?>
 <!DOCTYPE html>
@@ -63,6 +59,8 @@ if ($userType === 'existing') {
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
     <meta name="googlebot" content="noindex, nofollow">
     <?php endif; ?>
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=32&v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=16&v=2">
     <title>アカウント作成 - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/register.css">

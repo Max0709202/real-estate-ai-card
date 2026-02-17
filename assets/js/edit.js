@@ -512,7 +512,7 @@ function populateEditForms(data) {
                                 <button type="button" class="btn-move-up" onclick="moveFreeInputPair(${i}, 'up')" ${i === 0 ? 'disabled' : ''}>↑</button>
                                 <button type="button" class="btn-move-down" onclick="moveFreeInputPair(${i}, 'down')" ${i === pairCount - 1 ? 'disabled' : ''}>↓</button>
                             </div>
-                            <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
+                            <button type="button" class="btn-delete" onclick="removeFreeInputPair(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
                         </div>
                         <!-- Text Input -->
                         <div class="form-group">
@@ -903,6 +903,12 @@ async function saveTechTools() {
             if (typeof showSuccess === 'function') {
                 showSuccess('保存しました');
             }
+            // Restore button text before navigating
+            isSavingTechTools = false;
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.textContent = originalButtonText;
+            }
             // Update business card data without reloading
             await loadBusinessCardData();
             // Move to next step (Step 5)
@@ -1076,6 +1082,12 @@ async function saveCommunicationMethods() {
             await loadBusinessCardData();
             if (typeof showSuccess === 'function') {
                 showSuccess('保存しました');
+            }
+            // Restore button text before navigating
+            isSavingCommunicationMethods = false;
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.textContent = originalButtonText;
             }
             // Navigate to payment section
             goToEditSection('payment-section');
@@ -1783,7 +1795,7 @@ function addFreeInputPair() {
                 <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
             </div>
         </div>
-        <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)">削除</button>
+        <button type="button" class="btn-delete" onclick="removeFreeInputPair(this)">削除</button>
     `;
     
     // Insert at the top of the container (before the first child, or append if no children exist)
@@ -1812,7 +1824,7 @@ function addFreeInputPair() {
     // Update delete button visibility
     const allPairs = container.querySelectorAll('.free-input-pair-item');
     allPairs.forEach((pair, index) => {
-        const deleteBtn = pair.querySelector('.btn-delete-small');
+        const deleteBtn = pair.querySelector('.btn-delete');
         if (deleteBtn) {
             deleteBtn.style.display = allPairs.length > 1 ? 'block' : 'none';
         }
@@ -1837,7 +1849,7 @@ function removeFreeInputPair(button) {
     // Update delete button visibility
     const remainingPairs = container.querySelectorAll('.free-input-pair-item');
     remainingPairs.forEach((pair) => {
-        const deleteBtn = pair.querySelector('.btn-delete-small');
+        const deleteBtn = pair.querySelector('.btn-delete');
         if (deleteBtn) {
             deleteBtn.style.display = remainingPairs.length > 1 ? 'block' : 'none';
         }
@@ -1864,10 +1876,12 @@ function initializeFreeInputPairDragAndDrop() {
 
         const items = container.querySelectorAll('.free-input-pair-item');
         items.forEach((item, index) => {
-            if (!item.hasAttribute('draggable')) {
-                item.draggable = true;
-            }
+            item.draggable = false; // whole item not draggable so textarea/inputs don't steal drag
             item.dataset.dragIndex = index;
+            const header = item.querySelector('.free-input-pair-header');
+            if (header) {
+                header.draggable = true; // only header is the drag handle
+            }
         });
 
         attachDragListeners();
@@ -1880,19 +1894,25 @@ function initializeFreeInputPairDragAndDrop() {
             if (item.dataset.dragInitialized === 'true') return;
             item.dataset.dragInitialized = 'true';
 
-            item.addEventListener('dragstart', function(e) {
-                draggedElement = this;
-                this.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/html', this.innerHTML);
-            });
-
-            item.addEventListener('dragend', function(e) {
-                this.classList.remove('dragging');
-                container.querySelectorAll('.free-input-pair-item').forEach(item => {
-                    item.classList.remove('drag-over');
+            const header = item.querySelector('.free-input-pair-header');
+            if (header) {
+                header.addEventListener('dragstart', function(e) {
+                    const pairItem = this.closest('.free-input-pair-item');
+                    if (!pairItem) return;
+                    draggedElement = pairItem;
+                    pairItem.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/html', pairItem.innerHTML);
                 });
-            });
+
+                header.addEventListener('dragend', function(e) {
+                    const pairItem = this.closest('.free-input-pair-item');
+                    if (pairItem) pairItem.classList.remove('dragging');
+                    container.querySelectorAll('.free-input-pair-item').forEach(el => {
+                        el.classList.remove('drag-over');
+                    });
+                });
+            }
 
             item.addEventListener('dragover', function(e) {
                 e.preventDefault();
@@ -1911,9 +1931,9 @@ function initializeFreeInputPairDragAndDrop() {
                 e.stopPropagation();
 
                 if (draggedElement !== this && draggedElement !== null) {
-                    const items = Array.from(container.querySelectorAll('.free-input-pair-item'));
-                    const targetIndex = items.indexOf(this);
-                    const draggedIndexCurrent = items.indexOf(draggedElement);
+                    const itemsList = Array.from(container.querySelectorAll('.free-input-pair-item'));
+                    const targetIndex = itemsList.indexOf(this);
+                    const draggedIndexCurrent = itemsList.indexOf(draggedElement);
 
                     if (draggedIndexCurrent < targetIndex) {
                         container.insertBefore(draggedElement, this.nextSibling);
@@ -1921,12 +1941,9 @@ function initializeFreeInputPairDragAndDrop() {
                         container.insertBefore(draggedElement, this);
                     }
 
-                    draggedElement.dataset.dragInitialized = 'false';
-                    this.dataset.dragInitialized = 'false';
-
-                    // Update borders and spacing after reorder
+                    // Update UI and borders; DOM order is used on submit so order is preserved
+                    updateFreeInputPairNumbers();
                     updateFreeInputPairBorders();
-                    attachDragListeners();
                 }
             });
         });

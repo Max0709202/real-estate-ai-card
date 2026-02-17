@@ -77,7 +77,7 @@ try {
                 FROM access_logs al 
                 WHERE al.business_card_id = bc.id
             ), 0) as total_views,
-            CONCAT('" . QR_CODE_BASE_URL . "', bc.url_slug) as card_url,
+            CONCAT('" . rtrim(QR_CODE_BASE_URL, '/') . "/card.php?slug=', bc.url_slug) as card_url,
             bc.created_at as registered_at,
             u.last_login_at
         FROM business_cards bc
@@ -117,4 +117,3 @@ try {
     echo json_encode(['error' => 'CSV出力に失敗しました']);
     exit();
 }
-

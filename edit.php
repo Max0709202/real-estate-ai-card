@@ -478,6 +478,8 @@ $defaultGreetings = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=32&v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=16&v=2">
     <title>名刺編集 - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/edit.css">
@@ -555,6 +557,9 @@ $defaultGreetings = [
                     <a href="#payment" class="nav-item" data-step="6" data-section="payment-section">
                         <span class="step-number">6/6</span>
                         <span class="step-label">決済</span>
+                    </a>
+                    <a href="#chat-history" class="nav-item" data-step="chat" data-section="chat-history-section">
+                        <span class="step-label">チャット履歴</span>
                     </a>
                 </nav>
             </div>
@@ -826,7 +831,7 @@ $defaultGreetings = [
                             <h3>フリー入力欄</h3>
                             <p class="section-note">自由にアピールポイントや追加情報を入力できます。YouTubeのリンクなども貼り付けられます。</p>
                             <div class="form-group">
-                                <label>テキスト・画像セット <button type="button" class="btn-add-small" onclick="addFreeInputPair()">追加</button></label>
+                                <label>フリー入力欄を追加します <button type="button" class="btn-add-small" onclick="addFreeInputPair()">追加</button></label>
                                 <div id="free-input-pairs-container">
                                     <div class="free-input-pair-item">
                                         <div class="free-input-pair-header">
@@ -835,7 +840,7 @@ $defaultGreetings = [
                                                 <button type="button" class="btn-move-up" onclick="moveFreeInputPair(0, 'up')" disabled>↑</button>
                                                 <button type="button" class="btn-move-down" onclick="moveFreeInputPair(0, 'down')" disabled>↓</button>
                                             </div>
-                                            <button type="button" class="btn-delete-small" onclick="removeFreeInputPair(this)" style="display: none;">削除</button>
+                                            <button type="button" class="btn-delete" onclick="removeFreeInputPair(this)" style="display: none;">削除</button>
                                         </div>
                                         <!-- Text Input -->
                                         <div class="form-group">
@@ -843,12 +848,12 @@ $defaultGreetings = [
                                         <textarea name="free_input_text[]" class="form-control" rows="4" placeholder="自由に入力してください。&#10;例：YouTubeリンク: https://www.youtube.com/watch?v=xxxxx"></textarea>
                                     </div>
                                         <!-- Image/Banner Input -->
-                            <div class="form-group">
+                                    <div class="form-group">
                                             <label>画像・バナー（リンク付き画像）</label>
                                         <div class="upload-area" data-upload-id="free_image_0">
-                                            <input type="file" name="free_image[]" accept="image/*" style="display: none;">
+                                            <input type="file" id="free_image_0" name="free_image[]" accept="image/*" style="display: none;">
                                             <div class="upload-preview"></div>
-                                            <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\"file\"]').click()">
+                                            <button type="button" class="btn-outline" onclick="document.getElementById('free_image_0').click()">
                                                 画像をアップロード
                                             </button>
                                             <small>ファイルを選択するか、ここにドラッグ&ドロップしてください<br>対応形式：JPEG、PNG、GIF、WebP</small>
@@ -1143,6 +1148,20 @@ $defaultGreetings = [
                         <?php endif; ?>
                     </div>
                 </div>
+
+                <!-- Chat history / Leads (My Page) -->
+                <div id="chat-history-section" class="edit-section">
+                    <h2>チャット履歴・顧客一覧</h2>
+                    <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。</p>
+                    <div id="chat-history-list" class="chat-history-list">
+                        <p class="chat-history-loading">読み込み中...</p>
+                    </div>
+                    <div id="chat-history-detail" class="chat-history-detail" style="display: none;">
+                        <h3>顧客詳細</h3>
+                        <div id="chat-history-detail-content"></div>
+                        <button type="button" class="btn-secondary" id="chat-history-detail-back">一覧に戻る</button>
+                    </div>
+                </div>
             </div>
 
             <div class="edit-sidebar-actions">
@@ -1259,16 +1278,9 @@ $defaultGreetings = [
         // Make user type and account status available
         window.userType = <?php echo json_encode($userType ?? 'new', JSON_UNESCAPED_UNICODE); ?>;
         window.isCanceledAccount = <?php echo json_encode($isCanceledAccount ?? false); ?>;
-        // Absolute upload URL - always use current origin to avoid cross-origin issues
+        // Upload URL must use same origin as the page so session cookie is sent (avoid 401)
         window.getUploadUrl = function() {
-            // Use BASE_URL directly if available, otherwise extract base path from current URL
-            if (window.BASE_URL) {
-                return window.BASE_URL + '/backend/api/business-card/upload.php';
-            }
-            // Fallback: extract first path segment (e.g., /php/edit.php -> /php)
-            const pathParts = window.location.pathname.split('/').filter(p => p);
-            const basePath = pathParts.length > 0 ? '/' + pathParts[0] : '';
-            return window.location.origin + basePath + '/backend/api/business-card/upload.php';
+            return window.location.origin + '/backend/api/business-card/upload.php';
         };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
@@ -1665,7 +1677,7 @@ $defaultGreetings = [
 
     try {
       // Use absolute URL based on BASE_URL or construct from current location
-      const apiUrl = window.location.origin + '/php/backend/api/mypage/cancel.php';
+      const apiUrl = window.location.origin + '/backend/api/mypage/cancel.php';
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2194,6 +2206,12 @@ $defaultGreetings = [
                                 // Show success message
                             if (typeof showSuccess === 'function') {
                                 showSuccess('保存しました');
+                            }
+                            // Restore button text before navigating
+                            isSubmittingStep2 = false;
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = originalButtonText;
                             }
                             // Update business card data and move to next step without reloading
                             if (typeof loadBusinessCardData === 'function') {
@@ -2918,6 +2936,105 @@ $defaultGreetings = [
                 });
             }
         });
+
+        // Chat history (My Page): load sessions list and show detail
+        (function() {
+            var listEl = document.getElementById('chat-history-list');
+            var detailEl = document.getElementById('chat-history-detail');
+            var detailContent = document.getElementById('chat-history-detail-content');
+            var backBtn = document.getElementById('chat-history-detail-back');
+            if (!listEl || !detailEl) return;
+            var apiBase = window.location.origin + '/backend/api/chat';
+
+            function loadSessions() {
+                listEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
+                fetch(apiBase + '/sessions.php', { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (!res.success || !res.data.sessions) {
+                            listEl.innerHTML = '<p>セッションがありません。</p>';
+                            return;
+                        }
+                        var sessions = res.data.sessions;
+                        if (sessions.length === 0) {
+                            listEl.innerHTML = '<p>まだチャットのやり取りはありません。</p>';
+                            return;
+                        }
+                        var html = '<ul class="chat-session-list">';
+                        sessions.forEach(function(s) {
+                            var date = s.last_seen_at || s.created_at || '';
+                            var dateStr = date ? new Date(date).toLocaleString('ja-JP') : '-';
+                            var leadBadge = s.has_lead ? ' <span class="chat-lead-badge">ヒアリングあり</span>' : '';
+                            html += '<li class="chat-session-item" data-session-id="' + (s.id || '') + '">';
+                            html += '<span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + leadBadge;
+                            html += '<span class="chat-session-meta">' + (s.message_count || 0) + '件</span>';
+                            html += '</li>';
+                        });
+                        html += '</ul>';
+                        listEl.innerHTML = html;
+                        listEl.querySelectorAll('.chat-session-item').forEach(function(el) {
+                            el.addEventListener('click', function() {
+                                showDetail(el.getAttribute('data-session-id'));
+                            });
+                        });
+                    })
+                    .catch(function() {
+                        listEl.innerHTML = '<p>読み込みに失敗しました。</p>';
+                    });
+            }
+
+            function escapeHtml(s) {
+                if (!s) return '';
+                var d = document.createElement('div');
+                d.textContent = s;
+                return d.innerHTML;
+            }
+
+            function showDetail(sessionId) {
+                if (!sessionId) return;
+                detailContent.innerHTML = '<p>読み込み中...</p>';
+                detailEl.style.display = 'block';
+                listEl.style.display = 'none';
+                fetch(apiBase + '/session.php?id=' + encodeURIComponent(sessionId), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (!res.success || !res.data) {
+                            detailContent.innerHTML = '<p>取得に失敗しました。</p>';
+                            return;
+                        }
+                        var d = res.data;
+                        var html = '';
+                        if (d.lead && d.lead.structured_data) {
+                            html += '<h4>ヒアリング内容</h4><pre class="chat-lead-data">' + escapeHtml(JSON.stringify(d.lead.structured_data, null, 2)) + '</pre>';
+                        }
+                        html += '<h4>会話履歴</h4><div class="chat-transcript">';
+                        (d.messages || []).forEach(function(m) {
+                            html += '<p><strong>' + (m.role === 'user' ? 'お客様' : 'ボット') + '</strong>: ' + escapeHtml(m.message) + '</p>';
+                        });
+                        html += '</div>';
+                        detailContent.innerHTML = html;
+                    })
+                    .catch(function() {
+                        detailContent.innerHTML = '<p>取得に失敗しました。</p>';
+                    });
+            }
+
+            if (backBtn) {
+                backBtn.addEventListener('click', function() {
+                    detailEl.style.display = 'none';
+                    listEl.style.display = '';
+                    loadSessions();
+                });
+            }
+
+            var navChat = document.querySelector('.nav-item[data-section="chat-history-section"]');
+            if (navChat) {
+                navChat.addEventListener('click', function() {
+                    setTimeout(loadSessions, 300);
+                });
+            }
+            loadSessions();
+        })();
 
     </script>
 </body>

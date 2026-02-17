@@ -317,16 +317,32 @@ try {
     // 新規ユーザーまたは停止されたアカウントの復活の場合、サブスクリプションも作成
     if (($paymentType === 'new_user' || $userType === 'new' || $isCanceledAccount) && $paymentMethod === 'credit_card') {
         try {
-            // まずProductを検索または作成
-            $products = Product::search([
-                'query' => "name:'不動産AI名刺 月額料金' AND active:'true'",
-            ]);
-
             $productId = null;
-            if ($products && count($products->data) > 0) {
-                $productId = $products->data[0]->id;
-            } else {
-                // Productが存在しない場合は作成
+            $priceId = null;
+
+            // Productを検索または作成（Search APIが使えない環境ではallでフォールバック）
+            try {
+                if (method_exists('Stripe\Product', 'search')) {
+                    $products = Product::search([
+                        'query' => "name:'不動産AI名刺 月額料金' AND active:'true'",
+                    ]);
+                    if ($products && count($products->data) > 0) {
+                        $productId = $products->data[0]->id;
+                    }
+                }
+            } catch (\Throwable $searchErr) {
+                error_log("Product::search fallback: " . $searchErr->getMessage());
+            }
+            if (!$productId) {
+                $productList = Product::all(['limit' => 100, 'active' => true]);
+                foreach ($productList->data as $p) {
+                    if (isset($p->name) && $p->name === '不動産AI名刺 月額料金') {
+                        $productId = $p->id;
+                        break;
+                    }
+                }
+            }
+            if (!$productId) {
                 $product = Product::create([
                     'name' => '不動産AI名刺 月額料金',
                     'description' => '不動産AI名刺の月額利用料金'
@@ -335,15 +351,28 @@ try {
             }
 
             // Priceを検索または作成
-            $prices = Price::search([
-                'query' => "product:'{$productId}' AND active:'true' AND currency:'jpy' AND type:'recurring'",
-            ]);
-
-            $priceId = null;
-            if ($prices && count($prices->data) > 0) {
-                $priceId = $prices->data[0]->id;
-            } else {
-                // Priceが存在しない場合は作成
+            try {
+                if (method_exists('Stripe\Price', 'search') && $productId) {
+                    $prices = Price::search([
+                        'query' => "product:'{$productId}' AND active:'true' AND currency:'jpy' AND type:'recurring'",
+                    ]);
+                    if ($prices && count($prices->data) > 0) {
+                        $priceId = $prices->data[0]->id;
+                    }
+                }
+            } catch (\Throwable $searchErr) {
+                error_log("Price::search fallback: " . $searchErr->getMessage());
+            }
+            if (!$priceId && $productId) {
+                $pricesList = Price::all(['limit' => 20, 'active' => true]);
+                foreach ($pricesList->data as $pr) {
+                    if (isset($pr->product) && $pr->product === $productId && isset($pr->currency) && $pr->currency === 'jpy' && isset($pr->recurring)) {
+                        $priceId = $pr->id;
+                        break;
+                    }
+                }
+            }
+            if (!$priceId && $productId) {
                 $price = Price::create([
                     'product' => $productId,
                     'unit_amount' => (int)$monthlyAmount, // JPYは最小単位が1円のため、100倍不要
@@ -355,6 +384,9 @@ try {
                 $priceId = $price->id;
             }
 
+            if (!$priceId) {
+                error_log("Create Payment Intent: could not get or create Price for subscription, skipping subscription");
+            } else {
             // Subscription作成
             $subscription = Subscription::create([
                 'customer' => $stripeCustomerId,
@@ -404,6 +436,7 @@ try {
                 ");
                 $stmt->execute([$userInfo['business_card_id']]);
             }
+            } // end if ($priceId)
         } catch (\Exception $e) {
             // サブスクリプション作成に失敗しても決済は続行
             error_log("Subscription creation failed: " . $e->getMessage());
@@ -423,7 +456,7 @@ try {
         'message' => '決済処理を開始しました'
     ], '決済処理を開始しました');
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
     error_log("Create Payment Intent Error: " . $e->getMessage());
     error_log("Stack trace: " . $e->getTraceAsString());
     $errorMessage = 'サーバーエラーが発生しました';
@@ -432,4 +465,3 @@ try {
     }
     sendErrorResponse($errorMessage, 500);
 }
-

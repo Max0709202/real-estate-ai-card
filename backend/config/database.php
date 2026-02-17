@@ -4,9 +4,9 @@
  */
 class Database {
     private $host = 'localhost';
-    private $db_name = 'real_estate_card';
-    private $username = 'root';
-    private $password = '';
+    private $db_name = 'xs013436_realestatecard';
+    private $username = 'xs013436_nishio';
+    private $password = 'renewal4329';
     private $charset = 'utf8mb4';
     public $conn;
 
@@ -30,4 +30,3 @@ class Database {
         return $this->conn;
     }
 }
-

@@ -1746,16 +1746,19 @@ input.form-control {
 }
 
 .btn-delete-small {
-    display: inline-block;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.875rem;
-    background: #dc3545;
-    color: white;
-    border: none;
+    background: #fff;
+    border: 1px solid #e74c3c;
     border-radius: 4px;
+    padding: 0.4rem 0.8rem;
     cursor: pointer;
-    margin-top: 0.5rem;
-    transition: background 0.3s;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.3s;
+    color: #e74c3c;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 60px;
 }
 
 .btn-delete-small:hover {

@@ -48,8 +48,9 @@ function generateBusinessCardQRCode($businessCardId, $db) {
             ];
         }
         
-        // Generate QR code URL (card viewing URL)
-        $qrUrl = QR_CODE_BASE_URL . $card['url_slug'];
+        // Generate QR code URL (card viewing URL): https://www.ai-fcard.com/card.php?slug=xxx
+        $base = rtrim(QR_CODE_BASE_URL, '/');
+        $qrUrl = $base . '/card.php?slug=' . $card['url_slug'];
         
         // Create QR codes directory if it doesn't exist
         if (!is_dir(QR_CODE_DIR)) {
@@ -235,4 +236,3 @@ function qrCodeExists($qrCodePath) {
     $fullPath = __DIR__ . '/../../' . $qrCodePath;
     return file_exists($fullPath);
 }
-

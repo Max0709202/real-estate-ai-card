@@ -519,7 +519,7 @@ function populateRegistrationForms(data) {
                                 <button type="button" class="btn-move-up" onclick="moveFreeInputPairForRegister(${i}, 'up')" ${i === 0 ? 'disabled' : ''}>↑</button>
                                 <button type="button" class="btn-move-down" onclick="moveFreeInputPairForRegister(${i}, 'down')" ${i === pairCount - 1 ? 'disabled' : ''}>↓</button>
                             </div>
-                            <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
+                            <button type="button" class="btn-delete" onclick="removeFreeInputPairForRegister(this)" ${pairCount <= 1 ? 'style="display: none;"' : ''}>削除</button>
                         </div>
                         <!-- Text Input -->
                         <div class="form-group">
@@ -533,20 +533,7 @@ function populateRegistrationForms(data) {
                                 <input type="file" name="free_image[]" accept="image/*" style="display: none;">
                                 <div class="upload-preview">${(() => {
                                     if (!imgData.image) return '';
-                                    let imgPath = imgData.image;
-                                    if (!imgPath.startsWith('http')) {
-                                        // Use BASE_URL if available
-                                        if (typeof window !== 'undefined' && window.BASE_URL) {
-                                            imgPath = window.BASE_URL + '/' + imgPath.replace(/^\/+/, '');
-                                        } else {
-                                            // Fallback: If path starts with backend/, add ../ prefix
-                                            if (imgPath.startsWith('backend/')) {
-                                                imgPath = '../' + imgPath;
-                                            } else if (!imgPath.startsWith('../')) {
-                                                imgPath = '../' + imgPath;
-                                            }
-                                        }
-                                    }
+                                    const imgPath = typeof toAbsoluteImageUrl === 'function' ? toAbsoluteImageUrl(imgData.image) : (window.BASE_URL ? window.BASE_URL + '/' + String(imgData.image).replace(/^\/+/, '') : (window.location.origin + '/' + String(imgData.image).replace(/^\/+/, '')));
                                     return `<img src="${imgPath}" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px;">`;
                                 })()}</div>
                                 <button type="button" class="btn-outline" onclick="this.closest('.upload-area').querySelector('input[type=\\'file\\']').click()">
@@ -1496,7 +1483,7 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         uploadData.append('file_type', 'logo');
         
         try {
-            const uploadUrl = (typeof window.getUploadUrl === 'function') ? window.getUploadUrl() : (window.BASE_URL ? window.BASE_URL + '/backend/api/business-card/upload.php' : window.location.origin + '/php/backend/api/business-card/upload.php');
+            const uploadUrl = (typeof window.getUploadUrl === 'function') ? window.getUploadUrl() : (window.BASE_URL ? window.BASE_URL + '/backend/api/business-card/upload.php' : window.location.origin + '/backend/api/business-card/upload.php');
             const UPLOAD_TIMEOUT_MS = 120000; // 2 minutes - image processing can be slow
             let uploadResponse;
             let lastError;
@@ -1640,7 +1627,7 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         uploadData.append('file_type', 'photo');
         
         try {
-            const uploadUrl = (typeof window.getUploadUrl === 'function') ? window.getUploadUrl() : (window.BASE_URL ? window.BASE_URL + '/backend/api/business-card/upload.php' : window.location.origin + '/php/backend/api/business-card/upload.php');
+            const uploadUrl = (typeof window.getUploadUrl === 'function') ? window.getUploadUrl() : (window.BASE_URL ? window.BASE_URL + '/backend/api/business-card/upload.php' : window.location.origin + '/backend/api/business-card/upload.php');
             const UPLOAD_TIMEOUT_MS = 120000;
             let uploadResponse;
             for (let attempt = 0; attempt < 2; attempt++) {
@@ -1807,6 +1794,12 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
+            // Restore button text before navigating
+            isSubmittingStep1 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
             // Reload business card data to get updated company name
             await loadExistingBusinessCardData();
             goToStep(2);
@@ -1909,6 +1902,11 @@ document.getElementById('company-profile-form')?.addEventListener('submit', asyn
         
         const result = await response.json();
         if (result.success) {
+            isSubmittingStep2 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
             goToStep(3);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2030,7 +2028,7 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
             uploadData.append('file_type', 'free');
             
             try {
-                const uploadUrl = (typeof window.getUploadUrl === 'function') ? window.getUploadUrl() : (window.BASE_URL ? window.BASE_URL + '/backend/api/business-card/upload.php' : window.location.origin + '/php/backend/api/business-card/upload.php');
+                const uploadUrl = (typeof window.getUploadUrl === 'function') ? window.getUploadUrl() : (window.BASE_URL ? window.BASE_URL + '/backend/api/business-card/upload.php' : window.location.origin + '/backend/api/business-card/upload.php');
                 const UPLOAD_TIMEOUT_MS = 120000;
                 let uploadResponse;
                 for (let attempt = 0; attempt < 2; attempt++) {
@@ -2120,6 +2118,11 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
         
         const result = await response.json();
         if (result.success) {
+            isSubmittingStep3 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
             goToStep(4);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -2198,7 +2201,11 @@ document.getElementById('tech-tools-form')?.addEventListener('submit', async (e)
     await generateTechToolUrls(selectedTools);
 
         // Clear dirty flag to prevent "unsaved changes" popup
-    
+    isSubmittingStep4 = false;
+    if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
+    }
     goToStep(5);
     } catch (error) {
         console.error('Error saving tech tools:', error);
@@ -2431,6 +2438,11 @@ document.getElementById('communication-form')?.addEventListener('submit', async 
         
         const result = await response.json();
         if (result.success) {
+            isSubmittingStep5 = false;
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
             goToStep(6);
         } else {
             showError('更新に失敗しました: ' + result.message);
@@ -3325,7 +3337,7 @@ function addFreeInputPairForRegister() {
                 <button type="button" class="btn-move-up" onclick="moveFreeInputPairForRegister(${currentCount}, 'up')">↑</button>
                 <button type="button" class="btn-move-down" onclick="moveFreeInputPairForRegister(${currentCount}, 'down')">↓</button>
             </div>
-            <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)">削除</button>
+            <button type="button" class="btn-delete" onclick="removeFreeInputPairForRegister(this)">削除</button>
         </div>
         <!-- Text Input -->
         <div class="form-group">
@@ -3392,7 +3404,7 @@ function updateFreeInputPairDeleteButtonsForRegister() {
     
     const items = container.querySelectorAll('.free-input-pair-item');
     items.forEach((item, index) => {
-        const deleteBtn = item.querySelector('.btn-delete-small');
+        const deleteBtn = item.querySelector('.btn-delete');
         if (deleteBtn) {
             // Show delete button only if there's more than one item
             deleteBtn.style.display = items.length > 1 ? 'block' : 'none';
@@ -3563,7 +3575,7 @@ function updateFreeInputDeleteButtonsForRegister() {
     
     const items = container.querySelectorAll('.free-input-pair-item');
     items.forEach((item, index) => {
-        const deleteBtn = item.querySelector('.btn-delete-small');
+        const deleteBtn = item.querySelector('.btn-delete');
         if (deleteBtn) {
             // Don't show delete button if it's the last remaining item
             deleteBtn.style.display = items.length > 1 ? '' : 'none';
@@ -3598,7 +3610,7 @@ function updateFreeImageDeleteButtonsForRegister() {
     
     const items = container.querySelectorAll('.free-image-item');
     items.forEach((item, index) => {
-        const deleteBtn = item.querySelector('.btn-delete-small');
+        const deleteBtn = item.querySelector('.btn-delete');
         if (deleteBtn) {
             deleteBtn.style.display = items.length > 1 ? '' : 'none';
         }
@@ -4157,6 +4169,16 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Ensure image path is absolute so it never resolves to .../php/backend/...
+function toAbsoluteImageUrl(path) {
+    if (!path || typeof path !== 'string') return path || '';
+    // Normalize: remove /php/ from path so URL is always .../backend/uploads/...
+    let p = path.replace(/^https?:\/\/[^\/]+\/php\/?/, '').replace(/^\/?php\/?/, '');
+    if (p.startsWith('http://') || p.startsWith('https://')) return p;
+    const base = (typeof window !== 'undefined' && window.BASE_URL) ? window.BASE_URL : window.location.origin;
+    return base.replace(/\/+$/, '') + '/' + p.replace(/^\/+/, '');
+}
+
 // Build card HTML from data (used for preview/display)
 function buildCardHtmlForRegister(data) {
     const techToolBanners = {
@@ -4175,7 +4197,7 @@ function buildCardHtmlForRegister(data) {
     html += '<div class="card-header">';
     let hasHeaderContent = false;
     if (data.company_logo) {
-        html += `<img src="${escapeHtml(data.company_logo)}" alt="ロゴ" class="company-logo">`;
+        html += `<img src="${escapeHtml(toAbsoluteImageUrl(data.company_logo))}" alt="ロゴ" class="company-logo">`;
         hasHeaderContent = true;
     }
     const companyName = data.company_name || data.company_name_profile || '';
@@ -4196,7 +4218,7 @@ function buildCardHtmlForRegister(data) {
     let hasProfileGreetingContent = false;
     if (data.profile_photo) {
         html += '<div class="profile-photo-container">';
-        html += `<img src="${escapeHtml(data.profile_photo)}" alt="プロフィール写真" class="profile-photo">`;
+        html += `<img src="${escapeHtml(toAbsoluteImageUrl(data.profile_photo))}" alt="プロフィール写真" class="profile-photo">`;
         html += '</div>';
         hasProfileGreetingContent = true;
     }
@@ -4374,7 +4396,7 @@ function buildCardHtmlForRegister(data) {
         
         if (data.free_image) {
             html += '<div class="free-input-image">';
-            html += `<img src="${escapeHtml(data.free_image)}" alt="アップロード画像" style="max-width: 100%; height: auto; border-radius: 4px; margin: 0.5rem 0; display: block;">`;
+            html += `<img src="${escapeHtml(toAbsoluteImageUrl(data.free_image))}" alt="アップロード画像" style="max-width: 100%; height: auto; border-radius: 4px; margin: 0.5rem 0; display: block;">`;
             html += '</div>';
         }
         
@@ -4747,7 +4769,7 @@ function addFreeInputPairForRegister() {
                 <button type="button" class="btn-move-up" onclick="moveFreeInputPairForRegister(${currentCount}, 'up')">↑</button>
                 <button type="button" class="btn-move-down" onclick="moveFreeInputPairForRegister(${currentCount}, 'down')">↓</button>
             </div>
-            <button type="button" class="btn-delete-small" onclick="removeFreeInputPairForRegister(this)">削除</button>
+            <button type="button" class="btn-delete" onclick="removeFreeInputPairForRegister(this)">削除</button>
         </div>
         <!-- Text Input -->
         <div class="form-group">
@@ -4834,7 +4856,7 @@ function updateFreeInputPairDeleteButtonsForRegister() {
     if (!container) return;
     
     const items = container.querySelectorAll('.free-input-pair-item');
-    const deleteButtons = container.querySelectorAll('.free-input-pair-item .btn-delete-small');
+    const deleteButtons = container.querySelectorAll('.free-input-pair-item .btn-delete');
     
     if (items.length > 1) {
         deleteButtons.forEach(btn => btn.style.display = 'inline-block');
@@ -5035,7 +5057,7 @@ function updateFreeInputDeleteButtonsForRegister() {
 //             <label>画像のリンク先URL（任意）</label>
 //             <input type="url" name="free_image_link[]" class="form-control" placeholder="https://example.com">
 //         </div>
-//         <button type="button" class="btn-delete-small" onclick="removeFreeImageItemForRegister(this)">削除</button>
+//         <button type="button" class="btn-delete" onclick="removeFreeImageItemForRegister(this)">削除</button>
 //     `;
 //
 //     container.appendChild(newItem);
@@ -5071,7 +5093,7 @@ function updateFreeImageDeleteButtonsForRegister() {
     if (!container) return;
     
     const items = container.querySelectorAll('.free-image-item');
-    const deleteButtons = container.querySelectorAll('#free-images-container .btn-delete-small');
+    const deleteButtons = container.querySelectorAll('#free-images-container .btn-delete');
     
     if (items.length > 1) {
         deleteButtons.forEach(btn => btn.style.display = 'inline-block');

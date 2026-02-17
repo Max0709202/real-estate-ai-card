@@ -60,6 +60,10 @@ function linkifyUrlsInText($text) {
 $slug = $_GET['slug'] ?? '';
 $preview = isset($_GET['preview']) && $_GET['preview'] === '1';
 $previewFromPC = isset($_GET['preview_from_pc']) && $_GET['preview_from_pc'] === '1';
+// Show install banner only on mobile (not in preview and not on desktop)
+$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+$isMobile = (bool) preg_match('/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i', $ua);
+$showInstallBanner = !$preview && $isMobile;
 
 if (empty($slug)) {
     header('HTTP/1.0 404 Not Found');
@@ -260,6 +264,18 @@ $snsApps = $stmt->fetchAll();
 
 // Combine: Message Apps first, then SNS
 $communicationMethods = array_merge($messageApps, $snsApps);
+
+// Chatbot: show only for standard plan (or when plan_type not set, default to enabled)
+$chatbotEnabled = (!isset($card['plan_type']) || (string)$card['plan_type'] === 'standard');
+$agentPhotoUrlForChat = '';
+if (!empty($card['profile_photo'])) {
+    $p = trim($card['profile_photo']);
+    if (!preg_match('/^https?:\/\//', $p)) {
+        $agentPhotoUrlForChat = BASE_URL . '/' . ltrim($p, '/');
+    } else {
+        $agentPhotoUrlForChat = $p;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -269,8 +285,19 @@ $communicationMethods = array_merge($messageApps, $snsApps);
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
     <title><?php echo htmlspecialchars($card['name']); ?> - デジタル名刺</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=32&v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=16&v=2">
+    <!-- PWA (dynamic manifest: start_url = this card, name = card holder) -->
+    <link rel="manifest" href="manifest.php?slug=<?php echo urlencode($card['url_slug'] ?? ''); ?>">
+    <meta name="theme-color" content="#0A84FF">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="stylesheet" href="assets/css/card.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
+    <link rel="stylesheet" href="assets/css/pwa.css">
+    <?php if ($chatbotEnabled): ?>
+    <link rel="stylesheet" href="assets/css/chat-widget.css">
+    <?php endif; ?>
+    <script src="assets/js/pwa-a2hs.js" defer></script>
     <style>
         /* View toggle button */
         .view-toggle-container {
@@ -1098,6 +1125,107 @@ $communicationMethods = array_merge($messageApps, $snsApps);
             }
         })();
     </script>
+
+    <?php if ($showInstallBanner): ?>
+    <!-- Add-to-Home-Screen + Save to address book (first time only; controlled by assets/js/pwa-a2hs.js). Hidden in preview modal and on PC/desktop. -->
+    <div id="installBanner" role="region" aria-label="ホーム画面に追加・アドレス帳に保存案内" data-card-slug="<?php echo htmlspecialchars($card['url_slug'] ?? ''); ?>">
+        <div class="pwa-banner-inner">
+            <div class="pwa-banner-text">
+                <strong>名刺をホーム画面に追加すると、いつでも1タップで開けます</strong>
+                <p class="pwa-banner-vcf-msg">連絡先をアドレス帳に保存すると、この名刺の住所が保存されます。</p>
+                <ol id="iosInstallSteps" style="display:none;">
+                    <li>画面下の「共有」ボタンをタップ</li>
+                    <li>「ホーム画面に追加」を選択</li>
+                </ol>
+            </div>
+            <div class="pwa-banner-actions">
+                <button id="saveVcfBtn" type="button">アドレス帳に保存</button>
+                <button id="installBtn" type="button">ホームに追加</button>
+                <button id="iosCreateHomeIconBtn" type="button" style="display:none;">ホームアイコンを作る</button>
+                <button id="installCloseBtn" type="button">閉じる</button>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($chatbotEnabled): ?>
+    <!-- Chatbot widget (floating button + panel) -->
+    <div id="chat-widget-root" style="display: none;" class="chat-widget-root"
+         data-card-slug="<?php echo htmlspecialchars($card['url_slug'] ?? ''); ?>"
+         data-agent-name="<?php echo htmlspecialchars($card['name'] ?? ''); ?>"
+         data-agent-photo="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>"
+         data-api-base="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/backend/api/chat'); ?>">
+        <button type="button" id="chat-widget-toggle" class="chat-widget-toggle" aria-label="チャットを開く">
+            <span class="chat-widget-toggle-icon">💬</span>
+        </button>
+        <div id="chat-widget-panel" class="chat-widget-panel" hidden>
+            <div class="chat-widget-header">
+                <img id="chat-widget-avatar" class="chat-widget-avatar" src="" alt="" width="40" height="40">
+                <div class="chat-widget-header-text">
+                    <span id="chat-widget-agent-name" class="chat-widget-agent-name"></span>
+                    <span class="chat-widget-badge">AIチャット</span>
+                </div>
+                <button type="button" id="chat-widget-close" class="chat-widget-close" aria-label="閉じる">&times;</button>
+            </div>
+            <div id="chat-widget-messages" class="chat-widget-messages"></div>
+            <div class="chat-widget-quick-actions" id="chat-widget-quick-actions">
+                <button type="button" class="chat-quick-btn" data-action="loan_repayment">ローン返済額を試算する</button>
+                <button type="button" class="chat-quick-btn" data-action="loan_borrow">借入可能額を試算する</button>
+            </div>
+            <div class="chat-widget-input-wrap">
+                <textarea id="chat-widget-input" class="chat-widget-input" rows="2" placeholder="メッセージを入力..." maxlength="2000"></textarea>
+                <button type="button" id="chat-widget-send" class="chat-widget-send" aria-label="送信">送信</button>
+            </div>
+        </div>
+    </div>
+    <script src="assets/js/chat-widget.js" defer></script>
+    <?php endif; ?>
+
+    <!-- iOS: Step 1 – Custom prompt "Would you like to add to home screen?" -->
+    <div id="pwaIosModal1" class="pwa-ios-modal" role="dialog" aria-label="ホーム画面に追加" aria-modal="true" hidden>
+        <div class="pwa-ios-modal-backdrop"></div>
+        <div class="pwa-ios-modal-box pwa-ios-modal-box-1">
+            <button type="button" class="pwa-ios-modal-close" id="pwaIosModal1Close" aria-label="閉じる">&times;</button>
+            <div class="pwa-ios-modal-icon-wrap">
+                <img src="<?php echo rtrim(BASE_URL, '/'); ?>/icon-192.png" alt="" width="80" height="80" class="pwa-ios-modal-icon">
+            </div>
+            <p class="pwa-ios-modal-text"><?php echo htmlspecialchars($card['name'] ?? 'AI名刺'); ?>をホーム画面に追加しますか<br>いつでもすぐ開くことができるようになります。</p>
+            <button type="button" class="pwa-ios-modal-btn-primary" id="pwaIosModal1CreateBtn">ホームアイコンを作る</button>
+        </div>
+    </div>
+
+    <!-- iOS: Step 2 – Native-style "Add to Home Screen" (Cancel / Add); Add opens Share sheet -->
+    <div id="pwaIosModal2" class="pwa-ios-modal" role="dialog" aria-label="ホーム画面に追加" aria-modal="true" hidden>
+        <div class="pwa-ios-modal-backdrop"></div>
+        <div class="pwa-ios-modal-box pwa-ios-modal-box-2">
+            <h3 class="pwa-ios-modal-title">ホーム画面に追加</h3>
+            <div class="pwa-ios-modal-app-info">
+                <img src="<?php echo rtrim(BASE_URL, '/'); ?>/icon-192.png" alt="" width="60" height="60" class="pwa-ios-modal-app-icon">
+                <div class="pwa-ios-modal-app-meta">
+                    <span class="pwa-ios-modal-app-name">AI名刺</span>
+                    <span class="pwa-ios-modal-app-url" id="pwaIosModal2Url"></span>
+                </div>
+            </div>
+            <p class="pwa-ios-modal-hint">「追加」をタップすると共有メニューが開きます。一覧から<strong>「ホーム画面に追加」</strong>を選ぶと、アイコンと名前を設定する画面が表示されます。</p>
+            <div class="pwa-ios-modal-actions">
+                <button type="button" class="pwa-ios-modal-btn-cancel" id="pwaIosModal2Cancel">キャンセル</button>
+                <button type="button" class="pwa-ios-modal-btn-add" id="pwaIosModal2Add">追加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- iOS non-Safari: "Add to Home Screen" is only in Safari; show instruction + copy link -->
+    <div id="pwaIosModalSafari" class="pwa-ios-modal" role="dialog" aria-label="Safariで開く" aria-modal="true" hidden>
+        <div class="pwa-ios-modal-backdrop"></div>
+        <div class="pwa-ios-modal-box pwa-ios-modal-box-safari">
+            <h3 class="pwa-ios-modal-title">ホーム画面に追加するには</h3>
+            <p class="pwa-ios-modal-text">「ホーム画面に追加」は<strong>Safari</strong>でのみご利用いただけます。<br><br>1. 下の「リンクをコピー」をタップ<br>2. Safariを開き、アドレス欄に貼り付けて移動<br>3. 共有ボタン → 「ホーム画面に追加」を選択</p>
+            <div class="pwa-ios-modal-actions pwa-ios-modal-actions-stack">
+                <button type="button" class="pwa-ios-modal-btn-primary" id="pwaIosModalSafariCopy">リンクをコピー</button>
+                <button type="button" class="pwa-ios-modal-btn-cancel" id="pwaIosModalSafariClose">閉じる</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

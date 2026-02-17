@@ -1,0 +1,319 @@
+/* Add-to-Home-Screen banner (A2HS) */
+#installBanner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: #ffffff;
+  padding: 14px 16px;
+  box-shadow: 0 -2px 14px rgba(0, 0, 0, 0.12);
+  display: none;
+}
+
+#installBanner .pwa-banner-inner {
+  max-width: 980px;
+  margin: 0 auto;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#installBanner .pwa-banner-text {
+  text-align: left;
+  color: #111;
+  line-height: 1.4;
+  font-size: 14px;
+}
+
+#installBanner .pwa-banner-text strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+#installBanner .pwa-banner-vcf-msg {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #444;
+  font-weight: normal;
+}
+
+#saveVcfBtn {
+  display: inline-block;
+  background: #28a745;
+  color: #fff;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#saveVcfBtn:hover {
+  background: #218838;
+}
+
+#installBanner .pwa-banner-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+#installBtn {
+  display: none;
+  background: #0A84FF;
+  color: #fff;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#installCloseBtn {
+  background: transparent;
+  border: 1px solid #d0d7de;
+  color: #333;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#iosInstallSteps {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: #444;
+}
+
+@media (max-width: 540px) {
+  #installBanner .pwa-banner-inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  #installBanner .pwa-banner-actions {
+    justify-content: flex-end;
+  }
+}
+
+/* iOS: Two-step Add to Home Screen modals */
+#iosCreateHomeIconBtn {
+  display: none;
+  background: #0A84FF;
+  color: #fff;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pwa-ios-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.pwa-ios-modal[hidden] {
+  display: none !important;
+}
+
+.pwa-ios-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+.pwa-ios-modal-box {
+  position: relative;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  max-width: 320px;
+  width: 100%;
+  padding: 28px 24px;
+  box-sizing: border-box;
+}
+
+.pwa-ios-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #333;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pwa-ios-modal-box-1 .pwa-ios-modal-icon-wrap {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.pwa-ios-modal-box-1 .pwa-ios-modal-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  display: block;
+  margin: 0 auto;
+}
+
+.pwa-ios-modal-text {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  color: #192B49;
+  line-height: 1.5;
+  text-align: center;
+  margin: 0 0 24px 0;
+}
+
+.pwa-ios-modal-btn-primary {
+  display: block;
+  width: 100%;
+  background: #0A84FF;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.pwa-ios-modal-btn-primary:active {
+  opacity: 0.9;
+}
+
+/* Modal 2: Add to Home Screen (Cancel / Add) */
+.pwa-ios-modal-box-2 {
+  padding: 24px 20px 20px;
+}
+
+.pwa-ios-modal-title {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #000;
+  margin: 0 0 20px 0;
+  text-align: center;
+}
+
+.pwa-ios-modal-app-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  padding: 12px 0;
+}
+
+.pwa-ios-modal-app-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.pwa-ios-modal-app-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pwa-ios-modal-app-name {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+}
+
+.pwa-ios-modal-app-url {
+  font-size: 13px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pwa-ios-modal-hint {
+  font-size: 12px;
+  color: #666;
+  margin: 0 0 14px 0;
+  line-height: 1.4;
+}
+
+.pwa-ios-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.pwa-ios-modal-btn-cancel {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 10px 16px;
+  font-family: inherit;
+}
+
+.pwa-ios-modal-btn-add {
+  background: none;
+  border: none;
+  color: #0A84FF;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 10px 16px;
+  font-family: inherit;
+}
+
+.pwa-ios-modal-btn-cancel:active,
+.pwa-ios-modal-btn-add:active {
+  opacity: 0.8;
+}
+
+/* Modal 3: Use Safari instruction (iOS Chrome/Chromium etc.) */
+.pwa-ios-modal-box-safari {
+  padding: 24px 20px 20px;
+}
+
+.pwa-ios-modal-box-safari .pwa-ios-modal-text {
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.pwa-ios-modal-actions-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.pwa-ios-modal-actions-stack .pwa-ios-modal-btn-primary {
+  width: 100%;
+}
+
+.pwa-ios-modal-actions-stack .pwa-ios-modal-btn-cancel {
+  text-align: center;
+}

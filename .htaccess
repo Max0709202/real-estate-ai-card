@@ -3,6 +3,10 @@
 RewriteEngine On
 RewriteBase /php/
 
+# PWA icons (generated dynamically)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^icon-(192|512)\.png$ icon.php?size=$1 [L,QSA]
+
 # Force HTTPS (uncomment for production)
 # RewriteCond %{HTTPS} off
 # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
@@ -35,4 +39,3 @@ RewriteRule ^card/([a-zA-Z0-9]+)$ frontend/card.php?slug=$1 [L,QSA]
 # Error Pages
 ErrorDocument 404 /php/frontend/404.php
 ErrorDocument 500 /php/frontend/500.php
-

@@ -1057,7 +1057,7 @@ function sendAdminCancellationEmail($userEmail, $userId, $subscriptionId, $busin
     $cancellationType = $cancelImmediately ? '即座にキャンセル' : '期間終了時にキャンセル';
     $initiatedBy = $isAdminInitiated ? '管理者' : 'ユーザー';
     $cancellationDate = date('Y年m月d日 H:i:s');
-    $cardFullUrl = defined('QR_CODE_BASE_URL') ? QR_CODE_BASE_URL . $urlSlug : '';
+    $cardFullUrl = defined('QR_CODE_BASE_URL') ? rtrim(QR_CODE_BASE_URL, '/') . '/card.php?slug=' . $urlSlug : '';
 
     $emailSubject = '【不動産AI名刺】サブスクリプションキャンセル通知（' . $cancellationType . '）';
 
@@ -1082,7 +1082,7 @@ function sendAdminCancellationEmail($userEmail, $userId, $subscriptionId, $busin
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 100px; height: auto;'>
                 </div>
             </div>
             <div class='content'>
@@ -1193,7 +1193,7 @@ function sendUserCancellationConfirmationEmail($userEmail, $cancelImmediately) {
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 100px; height: auto;'>
                 </div>
             </div>
             <div class='content'>
@@ -1268,7 +1268,7 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 100px; height: auto;'>
                 </div>
             </div>
             <div class='content'>
@@ -1336,7 +1336,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
     }
 
     $issuedDate = date('Y年m月d日 H:i:s');
-    $cardFullUrl = QR_CODE_BASE_URL . $urlSlug;
+    $cardFullUrl = rtrim(QR_CODE_BASE_URL, '/') . '/card.php?slug=' . $urlSlug;
     
     // 既存/ERA会員で企業URLが未設定かチェック（url_slugが"user-"で始まる場合は仮URL）
     $isExistingOrEra = ($userType === 'existing' || $isEraMember);
@@ -1388,7 +1388,7 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 100px; height: auto;'>
                 </div>
                 <h1>QRコード発行完了</h1>
             </div>
@@ -1528,7 +1528,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
     $adminEmail = 'nishio@rchukai.jp';
 
     $issuedDate = date('Y年m月d日 H:i:s');
-    $cardFullUrl = QR_CODE_BASE_URL . $urlSlug;
+    $cardFullUrl = rtrim(QR_CODE_BASE_URL, '/') . '/card.php?slug=' . $urlSlug;
     
     // 既存/ERA会員で企業URLが未設定かチェック（url_slugが"user-"で始まる場合は仮URL）
     $isExistingOrEra = ($userType === 'existing' || $isEraMember);
@@ -1631,7 +1631,7 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
         <div class='container'>
             <div class='header'>
                 <div class='logo-container'>
-                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 200px; height: auto;'>
+                    <img src='" . BASE_URL . "/assets/images/logo.png" . "' alt='不動産AI名刺' style='max-width: 100px; height: auto;'>
                 </div>
                 <h1 style='" . ($showUrgentUrlNotice ? "color: " . $urgentColor . ";" : "") . "'>{$headerPrefix}QRコード発行通知</h1>
             </div>
@@ -1823,4 +1823,3 @@ function startSessionIfNotStarted() {
         session_start();
     }
 }
-

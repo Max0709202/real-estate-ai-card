@@ -197,7 +197,7 @@ try {
                     sendQRCodeIssuedEmailToUser(
                         $businessCard['user_email'],
                         $userName,
-                        $qrResult['business_card_url'] ?? (QR_CODE_BASE_URL . $businessCard['url_slug']),
+                        $qrResult['business_card_url'] ?? (rtrim(QR_CODE_BASE_URL, '/') . '/card.php?slug=' . $businessCard['url_slug']),
                         $qrResult['qr_code_url'] ?? '',
                         $businessCard['url_slug']
                     );
@@ -291,4 +291,3 @@ try {
     error_log("Update Payment Status Error: " . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
 }
-

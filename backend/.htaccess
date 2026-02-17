@@ -7,8 +7,8 @@
     </If>
 </FilesMatch>
 
-# CORS headers (already in config.php, but adding here for safety)
-Header set Access-Control-Allow-Origin "*"
+# CORS: Allow-Methods and Allow-Headers only here.
+# Access-Control-Allow-Origin is set in PHP for credential requests (no wildcard).
 Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
 Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
 

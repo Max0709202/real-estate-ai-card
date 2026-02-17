@@ -1,0 +1,211 @@
+/* Chat widget on AI business card page - mobile-first */
+.chat-widget-root {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 9999;
+    font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+}
+
+.chat-widget-toggle {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #0066cc;
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 16px rgba(0, 102, 204, 0.4);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.chat-widget-toggle:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(0, 102, 204, 0.5);
+}
+.chat-widget-toggle:active {
+    transform: scale(0.98);
+}
+
+.chat-widget-panel {
+    position: absolute;
+    bottom: calc(56px + 0.5rem);
+    right: 0;
+    width: min(100vw - 2rem, 380px);
+    max-height: 70vh;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-widget-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #0066cc;
+    color: #fff;
+}
+.chat-widget-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #fff;
+}
+.chat-widget-header-text {
+    flex: 1;
+    min-width: 0;
+}
+.chat-widget-agent-name {
+    display: block;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+.chat-widget-badge {
+    font-size: 0.75rem;
+    opacity: 0.9;
+}
+.chat-widget-close {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 0;
+}
+.chat-widget-close:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.chat-widget-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    min-height: 180px;
+    max-height: 40vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.chat-msg {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    max-width: 95%;
+}
+.chat-msg.user {
+    flex-direction: row-reverse;
+    align-self: flex-end;
+}
+.chat-msg .chat-msg-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.chat-msg.user .chat-msg-avatar {
+    display: none;
+}
+.chat-msg-bubble {
+    padding: 0.6rem 0.9rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.chat-msg.bot .chat-msg-bubble {
+    background: #e8f0fe;
+    color: #1a1a1a;
+    border-bottom-left-radius: 4px;
+}
+.chat-msg.user .chat-msg-bubble {
+    background: #0066cc;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+.chat-msg-time {
+    font-size: 0.7rem;
+    color: #888;
+    margin-top: 0.2rem;
+}
+.chat-msg.user .chat-msg-time {
+    text-align: right;
+}
+
+.chat-widget-quick-actions {
+    padding: 0 1rem 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.chat-quick-btn {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid #0066cc;
+    background: #fff;
+    color: #0066cc;
+    border-radius: 20px;
+    cursor: pointer;
+}
+.chat-quick-btn:hover {
+    background: #e8f0fe;
+}
+
+.chat-widget-input-wrap {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #eee;
+    background: #f9f9f9;
+}
+.chat-widget-input {
+    flex: 1;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    resize: none;
+    font-family: inherit;
+}
+.chat-widget-send {
+    padding: 0.5rem 1rem;
+    background: #0066cc;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.chat-widget-send:hover {
+    background: #0052a3;
+}
+.chat-widget-send:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.chat-msg.chat-msg-loading .chat-msg-bubble::after {
+    content: '...';
+    animation: chat-dots 1s steps(4, end) infinite;
+}
+@keyframes chat-dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60%, 100% { content: '...'; }
+}
