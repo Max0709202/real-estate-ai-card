@@ -1,0 +1,192 @@
+/* Standalone Loan Simulator - two blocks, blue headers, red-orange buttons */
+.loan-sim-page {
+    font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 16px;
+    color: #333;
+}
+.loan-sim-page h1 {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    color: #0066cc;
+}
+.loan-sim-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+@media (max-width: 768px) {
+    .loan-sim-grid { grid-template-columns: 1fr; }
+}
+.loan-sim-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.loan-sim-card-header {
+    background: #0066cc;
+    color: #fff;
+    padding: 12px 16px;
+    font-weight: bold;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.loan-sim-card-body {
+    padding: 20px 16px;
+}
+.loan-sim-desc {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    color: #555;
+}
+.loan-sim-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #e85c3a 0%, #d94a2b 100%);
+    color: #fff;
+    font-weight: bold;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.loan-sim-btn:hover { opacity: 0.95; }
+.loan-sim-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.loan-sim-btns-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.loan-sim-form-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    overflow-y: auto;
+}
+.loan-sim-form-box {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 440px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+.loan-sim-form-header {
+    background: #0066cc;
+    color: #fff;
+    padding: 14px 20px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.loan-sim-form-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+}
+.loan-sim-form-body { padding: 20px; }
+.loan-sim-field {
+    margin-bottom: 16px;
+}
+.loan-sim-field label {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+    color: #444;
+}
+.loan-sim-field input,
+.loan-sim-field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+.loan-sim-field .hint {
+    font-size: 0.8rem;
+    color: #777;
+    margin-top: 4px;
+}
+.loan-sim-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 6px;
+}
+.loan-sim-radio-group label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-weight: normal;
+}
+.loan-sim-submit {
+    width: 100%;
+    padding: 14px;
+    margin-top: 8px;
+    border: none;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #e85c3a 0%, #d94a2b 100%);
+    color: #fff;
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+}
+.loan-sim-submit:hover { opacity: 0.95; }
+.loan-sim-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+.loan-sim-result-box {
+    margin-top: 20px;
+    padding: 20px;
+    background: #f5f9ff;
+    border-radius: 8px;
+    border: 1px solid #cce0ff;
+}
+.loan-sim-result-box h4 { margin: 0 0 12px 0; color: #0066cc; font-size: 1rem; }
+.loan-sim-result-line {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+}
+.loan-sim-result-line.highlight {
+    font-size: 1.15rem;
+    font-weight: bold;
+    color: #0066cc;
+    margin: 12px 0;
+    padding-top: 8px;
+    border-top: 1px solid #cce0ff;
+}
+.loan-sim-error {
+    color: #c00;
+    font-size: 0.9rem;
+    margin-top: 12px;
+}
+.loan-sim-back-link {
+    display: inline-block;
+    margin-bottom: 16px;
+    color: #0066cc;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+.loan-sim-back-link:hover { text-decoration: underline; }

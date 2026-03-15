@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-helpers.php';
+require_once __DIR__ . '/../../includes/openai-chat-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -56,9 +57,28 @@ try {
     $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'user', ?)");
     $stmt->execute([$sessionId, $message]);
 
-    // Bot reply: Phase 1 placeholder (RAG from blog later)
-    $reply = getBotReplyPlaceholder($message);
-    $sources = [['url' => 'https://smile.re-agent.info/blog/', 'title' => '戸建てリノベINFO']];
+    // Load recent conversation history (last 10 exchanges) for context
+    $stmt = $db->prepare("
+        SELECT role, message FROM chat_messages
+        WHERE session_id = ? AND id < (SELECT MAX(id) FROM chat_messages WHERE session_id = ?)
+        ORDER BY id DESC
+        LIMIT 20
+    ");
+    $stmt->execute([$sessionId, $sessionId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $conversationHistory = array_reverse(array_map(function ($r) { return ['role' => $r['role'], 'message' => $r['message']]; }, $rows));
+
+    $agentName = $card['name'] ?? '担当者';
+    $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName);
+
+    if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
+        error_log('Chat OpenAI error: ' . ($result['error'] ?? 'empty reply'));
+        $reply = getBotReplyPlaceholder($message);
+        $sources = [['url' => CHAT_BLOG_BASE_URL, 'title' => '戸建てリノベINFO']];
+    } else {
+        $reply = $result['reply'];
+        $sources = $result['sources'];
+    }
 
     // Save bot message
     $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'bot', ?)");

@@ -140,8 +140,11 @@
             var btn = e.target.closest('.chat-quick-btn');
             if (!btn) return;
             var action = btn.getAttribute('data-action');
-            if (action === 'loan_repayment') sendMessage('ローン返済額の試算をしたいです。');
-            if (action === 'loan_borrow') sendMessage('借入可能額の試算をしたいです。');
+            if (action === 'loan_repayment' || action === 'loan_borrow') {
+                var base = window.location.pathname.replace(/\/[^/]*$/, '/');
+                var url = base + 'loan-simulator.php?slug=' + encodeURIComponent(cardSlug);
+                window.location.href = url;
+            }
         });
     }
 })();

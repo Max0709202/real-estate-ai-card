@@ -585,9 +585,9 @@ if ($isTokenBased) {
                     </ul>
 
                     <div class="coming-soon-box">
-                        <p>＜近日リリース予定＞</p>
+                        <p>＜ご利用いただける機能＞</p>
                         <p>1. AIチャットボット機能</p>
-                        <p>2. 住宅ローンシミュレーター</p>
+                        <p>2. <a href="loan-simulator.php" style="color: #0066cc; font-weight: bold;">住宅ローンシミュレーター</a>（返済額・借入可能額の試算）</p>
                         <p>3. 不動産専用コミュニケーションツール</p>
                     </div>
                 </div>

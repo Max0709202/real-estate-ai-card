@@ -822,6 +822,11 @@ if (!empty($card['profile_photo'])) {
                         </div>
                     </section>
                 <?php endif; ?>
+                <?php if ($chatbotEnabled): ?>
+                <p class="loan-sim-link-wrap" style="margin: 1rem 0; font-size: 0.95rem;">
+                    <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '')); ?>" style="color: #0066cc; font-weight: bold;">住宅ローンシミュレーター</a>で返済額・借入可能額の試算ができます。
+                </p>
+                <?php endif; ?>
                 <!-- コミュニケーション方法 -->
                 <?php
                 // Helper function to get link URL for message apps

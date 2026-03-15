@@ -93,3 +93,8 @@ define('TECH_TOOL_ALP_BASE', 'https://self-in.net/alp/index.php?id=');
 
 // 通知メール設定
 define('NOTIFICATION_EMAIL', 'info@ai-fcard.com');
+
+// チャットボット: OpenAI
+define('OPENAI_API_KEY', getenv('OPENAI_API_KEY') ?: '');
+define('OPENAI_CHAT_MODEL', 'gpt-4o-mini');
+define('CHAT_BLOG_BASE_URL', 'https://smile.re-agent.info/blog/');
