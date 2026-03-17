@@ -37,7 +37,8 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap:20px
+    gap:20px;
+    height: 20rem;
 }
 
 .company-logo {
@@ -48,6 +49,23 @@ body {
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.1);
     padding: 0.5rem;
+    position: absolute;
+    right: 0;
+}
+
+.person-name-large-fv {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: left;
+    align-items: center;
+    gap: 10px;
+}
+
+.person-info-1 {
+    margin-top: 6.5rem;
 }
 
 .company-name {
@@ -59,6 +77,7 @@ body {
 
 .card-body {
     padding: 1rem;
+    position: relative;
 }
 
 /* Profile and Greeting Section */
@@ -68,17 +87,22 @@ body {
     /* margin-bottom: 2rem; */
     align-items: center;
     justify-content: center;
+    position: relative;
 }
 
 .profile-photo-container {
     flex-shrink: 0;
+    position: absolute;
+    top: -6.5rem;
+    left: 0;
+    z-index: 1;
 }
 
 .profile-photo {
     width: 200px;
     height: 200px;
     object-fit: cover;
-    border-radius: 8px;
+    border-radius: 50%;
     /* box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); */
 }
 
@@ -673,6 +697,7 @@ ease;
         padding: 1rem;
         /* flex-direction: column; */
         gap: 10px;
+        height: 13rem;
     }
 
     .company-logo {
@@ -704,6 +729,7 @@ ease;
 
     .profile-photo-container {
         text-align: center;
+        top: -2.5rem;
     }
 
     .profile-photo {

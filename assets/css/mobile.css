@@ -2568,6 +2568,7 @@
         width: 120px;
         height: 120px;
         margin-bottom: 1rem;
+        
     }
 
     .person-name {
@@ -2905,6 +2906,7 @@
 
     .card-header {
         padding: 1.25rem 0.75rem;
+        height: 10rem;
     }
 
     .card-body {
