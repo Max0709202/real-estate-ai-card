@@ -126,7 +126,15 @@ if ($isTokenBased) {
                 </div>
                 <div class="new-lp-sec-1-right">
                     <div class="new-lp-sec-1-video-wrap">
-                        <span class="new-lp-sec-1-video-label">動画</span>
+                        <video
+                            id="new-lp-sec-1-video"
+                            class="new-lp-sec-1-video"
+                            src="assets/video/card.mp4"
+                            playsinline
+                            muted
+                            loop
+                            autoplay
+                        ></video>
                     </div>
                 </div>
             </div>
