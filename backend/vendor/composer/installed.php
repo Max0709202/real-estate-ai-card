@@ -1,13 +1,13 @@
 <?php return array(
     'root' => array(
         'name' => 'real-estate-ai-business-card/backend',
-        'pretty_version' => '1.0.0+no-version-set',
-        'version' => '1.0.0.0',
-        'reference' => NULL,
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => '693fa297479e24a8160554fa1c7e90204eca311e',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'dev' => true,
+        'dev' => false,
     ),
     'versions' => array(
         'bacon/bacon-qr-code' => array(
@@ -47,9 +47,9 @@
             'dev_requirement' => false,
         ),
         'real-estate-ai-business-card/backend' => array(
-            'pretty_version' => '1.0.0+no-version-set',
-            'version' => '1.0.0.0',
-            'reference' => NULL,
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => '693fa297479e24a8160554fa1c7e90204eca311e',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

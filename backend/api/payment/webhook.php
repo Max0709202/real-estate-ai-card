@@ -186,9 +186,9 @@ try {
                         $bcStatus = $stmt->fetch();
                         $isReactivation = ($bcStatus && ($bcStatus['card_status'] === 'canceled'));
 
-                        // ST送金の場合は、クレジット決済と同じようにis_publishedを1に設定
-                        // 復活の場合もis_publishedを1に設定
-                        $isPublished = ($newPaymentStatus === 'ST' || $isReactivation) ? 1 : 0;
+                        // クレジットカード決済（CR）および Stripe 銀行振込（ST）の場合は自動的に OPEN（is_published=1）にする
+                        // 停止されたアカウントの復活の場合も is_published=1 にする
+                        $isPublished = (in_array($newPaymentStatus, ['CR', 'ST']) || $isReactivation) ? 1 : 0;
 
                         $stmt = $db->prepare("
                             UPDATE business_cards
