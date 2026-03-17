@@ -81,7 +81,7 @@ define('TAX_RATE', 0.1); // 10%
 // QRコード設定
 define('QR_CODE_BASE_URL', 'http://103.179.45.108/php/');
 define('QR_CODE_DIR', __DIR__ . '/../uploads/qr_codes/');
-
+-
 // テックツールベースURL
 define('TECH_TOOL_MDB_BASE', 'https://self-in.com/');
 define('TECH_TOOL_RLP_BASE', 'https://self-in.net/rlp/index.php?id=');
