@@ -607,37 +607,37 @@ $prefectures = [
                             'description' => '<div id="cc-m-13442757931" class="j-module n j-text "><p>
     <span style="font-size: 14px;"><strong><span style="color: #000000;">AI評価付き『SelFin（セルフィン）』は消費者自ら</span></strong><span style="color: #ff0000;"><span style="font-weight: 700 !important;">「物件の資産性」を自動判定できる</span></span></span><span style="color: #000000;"><strong><span style="font-size: 14px;">ツールです。「価格の妥当性」「街力」「流動性」「耐震性」「管理費・修繕積立金の妥当性」を自動判定します。また物件提案ロボで配信される物件にはSelFin評価が付随します。&nbsp;</span></strong></span>
 </p></div>',
-                            'banner_image' => BASE_URL . '/assets/images/tech_banner/slp.jpg'
+                            'banner_image' => BASE_URL . '/assets/images/lp_icon/slp.png'
                         ],
                         'rlp' => [
                             'description' => '<div id="cc-m-13442765431" class="j-module n j-text "><p>
     <span style="font-size: 14px;"><span style="color: #000000;"><span style="color: #000000;"><strong>AI評価付き『物件提案ロボ』は</strong><strong>貴社顧客の希望条件に合致する不動産情<span style="color: #000000;">報を「</span></strong></span></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><strong><span style="color: #000000;">」で自動配信します。WEB上に登録になった</span></strong><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span>
 </p></div>',
-                            'banner_image' => BASE_URL . '/assets/images/tech_banner/rlp.jpg'
+                            'banner_image' => BASE_URL . '/assets/images/lp_icon/rlp.png'
                         ],
                         'llp' => [
                             'description' => '<div id="cc-m-13442765531" class="j-module n j-text "><p>
     <span style="font-size: 14px;"><span style="color: #000000;"><strong>『土地情報ロボ』は貴社顧客の希望条件に合致する不動産情報を「</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">御社名</span></span><span style="color: #000000;"><strong>」で自動配信します。WEB上に登録になった</strong></span><span style="color: #000000; font-weight: 700 !important;"><span style="color: #ff0000;">新着不動産情報を２４時間以内に、毎日自動配信</span></span><span style="color: #000000;"><strong>するサービスです。</strong></span></span>
 </p></div>',
-                            'banner_image' => BASE_URL . '/assets/images/tech_banner/llp.jpg'
+                            'banner_image' => BASE_URL . '/assets/images/lp_icon/llp.png'
                         ],
                         'mdb' => [
                             'description' => '<div id="cc-m-13442765731" class="j-module n j-text "><p>
     <span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span>
 </p></div>',
-                            'banner_image' => BASE_URL . '/assets/images/tech_banner/mdb.jpg'
+                            'banner_image' => BASE_URL . '/assets/images/lp_icon/mdb.png'
                         ],
                         'ai' => [
                             'description' => '<div id="cc-m-13442765731" class="j-module n j-text "><p>
     <span style="font-size: 14px;"><span style="color: #ff0000;"><strong>全国マンションデータベース（MDB)を売却案件の獲得の為に見せ方を変えたツール</strong></span><span style="color: #000000;"><strong>となります。大手仲介事業者のAI〇〇査定サイトのようなページとは異なり、</strong></span><span style="color: #ff0000;"><strong>誰でもマンションの価格だけは登録せずにご覧いただけるようなシステム</strong></span><strong><span style="color: #000000;">となっています。</span></strong></span>
 </p></div>',
-                            'banner_image' => BASE_URL . '/assets/images/tech_banner/ai.jpg'
+                            'banner_image' => BASE_URL . '/assets/images/lp_icon/ai.png'
                         ],
                         'olp' => [
                             'description' => '<div id="cc-m-13442765831" class="j-module n j-text "><p>
     <span style="font-size: 14px;"><span color="#000000" style="color: #000000;"><span style="color: #000000;"><strong>オーナーコネクトはマンション所有者様向けのサービスで、</strong></span><span style="color: #ff0000;"><span style="font-weight: 700 !important;">誰でも簡単に自宅の資産状況を確認できます。</span></span></span><span style="color: #000000;"><strong><span color="#000000">登録されたマンションで新たに売り出し情報が出たらメールでお知らせいたします。</span></strong></span><span color="#000000" style="color: #000000;"><span style="color: #000000;"><strong>また、</strong></span><span style="font-weight: 700 !important;"><span style="color: #ff0000;">毎週自宅の資産状況をまとめたレポートメールも送信</span></span><strong><span style="color: #000000;">いたします。</span></strong></span></span>
 </p></div>',
-                            'banner_image' => BASE_URL . '/assets/images/tech_banner/olp.jpg'
+                            'banner_image' => BASE_URL . '/assets/images/lp_icon/olp.png'
                         ],
                         'alp' => [
                             'description' => '<div id="cc-m-13412853831" class="j-module n j-text" style="clear: both;">
@@ -645,7 +645,7 @@ $prefectures = [
         <span style="font-size: 14px;"><strong><span style="color: #ff0000;">「SelFin Pro(セルフィンプロ)」</span><span style="color: #000000;">（AI・ロボット・ビッグデータ）はお客様との継続的な</span><span style="color: #ff0000;">コミュニケーションを自動化するWEBシステム</span><span style="color: #000000;">です。</span><span style="color: #ff0000;">全てのサービスが御社名で提供</span><span style="color: #000000;">されます。バックオフィスの自動化という後方支援を貴社の顧客・売上増加にご活用ください。</span></strong></span>
     </p>
 </div>',
-                            'banner_image' => BASE_URL . '/assets/images/tech_banner/alp.jpg'
+                            'banner_image' => BASE_URL . '/assets/images/lp_icon/alp.png'
                         ]
                     ];
 

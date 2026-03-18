@@ -1854,8 +1854,8 @@ body {
 }
 
 .tool-card-icon {
-    width: 80px !important;
-    height: 80px !important;
+    /* width: 80px !important; */
+    /* height: 80px !important; */
     margin: 0 auto 8px auto;
     display: block;
 }

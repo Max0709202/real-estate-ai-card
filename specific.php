@@ -48,7 +48,7 @@ startSessionIfNotStarted();
                     <tr>
                         <th style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0; text-align: left; background: #f7fafc;">メールアドレス</th>
                         <td style="padding: 0.75rem; border-bottom: 1px solid #e2e8f0;">
-                            <a href="mailto:ask@mdbank.jp">ask@mdbank.jp</a>
+                            <a href="mailto:info@ai-fcard.com">info@ai-fcard.com</a>
                         </td>
                     </tr>
                     <tr>

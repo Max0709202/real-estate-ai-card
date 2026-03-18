@@ -697,13 +697,13 @@ function loadTechTools(savedTechTools) {
     };
     
     const techToolBanners = {
-        'mdb': 'assets/images/tech_banner/mdb.jpg',
-        'rlp': 'assets/images/tech_banner/rlp.jpg',
-        'llp': 'assets/images/tech_banner/llp.jpg',
-        'ai': 'assets/images/tech_banner/ai.jpg',
-        'slp': 'assets/images/tech_banner/slp.jpg',
-        'olp': 'assets/images/tech_banner/olp.jpg',
-        'alp': 'assets/images/tech_banner/alp.jpg'
+        'mdb': 'assets/images/lp_icon/mdb.png',
+        'rlp': 'assets/images/lp_icon/rlp.png',
+        'llp': 'assets/images/lp_icon/llp.png',
+        'ai': 'assets/images/lp_icon/ai.png',
+        'slp': 'assets/images/lp_icon/slp.png',
+        'olp': 'assets/images/lp_icon/olp.png',
+        'alp': 'assets/images/lp_icon/alp.png'
     };
     
     // Define the default order of tech tools (used for unselected tools)
@@ -737,7 +737,7 @@ function loadTechTools(savedTechTools) {
         const isActive = savedTool?.is_active || false;
         const toolName = techToolNames[toolType] || toolType;
         const toolDescription = techToolDescriptions[toolType] || '';
-        const toolBanner = techToolBanners[toolType] || 'assets/images/tech_banner/default.jpg';
+        const toolBanner = techToolBanners[toolType] || 'assets/images/tech_banner/default.png';
         
         const toolCard = document.createElement('div');
         toolCard.className = 'tech-tool-banner-card';
