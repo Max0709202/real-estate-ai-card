@@ -425,6 +425,60 @@ if (empty($_SESSION['admin_id'])) {
                 padding: 8px 6px;
             }
         }
+
+        /* 1件送信フォーム */
+        .single-send-section .single-send-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px 24px;
+            align-items: flex-end;
+        }
+        .single-send-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 180px;
+        }
+        .single-send-row.single-send-actions {
+            min-width: auto;
+            align-self: flex-end;
+        }
+        .single-send-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        .single-send-input,
+        .single-send-select {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+        .single-send-input:focus,
+        .single-send-select:focus {
+            outline: none;
+            border-color: #3182ce;
+            box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.2);
+        }
+        @media (max-width: 768px) {
+            .single-send-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .single-send-row {
+                min-width: unset;
+            }
+            .single-send-input,
+            .single-send-select {
+                min-width: unset;
+                width: 100%;
+            }
+            .single-send-row.single-send-actions {
+                align-self: stretch;
+            }
+        }
     </style>
 </head>
 <body>
@@ -435,12 +489,39 @@ if (empty($_SESSION['admin_id'])) {
                 <a href="dashboard.php" class="btn-logout" style="background: #6c757d; margin-right: 10px;">ダッシュボードに戻る</a>
                 <a href="logout.php" class="btn-logout">ログアウト</a>
             </div>
-            <p class="header-description">CSVファイルをインポートして、ユーザーに招待メールを送信します</p>
+            <p class="header-description">CSVで一括登録するか、下のフォームで1件ずつ追加・送信できます</p>
+        </div>
+
+        <!-- Single send section (1件送信) -->
+        <div class="upload-section single-send-section">
+            <h2>1件送信</h2>
+            <p class="single-send-desc" style="margin: 0 0 15px 0; color: #718096; font-size: 13px;">メールアドレスとロールを入力して、その場で招待メールを1件送信します。</p>
+            <form id="single-send-form" class="single-send-form">
+                <div class="single-send-row">
+                    <label for="single-username" class="single-send-label">ユーザー名（任意）</label>
+                    <input type="text" id="single-username" name="username" class="single-send-input" placeholder="例: 山田太郎">
+                </div>
+                <div class="single-send-row">
+                    <label for="single-email" class="single-send-label">メールアドレス <span style="color: #e53e3e;">*</span></label>
+                    <input type="email" id="single-email" name="email" class="single-send-input" placeholder="例: yamada@example.com" required>
+                </div>
+                <div class="single-send-row">
+                    <label for="single-role" class="single-send-label">ロール</label>
+                    <select id="single-role" name="role_type" class="single-send-select">
+                        <option value="new">新規</option>
+                        <option value="existing">既存</option>
+                    </select>
+                </div>
+                <div class="single-send-row single-send-actions">
+                    <button type="submit" class="btn btn-send-email" id="single-send-btn">1件追加して送信</button>
+                </div>
+            </form>
+            <div id="single-send-result" style="margin-top: 12px;"></div>
         </div>
 
         <!-- Upload Section -->
         <div class="upload-section">
-            <h2>CSVファイルをインポート</h2>
+            <h2>CSVファイルをインポート（一括）</h2>
             <div class="upload-content">
                 <div class="upload-info">
                     <p style="margin: 0 0 5px 0;"><strong>形式:</strong> ユーザー名, メールアドレス</p>
@@ -561,7 +642,97 @@ if (empty($_SESSION['admin_id'])) {
         document.addEventListener('DOMContentLoaded', function() {
             loadInvitations();
             setupUploadHandlers();
+            setupSingleSendForm();
         });
+
+        function setupSingleSendForm() {
+            const form = document.getElementById('single-send-form');
+            if (!form) return;
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                await sendSingleInvitation();
+            });
+        }
+
+        async function sendSingleInvitation() {
+            const emailInput = document.getElementById('single-email');
+            const usernameInput = document.getElementById('single-username');
+            const roleSelect = document.getElementById('single-role');
+            const resultDiv = document.getElementById('single-send-result');
+            const btn = document.getElementById('single-send-btn');
+
+            const email = (emailInput && emailInput.value) ? emailInput.value.trim() : '';
+            const username = (usernameInput && usernameInput.value) ? usernameInput.value.trim() : '';
+            const roleType = (roleSelect && roleSelect.value) ? roleSelect.value : 'new';
+
+            if (!email) {
+                if (typeof showWarning === 'function') {
+                    showWarning('メールアドレスを入力してください');
+                } else {
+                    alert('メールアドレスを入力してください');
+                }
+                return;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                if (typeof showWarning === 'function') {
+                    showWarning('有効なメールアドレスを入力してください');
+                } else {
+                    alert('有効なメールアドレスを入力してください');
+                }
+                return;
+            }
+
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '送信中...';
+            }
+            if (resultDiv) resultDiv.innerHTML = '';
+
+            try {
+                const response = await fetch('../backend/api/admin/add-and-send-single-invitation.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, username, role_type: roleType }),
+                    credentials: 'include'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    if (typeof showSuccess === 'function') {
+                        showSuccess(result.message || '1件の招待メールを送信しました');
+                    } else {
+                        alert(result.message || '送信しました');
+                    }
+                    const singleForm = document.getElementById('single-send-form');
+                    if (singleForm) singleForm.reset();
+                    loadInvitations();
+                } else {
+                    if (typeof showError === 'function') {
+                        showError(result.message || '送信に失敗しました');
+                    } else {
+                        alert(result.message || '送信に失敗しました');
+                    }
+                    if (resultDiv) {
+                        resultDiv.innerHTML = '<p style="color: #c53030; margin: 0;">' + (result.message || '送信に失敗しました') + '</p>';
+                    }
+                }
+            } catch (err) {
+                console.error('Send single invitation error:', err);
+                if (typeof showError === 'function') {
+                    showError('送信中にエラーが発生しました');
+                } else {
+                    alert('送信中にエラーが発生しました');
+                }
+                if (resultDiv) {
+                    resultDiv.innerHTML = '<p style="color: #c53030; margin: 0;">送信中にエラーが発生しました</p>';
+                }
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '1件追加して送信';
+                }
+            }
+        }
 
         // Setup upload handlers
         function setupUploadHandlers() {

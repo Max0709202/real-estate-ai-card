@@ -3,7 +3,7 @@
         'name' => 'real-estate-ai-business-card/backend',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '693fa297479e24a8160554fa1c7e90204eca311e',
+        'reference' => 'f23a3a76f9ac8754602857060989bfd58266a470',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -49,7 +49,7 @@
         'real-estate-ai-business-card/backend' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '693fa297479e24a8160554fa1c7e90204eca311e',
+            'reference' => 'f23a3a76f9ac8754602857060989bfd58266a470',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

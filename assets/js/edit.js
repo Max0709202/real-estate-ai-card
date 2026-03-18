@@ -677,23 +677,23 @@ function loadTechTools(savedTechTools) {
     
     // Tech tool definitions (same as register.js)
     const techToolNames = {
-        'mdb': '全国マンションデータベース',
-        'rlp': '物件提案ロボ',
-        'llp': '土地情報ロボ',
-        'ai': 'AIマンション査定',
-        'slp': 'セルフィン',
-        'olp': 'オーナーコネクト',
-        'alp': '統合LP'
+        'mdb': '',
+        'rlp': '',
+        'llp': '',
+        'ai': '',
+        'slp': '',
+        'olp': '',
+        'alp': ''
     };
     
     const techToolDescriptions = {
-        'mdb': '全国のマンション情報を検索・比較できます',
-        'rlp': 'お客様の条件に合った物件を自動で提案します',
-        'llp': '土地情報を簡単に検索・比較できます',
-        'ai': 'AIがマンションの適正価格を査定します',
-        'slp': '不動産売買をサポートする総合ツール',
-        'olp': 'オーナー向けの不動産管理ツール',
-        'alp': '複数のテックツールを統合したLP'
+        'mdb': '国内最大規模のマンションデータベース。マンションの基礎情報・販売履歴をはじめ、口コミなども閲覧できます。',
+        'rlp': '希望条件に合う新着の売却情報を売り出しから24時間以内にAI評価付きで毎日配信します。希望物件の見落としが無くなります。',
+        'llp': '建てたい工務店は決まっているのに、土地情報を探しているお客様向け。新着の土地売却情報を売り出しから24時間以内に毎日配信します。',
+        'ai': '個人情報不要で、膨大な販売履歴より瞬時にマンションの価格を査定します。いつでも自分のマンションの査定が可能です。',
+        'slp': '物件の良し悪しを自動でしかも一瞬で判定するセルフインスペクションWEBアプリ。ネガティブ情報の発見にご活用ください。',
+        'olp': '今日の自宅の価格、今日の残債、今日売ったらいくら手元に残るかなど、登録すると1週間に1回配信されます。他住戸の売り出し情報が出たら直ちに情報を配信します。',
+        'alp': '１　全国マンションデータベース<br>２　物件提案ロボ<br>３　土地情報ロボ<br>４　AIマンション査定<br>５　セルフィン<br>６　オーナーコネクト<br>これら6つのツールをご紹介するページです。',
     };
     
     const techToolBanners = {
@@ -758,7 +758,6 @@ function loadTechTools(savedTechTools) {
                 <div class="tech-tool-content">
                     <img src="${toolBanner}" alt="${toolName}" class="tech-tool-banner">
                     <div class="tech-tool-info">
-                        <h4>${escapeHtml(toolName)}</h4>
                         <p>${escapeHtml(toolDescription)}</p>
                 </div>
         </div>

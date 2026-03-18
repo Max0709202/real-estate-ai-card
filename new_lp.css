@@ -1806,6 +1806,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    justify-content: space-between;
 }
 
 .tool-card h4 {
@@ -1832,7 +1833,7 @@ body {
     margin-bottom: 16px;
     line-height: 1.6;
     text-align: center;
-    padding: 0px 16px;
+    padding: 0px 8px;
 }
 
 .tool-card button {
