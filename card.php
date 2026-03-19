@@ -201,33 +201,33 @@ $isEraMember = $card['is_era_member'] ?? 0;
 $selfInBase = $isEraMember ? 'https://era.self-in.com/' : 'https://self-in.com/';
 $selfInNetBase = $isEraMember ? 'https://era.self-in.net/' : 'https://self-in.net/';
 $urlSlug = $card['url_slug'];
+$toolSlug = !empty($card['company_slug']) ? $card['company_slug'] : $card['url_slug'];
 
-// ツール名とURLを動的に生成
+// ツール名とURLを動的に生成（ツール用は company_slug、未設定時は url_slug）
 foreach ($techTools as &$tool) {
     $tool['tool_name'] = $toolNames[$tool['tool_type']] ?? 'テックツール';
     
-    // ERA会員に応じて正しいURLを動的に生成
     switch ($tool['tool_type']) {
         case 'mdb':
-            $tool['tool_url'] = $selfInBase . $urlSlug . '/mdb/';
+            $tool['tool_url'] = $selfInBase . $toolSlug . '/mdb/';
             break;
         case 'ai':
-            $tool['tool_url'] = $selfInBase . $urlSlug . '/ai/';
+            $tool['tool_url'] = $selfInBase . $toolSlug . '/ai/';
             break;
         case 'rlp':
-            $tool['tool_url'] = $selfInNetBase . 'rlp/index.php?id=' . $urlSlug . '/';
+            $tool['tool_url'] = $selfInNetBase . 'rlp/index.php?id=' . $toolSlug . '/';
             break;
         case 'llp':
-            $tool['tool_url'] = $selfInNetBase . 'llp/index.php?id=' . $urlSlug . '/';
+            $tool['tool_url'] = $selfInNetBase . 'llp/index.php?id=' . $toolSlug . '/';
             break;
         case 'slp':
-            $tool['tool_url'] = $selfInNetBase . 'slp/index.php?id=' . $urlSlug . '/';
+            $tool['tool_url'] = $selfInNetBase . 'slp/index.php?id=' . $toolSlug . '/';
             break;
         case 'olp':
-            $tool['tool_url'] = $selfInNetBase . 'olp/index.php?id=' . $urlSlug . '/';
+            $tool['tool_url'] = $selfInNetBase . 'olp/index.php?id=' . $toolSlug . '/';
             break;
         case 'alp':
-            $tool['tool_url'] = $selfInNetBase . 'alp/index.php?id=' . $urlSlug . '/';
+            $tool['tool_url'] = $selfInNetBase . 'alp/index.php?id=' . $toolSlug . '/';
             break;
     }
 }

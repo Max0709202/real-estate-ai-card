@@ -92,6 +92,7 @@ $sql = "
         bc.name,
         bc.mobile_phone,
         bc.url_slug,
+        bc.company_slug,
         bc.is_published as is_open,
         bc.admin_notes,
         bc.payment_status,
@@ -122,7 +123,7 @@ $sql = "
         ) s2 ON s1.business_card_id = s2.business_card_id AND s1.created_at = s2.max_created_at
     ) s ON s.business_card_id = bc.id
     $whereClause
-    GROUP BY bc.id, u.id, u.email, u.user_type, u.is_era_member, bc.company_name, bc.name, bc.mobile_phone, bc.url_slug,
+    GROUP BY bc.id, u.id, u.email, u.user_type, u.is_era_member, bc.company_name, bc.name, bc.mobile_phone, bc.url_slug, bc.company_slug,
              bc.is_published, bc.admin_notes, bc.payment_status, bc.created_at, u.last_login_at,
              s.next_billing_date, s.cancelled_at
     ORDER BY $sortField $sortOrder
@@ -416,7 +417,7 @@ $users = $stmt->fetchAll();
                             $isEraUser = $user['is_era_member'] ?? 0;
                             $userTypeForUrl = $user['user_type'] ?? 'new';
                             $canEditCorporateUrl = ($userTypeForUrl === 'existing' || $isEraUser);
-                            $currentSlug = $user['url_slug'] ?? '';
+                            $currentSlug = isset($user['company_slug']) && $user['company_slug'] !== '' ? $user['company_slug'] : ($user['url_slug'] ?? '');
                             $baseUrl = $isEraUser ? 'https://era.self-in.com/' : 'https://self-in.com/';
                             ?>
                             <div style="display: flex; align-items: center; gap: 2px; white-space: nowrap; font-size: 0.8rem;">
@@ -445,8 +446,8 @@ $users = $stmt->fetchAll();
                             </div>
                         </td>
                         <td data-label="名前">
-                            <?php if (!empty($user['url_slug'])): ?>
-                                <a href="<?php echo BASE_URL; ?>/card.php?slug=<?php echo htmlspecialchars($user['url_slug']); ?>" target="_blank" style="color: #0066cc; text-decoration: underline; cursor: pointer;">
+                            <?php $cardSlug = $user['url_slug'] ?? ''; if (!empty($cardSlug)): ?>
+                                <a href="<?php echo BASE_URL; ?>/card.php?slug=<?php echo htmlspecialchars($cardSlug); ?>" target="_blank" style="color: #0066cc; text-decoration: underline; cursor: pointer;">
                                     <?php echo htmlspecialchars($user['name'] ?? ''); ?>
                                 </a>
                             <?php else: ?>
@@ -777,6 +778,7 @@ $users = $stmt->fetchAll();
                             body: JSON.stringify({
                                 user_id: parseInt(userId),
                                 business_card_id: parseInt(bcId),
+                                company_slug: newSlug,
                                 url_slug: newSlug
                             })
                         })

@@ -78,15 +78,18 @@ try {
         $userId = $db->lastInsertId();
         $userCreated = true;
         
-        // Create business_cards record for the new user (with empty url_slug for admin to fill)
-        // Generate a temporary url_slug based on user ID
-        $tempSlug = 'user-' . $userId . '-' . bin2hex(random_bytes(4));
-        
+        // Create business_cards with unique url_slug (名刺URL). company_slug (企業URL) is set later by admin.
+        $cntStmt = $db->prepare("SELECT current_number FROM tech_tool_url_counter LIMIT 1");
+        $cntStmt->execute();
+        $counter = $cntStmt->fetch();
+        $urlSlug = str_pad($counter['current_number'], 6, '0', STR_PAD_LEFT);
+        $updStmt = $db->prepare("UPDATE tech_tool_url_counter SET current_number = current_number + 1");
+        $updStmt->execute();
         $bcStmt = $db->prepare("
-            INSERT INTO business_cards (user_id, url_slug, payment_status, is_published, created_at)
-            VALUES (?, ?, 'UNUSED', 0, NOW())
+            INSERT INTO business_cards (user_id, url_slug, company_slug, payment_status, is_published, created_at)
+            VALUES (?, ?, NULL, 'UNUSED', 0, NOW())
         ");
-        $bcStmt->execute([$userId, $tempSlug]);
+        $bcStmt->execute([$userId, $urlSlug]);
         
         // Get the newly created user
         $userStmt->execute([$invitation['email']]);

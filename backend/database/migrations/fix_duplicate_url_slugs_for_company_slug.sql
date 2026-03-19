@@ -1,0 +1,13 @@
+-- Optional one-time fix: give each business_cards row a unique url_slug (名刺URL).
+-- Run after add_company_slug.sql. Use when you have duplicate url_slug values
+-- (e.g. multiple existing users with url_slug='demo').
+--
+-- 1) Set company_slug = url_slug for every row (so tool URLs keep working).
+-- 2) For each group of rows sharing the same url_slug, keep the smallest id
+--    as-is; assign new unique url_slug from tech_tool_url_counter for the rest.
+--
+-- This must be run from application code or a script that can loop and update;
+-- pure SQL without variables is awkward for "for each duplicate group, assign
+-- next counter to second, third, ...". So we only do step 1 here. Step 2 can
+-- be done by a PHP script or manually in DB.
+UPDATE business_cards SET company_slug = url_slug WHERE company_slug IS NULL AND url_slug != '';

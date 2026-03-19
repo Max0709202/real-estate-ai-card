@@ -26,8 +26,8 @@ try {
     $database = new Database();
     $db = $database->getConnection();
 
-    // ビジネスカード取得
-    $stmt = $db->prepare("SELECT id, url_slug, user_id FROM business_cards WHERE user_id = ?");
+    // ビジネスカード取得（ツールURL用は company_slug、未設定時は url_slug）
+    $stmt = $db->prepare("SELECT id, url_slug, company_slug, user_id FROM business_cards WHERE user_id = ?");
     $stmt->execute([$userId]);
     $businessCard = $stmt->fetch();
 
@@ -40,7 +40,7 @@ try {
     $stmt->execute([$userId]);
     $user = $stmt->fetch();
 
-    $urlIdentifier = $businessCard['url_slug'];
+    $urlIdentifier = !empty($businessCard['company_slug']) ? $businessCard['company_slug'] : $businessCard['url_slug'];
     $isEraMember = $user['is_era_member'] ?? 0;
 
     // ERA会員かどうかでベースURLを変更

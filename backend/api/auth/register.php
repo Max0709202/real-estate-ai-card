@@ -211,43 +211,35 @@ try {
 
 
 
-    // 既存ユーザーの場合、ビジネスカードのURLスラッグを設定
+    // 名刺URL用: 全ユーザーで一意の url_slug を連番発番。企業URL用: 既存の場合は existing_url から company_slug を設定。
     $urlSlug = null;
+    $companySlug = null;
     $existingUrl = $input['existing_url'] ?? null;
+
+    $stmt = $db->prepare("SELECT current_number FROM tech_tool_url_counter LIMIT 1");
+    $stmt->execute();
+    $counter = $stmt->fetch();
+    $urlSlug = str_pad($counter['current_number'], 6, '0', STR_PAD_LEFT);
+    $stmt = $db->prepare("UPDATE tech_tool_url_counter SET current_number = current_number + 1");
+    $stmt->execute();
+
     if ($input['user_type'] === 'existing' && $existingUrl) {
-        // 既存URLからスラッグを抽出
         $urlParts = explode('/', trim($existingUrl, '/'));
-        $urlSlug = end($urlParts);
-    } elseif ($input['user_type'] === 'new') {
-        // 新規ユーザー: 6桁の連続数字を発番
-        $stmt = $db->prepare("SELECT current_number FROM tech_tool_url_counter LIMIT 1");
-        $stmt->execute();
-        $counter = $stmt->fetch();
-        $urlSlug = str_pad($counter['current_number'], 6, '0', STR_PAD_LEFT);
-
-        // カウンターをインクリメント
-        $stmt = $db->prepare("UPDATE tech_tool_url_counter SET current_number = current_number + 1");
-        $stmt->execute();
-    } else {
-        // 無料版も同様に連番を発番
-        $stmt = $db->prepare("SELECT current_number FROM tech_tool_url_counter LIMIT 1");
-        $stmt->execute();
-        $counter = $stmt->fetch();
-        $urlSlug = str_pad($counter['current_number'], 6, '0', STR_PAD_LEFT);
-
-        $stmt = $db->prepare("UPDATE tech_tool_url_counter SET current_number = current_number + 1");
-        $stmt->execute();
+        $extracted = end($urlParts);
+        if ($extracted !== '' && preg_match('/^[a-zA-Z0-9\-]+$/', $extracted)) {
+            $companySlug = strtolower($extracted);
+        }
     }
 
-    // ビジネスカードの初期レコード作成
+    // ビジネスカードの初期レコード作成（url_slug=名刺用・一意、company_slug=ツール用・任意）
     $stmt = $db->prepare("
-        INSERT INTO business_cards (user_id, url_slug, name, mobile_phone)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO business_cards (user_id, url_slug, company_slug, name, mobile_phone)
+        VALUES (?, ?, ?, ?, ?)
     ");
-
     $stmt->execute([
         $userId,
         $urlSlug,
+        $companySlug,
         !empty($input['name']) ? $input['name'] : '',
         $input['phone_number']
     ]);

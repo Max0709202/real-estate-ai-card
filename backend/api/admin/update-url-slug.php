@@ -1,7 +1,7 @@
 <?php
 /**
- * Update URL Slug API
- * Updates business card URL slug from admin dashboard
+ * Update Company Slug API (ツール表示用企業URL)
+ * Updates business_cards.company_slug only. url_slug (名刺URL) is never changed here.
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -11,7 +11,6 @@ startSessionIfNotStarted();
 header('Content-Type: application/json; charset=UTF-8');
 
 try {
-    // Check admin authentication
     if (empty($_SESSION['admin_id'])) {
         sendErrorResponse('管理者認証が必要です', 401);
     }
@@ -21,29 +20,29 @@ try {
     }
 
     $input = json_decode(file_get_contents('php://input'), true);
-    
-    $userId = $input['user_id'] ?? null;
     $bcId = $input['business_card_id'] ?? null;
-    $urlSlug = $input['url_slug'] ?? '';
+    $companySlug = $input['company_slug'] ?? $input['url_slug'] ?? '';
 
-    if (empty($bcId) || empty($urlSlug)) {
-        sendErrorResponse('ビジネスカードIDとURLスラッグが必要です', 400);
+    if (empty($bcId)) {
+        sendErrorResponse('ビジネスカードIDが必要です', 400);
     }
 
-    // Validate slug format (alphanumeric and hyphens only)
-    if (!preg_match('/^[a-zA-Z0-9\-]+$/', $urlSlug)) {
+    $companySlug = trim($companySlug);
+    if ($companySlug === '') {
+        sendErrorResponse('企業URLスラッグを入力してください', 400);
+    }
+
+    if (!preg_match('/^[a-zA-Z0-9\-]+$/', $companySlug)) {
         sendErrorResponse('スラッグは英数字とハイフンのみ使用できます', 400);
     }
 
-    // Trim and lowercase
-    $urlSlug = strtolower(trim($urlSlug));
+    $companySlug = strtolower($companySlug);
 
     $database = new Database();
     $db = $database->getConnection();
 
-    // Get current business card info and user type
     $stmt = $db->prepare("
-        SELECT bc.url_slug, bc.user_id, u.email, u.user_type, u.is_era_member
+        SELECT bc.url_slug, bc.company_slug, bc.user_id, u.email, u.user_type, u.is_era_member
         FROM business_cards bc
         JOIN users u ON bc.user_id = u.id
         WHERE bc.id = ?
@@ -55,49 +54,37 @@ try {
         sendErrorResponse('ビジネスカードが見つかりません', 404);
     }
 
-    // 新規ユーザーの企業URLは編集不可（既存・ERAのみ編集可）
     $userType = $bcInfo['user_type'] ?? 'new';
     $isEraMember = !empty($bcInfo['is_era_member']);
     if ($userType === 'new' && !$isEraMember) {
         sendErrorResponse('新規ユーザーの企業URLは編集できません。既存・ERA会員のみ編集可能です。', 403);
     }
 
-    $oldSlug = $bcInfo['url_slug'];
+    $oldCompanySlug = $bcInfo['company_slug'] ?? '';
 
-    // Check if slug already exists (for another user)
-    if ($urlSlug !== $oldSlug) {
-        $stmt = $db->prepare("SELECT id FROM business_cards WHERE url_slug = ? AND id != ?");
-        $stmt->execute([$urlSlug, $bcId]);
-        if ($stmt->fetch()) {
-            sendErrorResponse('このスラッグは既に使用されています', 409);
-        }
-    }
+    $stmt = $db->prepare("UPDATE business_cards SET company_slug = ? WHERE id = ?");
+    $stmt->execute([$companySlug, $bcId]);
 
-    // Update the slug
-    $stmt = $db->prepare("UPDATE business_cards SET url_slug = ? WHERE id = ?");
-    $stmt->execute([$urlSlug, $bcId]);
-
-    // Log the change
     $adminId = $_SESSION['admin_id'];
     $adminEmail = $_SESSION['admin_email'] ?? '';
-    
     logAdminChange(
-        $db, 
-        $adminId, 
-        $adminEmail, 
-        'other', 
-        'business_card', 
+        $db,
+        $adminId,
+        $adminEmail,
+        'other',
+        'business_card',
         $bcId,
-        "URLスラッグ変更: {$oldSlug} → {$urlSlug} (ユーザー: {$bcInfo['email']})"
+        "企業URL(company_slug)変更: " . ($oldCompanySlug ?: '(空)') . " → {$companySlug} (ユーザー: {$bcInfo['email']})"
     );
 
     sendSuccessResponse([
         'business_card_id' => $bcId,
-        'url_slug' => $urlSlug,
-        'old_slug' => $oldSlug
-    ], 'URLスラッグを更新しました');
+        'company_slug' => $companySlug,
+        'old_company_slug' => $oldCompanySlug,
+        'url_slug' => $bcInfo['url_slug']
+    ], '企業URLを更新しました');
 
 } catch (Exception $e) {
-    error_log("Update URL Slug Error: " . $e->getMessage());
+    error_log("Update Company Slug Error: " . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
 }
