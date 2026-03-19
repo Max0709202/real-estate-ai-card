@@ -158,6 +158,7 @@ function initializeCommunicationDragAndDrop(type) {
 
 // Global variable to store business card data
 let businessCardData = null;
+let pendingCardHeaderBgFileEdit = null;
 
 // Load business card data from server (without reloading)
 async function loadBusinessCardData() {
@@ -318,6 +319,31 @@ function populateEditForms(data) {
         } else {
             console.warn('Profile photo upload area not found');
         }
+    }
+
+    // Step 6: Template selection (card header background)
+    try {
+        const defaultBg = 'assets/images/card-header (1).jpg';
+        const savedBg = (data && data.card_header_bg) ? String(data.card_header_bg).trim() : '';
+        const finalBg = savedBg || defaultBg;
+
+        const hidden = document.getElementById('card_header_bg_edit');
+        if (hidden) hidden.value = finalBg;
+
+        const grid = document.getElementById('card-header-template-grid-edit');
+        if (grid) {
+            const radios = grid.querySelectorAll('input[name=\"card_header_bg_choice\"]');
+            radios.forEach(r => {
+                r.checked = (r.value === finalBg);
+            });
+            grid.querySelectorAll('.template-tile').forEach(tile => {
+                const radio = tile.querySelector('input[type=\"radio\"]');
+                const badge = tile.querySelector('.template-selected-badge');
+                if (badge) badge.style.display = (radio && radio.checked) ? 'inline-block' : 'none';
+            });
+        }
+    } catch (e) {
+        console.warn('Failed to populate template selection (edit):', e);
     }
         
         // Greetings - ALWAYS clear first, then populate based on data
@@ -1088,8 +1114,8 @@ async function saveCommunicationMethods() {
                 saveButton.disabled = false;
                 saveButton.textContent = originalButtonText;
             }
-            // Navigate to payment section
-            goToEditSection('payment-section');
+            // Navigate to template selection section
+            goToEditSection('template-section');
         } else {
             showError('保存に失敗しました: ' + (result.message || '不明なエラー'));
             isSavingCommunicationMethods = false;
@@ -1331,7 +1357,127 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         initializeFreeInputPairDragAndDrop();
     }, 200);
+
+    // Template selection (card header background)
+    setTimeout(() => {
+        setupCardHeaderTemplateStepEdit();
+    }, 150);
 });
+
+function setupCardHeaderTemplateStepEdit() {
+    const form = document.getElementById('template-form-edit');
+    if (!form) return;
+
+    const hidden = document.getElementById('card_header_bg_edit');
+    const grid = document.getElementById('card-header-template-grid-edit');
+    const fileInput = document.getElementById('card_header_bg_file_edit');
+    const preview = document.getElementById('card-header-bg-preview-edit');
+
+    function updateBadges() {
+        if (!grid) return;
+        grid.querySelectorAll('.template-tile').forEach(tile => {
+            const radio = tile.querySelector('input[type=\"radio\"]');
+            const badge = tile.querySelector('.template-selected-badge');
+            if (badge) badge.style.display = (radio && radio.checked) ? 'inline-block' : 'none';
+        });
+    }
+
+    if (grid) {
+        grid.addEventListener('change', function(e) {
+            const t = e.target;
+            if (t && t.name === 'card_header_bg_choice') {
+                if (hidden) hidden.value = t.value;
+                pendingCardHeaderBgFileEdit = null;
+                if (fileInput) fileInput.value = '';
+                if (preview) preview.innerHTML = '';
+                updateBadges();
+            }
+        });
+        updateBadges();
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+            if (!f) return;
+            if (!f.type.startsWith('image/')) {
+                alert('画像ファイルを選択してください');
+                e.target.value = '';
+                return;
+            }
+            pendingCardHeaderBgFileEdit = f;
+            if (preview) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    preview.innerHTML = `<img src=\"${ev.target.result}\" alt=\"ヘッダー背景プレビュー\" style=\"max-width: 100%; height: 140px; object-fit: cover; border-radius: 10px;\">`;
+                };
+                reader.readAsDataURL(f);
+            }
+        });
+    }
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        await saveTemplateEditStepAndNext();
+    });
+}
+
+async function saveTemplateEditStepAndNext() {
+    const hidden = document.getElementById('card_header_bg_edit');
+    let finalPath = hidden ? String(hidden.value || '').trim() : '';
+    if (!finalPath) finalPath = 'assets/images/card-header (1).jpg';
+
+    if (pendingCardHeaderBgFileEdit) {
+        try {
+            const uploadData = new FormData();
+            uploadData.append('file', pendingCardHeaderBgFileEdit);
+            uploadData.append('file_type', 'free');
+
+            const uploadUrl = (typeof window.getUploadUrl === 'function')
+                ? window.getUploadUrl()
+                : (window.BASE_URL ? window.BASE_URL + '/backend/api/business-card/upload.php' : window.location.origin + '/backend/api/business-card/upload.php');
+
+            const uploadResponse = await fetch(uploadUrl, {
+                method: 'POST',
+                body: uploadData,
+                credentials: 'include'
+            });
+            const uploadResult = await uploadResponse.json();
+            if (uploadResult && uploadResult.success && uploadResult.data && uploadResult.data.file_path) {
+                const fullPath = uploadResult.data.file_path;
+                finalPath = fullPath.split('/php/')[1] || fullPath;
+                if (hidden) hidden.value = finalPath;
+                pendingCardHeaderBgFileEdit = null;
+            } else {
+                console.warn('Template upload failed:', uploadResult);
+            }
+        } catch (err) {
+            console.error('Template upload error:', err);
+        }
+    }
+
+    try {
+        const response = await fetch('backend/api/business-card/update.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ card_header_bg: finalPath }),
+            credentials: 'include'
+        });
+        const result = await response.json();
+        if (!result.success) {
+            console.warn('Failed to save template selection:', result.message);
+        } else {
+            await loadBusinessCardData();
+            if (typeof showSuccess === 'function') showSuccess('保存しました');
+        }
+    } catch (err) {
+        console.error('Failed to save template selection:', err);
+    }
+
+    if (typeof goToEditSection === 'function') {
+        goToEditSection('payment-section');
+    }
+}
 
 // Greeting functions for edit page
 function moveGreeting(index, direction) {
@@ -2214,7 +2360,8 @@ window.goToNextStep = function(currentStep) {
         3: 'personal-info-section',
         4: 'tech-tools-section',
         5: 'communication-section',
-        6: 'payment-section'
+        6: 'template-section',
+        7: 'payment-section'
     };
     
     const targetSectionId = sectionMap[nextStep];

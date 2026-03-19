@@ -1035,7 +1035,9 @@ if ($isTokenBased) {
                 </p>
 
                 <!-- Button -->
-                <button class="cta-button">不動産AI名刺をつくる</button>
+                 <a href="https://ai-fcard.com/register.php">
+                    <button class="cta-button">不動産AI名刺をつくる</button>
+                </a>
             </div>
 
             <!-- Illustration -->

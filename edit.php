@@ -535,27 +535,31 @@ $defaultGreetings = [
             <div class="edit-sidebar">
                 <nav class="edit-nav">
                     <a href="#header-greeting" class="nav-item active" data-step="1" data-section="header-greeting-section">
-                        <span class="step-number">1/6</span>
+                        <span class="step-number">1/7</span>
                         <span class="step-label">ヘッダー・挨拶</span>
                     </a>
                     <a href="#company-profile" class="nav-item" data-step="2" data-section="company-profile-section">
-                        <span class="step-number">2/6</span>
+                        <span class="step-number">2/7</span>
                         <span class="step-label">会社プロフィール</span>
                     </a>
                     <a href="#personal-info" class="nav-item" data-step="3" data-section="personal-info-section">
-                        <span class="step-number">3/6</span>
+                        <span class="step-number">3/7</span>
                         <span class="step-label">個人情報</span>
                     </a>
                     <a href="#tech-tools" class="nav-item" data-step="4" data-section="tech-tools-section">
-                        <span class="step-number">4/6</span>
+                        <span class="step-number">4/7</span>
                         <span class="step-label">テックツール</span>
                     </a>
                     <a href="#communication" class="nav-item" data-step="5" data-section="communication-section">
-                        <span class="step-number">5/6</span>
+                        <span class="step-number">5/7</span>
                         <span class="step-label">コミュニケーション</span>
                     </a>
-                    <a href="#payment" class="nav-item" data-step="6" data-section="payment-section">
-                        <span class="step-number">6/6</span>
+                    <a href="#template" class="nav-item" data-step="6" data-section="template-section">
+                        <span class="step-number">6/7</span>
+                        <span class="step-label">テンプレート選択</span>
+                    </a>
+                    <a href="#payment" class="nav-item" data-step="7" data-section="payment-section">
+                        <span class="step-number">7/7</span>
                         <span class="step-label">決済</span>
                     </a>
                     <a href="#chat-history" class="nav-item" data-step="chat" data-section="chat-history-section">
@@ -1108,7 +1112,48 @@ $defaultGreetings = [
                         <button type="button" class="btn-primary" onclick="saveCommunicationMethods()">保存して次へ</button>
                     </div>
                 </div>
-                <!-- Step 6: Payment -->
+                <!-- Step 6: Template Selection -->
+                <div id="template-section" class="edit-section">
+                    <h2>テンプレート選択</h2>
+                    <p class="step-description">名刺上部の背景画像を選択してください（初期設定はテンプレート1です）</p>
+
+                    <form id="template-form-edit" class="edit-form">
+                        <input type="hidden" id="card_header_bg_edit" name="card_header_bg" value="assets/images/card-header (1).jpg">
+
+                        <div class="form-section">
+                            <h3>テンプレート（10種類）</h3>
+                            <div id="card-header-template-grid-edit" class="template-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+                                <?php for ($i = 1; $i <= 10; $i++): $path = "assets/images/card-header ({$i}).jpg"; ?>
+                                    <label class="template-tile" style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; cursor:pointer; background:#fff;">
+                                        <input type="radio" name="card_header_bg_choice" value="<?php echo htmlspecialchars($path); ?>" <?php echo $i === 1 ? 'checked' : ''; ?> style="display:none;">
+                                        <div style="height:90px; background-image:url('<?php echo htmlspecialchars($path); ?>'); background-size:cover; background-position:center;"></div>
+                                        <div style="padding:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                                            <span style="font-size:12px; color:#2d3748; font-weight:600;">テンプレート<?php echo $i; ?></span>
+                                            <span class="template-selected-badge" style="display:none; font-size:11px; padding:2px 8px; border-radius:999px; background:#c6f6d5; color:#22543d;">選択中</span>
+                                        </div>
+                                    </label>
+                                <?php endfor; ?>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h3>オリジナル画像をアップロード</h3>
+                            <div class="upload-area" id="card-header-bg-upload-edit" data-upload-id="card_header_bg">
+                                <input type="file" id="card_header_bg_file_edit" accept="image/*" style="display:none;">
+                                <button type="button" class="btn-upload" onclick="document.getElementById('card_header_bg_file_edit').click()">アップロード</button>
+                                <div class="upload-preview" id="card-header-bg-preview-edit"></div>
+                                <small>アップロード後に「保存して次へ」で保存されます（対応形式：JPEG、PNG、GIF、WebP）</small>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" onclick="goToEditSection('communication-section')">戻る</button>
+                            <button type="submit" class="btn-primary">保存して次へ</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Step 7: Payment -->
                 <div id="payment-section" class="edit-section">
                     <h2>決済</h2>
                     <p class="step-description">お支払い方法を選択してください</p>
@@ -1163,7 +1208,7 @@ $defaultGreetings = [
                     </div>
 
                     <div class="form-actions">
-                        <button type="button" class="btn-secondary" onclick="goToEditSection('communication-section')">戻る</button>
+                        <button type="button" class="btn-secondary" onclick="goToEditSection('template-section')">戻る</button>
                         <?php if ($isActive): ?>
                             <button type="button" id="submit-payment-edit" class="btn-primary" style="background: #007bff; cursor: default;" disabled>利用中</button>
                         <?php else: ?>

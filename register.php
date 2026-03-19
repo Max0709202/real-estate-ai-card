@@ -258,27 +258,31 @@ $prefectures = [
             <div class="register-steps">
                 <div class="step-indicator">
                     <div class="step active" data-step="1">
-                        <span class="step-number">1/6</span>
+                        <span class="step-number">1/7</span>
                         <span class="step-label">ヘッダー・挨拶</span>
                     </div>
                     <div class="step" data-step="2">
-                        <span class="step-number">2/6</span>
+                        <span class="step-number">2/7</span>
                         <span class="step-label">会社プロフィール</span>
                     </div>
                     <div class="step" data-step="3">
-                        <span class="step-number">3/6</span>
+                        <span class="step-number">3/7</span>
                         <span class="step-label">個人情報</span>
                     </div>
                     <div class="step" data-step="4">
-                        <span class="step-number">4/6</span>
+                        <span class="step-number">4/7</span>
                         <span class="step-label">テックツール</span>
                     </div>
                     <div class="step" data-step="5">
-                        <span class="step-number">5/6</span>
+                        <span class="step-number">5/7</span>
                         <span class="step-label">コミュニケーション</span>
                     </div>
                     <div class="step" data-step="6">
-                        <span class="step-number">6/6</span>
+                        <span class="step-number">6/7</span>
+                        <span class="step-label">テンプレート選択</span>
+                    </div>
+                    <div class="step" data-step="7">
+                        <span class="step-number">7/7</span>
                         <span class="step-label">決済</span>
                     </div>
                 </div>
@@ -925,8 +929,49 @@ $prefectures = [
                 </form>
             </div>
 
-            <!-- Step 6: Preview & Payment -->
+            <!-- Step 6: Template Selection -->
             <div id="step-6" class="register-step">
+                <h1>テンプレート選択</h1>
+                <p class="step-description">名刺上部の背景画像を選択してください（初期設定はテンプレート1です）</p>
+
+                <form id="template-form" class="register-form">
+                    <input type="hidden" id="card_header_bg" name="card_header_bg" value="assets/images/card-header (1).jpg">
+
+                    <div class="form-section">
+                        <h3>テンプレート（10種類）</h3>
+                        <div id="card-header-template-grid" class="template-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+                            <?php for ($i = 1; $i <= 10; $i++): $path = "assets/images/card-header ({$i}).jpg"; ?>
+                                <label class="template-tile" style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; cursor:pointer; background:#fff;">
+                                    <input type="radio" name="card_header_bg_choice" value="<?php echo htmlspecialchars($path); ?>" <?php echo $i === 1 ? 'checked' : ''; ?> style="display:none;">
+                                    <div style="height:90px; background-image:url('<?php echo htmlspecialchars($path); ?>'); background-size:cover; background-position:center;"></div>
+                                    <div style="padding:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                                        <span style="font-size:12px; color:#2d3748; font-weight:600;">テンプレート<?php echo $i; ?></span>
+                                        <span class="template-selected-badge" style="display:none; font-size:11px; padding:2px 8px; border-radius:999px; background:#c6f6d5; color:#22543d;">選択中</span>
+                                    </div>
+                                </label>
+                            <?php endfor; ?>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>オリジナル画像をアップロード</h3>
+                        <div class="upload-area" id="card-header-bg-upload" data-upload-id="card_header_bg">
+                            <input type="file" id="card_header_bg_file" accept="image/*" style="display:none;">
+                            <div class="upload-preview" id="card-header-bg-preview"></div>
+                            <button type="button" class="btn-outline" onclick="document.getElementById('card_header_bg_file').click()">画像をアップロード</button>
+                            <small>アップロード後に「この内容で進める」で保存されます（対応形式：JPEG、PNG、GIF、WebP）</small>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="goToStep(5)">戻る</button>
+                        <button type="submit" class="btn-primary">保存して次へ</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Step 7: Preview & Payment -->
+            <div id="step-7" class="register-step">
                 <h1>決済</h1>
                 <!-- <p class="step-description">入力内容を確認してください</p> -->
 
@@ -984,7 +1029,7 @@ $prefectures = [
                 </div>
 
                 <div class="form-actions">
-                    <button type="button" class="btn-secondary" onclick="goToStep(5)">戻る</button>
+                    <button type="button" class="btn-secondary" onclick="goToStep(6)">戻る</button>
                     <?php if ($isActive): ?>
                         <button type="button" id="submit-payment" class="btn-primary" style="background: #007bff; cursor: default;" disabled>利用中</button>
                     <?php else: ?>

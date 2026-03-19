@@ -14,6 +14,7 @@ let currentStep = 1;
 let formData = {};
 let completedSteps = new Set(); // Track which steps have been submitted
 let businessCardData = null; // Store loaded business card data
+let pendingCardHeaderBgFile = null; // Template upload pending file
 
 // Helper function to build URLs with token and type parameters (security: preserve token)
 function buildUrlWithToken(baseUrl) {
@@ -39,12 +40,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Set up mutual exclusivity for architect qualification checkboxes
     setupArchitectCheckboxMutualExclusivity();
     
-    // Check URL parameter for step navigation (e.g., ?step=6 for payment)
+    // Check URL parameter for step navigation (e.g., ?step=7 for payment)
     const urlParams = new URLSearchParams(window.location.search);
     const stepParam = urlParams.get('step');
     if (stepParam) {
         const stepNumber = parseInt(stepParam);
-        if (stepNumber >= 1 && stepNumber <= 6) {
+        if (stepNumber >= 1 && stepNumber <= 7) {
             // Navigate to the specified step
             setTimeout(() => {
                 goToStep(stepNumber, true);
@@ -52,10 +53,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     }
 
-    // 停止されたアカウントの場合、決済画面（step-6）に自動誘導
+    // 停止されたアカウントの場合、決済画面（step-7）に自動誘導
     if (typeof window !== 'undefined' && window.isCanceledAccount) {
         setTimeout(() => {
-            goToStep(6);
+            goToStep(7);
         }, 500);
     }
     
@@ -65,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         stepItem.style.cursor = 'pointer';
             stepItem.addEventListener('click', async function() {
             const stepNumber = parseInt(this.dataset.step);
-            if (stepNumber && stepNumber >= 1 && stepNumber <= 6) {
+            if (stepNumber && stepNumber >= 1 && stepNumber <= 7) {
                 // Save data for all steps before the target step (only if navigating forward)
                 if (stepNumber > currentStep && stepNumber > 1) {
                     await saveStepsBeforeTarget(stepNumber);
@@ -74,7 +75,67 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         });
     });
+
+    setupCardHeaderTemplateStep();
 });
+
+function setupCardHeaderTemplateStep() {
+    const form = document.getElementById('template-form');
+    if (!form) return;
+
+    const hidden = document.getElementById('card_header_bg');
+    const grid = document.getElementById('card-header-template-grid');
+    const fileInput = document.getElementById('card_header_bg_file');
+    const preview = document.getElementById('card-header-bg-preview');
+
+    function updateBadges() {
+        if (!grid) return;
+        grid.querySelectorAll('.template-tile').forEach(tile => {
+            const radio = tile.querySelector('input[type=\"radio\"]');
+            const badge = tile.querySelector('.template-selected-badge');
+            if (badge) badge.style.display = (radio && radio.checked) ? 'inline-block' : 'none';
+        });
+    }
+
+    if (grid) {
+        grid.addEventListener('change', function(e) {
+            const t = e.target;
+            if (t && t.name === 'card_header_bg_choice') {
+                if (hidden) hidden.value = t.value;
+                pendingCardHeaderBgFile = null;
+                if (fileInput) fileInput.value = '';
+                if (preview) preview.innerHTML = '';
+                updateBadges();
+            }
+        });
+        updateBadges();
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+            if (!f) return;
+            if (!f.type.startsWith('image/')) {
+                alert('画像ファイルを選択してください');
+                e.target.value = '';
+                return;
+            }
+            pendingCardHeaderBgFile = f;
+            if (preview) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    preview.innerHTML = `<img src=\"${ev.target.result}\" alt=\"ヘッダー背景プレビュー\" style=\"max-width: 100%; height: 140px; object-fit: cover; border-radius: 10px;\">`;
+                };
+                reader.readAsDataURL(f);
+            }
+        });
+    }
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        await saveTemplateStepAndNext();
+    });
+}
 
 // Auto-capitalize first letter of romaji input fields
 function setupRomajiAutoCapitalize() {
@@ -666,6 +727,42 @@ function populateRegistrationForms(data) {
     setTimeout(() => {
         setupArchitectCheckboxMutualExclusivity();
     }, 100);
+
+    // Step 6: Template selection (card header background)
+    try {
+        const defaultBg = 'assets/images/card-header (1).jpg';
+        const savedBg = (data && data.card_header_bg) ? String(data.card_header_bg).trim() : '';
+        const finalBg = savedBg || defaultBg;
+
+        const hidden = document.getElementById('card_header_bg');
+        if (hidden) hidden.value = finalBg;
+
+        const grid = document.getElementById('card-header-template-grid');
+        if (grid) {
+            const radios = grid.querySelectorAll('input[name=\"card_header_bg_choice\"]');
+            let matched = false;
+            radios.forEach(r => {
+                if (r.value === finalBg) {
+                    r.checked = true;
+                    matched = true;
+                } else {
+                    r.checked = false;
+                }
+            });
+            // If it doesn't match presets, keep radios as-is (custom upload) and still store hidden value.
+            if (!matched) {
+                // leave preset selection unchanged
+            }
+            // Update badges
+            grid.querySelectorAll('.template-tile').forEach(tile => {
+                const radio = tile.querySelector('input[type=\"radio\"]');
+                const badge = tile.querySelector('.template-selected-badge');
+                if (badge) badge.style.display = (radio && radio.checked) ? 'inline-block' : 'none';
+            });
+        }
+    } catch (e) {
+        console.warn('Failed to populate template selection:', e);
+    }
 }
 
 /**
@@ -781,6 +878,18 @@ async function saveStepData(stepNumber) {
             case 5:
                 // Step 5 (communication) doesn't need to save before navigation
                 return true;
+
+            case 6:
+                form = document.getElementById('template-form');
+                if (!form) return true;
+                {
+                    const hidden = document.getElementById('card_header_bg');
+                    const selected = hidden ? String(hidden.value || '').trim() : '';
+                    if (selected) {
+                        saveData.card_header_bg = selected;
+                    }
+                }
+                break;
                 
             default:
                 return true;
@@ -830,9 +939,63 @@ async function saveStepsBeforeTarget(targetStep) {
     }
 }
 
+async function saveTemplateStepAndNext() {
+    const hidden = document.getElementById('card_header_bg');
+    const selectedPreset = hidden ? String(hidden.value || '').trim() : '';
+    let finalPath = selectedPreset || 'assets/images/card-header (1).jpg';
+
+    // If user uploaded a file, upload first and use returned path.
+    if (pendingCardHeaderBgFile) {
+        try {
+            const uploadData = new FormData();
+            uploadData.append('file', pendingCardHeaderBgFile);
+            uploadData.append('file_type', 'free'); // do not auto-save; we will save via update.php
+
+            const uploadUrl = (typeof window.getUploadUrl === 'function')
+                ? window.getUploadUrl()
+                : (window.BASE_URL ? window.BASE_URL + '/backend/api/business-card/upload.php' : window.location.origin + '/backend/api/business-card/upload.php');
+
+            const uploadResponse = await fetch(uploadUrl, {
+                method: 'POST',
+                body: uploadData,
+                credentials: 'include'
+            });
+            const uploadResult = await uploadResponse.json();
+            if (uploadResult && uploadResult.success && uploadResult.data && uploadResult.data.file_path) {
+                const fullPath = uploadResult.data.file_path;
+                finalPath = fullPath.split('/php/')[1] || fullPath;
+                if (hidden) hidden.value = finalPath;
+                pendingCardHeaderBgFile = null;
+            } else {
+                console.warn('Template upload failed:', uploadResult);
+            }
+        } catch (err) {
+            console.error('Template upload error:', err);
+        }
+    }
+
+    // Persist to DB
+    try {
+        const response = await fetch('backend/api/business-card/update.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ card_header_bg: finalPath }),
+            credentials: 'include'
+        });
+        const result = await response.json();
+        if (!result.success) {
+            console.warn('Failed to save template selection:', result.message);
+        }
+    } catch (err) {
+        console.error('Failed to save template selection:', err);
+    }
+
+    goToStep(7);
+}
+
 // Step navigation
 async function goToStep(step, skipSave = false) {
-    if (step < 1 || step > 6) return;
+    if (step < 1 || step > 7) return;
     
     // Update step indicator
     const stepItems = document.querySelectorAll('.step-indicator .step');
@@ -910,8 +1073,8 @@ async function goToStep(step, skipSave = false) {
         }, 200);
     }
     
-    // Generate and display QR code when reaching step 6 (payment step)
-    // if (step === 6) {
+    // Generate and display QR code when reaching step 7 (payment step)
+    // if (step === 7) {
     //     generateAndDisplayQRCode();
     // }
 }

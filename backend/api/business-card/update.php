@@ -53,7 +53,7 @@ try {
      */
 
     $fields = [
-        'company_name', 'company_logo', 'profile_photo',
+        'company_name', 'company_logo', 'profile_photo', 'card_header_bg',
         'real_estate_license_prefecture', 'real_estate_license_renewal_number',
         'real_estate_license_registration_number', 'company_postal_code',
         'company_address', 'company_phone', 'company_website',
@@ -71,13 +71,13 @@ try {
         $value = $input[$field];
 
         // 🔥 FIX: If image is accidentally sent as array → convert to string
-        if (in_array($field, ['profile_photo', 'company_logo']) && is_array($value)) {
+        if (in_array($field, ['profile_photo', 'company_logo', 'card_header_bg']) && is_array($value)) {
             $value = $value[0] ?? null;
         }
 
         // IMPORTANT: Skip image fields if empty to prevent overwriting existing images
         // This prevents clearing images when the beforeunload popup is triggered
-        if (in_array($field, ['profile_photo', 'company_logo'])) {
+        if (in_array($field, ['profile_photo', 'company_logo', 'card_header_bg'])) {
             if ($value === '' || $value === null) {
                 continue; // Preserve existing image
             }

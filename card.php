@@ -202,6 +202,15 @@ $selfInBase = $isEraMember ? 'https://era.self-in.com/' : 'https://self-in.com/'
 $selfInNetBase = $isEraMember ? 'https://era.self-in.net/' : 'https://self-in.net/';
 $urlSlug = $card['url_slug'];
 $toolSlug = !empty($card['company_slug']) ? $card['company_slug'] : $card['url_slug'];
+$defaultHeaderBg = 'assets/images/card-header (1).jpg';
+$cardHeaderBgRaw = trim($card['card_header_bg'] ?? '');
+$cardHeaderBg = $cardHeaderBgRaw !== '' ? $cardHeaderBgRaw : $defaultHeaderBg;
+if (!preg_match('/^https?:\/\//', $cardHeaderBg)) {
+    $baseUrlPattern = preg_quote(BASE_URL, '/');
+    if (!preg_match('/^' . $baseUrlPattern . '/i', $cardHeaderBg)) {
+        $cardHeaderBg = BASE_URL . '/' . ltrim($cardHeaderBg, '/');
+    }
+}
 
 // ツール名とURLを動的に生成（ツール用は company_slug、未設定時は url_slug）
 foreach ($techTools as &$tool) {
@@ -378,7 +387,7 @@ if (!empty($card['profile_photo'])) {
     <div class="card-container">
         <!-- 名刺部 -->
         <section class="card-section">
-            <div class="card-header">
+            <div class="card-header" style="background-image: url('<?php echo htmlspecialchars($cardHeaderBg); ?>'); background-size: cover; background-position: center; background-repeat: no-repeat;">
                 
             </div>
             <hr>
