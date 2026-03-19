@@ -1124,8 +1124,9 @@ $defaultGreetings = [
                             <h3>テンプレート（10種類）</h3>
                             <div id="card-header-template-grid-edit" class="template-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
                                 <?php for ($i = 1; $i <= 10; $i++): $path = "assets/images/card-header ({$i}).jpg"; ?>
-                                    <label class="template-tile" style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; cursor:pointer; background:#fff;">
-                                        <input type="radio" name="card_header_bg_choice" value="<?php echo htmlspecialchars($path); ?>" <?php echo $i === 1 ? 'checked' : ''; ?> style="display:none;">
+                                    <label class="template-tile" style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; cursor:pointer; background:#fff; position: relative;">
+                                        <!-- iOS Safari: label toggle can fail when display:none. Keep input in layout but visually hidden. -->
+                                        <input type="radio" name="card_header_bg_choice" value="<?php echo htmlspecialchars($path); ?>" <?php echo $i === 1 ? 'checked' : ''; ?> style="position:absolute; opacity:0; width:1px; height:1px; inset:0;">
                                         <div style="height:90px; background-image:url('<?php echo htmlspecialchars($path); ?>'); background-size:cover; background-position:center;"></div>
                                         <div style="padding:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
                                             <span style="font-size:12px; color:#2d3748; font-weight:600;">テンプレート<?php echo $i; ?></span>
@@ -1139,7 +1140,8 @@ $defaultGreetings = [
                         <div class="form-section">
                             <h3>オリジナル画像をアップロード</h3>
                             <div class="upload-area" id="card-header-bg-upload-edit" data-upload-id="card_header_bg">
-                                <input type="file" id="card_header_bg_file_edit" accept="image/*" style="display:none;">
+                                <!-- iOS Safari: programmatic click can fail when display:none. Keep in DOM but visually hidden. -->
+                                <input type="file" id="card_header_bg_file_edit" accept="image/*" style="position:absolute; opacity:0; width:1px; height:1px; pointer-events:none;">
                                 <button type="button" class="btn-upload" onclick="document.getElementById('card_header_bg_file_edit').click()">アップロード</button>
                                 <div class="upload-preview" id="card-header-bg-preview-edit"></div>
                                 <small>アップロード後に「保存して次へ」で保存されます（対応形式：JPEG、PNG、GIF、WebP）</small>
