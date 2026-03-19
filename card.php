@@ -840,7 +840,7 @@ if (!empty($card['profile_photo'])) {
                                         <a href="<?php echo htmlspecialchars($tool['tool_url']); ?>" 
                                            class="tool-details-button" 
                                            target="_blank">
-                                            詳細はこちら
+                                            <?php echo ($tool['tool_type'] === 'alp') ? '詳細はこちら' : '利用はこちら'; ?>
                                         </a>
                                     </div>
                                 </div>

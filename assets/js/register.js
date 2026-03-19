@@ -4590,12 +4590,13 @@ function buildCardHtmlForRegister(data) {
         data.tech_tools.forEach(tool => {
             const bannerImage = techToolBanners[tool] || 'assets/images/tech_banner/default.jpg';
             const description = techToolDescriptions[tool] || '';
+            const toolButtonLabel = (tool === 'alp') ? '詳細はこちら' : '利用はこちら';
             
             html += '<div class="tech-tool-banner-card">';
             html += `<div class="tool-banner-header" style="background-image: url('${bannerImage}'); background-size: contain; background-position: center; background-repeat: no-repeat; height: 200px;"></div>`;
             html += '<div class="tool-banner-content">';
             html += `<div class="tool-description">${description}</div>`;
-            html += '<a href="#" class="tool-details-button" target="_blank">詳細はこちら</a>';
+            html += `<a href="#" class="tool-details-button" target="_blank">${toolButtonLabel}</a>`;
             html += '</div>';
             html += '</div>';
         });

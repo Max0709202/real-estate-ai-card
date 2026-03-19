@@ -460,6 +460,7 @@ ease;
     border: none;
     cursor: pointer;
     padding: 10px 20px;
+    border-radius: 10px;
 }
 
 .tool-details-button:hover {
