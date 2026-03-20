@@ -883,13 +883,13 @@ if (empty($_SESSION['admin_id'])) {
                 return `
                     <tr data-id="${inv.id}">
                         <td class="checkbox-cell">
-                            <input type="checkbox" class="row-checkbox" value="${inv.id}" ${inv.email_sent == 1 ? 'disabled' : ''}>
+                            <input type="checkbox" class="row-checkbox" value="${inv.id}">
                         </td>
                         <td>${index + 1}</td>
                         <td>${inv.username || '-'}</td>
                         <td>${inv.email}</td>
                         <td>
-                            <select class="role-select" onchange="updateRole(${inv.id}, this.value)" ${inv.email_sent == 1 ? 'disabled' : ''}>
+                            <select class="role-select" onchange="updateRole(${inv.id}, this.value)">
                                 <option value="new" ${inv.role_type === 'new' ? 'selected' : ''}>新規</option>
                                 <option value="existing" ${inv.role_type === 'existing' ? 'selected' : ''}>既存</option>
                             </select>
@@ -974,7 +974,7 @@ if (empty($_SESSION['admin_id'])) {
         }
 
         function selectAll() {
-            document.querySelectorAll('.row-checkbox:not(:disabled)').forEach(cb => cb.checked = true);
+            document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = true);
         }
 
         function deselectAll() {

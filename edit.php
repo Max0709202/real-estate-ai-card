@@ -29,28 +29,13 @@ if (empty($_SESSION['user_id']) && $userType === 'existing' && !empty($invitatio
         $invitation = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($invitation) {
-            // Check if token has expired
-            $tokenValid = true;
-            if (!empty($invitation['invitation_token_expires_at'])) {
-                $expiresAt = strtotime($invitation['invitation_token_expires_at']);
-                if (time() > $expiresAt) {
-                    $tokenValid = false;
-                }
-            }
-            
-            if ($tokenValid) {
-                $isGuestAccess = true;
-                $guestInvitationData = $invitation;
-                // Store in session for this visit
-                $_SESSION['guest_invitation_id'] = $invitation['id'];
-                $_SESSION['guest_invitation_email'] = $invitation['email'];
-                $_SESSION['guest_invitation_token'] = $invitationToken;
-                $_SESSION['guest_user_type'] = 'existing';
-            } else {
-                // Token expired - redirect to error page
-                header('Location: auth/existing-user-verify.php?token=' . urlencode($invitationToken) . '&error=expired');
-                exit();
-            }
+            $isGuestAccess = true;
+            $guestInvitationData = $invitation;
+            // Store in session for this visit
+            $_SESSION['guest_invitation_id'] = $invitation['id'];
+            $_SESSION['guest_invitation_email'] = $invitation['email'];
+            $_SESSION['guest_invitation_token'] = $invitationToken;
+            $_SESSION['guest_user_type'] = 'existing';
         }
     } catch (Exception $e) {
         error_log("Guest access token validation error: " . $e->getMessage());
@@ -562,7 +547,7 @@ $defaultGreetings = [
                         <span class="step-number">7/7</span>
                         <span class="step-label">決済</span>
                     </a>
-                    <a href="#chat-history" class="nav-item" data-step="chat" data-section="chat-history-section">
+                    <a href="#chat-history" class="nav-item" data-step="chat" data-section="chat-history-section" style="display: none;">
                         <span class="step-label">チャット履歴</span>
                     </a>
                 </nav>
@@ -1220,7 +1205,7 @@ $defaultGreetings = [
                 </div>
 
                 <!-- Chat history / Leads (My Page) -->
-                <div id="chat-history-section" class="edit-section">
+                <div id="chat-history-section" class="edit-section" style="display: none;">
                     <h2>チャット履歴・顧客一覧</h2>
                     <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。</p>
                     <div id="chat-history-list" class="chat-history-list">

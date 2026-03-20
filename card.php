@@ -849,7 +849,7 @@ if (!empty($card['profile_photo'])) {
                     </section>
                 <?php endif; ?>
                 <?php if ($chatbotEnabled): ?>
-                <p class="loan-sim-link-wrap" style="margin: 1rem 0; font-size: 0.95rem;">
+                <p class="loan-sim-link-wrap" style="margin: 1rem 0; font-size: 0.95rem; display: none;">
                     <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '')); ?>" style="color: #0066cc; font-weight: bold;">住宅ローンシミュレーター</a>で返済額・借入可能額の試算ができます。
                 </p>
                 <?php endif; ?>
@@ -1185,7 +1185,7 @@ if (!empty($card['profile_photo'])) {
          data-card-slug="<?php echo htmlspecialchars($card['url_slug'] ?? ''); ?>"
          data-agent-name="<?php echo htmlspecialchars($card['name'] ?? ''); ?>"
          data-agent-photo="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>"
-         data-api-base="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/backend/api/chat'); ?>">
+         data-api-base="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/backend/api/chat'); ?>" style="display: none;">
         <button type="button" id="chat-widget-toggle" class="chat-widget-toggle" aria-label="チャットを開く">
             <span class="chat-widget-toggle-icon">💬</span>
         </button>

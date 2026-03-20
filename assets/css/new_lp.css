@@ -211,7 +211,7 @@
     }
 
     .new-lp-sec-1-video-wrap {
-        aspect-ratio: 16 / 9;
+        aspect-ratio: 9 / 16;
         border-radius: 16px;
         max-height: 50vh;
     }

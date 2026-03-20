@@ -120,7 +120,7 @@ if ($isTokenBased) {
                         <p class="new-lp-sec-1-tagline">一歩先を伴走する</p>
                     </div>
                     <h1 class="new-lp-sec-1-title">
-                        <span class="new-lp-sec-1-title-outline">頼られる</span><span class="new-lp-sec-1-title-solid">AI名刺</span>
+                        <span class="new-lp-sec-1-title-outline">頼られる</span><span class="new-lp-sec-1-title-solid">不動産AI名刺</span>
                     </h1>
                     <p class="new-lp-sec-1-sub">顧客に選ばれる私に</p>
                 </div>
@@ -230,7 +230,7 @@ if ($isTokenBased) {
                         <img src="./images/section4-1.png" alt="非対面・非接触ニーズの高まり">
                     </div>
                     <p class="trend-text">
-                        高まり 新型コロナウイルス感染症（COVID-19）の流行以降、対面での名刺交換を避け、スマートフォンのタッチやスキャンで安全に情報を共有する形式が定着しました。
+                        新型コロナウイルス感染症（COVID-19）の流行以降、対面での名刺交換を避け、スマートフォンのタッチやスキャンで安全に情報を共有する形式が定着しました。
                     </p>
                 </div>
 

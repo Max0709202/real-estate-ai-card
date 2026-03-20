@@ -27,7 +27,7 @@ try {
     $database = new Database();
     $db = $database->getConnection();
 
-    // Get invitation details and verify token is valid
+    // Get invitation details and verify token is valid (no expiration check)
     $stmt = $db->prepare("
         SELECT id, email, role_type, invitation_token_expires_at
         FROM email_invitations
@@ -38,14 +38,6 @@ try {
 
     if (!$invitation) {
         sendErrorResponse('無効なトークンです', 404);
-    }
-
-    // Check if token has expired
-    if (!empty($invitation['invitation_token_expires_at'])) {
-        $expiresAt = strtotime($invitation['invitation_token_expires_at']);
-        if (time() > $expiresAt) {
-            sendErrorResponse('招待リンクの有効期限が切れています。管理者に再送信を依頼してください。', 410);
-        }
     }
 
     // Check if user exists with this email

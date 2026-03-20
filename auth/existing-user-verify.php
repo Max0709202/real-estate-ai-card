@@ -12,7 +12,6 @@ startSessionIfNotStarted();
 $token = $_GET['token'] ?? '';
 $userType = 'existing'; // Always existing for this page
 $tokenValid = false;
-$tokenExpired = false;
 $errorMessage = '';
 $invitationData = null;
 
@@ -21,7 +20,7 @@ if (!empty($token)) {
         $database = new Database();
         $db = $database->getConnection();
 
-        // Validate token
+        // Validate token (no expiration for existing invitation links)
         $stmt = $db->prepare("
             SELECT id, email, role_type, invitation_token_expires_at
             FROM email_invitations
@@ -31,18 +30,7 @@ if (!empty($token)) {
         $invitationData = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($invitationData) {
-            // Check expiration
-            if (!empty($invitationData['invitation_token_expires_at'])) {
-                $expiresAt = strtotime($invitationData['invitation_token_expires_at']);
-                if (time() > $expiresAt) {
-                    $tokenExpired = true;
-                    $errorMessage = '招待リンクの有効期限が切れています。管理者に再送信を依頼してください。';
-                } else {
-                    $tokenValid = true;
-                }
-            } else {
-                $tokenValid = true;
-            }
+            $tokenValid = true;
         } else {
             $errorMessage = '無効な招待リンクです。';
         }
@@ -257,15 +245,6 @@ if (!empty($token)) {
             <button type="button" class="btn-continue" id="continue-btn">
                 編集画面へ進む
             </button>
-        <?php elseif ($tokenExpired): ?>
-            <div class="verification-icon expired">⏰</div>
-            <h1 class="verification-title">招待リンクの有効期限切れ</h1>
-            <p class="verification-message">
-                <?php echo htmlspecialchars($errorMessage); ?>
-            </p>
-            <div class="home-link">
-                <a href="../index.php">ホームページへ戻る</a>
-            </div>
         <?php else: ?>
             <div class="verification-icon error">✕</div>
             <h1 class="verification-title">エラー</h1>

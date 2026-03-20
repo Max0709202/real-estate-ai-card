@@ -36,14 +36,6 @@ try {
         sendErrorResponse('無効なトークンです', 404);
     }
     
-    // Check if token has expired (for existing users with expiration set)
-    if (!empty($invitation['invitation_token_expires_at'])) {
-        $expiresAt = strtotime($invitation['invitation_token_expires_at']);
-        if (time() > $expiresAt) {
-            sendErrorResponse('招待リンクの有効期限が切れています。管理者に再送信を依頼してください。', 410);
-        }
-    }
-    
     // Check if user already registered with this email
     $userStmt = $db->prepare("SELECT id, user_type, status FROM users WHERE email = ?");
     $userStmt->execute([$invitation['email']]);

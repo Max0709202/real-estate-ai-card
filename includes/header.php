@@ -434,6 +434,7 @@ if ($isLoggedIn) {
                 <?php if ($showNavLinks): ?>
                 <a href="<?php echo htmlspecialchars($registerPageUrl); ?>" class="btn-primary">不動産AI名刺を作る</a>
                 <?php endif; ?>
+                
             </nav>
         </div>
     </div>

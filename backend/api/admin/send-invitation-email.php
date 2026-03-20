@@ -42,7 +42,7 @@ try {
             continue;
         }
 
-        // Generate token for existing users (always regenerate to reset expiration)
+        // Generate token for existing users (always regenerate for re-invite)
         $token = $invitation['invitation_token'];
         if ($invitation['role_type'] === 'existing') {
             // Generate unique token (64 characters)
@@ -52,12 +52,9 @@ try {
                 $checkStmt->execute([$token, $id]);
             } while ($checkStmt->fetch());
 
-            // Set token expiration to 15 minutes from now
-            $tokenExpiresAt = date('Y-m-d H:i:s', strtotime('+15 minutes'));
-
-            // Store token and expiration in database
-            $updateStmt = $db->prepare("UPDATE email_invitations SET invitation_token = ?, invitation_token_expires_at = ? WHERE id = ?");
-            $updateStmt->execute([$token, $tokenExpiresAt, $id]);
+            // Store token without expiration (永続有効)
+            $updateStmt = $db->prepare("UPDATE email_invitations SET invitation_token = ?, invitation_token_expires_at = NULL WHERE id = ?");
+            $updateStmt->execute([$token, $id]);
         }
 
         // Determine landing page URL based on role type
@@ -92,7 +89,7 @@ try {
                 .container { max-width: 600px; margin: 0 auto; padding: 20px; }
                 .header { background: #2c5282; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
                 .content { background: #f7fafc; padding: 30px; border: 1px solid #e2e8f0; }
-                .button { display: inline-block; padding: 12px 30px; background: #3182ce; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+                .button { display: inline-block; padding: 12px 30px; background:rgb(255, 255, 255); color: black; text-decoration: none; border-radius: 5px; margin: 20px 0; }
                 .footer { text-align: center; padding: 20px; color: #718096; font-size: 12px; }
             </style>
         </head>
