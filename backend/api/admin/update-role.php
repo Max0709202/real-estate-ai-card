@@ -20,6 +20,7 @@ try {
     
     $id = $input['id'] ?? null;
     $roleType = $input['role_type'] ?? null;
+    echo 'console. log("id: ' . $id . '", "roleType: ' . $roleType . '")'; 
     
     if (empty($id) || empty($roleType)) {
         sendErrorResponse('IDとロールタイプは必須です', 400);

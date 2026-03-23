@@ -120,7 +120,7 @@ if ($isTokenBased) {
                         <p class="new-lp-sec-1-tagline">一歩先を伴走する</p>
                     </div>
                     <h1 class="new-lp-sec-1-title">
-                        <span class="new-lp-sec-1-title-outline">頼られる</span><span class="new-lp-sec-1-title-solid">不動産AI名刺</span>
+                        <span class="new-lp-sec-1-title-outline">頼られる</span><br><span class="new-lp-sec-1-title-solid">不動産AI名刺</span>
                     </h1>
                     <p class="new-lp-sec-1-sub">顧客に選ばれる私に</p>
                 </div>
@@ -592,7 +592,7 @@ if ($isTokenBased) {
                         </li>
                     </ul>
 
-                    <div class="coming-soon-box">
+                    <div class="coming-soon-box" style="display: none;">
                         <p>＜ご利用いただける機能＞</p>
                         <p>1. AIチャットボット機能</p>
                         <p>2. <a href="loan-simulator.php" style="color: #0066cc; font-weight: bold;">住宅ローンシミュレーター</a>（返済額・借入可能額の試算）</p>
