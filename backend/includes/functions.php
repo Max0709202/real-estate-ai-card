@@ -871,15 +871,45 @@ function sendEmail(
 
         // Environment variables (fallbacks for Xserver)
         $smtpHost = getenv('SMTP_HOST') ?: 'sv16576.xserver.jp';
-        $smtpPort = (int)(getenv('SMTP_PORT') ?: 465);
-        $smtpUser = getenv('SMTP_USERNAME') ?: 'no-reply@ai-fcard.com';
-        $smtpPass = getenv('SMTP_PASSWORD') ?: 'Renewal43291';
-        $fromEmail = getenv('SMTP_FROM_EMAIL') ?: 'no-reply@ai-fcard.com';
+        $smtpPort = (int)(getenv('SMTP_PORT') ?: 587);
+        $smtpUser = getenv('SMTP_USERNAME') ?: 'support@ai-fcard.com';
+        $smtpPass = getenv('SMTP_PASSWORD') ?: 'Renewal4329';
+        $fromEmail = getenv('SMTP_FROM_EMAIL') ?: 'support@ai-fcard.com';
         $fromName  = getenv('SMTP_FROM_NAME')  ?: '不動産AI名刺';
 
         // Reply-To should usually be a real inbox (not no-reply)
-        $replyToEmail = getenv('SMTP_REPLY_TO') ?: 'no-reply@ai-fcard.com';
+        $replyToEmail = getenv('SMTP_REPLY_TO') ?: 'web@rchukai.jp';
         $replyToName  = getenv('SMTP_REPLY_TO_NAME') ?: $fromName;
+
+        // Optional runtime diagnostics for SMTP config source.
+        // Enable only when needed: SMTP_CONFIG_DEBUG=1
+        if ((string)(getenv('SMTP_CONFIG_DEBUG') ?: '') === '1') {
+            $rawEnvHost = getenv('SMTP_HOST');
+            $rawEnvPort = getenv('SMTP_PORT');
+            $rawEnvUser = getenv('SMTP_USERNAME');
+            $rawEnvPass = getenv('SMTP_PASSWORD');
+
+            $maskEmail = static function ($email) {
+                if (empty($email) || strpos($email, '@') === false) {
+                    return '[empty-or-invalid]';
+                }
+                [$local, $domain] = explode('@', $email, 2);
+                if ($local === '') {
+                    return '***@' . $domain;
+                }
+                return substr($local, 0, 1) . '***@' . $domain;
+            };
+
+            error_log('[SMTP Config Debug] host=' . $smtpHost
+                . ' (source=' . ($rawEnvHost !== false && $rawEnvHost !== '' ? 'env' : 'fallback') . ')'
+                . ', port=' . $smtpPort
+                . ' (source=' . ($rawEnvPort !== false && $rawEnvPort !== '' ? 'env' : 'fallback') . ')'
+                . ', username=' . $maskEmail($smtpUser)
+                . ' (source=' . ($rawEnvUser !== false && $rawEnvUser !== '' ? 'env' : 'fallback') . ')'
+                . ', password=' . ($smtpPass !== '' ? '[set]' : '[empty]')
+                . ' (source=' . ($rawEnvPass !== false && $rawEnvPass !== '' ? 'env' : 'fallback') . ')'
+            );
+        }
 
         $mail->Host = $smtpHost;
         $mail->Username = $smtpUser;

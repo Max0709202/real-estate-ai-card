@@ -1153,7 +1153,13 @@ $defaultGreetings = [
                             <span>クレジットカード決済</span>
                         </label>
                         <div class="payment-amount">
-                        <?php if ($userType === 'new' || $isCanceledAccount): ?>
+                        <?php if (($canRenew ?? false) && (($paymentMethod ?? '') === 'bank_transfer')): ?>
+                            <!-- 更新手続き向け（初期費用なし） -->
+                            <div class="payment-method-detail payment-method-credit">
+                                <p>更新時の初期費用: ¥0</p>
+                                <p>月額費用: ¥500（税別）</p>
+                            </div>
+                        <?php elseif ($userType === 'new' || $isCanceledAccount): ?>
                             <!-- 新規登録 / 復活アカウント向け -->
                             <div class="payment-method-detail payment-method-credit">
                                 <p>初期費用: ¥30,000（税別）</p>
@@ -1175,7 +1181,13 @@ $defaultGreetings = [
                         <span>お振込み</span>
                     </label>
                     <div class="payment-amount">
-                            <?php if ($userType === 'new' || $isCanceledAccount): ?>
+                            <?php if (($canRenew ?? false) && (($paymentMethod ?? '') === 'bank_transfer')): ?>
+                                <div class="payment-method-detail payment-method-bank">
+                                    <p>更新時の初期費用: ¥0</p>
+                                    <p>年間費用: ¥5,000（税別）</p>
+                                    <p>お振込みの場合は、1年間の一括払いのみとなります。2か月分お得になります。</p>
+                                </div>
+                            <?php elseif ($userType === 'new' || $isCanceledAccount): ?>
                                 <div class="payment-method-detail payment-method-bank">
                                     <p>初期費用: ¥30,000（税別）</p>
                                     <p>年間費用: ¥5,000（税別）</p>
