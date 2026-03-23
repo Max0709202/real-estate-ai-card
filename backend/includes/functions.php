@@ -871,9 +871,9 @@ function sendEmail(
 
         // Environment variables (fallbacks for Xserver)
         $smtpHost = getenv('SMTP_HOST') ?: 'sv16576.xserver.jp';
-        $smtpPort = (int)(getenv('SMTP_PORT') ?: 587);
+        $smtpPort = (int)(getenv('SMTP_PORT') ?: 465);
         $smtpUser = getenv('SMTP_USERNAME') ?: 'no-reply@ai-fcard.com';
-        $smtpPass = getenv('SMTP_PASSWORD') ?: 'Renewal4329';
+        $smtpPass = getenv('SMTP_PASSWORD') ?: 'Renewal43291';
         $fromEmail = getenv('SMTP_FROM_EMAIL') ?: 'no-reply@ai-fcard.com';
         $fromName  = getenv('SMTP_FROM_NAME')  ?: '不動産AI名刺';
 

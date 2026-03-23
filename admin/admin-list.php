@@ -278,7 +278,7 @@ $canManageRoles = ($currentAdmin['id'] == 1 || $currentAdmin['role'] === 'admin'
             const messageContainer = document.getElementById('message-container');
             messageContainer.innerHTML = '';
             
-            fetch('../backend/api/admin/update-role.php', {
+            fetch('../backend/api/admin/update-admin-role.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
