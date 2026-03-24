@@ -86,19 +86,23 @@ if ($isLoggedIn) {
             $registerPageUrl = 'register.php';
         }
 
-        // Check if user has completed payment and has QR code
+        // Check if user can currently view My Card.
+        // Use current business_cards state instead of historical payments.
         $stmt = $db->prepare("
-            SELECT bc.url_slug, bc.qr_code_issued, p.payment_status
+            SELECT bc.url_slug, bc.qr_code_issued, bc.payment_status, bc.is_published
             FROM business_cards bc
-            LEFT JOIN payments p ON bc.id = p.business_card_id AND p.payment_status = 'completed'
             WHERE bc.user_id = ?
-            ORDER BY p.paid_at DESC
             LIMIT 1
         ");
         $stmt->execute([$_SESSION['user_id']]);
         $cardData = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($cardData && $cardData['qr_code_issued'] && $cardData['payment_status'] === 'completed') {
+        if (
+            $cardData &&
+            (int)($cardData['qr_code_issued'] ?? 0) === 1 &&
+            (int)($cardData['is_published'] ?? 0) === 1 &&
+            in_array($cardData['payment_status'] ?? '', ['CR', 'BANK_PAID', 'ST'], true)
+        ) {
             $showMyCard = true;
             $cardSlug = $cardData['url_slug'];
         }

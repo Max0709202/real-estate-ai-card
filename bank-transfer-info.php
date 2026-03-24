@@ -90,22 +90,47 @@ if ($paymentId && $paymentIntentId) {
                     if (isset($instructions->financial_addresses) && count($instructions->financial_addresses) > 0) {
                         foreach ($instructions->financial_addresses as $address) {
                             if ($address->type === 'zengin' && isset($address->zengin)) {
-                                $amountRemaining = $instructions->amount_remaining ?? ($paymentInfo['total_amount'] * 100);
-                                // Convert from cents to yen if needed
-                                if ($amountRemaining >= 1000) {
-                                    $amountRemaining = $amountRemaining / 100;
+                                /**
+                                 * 振込表示金額:
+                                 * - payments.total_amount は create-intent で計算した正しい請求額（円・税込合計）なので表示の正とする。
+                                 * - Stripe の amount_remaining は JPY の場合すでに「円」単位。旧コードは >=1000 で /100 しており
+                                 *   33000 → 330 のように誤表示していた（USD のセント換算と混同）。
+                                 */
+                                $displayAmountYen = isset($paymentInfo['total_amount'])
+                                    ? (int) round((float) $paymentInfo['total_amount'])
+                                    : 0;
+
+                                $piCurrency = strtolower((string) ($paymentIntent->currency ?? 'jpy'));
+                                $stripeRemaining = $instructions->amount_remaining ?? null;
+                                if ($displayAmountYen <= 0 && $stripeRemaining !== null && $stripeRemaining !== '') {
+                                    $displayAmountYen = (int) $stripeRemaining;
+                                    if ($piCurrency !== 'jpy' && $displayAmountYen >= 1000) {
+                                        // 非JPY: 最小通貨単位（例: セント）→ メイン単位
+                                        $displayAmountYen = (int) round($displayAmountYen / 100);
+                                    }
                                 }
+
+                                // Stripe が返す口座種別コードを日本語表記に（例: futsu → 普通）
+                                $rawAccountType = (string) ($address->zengin->account_type ?? '');
+                                $accountTypeMap = [
+                                    'futsu' => '普通',
+                                    'toza' => '当座',
+                                    'regular' => '普通',
+                                    'checking' => '当座',
+                                ];
+                                $normalizedType = strtolower(trim($rawAccountType));
+                                $accountTypeLabel = $accountTypeMap[$normalizedType] ?? ($rawAccountType !== '' ? $rawAccountType : '普通');
                                 
                                 $bankTransferInfo = [
                                     'bank_name' => $address->zengin->bank_name ?? '',
                                     'bank_code' => $address->zengin->bank_code ?? '',
                                     'branch_name' => $address->zengin->branch_name ?? '',
                                     'branch_code' => $address->zengin->branch_code ?? '',
-                                    'account_type' => $address->zengin->account_type ?? '普通',
+                                    'account_type' => $accountTypeLabel,
                                     'account_number' => $address->zengin->account_number ?? '',
                                     'account_holder_name' => $address->zengin->account_holder_name ?? '',
                                     'reference' => $instructions->reference ?? (string)$paymentId,
-                                    'amount_remaining' => $amountRemaining
+                                    'amount_remaining' => $displayAmountYen
                                 ];
                                 
                                 error_log("Bank transfer info extracted: " . json_encode($bankTransferInfo, JSON_PRETTY_PRINT));
