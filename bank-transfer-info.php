@@ -393,7 +393,7 @@ if ($paymentId && $paymentIntentId) {
                 
                 <div class="transfer-body">
                     <div class="amount-display">
-                        <div class="amount-label">お振込み金額</div>
+                        <div class="amount-label">お振込み金額（税込）</div>
                         <div class="amount-value">¥<?php echo number_format($bankTransferInfo['amount_remaining']); ?></div>
                     </div>
                     

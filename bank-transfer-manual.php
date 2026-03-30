@@ -210,7 +210,7 @@ if ($paymentId) {
                 <div class="transfer-body">
                     <?php if ($paymentInfo): ?>
                     <div class="amount-display">
-                        <div class="amount-label">お振込み金額</div>
+                        <div class="amount-label">お振込み金額（税込）</div>
                         <div class="amount-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></div>
                     </div>
                     

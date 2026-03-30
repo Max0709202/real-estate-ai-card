@@ -992,8 +992,8 @@ $prefectures = [
                         <?php if ($userType === 'new' || $isCanceledAccount): ?>
                             <!-- 新規登録 / 復活アカウント向け -->
                             <div class="payment-method-detail payment-method-credit">
-                                <p>初期費用: ¥30,000（税別）</p>
-                                <p>月額費用: ¥500（税別）</p>
+                                <p>初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_INITIAL)); ?>（税込）</p>
+                                <p>月額費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_MONTHLY)); ?>（税込）</p>
                             </div>
                             <?php if ($isCanceledAccount): ?>
                                 <p style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">※停止されたアカウントの復活には、新規登録と同じ初期費用と月額費用がかかります。</p>
@@ -1001,7 +1001,7 @@ $prefectures = [
                         <?php elseif ($userType === 'existing'): ?>
                             <!-- 既存・ERA会員向け -->
                             <div class="payment-method-detail payment-method-credit">
-                                <p>2026年8月31日まで 初期費用: ¥20,000（税別）</p>
+                                <p>2026年8月31日まで 初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>（税込）</p>
                                 <p>月額費用：無料</p>
                             </div>
                         <?php endif; ?>
@@ -1013,8 +1013,8 @@ $prefectures = [
                     <div class="payment-amount">
                         <?php if ($userType === 'new' || $isCanceledAccount): ?>
                             <div class="payment-method-detail payment-method-bank">
-                                <p>初期費用: ¥30,000（税別）</p>
-                                <p>年間費用: ¥5,000（税別）</p>
+                                <p>初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_INITIAL)); ?>（税込）</p>
+                                <p>年間費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000)); ?>（税込）</p>
                                 <p>お振込みの場合は、1年間の一括払いのみとなります。2か月分お得になります。</p>
                             </div>
                             <?php if ($isCanceledAccount): ?>
@@ -1022,7 +1022,7 @@ $prefectures = [
                             <?php endif; ?>
                         <?php elseif ($userType === 'existing'): ?>
                             <div class="payment-method-detail payment-method-bank">
-                                <p>2026年8月31日まで 初期費用: ¥20,000（税別）</p>
+                                <p>2026年8月31日まで 初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>（税込）</p>
                                 <p>月額費用：無料</p>
                             </div>
                         <?php endif; ?>

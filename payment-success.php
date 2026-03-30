@@ -274,7 +274,7 @@ if ($paymentId) {
             <?php if ($paymentInfo): ?>
             <div class="payment-details">
                 <div class="payment-detail-row">
-                    <span class="detail-label">お支払い金額</span>
+                    <span class="detail-label">お支払い金額（税込）</span>
                     <span class="detail-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
                 </div>
                 <div class="payment-detail-row">

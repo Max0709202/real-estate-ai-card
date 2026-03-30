@@ -879,15 +879,15 @@ if ($isTokenBased) {
                 <div class="pricing-divider"></div>
                 <div class="pricing-amount">
                     <span class="price-yen">¥</span>
-                    <span class="price-number">500</span>
-                    <span class="price-period">/月</span>
+                    <span class="price-number"><?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_MONTHLY)); ?></span>
+                    <span class="price-period">/月（税込）</span>
                 </div>
                 <div class="pricing-plus">+</div>
                 <?php if ($userType === 'existing'): ?>
-                <p class="pricing-initial">初期費用 <?php echo number_format(PRICING_EXISTING_USER_INITIAL); ?>円（税別）</p>
+                <p class="pricing-initial">初期費用 <?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>円（税込）</p>
                 <?php endif; ?>
                 <?php if ($userType === 'new'): ?>
-                <p class="pricing-initial">初期費用 <?php echo number_format(PRICING_NEW_USER_INITIAL); ?>円（税別）</p>
+                <p class="pricing-initial">初期費用 <?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_INITIAL)); ?>円（税込）</p>
                 <?php endif; ?>
             </div>
 

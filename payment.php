@@ -256,17 +256,12 @@ if ($paymentId) {
                 <?php if ($paymentInfo): ?>
                 <div class="payment-summary">
                     <div class="summary-row">
-                        <span class="summary-label">初期費用（税別）</span>
-                        <span class="summary-value">¥<?php echo number_format($paymentInfo['amount']); ?></span>
-                    </div>
-                    <div class="summary-row">
-                        <span class="summary-label">消費税（10%）</span>
-                        <span class="summary-value">¥<?php echo number_format($paymentInfo['tax_amount']); ?></span>
-                    </div>
-                    <div class="summary-row">
-                        <span class="summary-label">合計金額</span>
+                        <span class="summary-label">お支払い金額（税込）</span>
                         <span class="summary-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
                     </div>
+                    <p class="summary-breakdown" style="margin: 0.75rem 0 0; font-size: 0.85rem; color: #666; line-height: 1.5;">
+                        内訳：税抜 ¥<?php echo number_format($paymentInfo['amount']); ?> ＋ 消費税（10%）¥<?php echo number_format($paymentInfo['tax_amount']); ?>
+                    </p>
                 </div>
                 <?php endif; ?>
 

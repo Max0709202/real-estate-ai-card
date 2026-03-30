@@ -185,6 +185,19 @@ function enforceOpenPaymentStatusRule($db, $businessCardId, $paymentStatus) {
 }
 
 /**
+ * 税別金額（円）から税込合計（円・整数）へ。create-intent と同じ TAX_RATE で計算。
+ *
+ * @param int|float|string $amountExTax
+ * @return int
+ */
+function pricing_amount_inc_tax_yen($amountExTax) {
+    $amount = (int) round((float) $amountExTax);
+    $rate = defined('TAX_RATE') ? (float) TAX_RATE : 0.1;
+
+    return (int) round($amount + $amount * $rate);
+}
+
+/**
  * Bank renewal: extend subscription by 1 year. Safe when both invoice.payment_succeeded and
  * payment_intent.succeed fire: only the first caller flips renewal_subscription_extended on the payment row.
  *
