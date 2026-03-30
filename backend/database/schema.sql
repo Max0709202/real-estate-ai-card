@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS payments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     business_card_id INT NOT NULL,
-    payment_type ENUM('new_user', 'existing_user') NOT NULL,
+    payment_type ENUM('new_user', 'existing_user', 'renewal') NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
     tax_amount DECIMAL(10,2) DEFAULT 0,
     total_amount DECIMAL(10,2) NOT NULL,
@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS payments (
     stripe_subscription_id VARCHAR(255),
     bank_transfer_reference VARCHAR(255),
     paid_at TIMESTAMP NULL,
+    renewal_subscription_extended TINYINT(1) NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     

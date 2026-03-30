@@ -642,7 +642,7 @@ if ($isTokenBased) {
                         </div>
                         <!-- <h4>全国マンション<br>データベース</h4> -->
                         <p>国内最大規模のマンションデータベース。マンションの基礎情報・販売履歴をはじめ、口コミなども閲覧できます。</p>
-                        <a href="https://self-in.com/demo/mdb" target="_blank" style="display: flex; justify-content: center; align-items: center;">
+                        <a href="https://self-in.com/demo/mdb" target="_blank" style="display: flex; justify-content: center; align-items: center; text-decoration:none;">
                             <button>売却・購入</button>
                         </a>
                     </div>
@@ -653,7 +653,7 @@ if ($isTokenBased) {
                             <img src="assets/images/lp_icon/rlp.png" style="width:100%;"/>
                         </div>
                         <p>希望条件に合う新着の売却情報を売り出しから24時間以内にAI評価付きで毎日配信します。希望物件の見落としが無くなります。</p>
-                        <a href="https://self-in.net/rlp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center; align-items: center;">
+                        <a href="https://self-in.net/rlp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center; align-items: center; text-decoration:none;">
                             <button>購入</button>
                         </a>
                     </div>
@@ -664,7 +664,7 @@ if ($isTokenBased) {
                             <img src="assets/images/lp_icon/llp.png" style="width:100%;"/>
                         </div>
                         <p>建てたい工務店は決まっているのに、土地情報を探しているお客様向け。新着の土地売却情報を売り出しから24時間以内に毎日配信します。</p>
-                        <a href="https://self-in.net/llp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center; align-items: center;">
+                        <a href="https://self-in.net/llp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center; align-items: center; text-decoration:none;">
                             <button>購入</button>
                         </a>
                     </div>
@@ -675,7 +675,7 @@ if ($isTokenBased) {
                             <img src="assets/images/lp_icon/ai.png" style="width:100%;"/>
                         </div>
                         <p>個人情報不要で、膨大な販売履歴より瞬時にマンションの価格を査定します。いつでも自分のマンションの査定が可能です。</p>
-                        <a href="https://self-in.com/demo/ai" target="_blank" style="display: flex; justify-content: center; align-items: center;">
+                        <a href="https://self-in.com/demo/ai" target="_blank" style="display: flex; justify-content: center; align-items: center; text-decoration:none;">
                             <button>売却</button>
                         </a>
                     </div>
@@ -687,7 +687,7 @@ if ($isTokenBased) {
                             <img src="assets/images/lp_icon/slp.png" style="width:100%;"/>
                         </div>
                         <p>物件の良し悪しを自動でしかも一瞬で判定するセルフインスペクションWEBアプリ。ネガティブ情報の発見にご活用ください。</p>
-                        <a href="https://self-in.net/slp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center; align-items: center;">
+                        <a href="https://self-in.net/slp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center; align-items: center; text-decoration:none;">
                             <button>売却・購入</button>
                         </a>
                     </div>
@@ -699,7 +699,7 @@ if ($isTokenBased) {
                             <img src="assets/images/lp_icon/olp.png" style="width:100%;"/>
                         </div>
                         <p>今日の自宅の価格、今日の残債、今日売ったらいくら手元に残るかなど、登録すると1週間に1回配信されます。他住戸の売り出し情報が出たら直ちに情報を配信します。</p>
-                        <a href="https://self-in.net/olp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center;align-items: center;">
+                        <a href="https://self-in.net/olp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center;align-items: center; text-decoration:none;">
                         <button style="font-size:11px;">マンション所有者</button>
                         </a>
                     </div>

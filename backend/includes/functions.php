@@ -184,6 +184,60 @@ function enforceOpenPaymentStatusRule($db, $businessCardId, $paymentStatus) {
     return false;
 }
 
+/**
+ * Bank renewal: extend subscription by 1 year. Safe when both invoice.payment_succeeded and
+ * payment_intent.succeed fire: only the first caller flips renewal_subscription_extended on the payment row.
+ *
+ * @param PDO   $db
+ * @param array $payment Must include payment_id, user_id, business_card_id, payment_type, payment_method
+ * @param string $newPaymentStatus CR | BANK_PAID | ST (after success)
+ */
+function applyBankRenewalSubscriptionExtensionIfNeeded($db, array $payment, $newPaymentStatus) {
+    if (($payment['payment_type'] ?? '') !== 'renewal' || !in_array($newPaymentStatus, ['BANK_PAID', 'ST'], true)) {
+        return;
+    }
+    $paymentId = $payment['payment_id'] ?? $payment['id'] ?? null;
+    if (!$paymentId || ($payment['payment_method'] ?? '') !== 'bank_transfer') {
+        return;
+    }
+
+    try {
+        $stmt = $db->prepare("
+            UPDATE payments
+            SET renewal_subscription_extended = 1
+            WHERE id = ?
+              AND payment_type = 'renewal'
+              AND payment_method = 'bank_transfer'
+              AND renewal_subscription_extended = 0
+        ");
+        $stmt->execute([(int) $paymentId]);
+    } catch (Exception $e) {
+        error_log('applyBankRenewalSubscriptionExtensionIfNeeded: payments column missing? Run migration add_payments_renewal_subscription_extended.sql — ' . $e->getMessage());
+        return;
+    }
+
+    if ($stmt->rowCount() < 1) {
+        return;
+    }
+
+    $renewalAmount = defined('PRICING_RENEWAL_BANK_ANNUAL') ? (float) PRICING_RENEWAL_BANK_ANNUAL : 5000.0;
+    $stmt = $db->prepare("
+        UPDATE subscriptions
+        SET status = 'active',
+            next_billing_date = DATE_ADD(COALESCE(next_billing_date, CURDATE()), INTERVAL 1 YEAR),
+            billing_cycle = 'yearly',
+            amount = ?,
+            cancelled_at = NULL,
+            updated_at = NOW()
+        WHERE user_id = ? AND business_card_id = ?
+    ");
+    $stmt->execute([
+        $renewalAmount,
+        (int) $payment['user_id'],
+        (int) $payment['business_card_id'],
+    ]);
+}
+
 function logAdminChange($db, $adminId, $adminEmail, $changeType, $targetType, $targetId = null, $description = null) {
     try {
         $stmt = $db->prepare("
@@ -871,7 +925,7 @@ function sendEmail(
 
         // Environment variables (fallbacks for Xserver)
         $smtpHost = getenv('SMTP_HOST') ?: 'sv16576.xserver.jp';
-        $smtpPort = (int)(getenv('SMTP_PORT') ?: 587);
+        $smtpPort = (int)(getenv('SMTP_PORT') ?: 465);
         $smtpUser = getenv('SMTP_USERNAME') ?: 'support@ai-fcard.com';
         $smtpPass = getenv('SMTP_PASSWORD') ?: 'Renewal4329';
         $fromEmail = getenv('SMTP_FROM_EMAIL') ?: 'support@ai-fcard.com';

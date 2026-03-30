@@ -61,6 +61,7 @@ $usagePeriodDisplay = null;
 $paymentMethod = null;
 $endDateForRenewal = null;
 $canRenew = false;
+$isRenewalCheckout = false;
 $paymentStatus = 'UNUSED';
 $isCanceledAccount = false;
 $hasCompletedPayment = false;
@@ -420,6 +421,11 @@ try {
             }
         }
     }
+
+    $isRenewalCheckout = $canRenew
+        && ($paymentMethod ?? '') === 'bank_transfer'
+        && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true)
+        && !$isCanceledAccount;
     
     } // End of if ($userId) block
 
@@ -432,6 +438,7 @@ try {
     $usagePeriodDisplay = null;
     $paymentMethod = null;
     $canRenew = false;
+    $isRenewalCheckout = false;
 }
 
 // Default greeting messages
@@ -1208,10 +1215,10 @@ $defaultGreetings = [
 
                     <div class="form-actions">
                         <button type="button" class="btn-secondary" onclick="goToEditSection('template-section')">戻る</button>
-                        <?php if ($isActive): ?>
+                        <?php if ($isActive && empty($isRenewalCheckout)): ?>
                             <button type="button" id="submit-payment-edit" class="btn-primary" style="background: #007bff; cursor: default;" disabled>利用中</button>
                         <?php else: ?>
-                        <button type="button" id="submit-payment-edit" class="btn-primary">この内容で進める</button>
+                        <button type="button" id="submit-payment-edit" class="btn-primary"><?php echo !empty($isRenewalCheckout) ? '更新のお支払いへ進む' : 'この内容で進める'; ?></button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1345,6 +1352,7 @@ $defaultGreetings = [
         // Make user type and account status available
         window.userType = <?php echo json_encode($userType ?? 'new', JSON_UNESCAPED_UNICODE); ?>;
         window.isCanceledAccount = <?php echo json_encode($isCanceledAccount ?? false); ?>;
+        window.isRenewalCheckout = <?php echo json_encode(!empty($isRenewalCheckout)); ?>;
         // Upload URL must use same origin as the page so session cookie is sent (avoid 401)
         window.getUploadUrl = function() {
             return window.location.origin + '/backend/api/business-card/upload.php';
@@ -2951,7 +2959,11 @@ $defaultGreetings = [
                             },
                             body: JSON.stringify({
                                 payment_method: paymentMethod,
-                                payment_type: (typeof window !== 'undefined' && window.isCanceledAccount) ? 'new' : (window.userType || 'new')
+                                payment_type: (function () {
+                                    if (typeof window !== 'undefined' && window.isCanceledAccount) return 'new';
+                                    if (typeof window !== 'undefined' && window.isRenewalCheckout) return 'renewal';
+                                    return window.userType || 'new';
+                                })()
                             }),
                             credentials: 'include'
                         });

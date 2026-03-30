@@ -75,23 +75,12 @@ try {
     // payment_typeが明示的に指定されている場合はそれを優先
     // ただし、停止されたアカウントの場合は強制的に'new'として扱う
     $paymentTypeInput = $input['payment_type'] ?? null;
+    $wantsRenewal = ($paymentTypeInput === 'renewal');
     if ($isCanceledAccount) {
         $paymentTypeInput = 'new'; // 復活の場合は必ず新規料金
+        $wantsRenewal = false;
     } elseif (!$paymentTypeInput) {
         $paymentTypeInput = $userType;
-    }
-
-    // データベーススキーマに合わせて変換（'new' -> 'new_user', 'existing' -> 'existing_user'）
-    // 停止されたアカウントの場合は必ず'new_user'として扱う
-    if ($isCanceledAccount) {
-        $paymentType = 'new_user';
-    } else {
-        $paymentType = $paymentTypeInput;
-        if ($paymentTypeInput === 'new') {
-            $paymentType = 'new_user';
-        } elseif ($paymentTypeInput === 'existing') {
-            $paymentType = 'existing_user';
-        }
     }
 
     $paymentMethod = $input['payment_method'] ?? 'credit_card';
@@ -101,18 +90,54 @@ try {
     $totalAmount = 0;
     $monthlyAmount = 0;
 
-    // 停止されたアカウントの復活の場合、必ず新規ユーザー料金を適用
-    if ($isCanceledAccount || $paymentType === 'new_user') {
-        $amount = PRICING_NEW_USER_INITIAL; // ¥30,000
+    // 更新手続き（初期費用なし・銀行は年額のみ／カードは初回月額のみ）
+    if ($wantsRenewal) {
+        $stmt = $db->prepare("SELECT id, payment_status, card_status FROM business_cards WHERE user_id = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        $bcRenew = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (
+            !$bcRenew
+            || !in_array($bcRenew['payment_status'], ['CR', 'BANK_PAID', 'ST'], true)
+            || (string) ($bcRenew['card_status'] ?? '') === 'canceled'
+        ) {
+            sendErrorResponse('更新対象の契約が見つかりません。', 400);
+        }
+        $paymentType = 'renewal';
+        if ($paymentMethod === 'bank_transfer') {
+            $amount = (int) (defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000);
+            $monthlyAmount = 0;
+        } elseif ($paymentMethod === 'credit_card') {
+            $amount = (int) PRICING_NEW_USER_MONTHLY;
+            $monthlyAmount = (int) PRICING_NEW_USER_MONTHLY;
+        } else {
+            sendErrorResponse('無効な支払い方法です', 400);
+        }
         $taxAmount = $amount * TAX_RATE;
         $totalAmount = $amount + $taxAmount;
+    } elseif ($isCanceledAccount) {
+        $paymentType = 'new_user';
+    } else {
+        // データベーススキーマに合わせて変換（'new' -> 'new_user', 'existing' -> 'existing_user'）
+        $paymentType = $paymentTypeInput;
+        if ($paymentTypeInput === 'new') {
+            $paymentType = 'new_user';
+        } elseif ($paymentTypeInput === 'existing') {
+            $paymentType = 'existing_user';
+        }
 
-        // 月額料金も計算
-        $monthlyAmount = PRICING_NEW_USER_MONTHLY; // ¥500
-    } elseif ($paymentType === 'existing_user') {
-        $amount = PRICING_EXISTING_USER_INITIAL; // ¥20,000
-        $taxAmount = $amount * TAX_RATE;
-        $totalAmount = $amount + $taxAmount;
+        // 停止されたアカウントの復活の場合、必ず新規ユーザー料金を適用
+        if ($paymentType === 'new_user') {
+            $amount = PRICING_NEW_USER_INITIAL; // ¥30,000
+            $taxAmount = $amount * TAX_RATE;
+            $totalAmount = $amount + $taxAmount;
+
+            // 月額料金も計算
+            $monthlyAmount = PRICING_NEW_USER_MONTHLY; // ¥500
+        } elseif ($paymentType === 'existing_user') {
+            $amount = PRICING_EXISTING_USER_INITIAL; // ¥20,000
+            $taxAmount = $amount * TAX_RATE;
+            $totalAmount = $amount + $taxAmount;
+        }
     }
 
     // Validate that amount is greater than 0
@@ -227,7 +252,9 @@ try {
                 'payment_type' => $paymentType,
                 'business_card_id' => (string)$userInfo['business_card_id']
             ],
-            'description' => '不動産AI名刺 - ' . (($paymentType === 'new_user' || $userType === 'new') ? '新規ユーザー' : '既存ユーザー') . '初期費用'
+            'description' => $paymentType === 'renewal'
+                ? '不動産AI名刺 - 利用更新（クレジット）'
+                : ('不動産AI名刺 - ' . (($paymentType === 'new_user' || $userType === 'new') ? '新規ユーザー' : '既存ユーザー') . '初期費用')
         ];
 
         // 銀行振込の場合は自動決済を無効化
@@ -276,7 +303,9 @@ try {
                     'payment_type' => $paymentType,
                     'business_card_id' => (string)$userInfo['business_card_id']
                 ],
-                'description' => '不動産AI名刺 - 銀行振込',
+                'description' => $paymentType === 'renewal'
+                    ? '不動産AI名刺 - 利用更新（銀行振込・年額）'
+                    : '不動産AI名刺 - 銀行振込',
                 'confirm' => true, // Confirm immediately to get bank transfer instructions
                 'payment_method_data' => [
                     'type' => 'customer_balance'
@@ -314,8 +343,8 @@ try {
         }
     }
 
-    // 新規ユーザーまたは停止されたアカウントの復活の場合、サブスクリプションも作成
-    if (($paymentType === 'new_user' || $userType === 'new' || $isCanceledAccount) && $paymentMethod === 'credit_card') {
+    // 新規・復活・更新（クレカ）の場合、サブスクリプションも作成／更新
+    if (($paymentType === 'new_user' || $userType === 'new' || $isCanceledAccount || $paymentType === 'renewal') && $paymentMethod === 'credit_card') {
         try {
             $productId = null;
             $priceId = null;

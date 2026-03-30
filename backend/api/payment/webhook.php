@@ -201,6 +201,8 @@ try {
                         $stmt->execute([$newPaymentStatus, $isPublished, $payment['business_card_id'], $payment['user_id']]);
 
                         enforceOpenPaymentStatusRule($db, $payment['business_card_id'], $newPaymentStatus);
+
+                        applyBankRenewalSubscriptionExtensionIfNeeded($db, $payment, $newPaymentStatus);
                         
                         // 停止されたアカウントの復活：サブスクリプションの状態も更新
                         if ($isReactivation) {
@@ -228,7 +230,7 @@ try {
                             if (!$existingSub) {
                                 // Determine monthly amount based on payment_type
                                 $monthlyAmount = 0;
-                                if ($payment['payment_type'] === 'new_user' || $payment['user_type'] === 'new') {
+                                if ($payment['payment_type'] === 'renewal' || $payment['payment_type'] === 'new_user' || $payment['user_type'] === 'new') {
                                     $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
                                 } elseif ($payment['payment_type'] === 'existing_user' || $payment['user_type'] === 'existing') {
                                     // Existing users typically don't have monthly fees, but we'll create subscription anyway for consistency
@@ -600,6 +602,8 @@ try {
                     $stmt->execute([$newPaymentStatus, $isPublished, $payment['business_card_id'], $payment['user_id']]);
 
                     enforceOpenPaymentStatusRule($db, $payment['business_card_id'], $newPaymentStatus);
+
+                    applyBankRenewalSubscriptionExtensionIfNeeded($db, $payment, $newPaymentStatus);
                     
                     // 停止されたアカウントの復活：サブスクリプションの状態も更新
                     if ($isReactivation) {
@@ -627,7 +631,7 @@ try {
                         if (!$existingSub) {
                             // Determine monthly amount based on payment_type
                             $monthlyAmount = 0;
-                            if ($payment['payment_type'] === 'new_user' || $payment['user_type'] === 'new') {
+                            if ($payment['payment_type'] === 'renewal' || $payment['payment_type'] === 'new_user' || $payment['user_type'] === 'new') {
                                 $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
                             } elseif ($payment['payment_type'] === 'existing_user' || $payment['user_type'] === 'existing') {
                                 // Existing users typically don't have monthly fees, but we'll create subscription anyway for consistency

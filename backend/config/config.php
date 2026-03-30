@@ -76,12 +76,13 @@ define('STRIPE_WEBHOOK_SECRET', getenv('STRIPE_WEBHOOK_SECRET') ?: '');
 define('PRICING_NEW_USER_INITIAL', 30000); // 税別
 define('PRICING_NEW_USER_MONTHLY', 500); // 税別
 define('PRICING_EXISTING_USER_INITIAL', 20000); // 税別
+define('PRICING_RENEWAL_BANK_ANNUAL', 5000); // 税別（銀行振込・年間更新）
 define('TAX_RATE', 0.1); // 10%
 
 // QRコード設定
 define('QR_CODE_BASE_URL', 'https://www.ai-fcard.com');
 define('QR_CODE_DIR', __DIR__ . '/../uploads/qr_codes/');
--
+
 // テックツールベースURL
 define('TECH_TOOL_MDB_BASE', 'https://self-in.com/');
 define('TECH_TOOL_RLP_BASE', 'https://self-in.net/rlp/index.php?id=');
