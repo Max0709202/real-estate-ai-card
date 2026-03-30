@@ -4,6 +4,7 @@
  */
 require_once __DIR__ . '/backend/config/config.php';
 require_once __DIR__ . '/backend/config/database.php';
+require_once __DIR__ . '/backend/includes/functions.php';
 
 /**
  * Convert URLs in text to clickable links
@@ -75,7 +76,7 @@ $db = $database->getConnection();
 
 // ビジネスカード情報取得
 $stmt = $db->prepare("
-    SELECT bc.*, u.status as user_status, bc.payment_status, u.is_era_member
+    SELECT bc.*, u.status as user_status, bc.payment_status, u.is_era_member, u.email AS user_email
     FROM business_cards bc
     JOIN users u ON bc.user_id = u.id
     WHERE bc.url_slug = ? AND u.status = 'active'
@@ -362,6 +363,14 @@ if (!empty($card['profile_photo'])) {
                 display: none;
             }
         }
+
+        /* 電話・メール（tel / mailto）を本文と同じトーンで表示 */
+        .info-section p a {
+            color: inherit;
+            font-weight: inherit;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
     </style>
 </head>
 
@@ -535,7 +544,14 @@ if (!empty($card['profile_photo'])) {
                     <?php if ($card['company_phone']): ?>
                         <div class="info-section">
                             <h3>会社電話番号</h3>
-                            <p><?php echo htmlspecialchars($card['company_phone']); ?></p>
+                            <p><?php
+                                $companyTelHref = phone_href_tel($card['company_phone']);
+                                if ($companyTelHref !== '') {
+                                    echo '<a href="' . htmlspecialchars($companyTelHref, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($card['company_phone']) . '</a>';
+                                } else {
+                                    echo htmlspecialchars($card['company_phone']);
+                                }
+                            ?></p>
                         </div>
                     <?php endif; ?>
 
@@ -577,8 +593,22 @@ if (!empty($card['profile_photo'])) {
                     <!-- 携帯番号 -->
                     <div class="info-section">
                         <h3>携帯番号</h3>
-                        <p><?php echo htmlspecialchars($card['mobile_phone']); ?></p>
+                        <p><?php
+                            $mobileTelHref = phone_href_tel($card['mobile_phone']);
+                            if ($mobileTelHref !== '') {
+                                echo '<a href="' . htmlspecialchars($mobileTelHref, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($card['mobile_phone']) . '</a>';
+                            } else {
+                                echo htmlspecialchars($card['mobile_phone']);
+                            }
+                        ?></p>
                     </div>
+
+                    <?php if (!empty($card['user_email'])): ?>
+                    <div class="info-section">
+                        <h3>メールアドレス</h3>
+                        <p><a href="mailto:<?php echo htmlspecialchars($card['user_email'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($card['user_email']); ?></a></p>
+                    </div>
+                    <?php endif; ?>
 
                     <?php if ($card['birth_date']): ?>
                         <div class="info-section">

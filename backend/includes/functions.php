@@ -198,6 +198,25 @@ function pricing_amount_inc_tax_yen($amountExTax) {
 }
 
 /**
+ * 電話番号文字列から tel: 用の href を生成（ハイフン等を除去）
+ *
+ * @param string|null $phone
+ * @return string tel:... または空
+ */
+function phone_href_tel($phone) {
+    $s = trim((string) $phone);
+    if ($s === '') {
+        return '';
+    }
+    if (preg_match('/^\+/', $s)) {
+        $n = preg_replace('/[^\d+]/', '', $s);
+        return $n !== '' ? 'tel:' . $n : '';
+    }
+    $d = preg_replace('/\D/', '', $s);
+    return $d !== '' ? 'tel:' . $d : '';
+}
+
+/**
  * Bank renewal: extend subscription by 1 year. Safe when both invoice.payment_succeeded and
  * payment_intent.succeed fire: only the first caller flips renewal_subscription_extended on the payment row.
  *

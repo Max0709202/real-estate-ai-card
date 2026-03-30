@@ -65,6 +65,7 @@ $isRenewalCheckout = false;
 $paymentStatus = 'UNUSED';
 $isCanceledAccount = false;
 $hasCompletedPayment = false;
+$userEmailForCard = '';
 
 // Determine user type: from session (logged-in user), URL parameter, or guest access
 if ($isGuestAccess) {
@@ -109,7 +110,10 @@ try {
 
     // All following queries require a logged-in user
     if ($userId) {
-    
+    $stmt = $db->prepare("SELECT email FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    $userEmailForCard = $stmt->fetchColumn() ?: '';
+
     // Calculate end date (period end date)
     if ($subscriptionInfo) {
         if ($subscriptionInfo['next_billing_date']) {
@@ -429,6 +433,10 @@ try {
     
     } // End of if ($userId) block
 
+    if ($userEmailForCard === '' && !empty($_SESSION['guest_invitation_email'])) {
+        $userEmailForCard = (string) $_SESSION['guest_invitation_email'];
+    }
+
 } catch (Exception $e) {
     error_log("Error fetching subscription info: " . $e->getMessage());
     $userType = 'new';
@@ -439,6 +447,7 @@ try {
     $paymentMethod = null;
     $canRenew = false;
     $isRenewalCheckout = false;
+    $userEmailForCard = '';
 }
 
 // Default greeting messages
@@ -765,6 +774,14 @@ $defaultGreetings = [
                             <label>電話番号 <span class="required">*</span></label>
                             <input type="tel" name="mobile_phone" class="form-control" required>
                         </div>
+
+                        <?php if (!empty($userEmailForCard)): ?>
+                        <div class="form-group">
+                            <label>メールアドレス（名刺に表示）</label>
+                            <p style="margin: 0; padding: 0.75rem; background: #f8f9fa; border-radius: 6px; font-weight: 600;"><?php echo htmlspecialchars($userEmailForCard); ?></p>
+                            <small style="color: #666; display: block; margin-top: 0.5rem;">ログインアカウントのメールアドレスが名刺に表示されます。変更は「メールアドレスリセット」から行えます。</small>
+                        </div>
+                        <?php endif; ?>
 
                         <div class="form-group">
                             <label>生年月日</label>

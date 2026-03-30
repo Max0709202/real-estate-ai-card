@@ -10,6 +10,7 @@ startSessionIfNotStarted();
 
 // 認証チェック - 未登録の場合はモーダルを表示
 $isLoggedIn = !empty($_SESSION['user_id']);
+$userEmailForCard = '';
 
 $userType = $_GET['type'] ?? 'new'; // new, existing, free
 $invitationToken = $_GET['token'] ?? '';
@@ -37,6 +38,10 @@ if ($isLoggedIn) {
             // DBに保存されているuser_typeを優先（既存ユーザーの場合）
             $userType = $userTypeFromDb;
         }
+
+        $stmt = $db->prepare("SELECT email FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $userEmailForCard = $stmt->fetchColumn() ?: '';
 
         // サブスクリプションとビジネスカードの情報を取得
         $stmt = $db->prepare("
@@ -492,6 +497,14 @@ $prefectures = [
                             <input type="tel" name="mobile_phone" id="mobile_phone" class="form-control" required value="090-1234-5678">
                         <?php endif; ?>
                     </div>
+
+                    <?php if (!empty($userEmailForCard)): ?>
+                    <div class="form-group">
+                        <label>メールアドレス（名刺に表示）</label>
+                        <p style="margin: 0; padding: 0.75rem; background: #f8f9fa; border-radius: 6px; font-weight: 600;"><?php echo htmlspecialchars($userEmailForCard); ?></p>
+                        <small style="color: #666; display: block; margin-top: 0.5rem;">ログインアカウントのメールアドレスが名刺に表示されます。変更は「メールアドレスリセット」から行えます。</small>
+                    </div>
+                    <?php endif; ?>
 
                     <div class="form-group">
                         <label>生年月日</label>
