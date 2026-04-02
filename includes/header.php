@@ -137,6 +137,7 @@ if ($isLoggedIn) {
                 $headerUsagePeriodDisplay = null;
                         $headerSubscriptionInfo = null;
                         $headerHasActiveSubscription = false;
+                        $headerShowCancelSubscription = false;
 
                 // Get user info for header display
                             try {
@@ -331,6 +332,10 @@ if ($isLoggedIn) {
                                         $headerHasActiveSubscription = true;
                                     }
                                 }
+
+                    $headerPaymentStatusForCancel = $headerPaymentStatus ?? 'UNUSED';
+                    $headerNeedsPayment = user_subscription_needs_payment($headerSubscriptionInfo ?: null, $headerPaymentStatusForCancel);
+                    $headerShowCancelSubscription = $headerHasActiveSubscription && !$headerNeedsPayment;
                             } catch (Exception $e) {
                                 error_log("Header subscription check error: " . $e->getMessage());
                             }
@@ -411,9 +416,11 @@ if ($isLoggedIn) {
                             <?php endif; ?>
                         </div>
                         <?php endif; ?>
+                        <?php if (!empty($headerShowCancelSubscription)): ?>
                         <button type="button" class="dropdown-item dropdown-button cancel-subscription-btn" style="font-weight: normal;">
                             <span>利用停止</span>
                         </button>
+                        <?php endif; ?>
                         <?php endif; ?>
                         <!-- <div class="dropdown-divider"></div> -->
                         <a href="register.php?step=6" class="dropdown-item" id="payment-list-link">

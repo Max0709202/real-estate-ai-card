@@ -2661,7 +2661,8 @@ document.getElementById('submit-payment')?.addEventListener('click', async () =>
                 // Redirect to payment page with payment_id and client_secret
                 const params = new URLSearchParams({
                     payment_id: result.data.payment_id,
-                    client_secret: result.data.client_secret || ''
+                    client_secret: result.data.client_secret || '',
+                    from: 'register'
                 });
                 // Preserve token and type in URL for security
                 const paymentUrl = 'payment.php?' + params.toString();

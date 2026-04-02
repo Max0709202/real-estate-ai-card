@@ -14,6 +14,13 @@ $clientSecret = $_GET['client_secret'] ?? '';
 $userType = $_GET['type'] ?? ($_SESSION['user_type'] ?? 'new');
 $urlTypeParam = ($userType === 'existing') ? '&type=existing' : '';
 
+$from = isset($_GET['from']) ? preg_replace('/[^a-z_]/i', '', (string) $_GET['from']) : '';
+if ($from === 'mypage' || $from === 'edit') {
+    $backUrl = 'edit.php' . ($userType === 'existing' ? '?type=existing' : '');
+} else {
+    $backUrl = 'register.php?step=6' . ($userType === 'existing' ? '&type=existing' : '');
+}
+
 // If no payment_id, redirect back to register
 if (empty($paymentId)) {
     header('Location: register.php');
@@ -259,6 +266,35 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
             display: block;
         }
 
+        .payment-page-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .payment-back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #444;
+            text-decoration: none;
+            padding: 0.5rem 0.85rem;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: #fff;
+            flex-shrink: 0;
+            line-height: 1.2;
+            margin-top: 20px;
+        }
+
+        .payment-back-btn:hover {
+            background: #f5f5f5;
+            color: #222;
+        }
+
         @media (max-width: 420px) {
             #card-element {
                 padding-inline: 6px !important;
@@ -271,7 +307,8 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
 </head>
 <body>
     <div class="register-container">
-        <div class="register-header">
+        <div class="register-header payment-page-header">
+            
             <a href="index.php" class="logo-link">
                 <img src="assets/images/logo.png" alt="不動産AI名刺">
             </a>
@@ -384,6 +421,7 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
                         <p style="margin-top: 1rem;">処理中...</p>
                     </div>
                 </form>
+                <a href="<?php echo htmlspecialchars($backUrl, ENT_QUOTES, 'UTF-8'); ?>" class="payment-back-btn">← 戻る</a>
             </div>
         </div>
     </div>

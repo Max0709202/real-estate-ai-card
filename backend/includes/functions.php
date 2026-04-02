@@ -217,6 +217,44 @@ function phone_href_tel($phone) {
 }
 
 /**
+ * マイページ（edit.php）と同じ基準で「支払い・更新が必要」か。
+ * 真のときは「お支払いへ進む」と「利用を停止する」を併記しない（延滞・未払いなど）。
+ *
+ * @param array|null $subscriptionInfo subscriptions 行（status, next_billing_date など）
+ * @param string|null $paymentStatus    business_cards.payment_status 相当
+ */
+function user_subscription_needs_payment($subscriptionInfo, $paymentStatus) {
+    $paymentStatus = ($paymentStatus !== null && $paymentStatus !== '') ? (string) $paymentStatus : 'UNUSED';
+    if (in_array($paymentStatus, ['UNUSED', 'BANK_PENDING'], true)) {
+        return true;
+    }
+    if (!$subscriptionInfo) {
+        return !in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true);
+    }
+    $st = $subscriptionInfo['status'] ?? '';
+    if (in_array($st, ['active', 'trialing'], true)) {
+        if (!in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true)) {
+            return true;
+        }
+        if (!empty($subscriptionInfo['next_billing_date'])) {
+            try {
+                $nb = new DateTime($subscriptionInfo['next_billing_date']);
+                if ($nb <= new DateTime()) {
+                    return true;
+                }
+            } catch (Exception $e) {
+                // ignore
+            }
+        }
+        return false;
+    }
+    if (in_array($st, ['canceled', 'incomplete_expired', 'past_due', 'unpaid', 'incomplete'], true)) {
+        return true;
+    }
+    return false;
+}
+
+/**
  * Bank renewal: extend subscription by 1 year. Safe when both invoice.payment_succeeded and
  * payment_intent.succeed fire: only the first caller flips renewal_subscription_extended on the payment row.
  *

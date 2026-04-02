@@ -66,6 +66,7 @@ $paymentStatus = 'UNUSED';
 $isCanceledAccount = false;
 $hasCompletedPayment = false;
 $userEmailForCard = '';
+$showCancelSubscriptionButton = false;
 
 // Determine user type: from session (logged-in user), URL parameter, or guest access
 if ($isGuestAccess) {
@@ -321,6 +322,9 @@ try {
         $needsPayment = true;
     }
 
+    // 支払いが必要な状態では「利用を停止する」を出さない（延滞・未払いと「お支払いへ進む」の併存を防ぐ）
+    $showCancelSubscriptionButton = $hasActiveSubscription && !$needsPayment;
+
     // Get payment method and calculate usage period display
     $usagePeriodDisplay = null;
     $paymentMethod = null;
@@ -448,6 +452,7 @@ try {
     $canRenew = false;
     $isRenewalCheckout = false;
     $userEmailForCard = '';
+    $showCancelSubscriptionButton = false;
 }
 
 // Default greeting messages
@@ -1271,7 +1276,7 @@ $defaultGreetings = [
                         お支払いへ進む
                     </button>
                     <?php endif; ?>
-                    <?php if ($hasActiveSubscription): ?>
+                    <?php if (!empty($showCancelSubscriptionButton)): ?>
                     <button type="button" id="cancel-subscription-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer;">
                         利用を停止する
                     </button>
@@ -2995,7 +3000,8 @@ $defaultGreetings = [
                                 // Redirect to payment page with payment_id and client_secret
                                 const params = new URLSearchParams({
                                     payment_id: result.data.payment_id,
-                                    client_secret: result.data.client_secret || ''
+                                    client_secret: result.data.client_secret || '',
+                                    from: 'mypage'
                                 });
                                 if (currentUserType === 'existing') {
                                     params.set('type', 'existing');
