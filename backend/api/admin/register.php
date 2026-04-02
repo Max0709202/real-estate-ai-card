@@ -79,13 +79,7 @@ try {
             sendErrorResponse('このメールアドレスは既に登録されています', 400);
         }
 
-        // Check if email exists in users table
-        $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
-        $stmt->execute([$input['email']]);
-        if ($stmt->fetch()) {
-            $db->rollBack();
-            sendErrorResponse('このメールアドレスは既にユーザーとして登録されています', 400);
-        }
+        // 一般ユーザー（users）と同じメールでも管理者（admins）を登録可能（社員が名刺ユーザー兼管理者になるケース）
 
         // Hash password
         $passwordHash = hashPassword($input['password']);

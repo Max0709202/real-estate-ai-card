@@ -58,6 +58,11 @@ if ($paymentId) {
         exit;
     }
 }
+
+$paymentTypeForSummary = $paymentInfo['payment_type'] ?? 'new_user';
+$monthlyExTaxYen = (int) (defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500);
+$monthlyTaxYen = (int) round($monthlyExTaxYen * (defined('TAX_RATE') ? (float) TAX_RATE : 0.1));
+$monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -110,16 +115,15 @@ if ($paymentId) {
         .summary-row {
             display: flex;
             justify-content: space-between;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid #e9ecef;
+            align-items: baseline;
+            gap: 0.75rem;
+            padding: 0.35rem 0;
         }
-        
-        .summary-row:last-child {
-            border-bottom: none;
+
+        .summary-row-amount {
             font-weight: 600;
-            font-size: 1.1rem;
-            margin-top: 0.5rem;
-            padding-top: 1rem;
+            font-size: 1.05rem;
+            padding-top: 0.25rem;
         }
         
         .summary-label {
@@ -128,6 +132,33 @@ if ($paymentId) {
         
         .summary-value {
             color: #333;
+            flex-shrink: 0;
+        }
+
+        .payment-summary-block {
+            margin-top: 1.15rem;
+            padding-top: 1.15rem;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .payment-summary-block:first-child {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .summary-breakdown {
+            margin: 0.5rem 0 0;
+            font-size: 0.85rem;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .summary-note-monthly {
+            margin: 1rem 0 0;
+            font-size: 0.85rem;
+            color: #444;
+            line-height: 1.65;
         }
         
         #payment-form {
@@ -255,13 +286,80 @@ if ($paymentId) {
 
                 <?php if ($paymentInfo): ?>
                 <div class="payment-summary">
-                    <div class="summary-row">
-                        <span class="summary-label">お支払い金額（税込）</span>
-                        <span class="summary-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
+                    <?php if ($paymentTypeForSummary === 'new_user'): ?>
+                    <div class="payment-summary-block">
+                        <div class="summary-row summary-row-amount">
+                            <span class="summary-label">初期費用　お支払金額（税込）</span>
+                            <span class="summary-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
+                        </div>
+                        <p class="summary-breakdown">
+                            内訳：税抜 ¥<?php echo number_format($paymentInfo['amount']); ?> ＋ 消費税（10％）¥<?php echo number_format($paymentInfo['tax_amount']); ?>
+                        </p>
                     </div>
-                    <p class="summary-breakdown" style="margin: 0.75rem 0 0; font-size: 0.85rem; color: #666; line-height: 1.5;">
-                        内訳：税抜 ¥<?php echo number_format($paymentInfo['amount']); ?> ＋ 消費税（10%）¥<?php echo number_format($paymentInfo['tax_amount']); ?>
-                    </p>
+                    <div class="payment-summary-block">
+                        <div class="summary-row summary-row-amount">
+                            <span class="summary-label">月額費用　お支払金額（税込）</span>
+                            <span class="summary-value">¥<?php echo number_format($monthlyIncTaxYen); ?></span>
+                        </div>
+                        <p class="summary-breakdown">
+                            内訳：税抜 ¥<?php echo number_format($monthlyExTaxYen); ?> ＋ 消費税（10％）¥<?php echo number_format($monthlyTaxYen); ?>
+                        </p>
+                        <p class="summary-note-monthly">
+                            月額費用はご登録いただいた決済手段より、ご利用期間中は毎月自動的に利用料金が決済されます。契約が有効である限り、手続きは自動で更新されます。自動更新の停止やキャンセルはマイページからお手続きできます。
+                        </p>
+                    </div>
+                    <?php elseif ($paymentTypeForSummary === 'existing_user'): ?>
+                    <div class="payment-summary-block">
+                        <div class="summary-row summary-row-amount">
+                            <span class="summary-label">初期費用　お支払金額（税込）</span>
+                            <span class="summary-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
+                        </div>
+                        <p class="summary-breakdown">
+                            内訳：税抜 ¥<?php echo number_format($paymentInfo['amount']); ?> ＋ 消費税（10％）¥<?php echo number_format($paymentInfo['tax_amount']); ?>
+                        </p>
+                    </div>
+                    <div class="payment-summary-block">
+                        <div class="summary-row summary-row-amount">
+                            <span class="summary-label">月額費用</span>
+                            <span class="summary-value">無料</span>
+                        </div>
+                        <p class="summary-note-monthly">
+                            キャンペーン期間中は月額費用はかかりません。自動更新の停止やキャンセルはマイページからお手続きできます。
+                        </p>
+                    </div>
+                    <?php elseif ($paymentTypeForSummary === 'renewal'): ?>
+                    <div class="payment-summary-block">
+                        <div class="summary-row summary-row-amount">
+                            <span class="summary-label">今回のお支払金額（税込）</span>
+                            <span class="summary-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
+                        </div>
+                        <p class="summary-breakdown">
+                            内訳：税抜 ¥<?php echo number_format($paymentInfo['amount']); ?> ＋ 消費税（10％）¥<?php echo number_format($paymentInfo['tax_amount']); ?>
+                        </p>
+                    </div>
+                    <div class="payment-summary-block">
+                        <div class="summary-row summary-row-amount">
+                            <span class="summary-label">月額費用　お支払金額（税込）</span>
+                            <span class="summary-value">¥<?php echo number_format($monthlyIncTaxYen); ?></span>
+                        </div>
+                        <p class="summary-breakdown">
+                            内訳：税抜 ¥<?php echo number_format($monthlyExTaxYen); ?> ＋ 消費税（10％）¥<?php echo number_format($monthlyTaxYen); ?>
+                        </p>
+                        <p class="summary-note-monthly">
+                            月額費用はご登録いただいた決済手段より、ご利用期間中は毎月自動的に利用料金が決済されます。契約が有効である限り、手続きは自動で更新されます。自動更新の停止やキャンセルはマイページからお手続きできます。
+                        </p>
+                    </div>
+                    <?php else: ?>
+                    <div class="payment-summary-block">
+                        <div class="summary-row summary-row-amount">
+                            <span class="summary-label">お支払金額（税込）</span>
+                            <span class="summary-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
+                        </div>
+                        <p class="summary-breakdown">
+                            内訳：税抜 ¥<?php echo number_format($paymentInfo['amount']); ?> ＋ 消費税（10％）¥<?php echo number_format($paymentInfo['tax_amount']); ?>
+                        </p>
+                    </div>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
 
