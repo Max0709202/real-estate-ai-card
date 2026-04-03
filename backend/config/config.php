@@ -71,6 +71,8 @@ define('IMAGE_SIZES', [
 define('STRIPE_PUBLISHABLE_KEY', getenv('STRIPE_PUBLISHABLE_KEY') ?: '');
 define('STRIPE_SECRET_KEY', getenv('STRIPE_SECRET_KEY') ?: '');
 define('STRIPE_WEBHOOK_SECRET', getenv('STRIPE_WEBHOOK_SECRET') ?: '');
+// Customer Portal（カード変更等）。ダッシュボードでポータルを有効化。独自構成を使う場合のみ ID を指定
+define('STRIPE_BILLING_PORTAL_CONFIGURATION_ID', getenv('STRIPE_BILLING_PORTAL_CONFIGURATION_ID') ?: '');
 
 // 価格設定
 define('PRICING_NEW_USER_INITIAL', 30000); // 税別

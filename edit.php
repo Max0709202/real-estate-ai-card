@@ -67,6 +67,8 @@ $isCanceledAccount = false;
 $hasCompletedPayment = false;
 $userEmailForCard = '';
 $showCancelSubscriptionButton = false;
+$stripeCustomerId = '';
+$showUpdatePaymentMethodButton = false;
 
 // Determine user type: from session (logged-in user), URL parameter, or guest access
 if ($isGuestAccess) {
@@ -111,9 +113,11 @@ try {
 
     // All following queries require a logged-in user
     if ($userId) {
-    $stmt = $db->prepare("SELECT email FROM users WHERE id = ?");
+    $stmt = $db->prepare("SELECT email, stripe_customer_id FROM users WHERE id = ?");
     $stmt->execute([$userId]);
-    $userEmailForCard = $stmt->fetchColumn() ?: '';
+    $userRowForCard = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $userEmailForCard = $userRowForCard['email'] ?? '';
+    $stripeCustomerId = $userRowForCard['stripe_customer_id'] ?? '';
 
     // Calculate end date (period end date)
     if ($subscriptionInfo) {
@@ -434,6 +438,15 @@ try {
         && ($paymentMethod ?? '') === 'bank_transfer'
         && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true)
         && !$isCanceledAccount;
+
+    $showUpdatePaymentMethodButton = (
+        !$isGuestAccess
+        && ($stripeCustomerId !== '' || !empty($subscriptionInfo['stripe_subscription_id']))
+        && ($paymentMethod ?? '') === 'credit_card'
+        && $subscriptionInfo
+        && !empty($subscriptionInfo['stripe_subscription_id'])
+        && in_array($subscriptionInfo['status'] ?? '', ['active', 'trialing', 'past_due'], true)
+    );
     
     } // End of if ($userId) block
 
@@ -453,6 +466,8 @@ try {
     $isRenewalCheckout = false;
     $userEmailForCard = '';
     $showCancelSubscriptionButton = false;
+    $showUpdatePaymentMethodButton = false;
+    $stripeCustomerId = '';
 }
 
 // Default greeting messages
@@ -1281,6 +1296,11 @@ $defaultGreetings = [
                         利用を停止する
                     </button>
                     <?php endif; ?>
+                    <?php if (!empty($showUpdatePaymentMethodButton)): ?>
+                    <button type="button" id="update-payment-method-btn" class="btn-secondary" style="text-align: center; padding: 0.75rem; border-radius: 4px; cursor: pointer;">
+                        クレジットカードを変更
+                    </button>
+                    <?php endif; ?>
                 </div>
                 <?php if ($subscriptionInfo || (isset($hasCompletedPayment) && $hasCompletedPayment)): ?>
                 <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; font-size: 0.875rem;">
@@ -1764,6 +1784,43 @@ $defaultGreetings = [
 
         // Subscription cancellation handler for edit.php sidebar
         document.addEventListener('DOMContentLoaded', function () {
+  const updateCardBtn = document.getElementById('update-payment-method-btn');
+  if (updateCardBtn) {
+    updateCardBtn.addEventListener('click', async function () {
+      updateCardBtn.disabled = true;
+      const prevText = updateCardBtn.textContent;
+      updateCardBtn.textContent = '接続中...';
+      try {
+        const apiUrl = window.location.origin + '/backend/api/mypage/billing-portal-session.php';
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({})
+        });
+        const result = await response.json();
+        if (result.success && result.data && result.data.url) {
+          window.location.href = result.data.url;
+          return;
+        }
+        if (typeof window.showError === 'function') {
+          window.showError(result.message || 'カード変更画面を開けませんでした');
+        } else {
+          alert(result.message || 'カード変更画面を開けませんでした');
+        }
+      } catch (e) {
+        console.error(e);
+        if (typeof window.showError === 'function') {
+          window.showError('エラーが発生しました');
+        } else {
+          alert('エラーが発生しました');
+        }
+      }
+      updateCardBtn.disabled = false;
+      updateCardBtn.textContent = prevText;
+    });
+  }
+
   const cancelBtn = document.getElementById('cancel-subscription-btn');
   if (!cancelBtn) return;
 

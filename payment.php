@@ -67,6 +67,9 @@ if ($paymentId) {
 }
 
 $paymentTypeForSummary = $paymentInfo['payment_type'] ?? 'new_user';
+if (!in_array($paymentTypeForSummary, ['new_user', 'existing_user', 'renewal'], true)) {
+    $paymentTypeForSummary = 'new_user';
+}
 $monthlyExTaxYen = (int) (defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500);
 $monthlyTaxYen = (int) round($monthlyExTaxYen * (defined('TAX_RATE') ? (float) TAX_RATE : 0.1));
 $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
@@ -125,6 +128,18 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
             align-items: baseline;
             gap: 0.75rem;
             padding: 0.35rem 0;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 480px) {
+            .summary-row.summary-row-amount {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.35rem;
+            }
+            .summary-row.summary-row-amount .summary-value {
+                align-self: flex-end;
+            }
         }
 
         .summary-row-amount {
@@ -327,32 +342,32 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
                     <div class="payment-summary-block">
                         <div class="summary-row summary-row-amount">
                             <span class="summary-label">初期費用　お支払金額（税込）</span>
-                            <span class="summary-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
+                            <span class="summary-value">￥<?php echo number_format($paymentInfo['total_amount']); ?></span>
                         </div>
                         <p class="summary-breakdown">
-                            内訳：税抜 ¥<?php echo number_format($paymentInfo['amount']); ?> ＋ 消費税（10％）¥<?php echo number_format($paymentInfo['tax_amount']); ?>
+                            内訳：税抜￥<?php echo number_format($paymentInfo['amount']); ?>＋消費税（10％）￥<?php echo number_format($paymentInfo['tax_amount']); ?>
                         </p>
                     </div>
                     <div class="payment-summary-block">
                         <div class="summary-row summary-row-amount">
                             <span class="summary-label">月額費用　お支払金額（税込）</span>
-                            <span class="summary-value">¥<?php echo number_format($monthlyIncTaxYen); ?></span>
+                            <span class="summary-value">￥<?php echo number_format($monthlyIncTaxYen); ?></span>
                         </div>
                         <p class="summary-breakdown">
-                            内訳：税抜 ¥<?php echo number_format($monthlyExTaxYen); ?> ＋ 消費税（10％）¥<?php echo number_format($monthlyTaxYen); ?>
+                            内訳：税抜￥<?php echo number_format($monthlyExTaxYen); ?>＋消費税（10％）￥<?php echo number_format($monthlyTaxYen); ?>
                         </p>
                         <p class="summary-note-monthly">
-                            月額費用はご登録いただいた決済手段より、ご利用期間中は毎月自動的に利用料金が決済されます。契約が有効である限り、手続きは自動で更新されます。自動更新の停止やキャンセルはマイページからお手続きできます。
+                            月額費用は、ご登録いただいた決済手段より、ご利用期間中は毎月自動的に利用料金が決済されます。契約が有効である限り、手続きは自動で更新されます。自動更新の停止やキャンセルはマイページからお手続きできます。
                         </p>
                     </div>
                     <?php elseif ($paymentTypeForSummary === 'existing_user'): ?>
                     <div class="payment-summary-block">
                         <div class="summary-row summary-row-amount">
                             <span class="summary-label">初期費用　お支払金額（税込）</span>
-                            <span class="summary-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
+                            <span class="summary-value">￥<?php echo number_format($paymentInfo['total_amount']); ?></span>
                         </div>
                         <p class="summary-breakdown">
-                            内訳：税抜 ¥<?php echo number_format($paymentInfo['amount']); ?> ＋ 消費税（10％）¥<?php echo number_format($paymentInfo['tax_amount']); ?>
+                            内訳：税抜￥<?php echo number_format($paymentInfo['amount']); ?>＋消費税（10％）￥<?php echo number_format($paymentInfo['tax_amount']); ?>
                         </p>
                     </div>
                     <div class="payment-summary-block">
@@ -368,32 +383,22 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
                     <div class="payment-summary-block">
                         <div class="summary-row summary-row-amount">
                             <span class="summary-label">今回のお支払金額（税込）</span>
-                            <span class="summary-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
+                            <span class="summary-value">￥<?php echo number_format($paymentInfo['total_amount']); ?></span>
                         </div>
                         <p class="summary-breakdown">
-                            内訳：税抜 ¥<?php echo number_format($paymentInfo['amount']); ?> ＋ 消費税（10％）¥<?php echo number_format($paymentInfo['tax_amount']); ?>
+                            内訳：税抜￥<?php echo number_format($paymentInfo['amount']); ?>＋消費税（10％）￥<?php echo number_format($paymentInfo['tax_amount']); ?>
                         </p>
                     </div>
                     <div class="payment-summary-block">
                         <div class="summary-row summary-row-amount">
                             <span class="summary-label">月額費用　お支払金額（税込）</span>
-                            <span class="summary-value">¥<?php echo number_format($monthlyIncTaxYen); ?></span>
+                            <span class="summary-value">￥<?php echo number_format($monthlyIncTaxYen); ?></span>
                         </div>
                         <p class="summary-breakdown">
-                            内訳：税抜 ¥<?php echo number_format($monthlyExTaxYen); ?> ＋ 消費税（10％）¥<?php echo number_format($monthlyTaxYen); ?>
+                            内訳：税抜￥<?php echo number_format($monthlyExTaxYen); ?>＋消費税（10％）￥<?php echo number_format($monthlyTaxYen); ?>
                         </p>
                         <p class="summary-note-monthly">
-                            月額費用はご登録いただいた決済手段より、ご利用期間中は毎月自動的に利用料金が決済されます。契約が有効である限り、手続きは自動で更新されます。自動更新の停止やキャンセルはマイページからお手続きできます。
-                        </p>
-                    </div>
-                    <?php else: ?>
-                    <div class="payment-summary-block">
-                        <div class="summary-row summary-row-amount">
-                            <span class="summary-label">お支払金額（税込）</span>
-                            <span class="summary-value">¥<?php echo number_format($paymentInfo['total_amount']); ?></span>
-                        </div>
-                        <p class="summary-breakdown">
-                            内訳：税抜 ¥<?php echo number_format($paymentInfo['amount']); ?> ＋ 消費税（10％）¥<?php echo number_format($paymentInfo['tax_amount']); ?>
+                            月額費用は、ご登録いただいた決済手段より、ご利用期間中は毎月自動的に利用料金が決済されます。契約が有効である限り、手続きは自動で更新されます。自動更新の停止やキャンセルはマイページからお手続きできます。
                         </p>
                     </div>
                     <?php endif; ?>
