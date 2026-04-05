@@ -70,13 +70,8 @@ try {
         $userId = $db->lastInsertId();
         $userCreated = true;
         
-        // Create business_cards with unique url_slug (名刺URL). company_slug (企業URL) is set later by admin.
-        $cntStmt = $db->prepare("SELECT current_number FROM tech_tool_url_counter LIMIT 1");
-        $cntStmt->execute();
-        $counter = $cntStmt->fetch();
-        $urlSlug = str_pad($counter['current_number'], 6, '0', STR_PAD_LEFT);
-        $updStmt = $db->prepare("UPDATE tech_tool_url_counter SET current_number = current_number + 1");
-        $updStmt->execute();
+        // Create business_cards with unique url_slug (名刺URL・英数字12文字・乱数). company_slug (企業URL) is set later by admin.
+        $urlSlug = generateUniqueBusinessCardUrlSlug($db);
         $bcStmt = $db->prepare("
             INSERT INTO business_cards (user_id, url_slug, company_slug, payment_status, is_published, created_at)
             VALUES (?, ?, NULL, 'UNUSED', 0, NOW())

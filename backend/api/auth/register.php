@@ -211,17 +211,10 @@ try {
 
 
 
-    // 名刺URL用: 全ユーザーで一意の url_slug を連番発番。企業URL用: 既存の場合は existing_url から company_slug を設定。
-    $urlSlug = null;
+    // 名刺URL用: 全ユーザーで一意の url_slug（英数字12文字・乱数）。企業URL用: 既存の場合は existing_url から company_slug を設定。
+    $urlSlug = generateUniqueBusinessCardUrlSlug($db);
     $companySlug = null;
     $existingUrl = $input['existing_url'] ?? null;
-
-    $stmt = $db->prepare("SELECT current_number FROM tech_tool_url_counter LIMIT 1");
-    $stmt->execute();
-    $counter = $stmt->fetch();
-    $urlSlug = str_pad($counter['current_number'], 6, '0', STR_PAD_LEFT);
-    $stmt = $db->prepare("UPDATE tech_tool_url_counter SET current_number = current_number + 1");
-    $stmt->execute();
 
     if ($input['user_type'] === 'existing' && $existingUrl) {
         $urlParts = explode('/', trim($existingUrl, '/'));

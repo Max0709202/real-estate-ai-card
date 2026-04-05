@@ -198,6 +198,38 @@ function pricing_amount_inc_tax_yen($amountExTax) {
 }
 
 /**
+ * 名刺公開URL用の一意な url_slug（英数字のみ、既定12文字）を生成する。
+ * 連番（tech_tool_url_counter）ではなく暗号論的乱数を用いる。
+ *
+ * @param PDO $db
+ * @param int $length
+ * @param int $maxAttempts
+ * @return string
+ * @throws RuntimeException 衝突回避の試行上限を超えた場合
+ */
+function generateUniqueBusinessCardUrlSlug(PDO $db, $length = 12, $maxAttempts = 50) {
+    $length = (int) $length;
+    $maxAttempts = (int) $maxAttempts;
+    if ($length < 8 || $length > 64) {
+        $length = 12;
+    }
+    $chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    $maxIdx = strlen($chars) - 1;
+    $stmt = $db->prepare('SELECT 1 FROM business_cards WHERE url_slug = ? LIMIT 1');
+    for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
+        $slug = '';
+        for ($i = 0; $i < $length; $i++) {
+            $slug .= $chars[random_int(0, $maxIdx)];
+        }
+        $stmt->execute([$slug]);
+        if (!$stmt->fetchColumn()) {
+            return $slug;
+        }
+    }
+    throw new RuntimeException('Could not generate unique url_slug after ' . $maxAttempts . ' attempts');
+}
+
+/**
  * 電話番号文字列から tel: 用の href を生成（ハイフン等を除去）
  *
  * @param string|null $phone
