@@ -116,6 +116,10 @@ try {
         $totalAmount = $amount + $taxAmount;
     } elseif ($isCanceledAccount) {
         $paymentType = 'new_user';
+        $amount = PRICING_NEW_USER_INITIAL;
+        $taxAmount = $amount * TAX_RATE;
+        $totalAmount = $amount + $taxAmount;
+        $monthlyAmount = PRICING_NEW_USER_MONTHLY;
     } else {
         // データベーススキーマに合わせて変換（'new' -> 'new_user', 'existing' -> 'existing_user'）
         $paymentType = $paymentTypeInput;
@@ -138,6 +142,14 @@ try {
             $taxAmount = $amount * TAX_RATE;
             $totalAmount = $amount + $taxAmount;
         }
+    }
+
+    // 新規ユーザー・銀行振込の初回：初期費用（税別）＋年額（税別）を1回の振込で請求
+    if ($paymentType === 'new_user' && $paymentMethod === 'bank_transfer' && !$wantsRenewal) {
+        $annualExTax = (int) (defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000);
+        $amount = (int) PRICING_NEW_USER_INITIAL + $annualExTax;
+        $taxAmount = $amount * TAX_RATE;
+        $totalAmount = $amount + $taxAmount;
     }
 
     // Validate that amount is greater than 0
@@ -305,7 +317,9 @@ try {
                 ],
                 'description' => $paymentType === 'renewal'
                     ? '不動産AI名刺 - 利用更新（銀行振込・年額）'
-                    : '不動産AI名刺 - 銀行振込',
+                    : ($paymentType === 'new_user'
+                        ? '不動産AI名刺 - 銀行振込（初期費用＋年額一括）'
+                        : '不動産AI名刺 - 銀行振込'),
                 'confirm' => true, // Confirm immediately to get bank transfer instructions
                 'payment_method_data' => [
                     'type' => 'customer_balance'

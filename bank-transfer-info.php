@@ -162,6 +162,35 @@ if ($paymentId && $paymentIntentId) {
 } else {
     $error = "無効なリクエストです。";
 }
+
+// 新規・銀行振込「初期費用＋年額一括」のとき、税込内訳を表示（例：38,500円）
+$showInitialPlusAnnualBreakdown = false;
+$bdInitialEx = 0;
+$bdAnnualEx = 0;
+$bdInitialTax = 0;
+$bdAnnualTax = 0;
+$bdSub1Inc = 0;
+$bdSub2Inc = 0;
+$bdTotalInc = 0;
+if ($paymentInfo) {
+    $initialEx = (int) (defined('PRICING_NEW_USER_INITIAL') ? PRICING_NEW_USER_INITIAL : 30000);
+    $annualEx = (int) (defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000);
+    $rate = defined('TAX_RATE') ? (float) TAX_RATE : 0.1;
+    if (
+        ($paymentInfo['payment_type'] ?? '') === 'new_user'
+        && ($paymentInfo['payment_method'] ?? '') === 'bank_transfer'
+        && (int) round((float) ($paymentInfo['amount'] ?? 0)) >= $initialEx + $annualEx
+    ) {
+        $showInitialPlusAnnualBreakdown = true;
+        $bdInitialEx = $initialEx;
+        $bdAnnualEx = $annualEx;
+        $bdInitialTax = (int) round($bdInitialEx * $rate);
+        $bdAnnualTax = (int) round($bdAnnualEx * $rate);
+        $bdSub1Inc = $bdInitialEx + $bdInitialTax;
+        $bdSub2Inc = $bdAnnualEx + $bdAnnualTax;
+        $bdTotalInc = $bdSub1Inc + $bdSub2Inc;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -267,6 +296,38 @@ if ($paymentId && $paymentIntentId) {
             font-size: 2rem;
             font-weight: 700;
             color: #333;
+        }
+
+        .amount-breakdown {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin: -0.5rem 0 1.5rem;
+            text-align: left;
+            font-size: 0.9rem;
+            line-height: 1.65;
+            color: #495057;
+        }
+
+        .amount-breakdown-title {
+            font-weight: 700;
+            color: #333;
+            margin: 0 0 0.75rem;
+            font-size: 0.95rem;
+        }
+
+        .amount-breakdown-line {
+            margin: 0 0 0.5rem;
+            padding-left: 0.25rem;
+        }
+
+        .amount-breakdown-formula {
+            margin: 0.75rem 0 0;
+            padding-top: 0.75rem;
+            border-top: 1px dashed #dee2e6;
+            color: #333;
+            font-size: 0.92rem;
         }
         
         .reference-box {
@@ -396,6 +457,21 @@ if ($paymentId && $paymentIntentId) {
                         <div class="amount-label">お振込み金額（税込）</div>
                         <div class="amount-value">¥<?php echo number_format($bankTransferInfo['amount_remaining']); ?></div>
                     </div>
+
+                    <?php if (!empty($showInitialPlusAnnualBreakdown)): ?>
+                    <div class="amount-breakdown">
+                        <p class="amount-breakdown-title">お振込み金額の内訳</p>
+                        <p class="amount-breakdown-line">
+                            <strong>初期費用（税込）</strong>：税抜 ¥<?php echo number_format($bdInitialEx); ?> ＋ 消費税（10%）¥<?php echo number_format($bdInitialTax); ?> ＝ <strong>¥<?php echo number_format($bdSub1Inc); ?></strong>
+                        </p>
+                        <p class="amount-breakdown-line">
+                            <strong>年間利用料（税込）</strong>：税抜 ¥<?php echo number_format($bdAnnualEx); ?> ＋ 消費税（10%）¥<?php echo number_format($bdAnnualTax); ?> ＝ <strong>¥<?php echo number_format($bdSub2Inc); ?></strong>
+                        </p>
+                        <p class="amount-breakdown-formula">
+                            （¥<?php echo number_format($bdInitialEx); ?> ＋ ¥<?php echo number_format($bdInitialTax); ?>）＋（¥<?php echo number_format($bdAnnualEx); ?> ＋ ¥<?php echo number_format($bdAnnualTax); ?>）＝ <strong>¥<?php echo number_format($bdTotalInc); ?>（税込）</strong>
+                        </p>
+                    </div>
+                    <?php endif; ?>
                     
                     <div class="info-section">
                         <h3>振込先銀行口座</h3>
