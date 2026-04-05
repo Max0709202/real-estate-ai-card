@@ -393,8 +393,8 @@ if (!empty($token)) {
                         displayEmail.textContent = result.data.email;
                         passwordModal.classList.add('active');
                     } else {
-                        // User already existed, just redirect to edit.php
-                        window.location.href = '../edit.php?type=' + userType;
+                        // User already existed, just redirect to index.php
+                        window.location.href = '../index.php?type=' + userType;
                     }
                 } else {
                     alert(result.message || 'エラーが発生しました。');
@@ -409,9 +409,9 @@ if (!empty($token)) {
             }
         });
         
-        // Password modal button - redirect to edit.php (user is already logged in)
+        // Password modal button - redirect to index.php (user is already logged in)
         passwordModalBtn.addEventListener('click', function() {
-            window.location.href = '../edit.php?type=' + userType;
+            window.location.href = '../index.php?type=' + userType;
         });
         
         // Close ERA modal when clicking outside (but not password modal - user must acknowledge)

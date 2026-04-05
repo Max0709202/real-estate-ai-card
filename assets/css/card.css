@@ -418,12 +418,15 @@ ease;
 .tech-tool-banner-card {
     background: #fff;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 /* Banner Header with Background Image */
 .tool-banner-header {
     width: 100%;
-    height: 200px;
+    height: 300px;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -433,12 +436,13 @@ ease;
 /* Banner Content */
 .tool-banner-content {
     padding: 1.5rem;
+    padding-inline: 4rem;
     background: #fff;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-direction: column;
-    height: 15rem;
+    height: 17rem;
 }
 
 .tool-description {
