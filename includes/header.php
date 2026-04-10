@@ -423,7 +423,7 @@ if ($isLoggedIn) {
                         <?php endif; ?>
                         <?php endif; ?>
                         <!-- <div class="dropdown-divider"></div> -->
-                        <a href="register.php?step=6" class="dropdown-item" id="payment-list-link">
+                        <a href="register.php?step=7" class="dropdown-item" id="payment-list-link">
                             <span>お支払い画面</span>
                         </a>
                         <a href="auth/reset-email.php" class="dropdown-item">

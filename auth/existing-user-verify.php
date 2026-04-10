@@ -243,7 +243,7 @@ if (!empty($token)) {
                 下のボタンをクリックして、名刺編集画面に進んでください。
             </p>
             <button type="button" class="btn-continue" id="continue-btn">
-                編集画面へ進む
+            専用ランディングページへ進む
             </button>
         <?php else: ?>
             <div class="verification-icon error">✕</div>

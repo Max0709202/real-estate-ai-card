@@ -157,6 +157,22 @@ $canManageRoles = ($currentAdmin['id'] == 1 || $currentAdmin['role'] === 'admin'
         .initial-admin {
             background: #fff3cd !important;
         }
+        .btn-delete-admin {
+            padding: 6px 12px;
+            font-size: 13px;
+            border: none;
+            border-radius: 4px;
+            background: #dc3545;
+            color: #fff;
+            cursor: pointer;
+        }
+        .btn-delete-admin:hover {
+            background: #c82333;
+        }
+        .btn-delete-admin:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -189,6 +205,9 @@ $canManageRoles = ($currentAdmin['id'] == 1 || $currentAdmin['role'] === 'admin'
                             <th>最終ログイン</th>
                             <th>最終パスワード変更</th>
                             <th>変更者</th>
+                            <?php if ($canManageRoles): ?>
+                            <th>操作</th>
+                            <?php endif; ?>
                         </tr>
                     </thead>
                     <tbody>
@@ -239,6 +258,26 @@ $canManageRoles = ($currentAdmin['id'] == 1 || $currentAdmin['role'] === 'admin'
                             <td><?php echo htmlspecialchars($admin['last_login_at'] ?? '未ログイン'); ?></td>
                             <td><?php echo htmlspecialchars($admin['last_password_change'] ?? 'N/A'); ?></td>
                             <td><?php echo htmlspecialchars($admin['changed_by_email'] ?? 'N/A'); ?></td>
+                            <?php if ($canManageRoles): ?>
+                            <td>
+                                <?php
+                                $canDeleteThis = (
+                                    (int) $admin['id'] !== 1
+                                    && (int) $admin['id'] !== (int) $_SESSION['admin_id']
+                                );
+                                ?>
+                                <?php if ($canDeleteThis): ?>
+                                <button type="button"
+                                        class="btn-delete-admin"
+                                        data-admin-id="<?php echo (int) $admin['id']; ?>"
+                                        data-admin-email="<?php echo htmlspecialchars($admin['email'], ENT_QUOTES, 'UTF-8'); ?>">
+                                    削除
+                                </button>
+                                <?php else: ?>
+                                <span style="color: #999; font-size: 13px;">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <?php endif; ?>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -250,6 +289,7 @@ $canManageRoles = ($currentAdmin['id'] == 1 || $currentAdmin['role'] === 'admin'
                         <!-- <li><strong>初期管理者（ID=1）</strong>: すべての管理者のロールを変更できます。</li> -->
                         <li><strong>管理者ロール</strong>: 他の管理者のロールを変更できます。</li>
                         <li><strong>クライアントロール</strong>: ユーザー情報の閲覧のみ可能です。データベース変更はできません。</li>
+                        <li><strong>削除</strong>: 管理者ロール（または初期管理者）のみ、初期管理者・自分自身・最後の管理者アカウント以外を削除できます。</li>
                     </ul>
                 </div>
             </div>
@@ -315,6 +355,40 @@ $canManageRoles = ($currentAdmin['id'] == 1 || $currentAdmin['role'] === 'admin'
                 messageContainer.innerHTML = '<div class="message message-error">エラーが発生しました</div>';
             });
         }
+
+        document.querySelectorAll('.btn-delete-admin').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const adminId = this.getAttribute('data-admin-id');
+                const email = this.getAttribute('data-admin-email') || '';
+                if (!confirm('管理者「' + email + '」を削除しますか？この操作は取り消せません。')) {
+                    return;
+                }
+                const messageContainer = document.getElementById('message-container');
+                messageContainer.innerHTML = '';
+                btn.disabled = true;
+                fetch('../backend/api/admin/delete-admin.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ admin_id: parseInt(adminId, 10) })
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (result) {
+                        if (result.success) {
+                            messageContainer.innerHTML = '<div class="message message-success">' + (result.message || '削除しました。') + '</div>';
+                            setTimeout(function () { window.location.reload(); }, 1500);
+                        } else {
+                            btn.disabled = false;
+                            messageContainer.innerHTML = '<div class="message message-error">' + (result.message || '削除に失敗しました') + '</div>';
+                        }
+                    })
+                    .catch(function (err) {
+                        console.error(err);
+                        btn.disabled = false;
+                        messageContainer.innerHTML = '<div class="message message-error">エラーが発生しました</div>';
+                    });
+            });
+        });
     </script>
 </body>
 </html>
