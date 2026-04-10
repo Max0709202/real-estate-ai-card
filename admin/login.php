@@ -97,14 +97,6 @@ if (!empty($_SESSION['admin_id'])) {
                             </button>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label>ロール</label>
-                        <select name="role" class="form-control" required>
-                            <option value="client">クライアント</option>
-                            <option value="admin">管理者</option>
-                        </select>
-                        <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">※管理者ロールを付与するには、既存の管理者権限が必要です</small>
-                    </div>
                     <button type="submit" class="btn-primary btn-block">登録</button>
                 </form>
                 <div id="register-error-message" class="error-message" style="display: none;"></div>

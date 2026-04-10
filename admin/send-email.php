@@ -12,6 +12,13 @@ if (empty($_SESSION['admin_id'])) {
     header('Location: login.php');
     exit();
 }
+
+$database = new Database();
+$db = $database->getConnection();
+$stmt = $db->prepare('SELECT role FROM admins WHERE id = ?');
+$stmt->execute([$_SESSION['admin_id']]);
+$sendEmailPageAdminRole = $stmt->fetchColumn();
+$canSendInvitations = ($sendEmailPageAdminRole === 'admin' || (int) $_SESSION['admin_id'] === 1);
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -489,9 +496,16 @@ if (empty($_SESSION['admin_id'])) {
                 <a href="dashboard.php" class="btn-logout" style="background: #6c757d; margin-right: 10px;">ダッシュボードに戻る</a>
                 <a href="logout.php" class="btn-logout">ログアウト</a>
             </div>
-            <p class="header-description">CSVで一括登録するか、下のフォームで1件ずつ追加・送信できます</p>
+            <p class="header-description">
+                <?php if ($canSendInvitations): ?>
+                CSVで一括登録するか、下のフォームで1件ずつ追加・送信できます
+                <?php else: ?>
+                招待一覧の閲覧のみです。招待メールの送信・登録は管理者（フル権限）のみが実行できます。
+                <?php endif; ?>
+            </p>
         </div>
 
+        <?php if ($canSendInvitations): ?>
         <!-- Single send section (1件送信) -->
         <div class="upload-section single-send-section">
             <h2>1件送信</h2>
@@ -550,6 +564,7 @@ if (empty($_SESSION['admin_id'])) {
             </div>
             <div id="upload-result" style="margin-top: 15px;"></div>
         </div>
+        <?php endif; ?>
 
         <!-- Stats Section -->
         <div class="stats">
@@ -570,16 +585,18 @@ if (empty($_SESSION['admin_id'])) {
         <!-- Table Section -->
         <div class="table-section">
             <div class="actions-bar">
-                <button class="btn btn-send-email" onclick="sendSelectedEmails()">
+                <?php if ($canSendInvitations): ?>
+                <button type="button" class="btn btn-send-email" onclick="sendSelectedEmails()">
                     選択したユーザーにメール送信
                 </button>
-                <button class="btn btn-select-all" onclick="selectAll()">
+                <button type="button" class="btn btn-select-all" onclick="selectAll()">
                     すべて選択
                 </button>
-                <button class="btn btn-deselect-all" onclick="deselectAll()">
+                <button type="button" class="btn btn-deselect-all" onclick="deselectAll()">
                     選択解除
                 </button>
-                <button class="btn btn-refresh" onclick="refreshData()">
+                <?php endif; ?>
+                <button type="button" class="btn btn-refresh" onclick="refreshData()">
                     更新
                 </button>
             </div>
@@ -588,9 +605,11 @@ if (empty($_SESSION['admin_id'])) {
                 <table class="email-table">
                     <thead>
                         <tr>
+                            <?php if ($canSendInvitations): ?>
                             <th class="checkbox-cell">
                                 <input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)">
                             </th>
+                            <?php endif; ?>
                             <th>No.</th>
                             <th>ユーザー名</th>
                             <th>メールアドレス</th>
@@ -601,7 +620,7 @@ if (empty($_SESSION['admin_id'])) {
                     </thead>
                     <tbody id="invitations-tbody">
                         <tr>
-                            <td colspan="7" style="text-align: center; padding: 40px; color: #718096;">
+                            <td colspan="<?php echo $canSendInvitations ? 7 : 6; ?>" style="text-align: center; padding: 40px; color: #718096;">
                                 データを読み込んでいます...
                             </td>
                         </tr>
@@ -613,6 +632,7 @@ if (empty($_SESSION['admin_id'])) {
 
     <script src="../assets/js/modal.js"></script>
     <script>
+        window.canSendInvitations = <?php echo $canSendInvitations ? 'true' : 'false'; ?>;
         let invitationsData = [];
 
         // Load data on page load
@@ -641,8 +661,10 @@ if (empty($_SESSION['admin_id'])) {
 
         document.addEventListener('DOMContentLoaded', function() {
             loadInvitations();
-            setupUploadHandlers();
-            setupSingleSendForm();
+            if (window.canSendInvitations) {
+                setupUploadHandlers();
+                setupSingleSendForm();
+            }
         });
 
         function setupSingleSendForm() {
@@ -655,6 +677,9 @@ if (empty($_SESSION['admin_id'])) {
         }
 
         async function sendSingleInvitation() {
+            if (window.canSendInvitations !== true) {
+                return;
+            }
             const emailInput = document.getElementById('single-email');
             const usernameInput = document.getElementById('single-username');
             const roleSelect = document.getElementById('single-role');
@@ -738,6 +763,10 @@ if (empty($_SESSION['admin_id'])) {
         function setupUploadHandlers() {
             const uploadZone = document.getElementById('upload-zone');
             const fileInput = document.getElementById('csv_file');
+            const csvForm = document.getElementById('csv-upload-form');
+            if (!uploadZone || !fileInput || !csvForm) {
+                return;
+            }
 
             // Drag and drop
             uploadZone.addEventListener('dragover', function(e) {
@@ -769,7 +798,7 @@ if (empty($_SESSION['admin_id'])) {
             });
 
             // Form submit
-            document.getElementById('csv-upload-form').addEventListener('submit', async function(e) {
+            csvForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 await uploadCSV();
             });
@@ -782,6 +811,9 @@ if (empty($_SESSION['admin_id'])) {
         }
 
         async function uploadCSV() {
+            if (window.canSendInvitations !== true) {
+                return;
+            }
             const formData = new FormData(document.getElementById('csv-upload-form'));
             const resultDiv = document.getElementById('upload-result');
 
@@ -859,12 +891,17 @@ if (empty($_SESSION['admin_id'])) {
 
         function renderTable() {
             const tbody = document.getElementById('invitations-tbody');
+            const canSend = window.canSendInvitations === true;
+            const colSpan = canSend ? 7 : 6;
+            const emptyHint = canSend
+                ? 'データがありません。CSVファイルをインポートしてください。'
+                : 'データがありません。';
 
             if (invitationsData.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 40px; color: #718096;">
-                            データがありません。CSVファイルをインポートしてください。
+                        <td colspan="${colSpan}" style="text-align: center; padding: 40px; color: #718096;">
+                            ${emptyHint}
                         </td>
                     </tr>
                 `;
@@ -880,20 +917,29 @@ if (empty($_SESSION['admin_id'])) {
                     ? new Date(inv.sent_at).toLocaleString('ja-JP')
                     : '-';
 
-                return `
-                    <tr data-id="${inv.id}">
-                        <td class="checkbox-cell">
-                            <input type="checkbox" class="row-checkbox" value="${inv.id}">
-                        </td>
-                        <td>${index + 1}</td>
-                        <td>${inv.username || '-'}</td>
-                        <td>${inv.email}</td>
-                        <td>
+                const roleLabel = inv.role_type === 'existing' ? '既存' : '新規';
+                const roleCell = canSend
+                    ? `<td>
                             <select class="role-select" onchange="updateRole(${inv.id}, this.value)">
                                 <option value="new" ${inv.role_type === 'new' ? 'selected' : ''}>新規</option>
                                 <option value="existing" ${inv.role_type === 'existing' ? 'selected' : ''}>既存</option>
                             </select>
-                        </td>
+                        </td>`
+                    : `<td>${roleLabel}</td>`;
+
+                const checkboxCell = canSend
+                    ? `<td class="checkbox-cell">
+                            <input type="checkbox" class="row-checkbox" value="${inv.id}">
+                        </td>`
+                    : '';
+
+                return `
+                    <tr data-id="${inv.id}">
+                        ${checkboxCell}
+                        <td>${index + 1}</td>
+                        <td>${inv.username || '-'}</td>
+                        <td>${inv.email}</td>
+                        ${roleCell}
                         <td>${sentBadge}</td>
                         <td style="white-space: nowrap;">${sentDate}</td>
                     </tr>
@@ -912,6 +958,9 @@ if (empty($_SESSION['admin_id'])) {
         }
 
         async function updateRole(id, roleType) {
+            if (window.canSendInvitations !== true) {
+                return;
+            }
             try {
                 const response = await fetch('../backend/api/admin/update-role.php', {
                     method: 'POST',
@@ -937,6 +986,14 @@ if (empty($_SESSION['admin_id'])) {
         }
 
         async function sendSelectedEmails() {
+            if (window.canSendInvitations !== true) {
+                if (typeof showWarning === 'function') {
+                    showWarning('招待メールの送信は管理者のみが実行できます');
+                } else {
+                    alert('招待メールの送信は管理者のみが実行できます');
+                }
+                return;
+            }
             const checkboxes = document.querySelectorAll('.row-checkbox:checked');
             const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
 

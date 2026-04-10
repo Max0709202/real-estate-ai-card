@@ -6,14 +6,12 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../middleware/auth.php';
 
-startSessionIfNotStarted();
 header('Content-Type: application/json; charset=UTF-8');
 
 try {
-    if (empty($_SESSION['admin_id'])) {
-        sendErrorResponse('管理者認証が必要です', 401);
-    }
+    requireFullAdminAccess();
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendErrorResponse('Method not allowed', 405);

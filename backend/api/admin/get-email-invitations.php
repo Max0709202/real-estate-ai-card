@@ -11,7 +11,7 @@ header('Content-Type: application/json; charset=UTF-8');
 
 try {
     requireAdmin();
-    
+
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
         sendErrorResponse('Method not allowed', 405);
     }

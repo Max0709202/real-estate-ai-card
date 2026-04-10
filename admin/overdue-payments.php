@@ -398,12 +398,6 @@ $noPayment = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] ==
                 </div>
             </div>
 
-            <div class="action-bar">
-                <a href="dashboard.php" class="btn-primary-action" style="background: #6c757d; text-decoration: none; display: inline-block; text-align: center;">
-                    ダッシュボードに戻る
-                </a>
-            </div>
-
             <div class="overdue-table-container">
                 <?php if (empty($overdueUsers)): ?>
                     <div class="empty-state">

@@ -12,8 +12,8 @@ require_once __DIR__ . '/../middleware/auth.php';
 header('Content-Type: application/json; charset=UTF-8');
 
 try {
-    requireAdmin(); // 管理者認証
-    
+    requireFullAdminAccess();
+
     $database = new Database();
     $db = $database->getConnection();
     

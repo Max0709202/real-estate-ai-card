@@ -13,7 +13,7 @@ header('Content-Type: application/json; charset=UTF-8');
 
 try {
     startSessionIfNotStarted();
-    requireAdmin(); // Only admins can update payment status
+    requireFullAdminAccess();
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendErrorResponse('Method not allowed', 405);

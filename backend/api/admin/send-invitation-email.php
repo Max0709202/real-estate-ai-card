@@ -10,7 +10,7 @@ require_once __DIR__ . '/../middleware/auth.php';
 header('Content-Type: application/json; charset=UTF-8');
 
 try {
-    requireAdmin();
+    requireFullAdminAccess();
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendErrorResponse('Method not allowed', 405);

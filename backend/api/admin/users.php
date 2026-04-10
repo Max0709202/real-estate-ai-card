@@ -11,8 +11,11 @@ header('Content-Type: application/json; charset=UTF-8');
 
 try {
     requireAdmin(); // 管理者認証
-    
+
     $method = $_SERVER['REQUEST_METHOD'];
+    if ($method === 'POST' || $method === 'DELETE') {
+        requireFullAdminAccess();
+    }
     $database = new Database();
     $db = $database->getConnection();
 

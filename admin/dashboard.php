@@ -136,6 +136,11 @@ $params[] = $offset;
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $users = $stmt->fetchAll();
+
+$stmt = $db->prepare('SELECT role FROM admins WHERE id = ?');
+$stmt->execute([$_SESSION['admin_id']]);
+$currentAdminRole = $stmt->fetchColumn();
+$isAdmin = ($currentAdminRole === 'admin' || (int) $_SESSION['admin_id'] === 1);
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -175,13 +180,6 @@ $users = $stmt->fetchAll();
                     <?php else: ?>
                         <p>変更履歴: なし</p>
                     <?php endif; ?>
-                    <?php
-                    // Get current admin role
-                    $stmt = $db->prepare("SELECT role FROM admins WHERE id = ?");
-                    $stmt->execute([$_SESSION['admin_id']]);
-                    $currentAdminRole = $stmt->fetchColumn();
-                    $isAdmin = ($currentAdminRole === 'admin' || $_SESSION['admin_id'] == 1);
-                    ?>
                 </div>
                 <div class="admin-theme-toggle" id="theme-toggle" title="テーマを切り替え">
                     <svg class="theme-icon sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -344,9 +342,12 @@ $users = $stmt->fetchAll();
                             <?php
                             $type = $user['user_type'] ?? 'new';
                             $isEra = $user['is_era_member'] ?? 0;
-                            // Determine effective classification
                             $classification = $isEra ? 'era' : $type;
+                            $classificationLabels = ['new' => '新規', 'existing' => '既存', 'era' => 'ＥＲＡ'];
+                            $classificationLabel = $classificationLabels[$classification] ?? '新規';
+                            $classificationEraStyle = $classification === 'era' ? 'color: #dc3545; font-weight: bold;' : '';
                             ?>
+                            <?php if ($isAdmin): ?>
                             <select class="user-classification-select"
                                     data-user-id="<?php echo $user['user_id']; ?>"
                                     data-bc-id="<?php echo $user['id']; ?>"
@@ -356,6 +357,11 @@ $users = $stmt->fetchAll();
                                 <option value="existing" <?php echo ($classification === 'existing') ? 'selected' : ''; ?>>既存</option>
                                 <option value="era" <?php echo ($classification === 'era') ? 'selected' : ''; ?> style="color: #dc3545; font-weight: bold;">ＥＲＡ</option>
                             </select>
+                            <?php else: ?>
+                            <span class="classification-readonly" style="display: inline-block; padding: 4px 8px; font-size: 0.85rem; <?php echo $classificationEraStyle; ?>">
+                                <?php echo htmlspecialchars($classificationLabel); ?>
+                            </span>
+                            <?php endif; ?>
                         </td>
                         <td data-label="入金状況">
                             <?php
@@ -426,7 +432,7 @@ $users = $stmt->fetchAll();
                                 <?php else: ?>
                                     <span>https://self-in.com/</span>
                                 <?php endif; ?>
-                                <?php if ($canEditCorporateUrl): ?>
+                                <?php if ($canEditCorporateUrl && $isAdmin): ?>
                                     <input type="text" class="url-slug-input"
                                            data-user-id="<?php echo $user['user_id']; ?>"
                                            data-bc-id="<?php echo $user['id']; ?>"
@@ -439,6 +445,8 @@ $users = $stmt->fetchAll();
                                             style="padding: 2px 6px; font-size: 0.7rem; background: #28a745; color: #fff; border: none; border-radius: 3px; cursor: pointer; display: none;">
                                         保存
                                     </button>
+                                <?php elseif ($canEditCorporateUrl): ?>
+                                    <span><?php echo htmlspecialchars($currentSlug); ?></span><?php if ($currentSlug !== ''): ?><span>/</span><?php endif; ?>
                                 <?php else: ?>
                                     <span><?php echo htmlspecialchars($currentSlug); ?></span><?php if ($currentSlug !== ''): ?><span>/</span><?php endif; ?>
                                     <span style="color: #999; font-size: 0.7rem;">（新規は編集不可）</span>
@@ -470,6 +478,7 @@ $users = $stmt->fetchAll();
                         <td data-label="登録日"><?php echo htmlspecialchars($user['registered_at']); ?></td>
                         <td data-label="最終ログイン"><?php echo htmlspecialchars($user['last_login_at'] ?? ''); ?></td>
                         <td data-label="備考">
+                            <?php if ($isAdmin): ?>
                             <textarea class="admin-notes-input"
                                       data-bc-id="<?php echo $user['id']; ?>"
                                       rows="2"
@@ -481,6 +490,11 @@ $users = $stmt->fetchAll();
                                 保存
                             </button>
                             <span class="notes-save-status" data-bc-id="<?php echo $user['id']; ?>" style="font-size: 0.75rem; color: #28a745; margin-left: 0.5rem; display: none;"></span>
+                            <?php else: ?>
+                            <div class="admin-notes-readonly" style="width: 100%; min-width: 200px; padding: 0.5rem; border: 1px solid #e8e8e8; border-radius: 4px; font-size: 0.85rem; white-space: pre-wrap; background: #f9f9f9; color: #333;">
+                                <?php echo htmlspecialchars($user['admin_notes'] ?? ''); ?>
+                            </div>
+                            <?php endif; ?>
                         </td>
                         <!-- <td data-label="操作">
                             <?php if ($isAdmin): ?>
