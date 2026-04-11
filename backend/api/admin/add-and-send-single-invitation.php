@@ -98,7 +98,7 @@ try {
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
             .header { background: #2c5282; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
             .content { background: #f7fafc; padding: 30px; border: 1px solid #e2e8f0; }
-            .button { display: inline-block; padding: 12px 30px; background:rgb(255, 255, 255); color: black; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .button { display: inline-block; padding: 12px 30px; background:rgb(68 97 165); color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
             .footer { text-align: center; padding: 20px; color: #718096; font-size: 12px; }
         </style>
     </head>

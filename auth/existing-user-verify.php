@@ -314,7 +314,7 @@ if (!empty($token)) {
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn-modal-continue" id="password-modal-btn" style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);">
-                    マイページへ進む
+                確認する
                 </button>
             </div>
         </div>

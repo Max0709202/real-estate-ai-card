@@ -522,8 +522,8 @@ $canSendInvitations = ($sendEmailPageAdminRole === 'admin' || (int) $_SESSION['a
                 <div class="single-send-row">
                     <label for="single-role" class="single-send-label">ロール</label>
                     <select id="single-role" name="role_type" class="single-send-select">
-                        <option value="new">新規</option>
                         <option value="existing">既存</option>
+                        <option value="new">新規</option>
                     </select>
                 </div>
                 <div class="single-send-row single-send-actions">
