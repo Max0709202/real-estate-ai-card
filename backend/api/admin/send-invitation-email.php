@@ -61,14 +61,14 @@ try {
         $baseUrl = BASE_URL;
         switch ($invitation['role_type']) {
             case 'new':
-                $landingPage = "{$baseUrl}/register.php";
+                $landingPage = "{$baseUrl}/index.php";
                 break;
             case 'existing':
                 // Use token-based URL format for existing users - dedicated verification page
-                $landingPage = BASE_URL . "/auth/existing-user-verify.php?token=" . urlencode($token);
+                $landingPage = BASE_URL . "/index.php?type=existing&token=" . urlencode($token);
                 break;
             default:
-                $landingPage = "{$baseUrl}/register.php";
+                $landingPage = "{$baseUrl}/index.php";
         }
 
         // Prepare email content

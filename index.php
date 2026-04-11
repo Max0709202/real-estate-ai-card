@@ -76,7 +76,13 @@ if ($isTokenBased) {
         error_log("Token validation error in index.php: " . $e->getMessage());
     }
 }
-?> 
+
+// Token URLs and 既存/ERA LP (type=existing) must not be indexed (different pricing from new members).
+$excludeFromSearch = $isTokenBased || $userType === 'existing';
+if ($excludeFromSearch) {
+    header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet', true);
+}
+?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -84,8 +90,8 @@ if ($isTokenBased) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon.php?size=32&v=2">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon.php?size=16&v=2">
-    <?php if ($isTokenBased): ?>
-    <!-- Prevent search engine indexing for token-based pages -->
+    <?php if (!empty($excludeFromSearch)): ?>
+    <!-- No index: invitation token URLs and 既存/ERA LP (pricing differs from new members) -->
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
     <meta name="googlebot" content="noindex, nofollow">
     <?php endif; ?>

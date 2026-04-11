@@ -77,10 +77,10 @@ try {
     $baseUrl = rtrim(BASE_URL, '/');
     switch ($roleType) {
         case 'existing':
-            $landingPage = $baseUrl . "/auth/existing-user-verify.php?token=" . urlencode($token);
+            $landingPage = $baseUrl . "/index.php?type=existing&token=" . urlencode($token);
             break;
         default:
-            $landingPage = $baseUrl . "/register.php";
+            $landingPage = $baseUrl . "/index.php";
     }
 
     // Prepare email content (same as send-invitation-email.php)
