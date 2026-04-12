@@ -46,6 +46,11 @@ if (!empty($token)) {
                     $stmt = $db->prepare("UPDATE users SET email_verified = 1, verification_token = NULL, verification_token_expires_at = NULL, status = 'active' WHERE id = ?");
                     $stmt->execute([$user['id']]);
 
+                    // 未処理の招待行が残っている場合の安全策（登録時に既に失効済みのことが多い）
+                    if (!empty($user['invitation_token'])) {
+                        consumeEmailInvitationToken($db, $user['invitation_token']);
+                    }
+
                     // メール認証完了後、自動ログインして編集画面へ遷移できるようにする
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['user_email'] = $user['email'];
@@ -58,7 +63,7 @@ if (!empty($token)) {
                     
                     // Only redirect with token for existing users who have an invitation_token
                     if ($userTypeForRedirect === 'existing' && !empty($invitationToken)) {
-                        $redirectUrl = "../register.php?type=" . urlencode($userTypeForRedirect) . "&token=" . urlencode($invitationToken);
+                        $redirectUrl = "../register.php?type=" . urlencode($userTypeForRedirect) ;
                     } else {
                         // For new users or users without invitation_token, redirect normally
                         $redirectUrl = "../register.php";

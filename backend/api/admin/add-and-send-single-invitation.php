@@ -113,10 +113,10 @@ try {
                 <p>下記のリンクからアクセスして、サービスをご利用ください。</p>
                 <p><strong>ユーザータイプ:</strong> {$roleLabel}</p>
                 <p style='text-align: center;'>
-                    <a href='{$landingPage}' class='button'>サービスにアクセス</a>
+                    <a href='{$landingPage}' class='button' target='_blank'>サービスにアクセス</a>
                 </p>
                 <p style='font-size: 14px; color: #666;'>
-                    リンク: <a href='{$landingPage}'>{$landingPage}</a>
+                    リンク: <a href='{$landingPage}' style='word-wrap: break-word;' target='_blank'>{$landingPage}</a>
                 </p>
                 <p>ご不明な点がございましたら、お気軽にお問い合わせください。</p>
             </div>

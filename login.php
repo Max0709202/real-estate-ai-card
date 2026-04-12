@@ -7,9 +7,15 @@ require_once __DIR__ . '/backend/includes/functions.php';
 
 startSessionIfNotStarted();
 
+$existingNavSuffix = existing_user_nav_suffix(false);
+$existingNavAmp     = existing_user_nav_suffix(true);
+
 // Get URL parameters for redirect after login
 $userType = $_GET['type'] ?? '';
 $invitationToken = $_GET['token'] ?? '';
+if ($invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
+    $invitationToken = $_SESSION['existing_invite_token'];
+}
 $redirectPage = $_GET['redirect'] ?? '';
 $prefillEmail = $_GET['email'] ?? '';
 
@@ -136,10 +142,10 @@ $prefillEmail = $_GET['email'] ?? '';
                 <button type="submit" class="btn-primary btn-block">ログイン</button>
             </form>
             <div class="login-link" style="margin-top: 1rem;">
-                <a href="index.php">ホームページへ戻る</a>
+                <a href="index.php<?php echo htmlspecialchars($existingNavSuffix); ?>">ホームページへ戻る</a>
             </div>
             <div class="login-link">
-                <a href="new_register.php">アカウントをお持ちでない方はこちら</a>
+                <a href="new_register.php<?php echo htmlspecialchars($existingNavSuffix); ?>">アカウントをお持ちでない方はこちら</a>
             </div>
             <div class="login-link" style="margin-top: 0.5rem;">
                 <a href="auth/forgot-password.php">パスワードをお忘れですか？</a>

@@ -12,13 +12,13 @@ startSessionIfNotStarted();
 $paymentId = $_GET['payment_id'] ?? '';
 $clientSecret = $_GET['client_secret'] ?? '';
 $userType = $_GET['type'] ?? ($_SESSION['user_type'] ?? 'new');
-$urlTypeParam = ($userType === 'existing') ? '&type=existing' : '';
+$urlTypeParam = ($userType === 'existing') ? existing_user_nav_suffix(true) : '';
 
 $from = isset($_GET['from']) ? preg_replace('/[^a-z_]/i', '', (string) $_GET['from']) : '';
 if ($from === 'mypage' || $from === 'edit') {
-    $backUrl = 'edit.php' . ($userType === 'existing' ? '?type=existing' : '');
+    $backUrl = 'edit.php' . ($userType === 'existing' ? existing_user_nav_suffix(false) : '');
 } else {
-    $backUrl = 'register.php?step=6' . ($userType === 'existing' ? '&type=existing' : '');
+    $backUrl = 'register.php?step=6' . ($userType === 'existing' ? existing_user_nav_suffix(true) : '');
 }
 
 // If no payment_id, redirect back to register

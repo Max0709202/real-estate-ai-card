@@ -87,6 +87,13 @@ try {
         $stmt->execute([$input['email']]);
         if ($stmt->fetch()) {
             $db->rollBack();
+            if (($input['user_type'] ?? '') === 'existing' && !empty($invitationToken)) {
+                sendJsonResponse([
+                    'success' => false,
+                    'message' => 'このメールアドレスは既に登録されています。ログインしてお進みください。',
+                    'redirect_login' => true,
+                ], 400);
+            }
             sendErrorResponse('このメールアドレスは既に登録されています', 400);
         }
 
@@ -99,15 +106,21 @@ try {
         // パスワードハッシュ
         $passwordHash = hashPassword($input['password']);
 
-        // Check for pending ERA membership from session (set during existing user verification)
+        // ERA会員フラグ: 既存ユーザーはフォームの is_era_member、または旧フローのセッション
         $isEraMember = 0;
-        if (!empty($_SESSION['pending_era_membership']) && 
-            !empty($_SESSION['pending_invitation_email']) && 
+        if (!empty($_SESSION['pending_era_membership']) &&
+            !empty($_SESSION['pending_invitation_email']) &&
             $_SESSION['pending_invitation_email'] === $input['email']) {
             $isEraMember = $_SESSION['pending_era_membership'] ? 1 : 0;
-            // Clear the session data after using it
             unset($_SESSION['pending_era_membership']);
             unset($_SESSION['pending_invitation_email']);
+        } elseif (($input['user_type'] ?? '') === 'existing') {
+            if (!array_key_exists('is_era_member', $input)) {
+                $db->rollBack();
+                sendErrorResponse('会員情報（ERA会員）の選択が必要です。', 400);
+            }
+            $v = $input['is_era_member'];
+            $isEraMember = ($v === true || $v === 1 || $v === '1') ? 1 : 0;
         }
 
         // ユーザー登録
@@ -130,6 +143,13 @@ try {
 
         $userId = $db->lastInsertId();
 
+        if (!empty($invitationToken) && $tokenData) {
+            $invUpdate = $db->prepare('UPDATE email_invitations SET is_era_member = ? WHERE id = ?');
+            $invUpdate->execute([$isEraMember, $tokenData['id']]);
+            // LP の再利用と verification_token との論理衝突を防ぐため、招待一覧側のトークンはここで失効
+            consumeEmailInvitationToken($db, $invitationToken);
+        }
+
         // Commit transaction before sending email
         $db->commit();
     } catch (PDOException $e) {
@@ -137,6 +157,13 @@ try {
         // Check if it's a duplicate key error (SQLSTATE 23000 = Integrity constraint violation)
         if ($e->getCode() == 23000 || strpos($e->getMessage(), 'Duplicate entry') !== false || strpos($e->getMessage(), 'UNIQUE constraint') !== false) {
             error_log("[Registration] Duplicate email registration attempted: " . $input['email']);
+            if (($input['user_type'] ?? '') === 'existing' && !empty($invitationToken)) {
+                sendJsonResponse([
+                    'success' => false,
+                    'message' => 'このメールアドレスは既に登録されています。ログインしてお進みください。',
+                    'redirect_login' => true,
+                ], 400);
+            }
             sendErrorResponse('このメールアドレスは既に登録されています', 400);
         }
         error_log("[Registration Error] " . $e->getMessage());
@@ -241,6 +268,26 @@ try {
     $_SESSION['user_id'] = $userId;
     $_SESSION['user_email'] = $input['email'];
     $_SESSION['user_type'] = $input['user_type'];
+
+    if (($input['user_type'] ?? '') !== 'existing') {
+        unset($_SESSION['existing_invite_token']);
+    }
+
+    // 既存招待経由: update-era-membership.php と同様に IP を記録（トップの type=existing 振り分け用）
+    if (($input['user_type'] ?? '') === 'existing' && !empty($invitationToken)) {
+        $clientIp  = $_SERVER['REMOTE_ADDR'] ?? '';
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        if ($clientIp !== '') {
+            $ipStmt = $db->prepare('
+                INSERT INTO existing_user_ips (user_id, ip_address, user_agent)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    user_agent = VALUES(user_agent),
+                    created_at = created_at
+            ');
+            $ipStmt->execute([(int) $userId, $clientIp, $userAgent]);
+        }
+    }
 
     // 管理者に新規登録通知メールを送信
     $adminNotificationSent = sendAdminNotificationEmail($input['email'], $input['user_type'], $userId, $urlSlug);

@@ -1800,3 +1800,41 @@ input.form-control {
     margin-bottom: 0;
 }
 
+/* new_register.php — 既存ユーザー向け ERA 会員確認 */
+.new-register-era-block {
+    margin-top: 0.5rem;
+}
+
+.new-register-era-hint {
+    margin: 0 0 12px 0;
+    color: #666;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.new-register-era-option {
+    display: block;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.new-register-era-option:hover {
+    border-color: #0066cc;
+    background: #f8f9fa;
+}
+
+.new-register-era-option.selected {
+    border-color: #0066cc;
+    background: #e8f4fd;
+}
+
+.new-register-era-option input[type="radio"] {
+    margin-right: 10px;
+    transform: scale(1.15);
+    vertical-align: middle;
+}
+

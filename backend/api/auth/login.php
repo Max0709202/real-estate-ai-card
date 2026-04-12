@@ -155,6 +155,10 @@ try {
     $_SESSION['user_email'] = $user['email'];
     $_SESSION['user_type'] = $user['user_type'];
 
+    if (($user['user_type'] ?? '') !== 'existing') {
+        unset($_SESSION['existing_invite_token']);
+    }
+
     sendSuccessResponse([
         'user_id' => $user['id'],
         'email' => $user['email'],

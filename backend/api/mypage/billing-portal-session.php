@@ -95,10 +95,7 @@ try {
         $upd->execute([$stripeCustomerId, $userId]);
     }
 
-    $returnPath = '/edit.php';
-    if (($user['user_type'] ?? '') === 'existing') {
-        $returnPath .= '?type=existing';
-    }
+    $returnPath = '/edit.php' . existing_user_nav_suffix(false);
 
     $params = [
         'customer' => $stripeCustomerId,

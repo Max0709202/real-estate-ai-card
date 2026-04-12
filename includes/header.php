@@ -12,6 +12,9 @@ require_once __DIR__ . '/../backend/includes/functions.php';
 
 startSessionIfNotStarted();
 
+$existingNavSuffix = existing_user_nav_suffix(false);
+$existingNavAmp     = existing_user_nav_suffix(true);
+
 $isLoggedIn = !empty($_SESSION['user_id']);
 $showNavLinks = isset($showNavLinks) ? $showNavLinks : true;
 
@@ -23,38 +26,30 @@ $registerPageUrl = 'new_register.php?type=new'; // Default for non-logged-in use
 
 // Check for token-based access (existing/free users from email invitation)
 // Get token and type from current URL to preserve them in the registration link
-$invitationToken = $_GET['token'] ?? '';
+$invitationToken = trim((string) ($_GET['token'] ?? ''));
+if ($invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
+    $invitationToken = trim((string) $_SESSION['existing_invite_token']);
+}
 $urlUserType = $_GET['type'] ?? null;
 $isTokenBased = !empty($invitationToken);
 $tokenValid = false;
 $tokenUserType = null;
 
 if ($isTokenBased && !$isLoggedIn) {
-    // Validate token for non-logged-in users
+    // Validate token for non-logged-in users（DB 直参照、cURL 不使用）
     try {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, BASE_URL . '/backend/api/auth/validate-invitation-token.php?token=' . urlencode($invitationToken));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        require_once __DIR__ . '/../backend/config/database.php';
+        $database = new Database();
+        $db = $database->getConnection();
+        $invCheck = validateInvitationTokenInDatabase($db, $invitationToken);
+        if ($invCheck['ok']) {
+            $tokenValid = true;
+            $tokenUserType = $invCheck['data']['role_type'] ?? null;
 
-        if ($httpCode === 200) {
-            $result = json_decode($response, true);
-            if ($result && $result['success']) {
-                $tokenValid = true;
-                $tokenUserType = $result['data']['role_type'] ?? null;
-
-                // Set registration URL based on token type (use token's role_type, fallback to URL type)
-                if ($tokenUserType === 'existing') {
-                    // Existing users should login (not re-register)
-                    $registerPageUrl = 'login.php?type=' . $tokenUserType . '&token=' . urlencode($invitationToken);
-                } elseif ($urlUserType === 'existing') {
-                    // If token validation didn't return type but URL has it, use URL type
-                    // Existing users should login (not re-register)
-                    $registerPageUrl = 'login.php?type=' . $urlUserType . '&token=' . urlencode($invitationToken);
-                }
+            if ($tokenUserType === 'existing') {
+                $registerPageUrl = 'login.php?type=' . $tokenUserType . '&token=' . urlencode($invitationToken);
+            } elseif ($urlUserType === 'existing') {
+                $registerPageUrl = 'login.php?type=' . $urlUserType . '&token=' . urlencode($invitationToken);
             }
         }
     } catch (Exception $e) {
@@ -117,13 +112,11 @@ if ($isLoggedIn) {
 <link rel="stylesheet" href="assets/css/modal.css">
 <!-- Modal Notification Script (load early so functions are available) -->
 <script src="assets/js/modal.js"></script>
-
-<!-- Header -->
 <header class="header">
     <div class="container">
         <div class="header-content">
             <div class="logo">
-                <a href="index.php<?php echo (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'existing') ? '?type=existing' : ''; ?>">
+                <a href="index.php<?php echo htmlspecialchars($existingNavSuffix); ?>">
                     <img src="assets/images/logo.png" alt="不動産AI名刺">
                 </a>
             </div>
@@ -383,11 +376,11 @@ if ($isLoggedIn) {
                     </div>
                     <div class="user-dropdown" id="user-dropdown">
                         <?php if ($showMyCard): ?>
-                        <a href="card.php?slug=<?php echo htmlspecialchars($cardSlug); ?>" class="dropdown-item" target="_blank">
+                        <a href="card.php?slug=<?php echo htmlspecialchars($cardSlug); ?><?php echo htmlspecialchars($existingNavAmp); ?>" class="dropdown-item" target="_blank">
                             <span>マイ名刺</span>
                         </a>
                         <?php endif; ?>
-                        <a href="edit.php<?php echo (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'existing') ? '?type=existing' : ''; ?>" class="dropdown-item">
+                        <a href="edit.php<?php echo htmlspecialchars($existingNavSuffix); ?>" class="dropdown-item">
                             <span>マイページ</span>
                         </a>
                         <?php if ($headerHasActiveSubscription): ?>
@@ -423,7 +416,7 @@ if ($isLoggedIn) {
                         <?php endif; ?>
                         <?php endif; ?>
                         <!-- <div class="dropdown-divider"></div> -->
-                        <a href="register.php?step=7" class="dropdown-item" id="payment-list-link">
+                        <a href="register.php?step=7<?php echo htmlspecialchars($existingNavAmp); ?>" class="dropdown-item" id="payment-list-link">
                             <span>お支払い画面</span>
                         </a>
                         <a href="auth/reset-email.php" class="dropdown-item">
@@ -439,7 +432,7 @@ if ($isLoggedIn) {
                 </div>
                 <?php else: ?>
                 <!-- Login Button (when not logged in) -->
-                <a href="login.php" class="btn-primary">ログイン</a>
+                <a href="login.php<?php echo htmlspecialchars($existingNavSuffix); ?>" class="btn-primary">ログイン</a>
                 <?php endif; ?>
 
                 <?php if ($showNavLinks): ?>

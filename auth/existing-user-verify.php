@@ -111,6 +111,11 @@ if (!empty($token)) {
             cursor: pointer;
             transition: all 0.3s ease;
         }
+        a.btn-continue {
+            text-decoration: none;
+            color: #fff;
+        }
+
         .btn-continue:hover {
             background: linear-gradient(135deg, #0052a3 0%, #003d7a 100%);
             transform: translateY(-2px);
@@ -121,94 +126,6 @@ if (!empty($token)) {
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
-        }
-
-        /* Modal Styles */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 10000;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-overlay.active {
-            display: flex;
-        }
-        .modal-content {
-            background: white;
-            padding: 32px;
-            border-radius: 12px;
-            max-width: 500px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        }
-        .modal-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 24px;
-            text-align: center;
-        }
-        .modal-body {
-            margin-bottom: 24px;
-        }
-        .era-option {
-            display: block;
-            padding: 16px 20px;
-            margin-bottom: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .era-option:hover {
-            border-color: #0066cc;
-            background: #f8f9fa;
-        }
-        .era-option.selected {
-            border-color: #0066cc;
-            background: #e8f4fd;
-        }
-        .era-option input[type="radio"] {
-            margin-right: 12px;
-            transform: scale(1.2);
-        }
-        .era-option-label {
-            font-size: 15px;
-            color: #333;
-            font-weight: 500;
-        }
-        .modal-footer {
-            text-align: center;
-        }
-        .btn-modal-continue {
-            display: inline-block;
-            padding: 14px 50px;
-            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .btn-modal-continue:hover {
-            background: linear-gradient(135deg, #1e7e34 0%, #155724 100%);
-            transform: translateY(-2px);
-        }
-        .btn-modal-continue:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
         }
 
         .home-link {
@@ -227,9 +144,6 @@ if (!empty($token)) {
                 margin: 40px 16px;
                 padding: 24px;
             }
-            .modal-content {
-                padding: 24px;
-            }
         }
     </style>
 </head>
@@ -240,11 +154,11 @@ if (!empty($token)) {
             <h1 class="verification-title">招待リンクが確認されました</h1>
             <p class="verification-message">
                 不動産AI名刺サービスへようこそ。<br>
-                下のボタンをクリックして、名刺編集画面に進んでください。
+                下のボタンからアカウント登録へ進み、会員情報（ERA会員の有無）の確認と登録を行ってください。
             </p>
-            <button type="button" class="btn-continue" id="continue-btn">
-            専用ランディングページへ進む
-            </button>
+            <a class="btn-continue" href="../new_register.php?type=existing&amp;token=<?php echo urlencode($token); ?>">
+                アカウント登録へ進む
+            </a>
         <?php else: ?>
             <div class="verification-icon error">✕</div>
             <h1 class="verification-title">エラー</h1>
@@ -256,170 +170,5 @@ if (!empty($token)) {
             </div>
         <?php endif; ?>
     </div>
-
-    <!-- ERA Membership Modal -->
-    <div class="modal-overlay" id="era-modal">
-        <div class="modal-content">
-            <h2 class="modal-title">会員情報の確認</h2>
-            <div class="modal-body">
-                <p style="margin-bottom: 20px; color: #666; font-size: 14px; text-align: center;">
-                    サービスをご利用いただく前に、以下をご確認ください。
-                </p>
-                
-                <label class="era-option" id="era-yes-option">
-                    <input type="radio" name="era_membership" value="1" id="era-yes">
-                    <span class="era-option-label">ERA会員です</span>
-                </label>
-                
-                <label class="era-option" id="era-no-option">
-                    <input type="radio" name="era_membership" value="0" id="era-no">
-                    <span class="era-option-label">ERA会員ではありません</span>
-                </label>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-modal-continue" id="modal-continue-btn" disabled>
-                    続ける
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Password Notification Modal -->
-    <div class="modal-overlay" id="password-modal">
-        <div class="modal-content">
-            <div style="text-align: center; margin-bottom: 20px;">
-                <div style="width: 70px; height: 70px; background: #d4edda; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 36px; color: #28a745;">✓</div>
-                <h2 class="modal-title" style="margin-bottom: 8px;">アカウント作成完了</h2>
-            </div>
-            <div class="modal-body">
-                <p style="margin-bottom: 16px; color: #333; font-size: 15px; text-align: center;">
-                    アカウントが正常に作成されました。<br>
-                    以下の情報でログインできます。
-                </p>
-                
-                <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                    <div style="margin-bottom: 12px;">
-                        <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">メールアドレス</label>
-                        <div id="display-email" style="font-size: 15px; font-weight: 600; color: #333; word-break: break-all;"></div>
-                    </div>
-                    <div>
-                        <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">初期パスワード</label>
-                        <div style="font-size: 18px; font-weight: 700; color: #0066cc; font-family: monospace; letter-spacing: 1px;">Renewal4329</div>
-                    </div>
-                </div>
-                
-                <p style="color: #dc3545; font-size: 13px; text-align: center; margin-bottom: 0;">
-                    ⚠️ セキュリティのため、ログイン後にパスワードを変更してください。
-                </p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-modal-continue" id="password-modal-btn" style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);">
-                確認する
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const token = <?php echo json_encode($token); ?>;
-        const userType = 'existing';
-        
-        // Continue button opens the modal
-        const continueBtn = document.getElementById('continue-btn');
-        const modal = document.getElementById('era-modal');
-        const modalContinueBtn = document.getElementById('modal-continue-btn');
-        const eraYesOption = document.getElementById('era-yes-option');
-        const eraNoOption = document.getElementById('era-no-option');
-        const eraYes = document.getElementById('era-yes');
-        const eraNo = document.getElementById('era-no');
-        
-        if (continueBtn) {
-            continueBtn.addEventListener('click', function() {
-                modal.classList.add('active');
-            });
-        }
-        
-        // Handle option selection styling
-        function updateOptionStyles() {
-            eraYesOption.classList.toggle('selected', eraYes.checked);
-            eraNoOption.classList.toggle('selected', eraNo.checked);
-            modalContinueBtn.disabled = !(eraYes.checked || eraNo.checked);
-        }
-        
-        eraYes.addEventListener('change', updateOptionStyles);
-        eraNo.addEventListener('change', updateOptionStyles);
-        eraYesOption.addEventListener('click', function() {
-            eraYes.checked = true;
-            updateOptionStyles();
-        });
-        eraNoOption.addEventListener('click', function() {
-            eraNo.checked = true;
-            updateOptionStyles();
-        });
-        
-        // Password modal elements
-        const passwordModal = document.getElementById('password-modal');
-        const passwordModalBtn = document.getElementById('password-modal-btn');
-        const displayEmail = document.getElementById('display-email');
-        
-        // Modal continue button - save ERA membership, create account, and auto-login
-        modalContinueBtn.addEventListener('click', async function() {
-            const isEraMember = eraYes.checked;
-            
-            modalContinueBtn.disabled = true;
-            modalContinueBtn.textContent = '処理中...';
-            
-            try {
-                // Save ERA membership status, create account, and auto-login
-                const response = await fetch('../backend/api/auth/update-era-membership.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        token: token,
-                        is_era_member: isEraMember
-                    })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    // Close ERA modal
-                    modal.classList.remove('active');
-                    
-                    // Show password notification modal if account was created
-                    if (result.data.user_created) {
-                        displayEmail.textContent = result.data.email;
-                        passwordModal.classList.add('active');
-                    } else {
-                        // User already existed, just redirect to index.php
-                        window.location.href = '../index.php?type=' + userType;
-                    }
-                } else {
-                    alert(result.message || 'エラーが発生しました。');
-                    modalContinueBtn.disabled = false;
-                    modalContinueBtn.textContent = '続ける';
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('エラーが発生しました。しばらくしてから再度お試しください。');
-                modalContinueBtn.disabled = false;
-                modalContinueBtn.textContent = '続ける';
-            }
-        });
-        
-        // Password modal button - redirect to index.php (user is already logged in)
-        passwordModalBtn.addEventListener('click', function() {
-            window.location.href = '../index.php?type=' + userType;
-        });
-        
-        // Close ERA modal when clicking outside (but not password modal - user must acknowledge)
-        modal.addEventListener('click', function(e) {
-            if (e.target === modal) {
-                modal.classList.remove('active');
-            }
-        });
-    </script>
 </body>
 </html>

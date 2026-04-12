@@ -26,9 +26,9 @@ try {
 
     // トークン検証（有効期限もチェック）
     // Include user_type in query to distinguish user type during verification
-    $stmt = $db->prepare("SELECT id, email, user_type, verification_token_expires_at FROM users WHERE verification_token = ? AND email_verified = 0");
+    $stmt = $db->prepare("SELECT id, email, user_type, invitation_token, verification_token_expires_at FROM users WHERE verification_token = ? AND email_verified = 0");
     $stmt->execute([$token]);
-    $user = $stmt->fetch();
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
         sendErrorResponse('無効な認証トークンです', 400);
@@ -53,6 +53,10 @@ try {
     // メール認証完了
     $stmt = $db->prepare("UPDATE users SET email_verified = 1, verification_token = NULL, verification_token_expires_at = NULL, status = 'active' WHERE id = ?");
     $stmt->execute([$user['id']]);
+
+    if (!empty($user['invitation_token'])) {
+        consumeEmailInvitationToken($db, $user['invitation_token']);
+    }
 
     sendSuccessResponse([
         'user_id' => $user['id'],

@@ -13,7 +13,10 @@ $isLoggedIn = !empty($_SESSION['user_id']);
 $userEmailForCard = '';
 
 $userType = $_GET['type'] ?? 'new'; // new, existing, free
-$invitationToken = $_GET['token'] ?? '';
+$invitationToken = trim((string) ($_GET['token'] ?? ''));
+if ($invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
+    $invitationToken = trim((string) $_SESSION['existing_invite_token']);
+}
 $isTokenBased = !empty($invitationToken);
 $tokenValid = false;
 $tokenData = null;

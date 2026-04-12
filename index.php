@@ -50,28 +50,19 @@ try {
 }
 
 if ($isTokenBased) {
-    // Validate token (but don't redirect - stay on index.php)
+    // Validate token via DB（cURL→BASE_URL は同一サーバ到達失敗で常に無効になることがある）
     try {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, BASE_URL . '/backend/api/auth/validate-invitation-token.php?token=' . urlencode($invitationToken));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($httpCode === 200) {
-            $result = json_decode($response, true);
-            if ($result && $result['success']) {
-                $tokenValid = true;
-                $tokenData = $result['data'];
-                // Use token's role_type if available and it is 'existing'
-                if (($tokenData['role_type'] ?? null) === 'existing') {
-                    $userType = $tokenData['role_type'];
-                }
+        require_once __DIR__ . '/backend/config/database.php';
+        $database = new Database();
+        $db = $database->getConnection();
+        $invCheck = validateInvitationTokenInDatabase($db, $invitationToken);
+        if ($invCheck['ok']) {
+            $tokenValid = true;
+            $tokenData = $invCheck['data'];
+            if (($tokenData['role_type'] ?? null) === 'existing') {
+                $userType = $tokenData['role_type'];
             }
         }
-        
     } catch (Exception $e) {
         error_log("Token validation error in index.php: " . $e->getMessage());
     }

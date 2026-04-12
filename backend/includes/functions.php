@@ -1993,6 +1993,105 @@ function validatePostalCode($postalCode) {
 }
 
 /**
+ * validate-invitation-token API と同一ロジックで DB 照合する。
+ * index / header / new_register ではサーバ自身への cURL ではなくこの関数を使う（BASE_URL 到達失敗で誤って無効扱いになるのを防ぐ）。
+ *
+ * @return array{ok: true, data: array<string, mixed>}|array{ok: false, error: 'empty'|'not_found'}
+ */
+function validateInvitationTokenInDatabase(PDO $db, string $token): array {
+    $token = trim($token);
+    if ($token === '') {
+        return ['ok' => false, 'error' => 'empty'];
+    }
+    $stmt = $db->prepare("
+        SELECT id, email, role_type, email_sent, sent_at, invitation_token_expires_at
+        FROM email_invitations
+        WHERE invitation_token = ?
+    ");
+    $stmt->execute([$token]);
+    $invitation = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$invitation) {
+        return ['ok' => false, 'error' => 'not_found'];
+    }
+    $userStmt = $db->prepare('SELECT id, user_type, status FROM users WHERE email = ?');
+    $userStmt->execute([$invitation['email']]);
+    $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+
+    return [
+        'ok' => true,
+        'data' => [
+            'valid' => true,
+            'email' => $invitation['email'],
+            'role_type' => $invitation['role_type'],
+            'user_exists' => $user !== false,
+            'user_id' => $user['id'] ?? null,
+            'user_status' => $user['status'] ?? null,
+        ],
+    ];
+}
+
+/**
+ * 管理画面から送った招待リンクを無効化する（email_invitations のトークンを消す）。
+ * users.invitation_token は残す（メール認証後の遷移・ログイン後の検証用）。
+ */
+function consumeEmailInvitationToken(PDO $db, string $invitationToken): void {
+    $invitationToken = trim($invitationToken);
+    if ($invitationToken === '') {
+        return;
+    }
+    $stmt = $db->prepare(
+        'UPDATE email_invitations SET invitation_token = NULL, invitation_token_expires_at = NULL WHERE invitation_token = ?'
+    );
+    $stmt->execute([$invitationToken]);
+}
+
+/**
+ * 既存ユーザー招待リンクの token をセッションに保持（ページ遷移後も URL に付与するため）
+ */
+function capture_existing_invite_token_from_request(): void {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+    $type = $_GET['type'] ?? '';
+    $token = trim((string) ($_GET['token'] ?? ''));
+    if ($type === 'existing' && $token !== '') {
+        $_SESSION['existing_invite_token'] = $token;
+    }
+}
+
+/**
+ * 既存ユーザー向けに type=existing（＋保持中なら token）を付けたクエリ接尾辞を返す。
+ *
+ * @param bool $urlAlreadyHasQuery true のとき先頭は &、false のとき ?
+ */
+function existing_user_nav_suffix(bool $urlAlreadyHasQuery = false): string {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return '';
+    }
+
+    $isExistingUser = !empty($_SESSION['user_type']) && $_SESSION['user_type'] === 'existing';
+    $guestExisting  = !empty($_SESSION['guest_user_type']) && $_SESSION['guest_user_type'] === 'existing';
+    $urlSaysExisting = (($_GET['type'] ?? '') === 'existing');
+
+    $token = trim((string) ($_SESSION['existing_invite_token'] ?? ''));
+    if ($token === '') {
+        $token = trim((string) ($_SESSION['guest_invitation_token'] ?? ''));
+    }
+
+    if (!$isExistingUser && !$guestExisting && !$urlSaysExisting) {
+        return '';
+    }
+
+    $params = ['type' => 'existing'];
+    if ($token !== '') {
+        $params['token'] = $token;
+    }
+
+    $sep = $urlAlreadyHasQuery ? '&' : '?';
+    return $sep . http_build_query($params);
+}
+
+/**
  * セッション開始
  */
 function startSessionIfNotStarted() {
@@ -2018,5 +2117,9 @@ function startSessionIfNotStarted() {
         }
         
         session_start();
+    }
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        capture_existing_invite_token_from_request();
     }
 }

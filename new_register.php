@@ -7,35 +7,31 @@ require_once __DIR__ . '/backend/includes/functions.php';
 
 startSessionIfNotStarted();
 
-// Get initial userType and token from URL
+$existingNavSuffix = existing_user_nav_suffix(false);
+
+// Get initial userType and token from URL (token はセッションからも復元)
 $userType = $_GET['type'] ?? 'new'; // new, existing
-$invitationToken = $_GET['token'] ?? '';
+$invitationToken = trim((string) ($_GET['token'] ?? ''));
+if ($invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
+    $invitationToken = trim((string) $_SESSION['existing_invite_token']);
+}
 $isTokenBased = !empty($invitationToken);
 $tokenValid = false;
 $tokenData = null;
 
-// Validate token if provided and ensure type matches token's role_type
+// Validate token if provided and ensure type matches token's role_type（DB 直参照、cURL 不使用）
 if ($isTokenBased) {
     try {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, BASE_URL . '/backend/api/auth/validate-invitation-token.php?token=' . urlencode($invitationToken));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode === 200) {
-            $result = json_decode($response, true);
-            if ($result && $result['success']) {
-                $tokenValid = true;
-                $tokenData = $result['data'];
-                $tokenRoleType = $tokenData['role_type'] ?? null;
-
-                // Use token's role_type for existing users (validates and sets correct type)
-                if ($tokenRoleType === 'existing') {
-                    $userType = $tokenRoleType;
-                }
+        require_once __DIR__ . '/backend/config/database.php';
+        $database = new Database();
+        $db = $database->getConnection();
+        $invCheck = validateInvitationTokenInDatabase($db, $invitationToken);
+        if ($invCheck['ok']) {
+            $tokenValid = true;
+            $tokenData = $invCheck['data'];
+            $tokenRoleType = $tokenData['role_type'] ?? null;
+            if ($tokenRoleType === 'existing') {
+                $userType = $tokenRoleType;
             }
         }
     } catch (Exception $e) {
@@ -138,6 +134,21 @@ if ($userType === 'existing' && empty($invitationToken)) {
                         <input type="tel" name="phone_number" class="form-control" required>
                     </div>
 
+                    <?php if ($userType === 'existing'): ?>
+                    <div class="form-group new-register-era-block">
+                        <label>会員情報の確認 <span class="required">*</span></label>
+                        <p class="new-register-era-hint">サービスをご利用いただく前に、以下をご確認ください。</p>
+                        <label class="new-register-era-option" id="new-reg-era-yes-wrap">
+                            <input type="radio" name="era_membership" value="1" id="new-reg-era-yes">
+                            <span>ERA会員です</span>
+                        </label>
+                        <label class="new-register-era-option" id="new-reg-era-no-wrap">
+                            <input type="radio" name="era_membership" value="0" id="new-reg-era-no">
+                            <span>ERA会員ではありません</span>
+                        </label>
+                    </div>
+                    <?php endif; ?>
+
                     <div class="form-group checkbox-group">
                         <label>
                             <input type="checkbox" name="agree_terms" required>
@@ -154,7 +165,7 @@ if ($userType === 'existing' && empty($invitationToken)) {
 
                     <div class="form-group" style="text-align: center; margin-top: 1rem;">
                         <p style="color: #666; font-size: 0.9rem;">
-                            既にアカウントをお持ちの方は<a href="login.php<?php echo ($isTokenBased && !empty($invitationToken)) ? '?token=' . urlencode($invitationToken) . ($userType === 'existing' ? '&type=' . $userType : '') : ''; ?>" style="color: #0066cc; text-decoration: underline;">こちらからログイン</a>してください
+                            既にアカウントをお持ちの方は<a href="login.php<?php echo htmlspecialchars($existingNavSuffix); ?>" style="color: #0066cc; text-decoration: underline;">こちらからログイン</a>してください
                         </p>
                     </div>
                     <div class="login-link" style="margin-top: 1rem; display: flex; justify-content: center;">
@@ -169,6 +180,9 @@ if ($userType === 'existing' && empty($invitationToken)) {
     </div>
 
     <script>
+        window.registerUserType = <?php echo json_encode($userType, JSON_UNESCAPED_UNICODE); ?>;
+        window.existingNavSuffixPhp = <?php echo json_encode($existingNavSuffix ?? '', JSON_UNESCAPED_UNICODE); ?>;
+
         // Password toggle functionality
         function setupPasswordToggle(toggleId, inputId) {
             const toggle = document.getElementById(toggleId);
@@ -193,6 +207,30 @@ if ($userType === 'existing' && empty($invitationToken)) {
         // Setup password toggles
         setupPasswordToggle('toggle-password', 'password');
         setupPasswordToggle('toggle-password-confirm', 'password_confirm');
+
+        (function () {
+            const yes = document.getElementById('new-reg-era-yes');
+            const no = document.getElementById('new-reg-era-no');
+            const wrapYes = document.getElementById('new-reg-era-yes-wrap');
+            const wrapNo = document.getElementById('new-reg-era-no-wrap');
+            if (!yes || !no || !wrapYes || !wrapNo) {
+                return;
+            }
+            function syncEraStyles() {
+                wrapYes.classList.toggle('selected', yes.checked);
+                wrapNo.classList.toggle('selected', no.checked);
+            }
+            yes.addEventListener('change', syncEraStyles);
+            no.addEventListener('change', syncEraStyles);
+            wrapYes.addEventListener('click', function () {
+                yes.checked = true;
+                syncEraStyles();
+            });
+            wrapNo.addEventListener('click', function () {
+                no.checked = true;
+                syncEraStyles();
+            });
+        })();
 
         // Password confirmation validation
         const passwordField = document.getElementById('password');
@@ -266,6 +304,23 @@ if ($userType === 'existing' && empty($invitationToken)) {
             // Remove password_confirm from data before sending
             delete data.password_confirm;
 
+            if (window.registerUserType === 'existing') {
+                const era = data.era_membership;
+                if (era !== '0' && era !== '1') {
+                    isSubmitting = false;
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                    if (typeof showWarning === 'function') {
+                        showWarning('ERA会員かどうかを選択してください。');
+                    } else {
+                        alert('ERA会員かどうかを選択してください。');
+                    }
+                    return;
+                }
+                data.is_era_member = era === '1';
+                delete data.era_membership;
+            }
+
             try {
                 const response = await fetch('backend/api/auth/register.php', {
                     method: 'POST',
@@ -276,6 +331,14 @@ if ($userType === 'existing' && empty($invitationToken)) {
                 });
 
                 const result = await response.json();
+
+                if (!result.success && result.redirect_login && window.registerUserType === 'existing') {
+                    const emailVal = (data.email || '').trim();
+                    let loginUrl = 'login.php' + (window.existingNavSuffixPhp || '');
+                    loginUrl += (loginUrl.indexOf('?') !== -1 ? '&' : '?') + 'email=' + encodeURIComponent(emailVal);
+                    window.location.href = loginUrl;
+                    return;
+                }
 
                 if (result.success) {
                     // Clear auto-save drafts on success

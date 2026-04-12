@@ -82,7 +82,7 @@ if ($isGuestAccess) {
 }
 
 // Store userType in a variable for URL generation in the page
-$urlTypeParam = ($userType === 'existing') ? '?type=existing' : '';
+$urlTypeParam = ($userType === 'existing') ? existing_user_nav_suffix(false) : '';
 
 try {
     // Database connection is already established above for guest check, reuse if possible
