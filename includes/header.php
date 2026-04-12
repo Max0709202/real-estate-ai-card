@@ -120,6 +120,11 @@ if ($isLoggedIn) {
                     <img src="assets/images/logo.png" alt="不動産AI名刺">
                 </a>
             </div>
+            <div class="lixil-logo">
+                <a href="https://www.erajapan.co.jp/" target="_blank">
+                    <img src="assets/images/lixil logo.png" alt="LIXIL 不動産球果加盟店" style="width:30%;">
+                </a>
+            </div>
             <nav class="nav">
 
                 <?php if ($isLoggedIn): ?>

@@ -504,6 +504,15 @@ body {
 }
 
 @media (max-width: 768px) {
+    .lixil-logo {
+        top : 1.2rem;
+    }
+
+    .lixil-logo a img {
+        height: 40px !important;
+        width: auto !important;
+    }
+
     .section-product-overview {
         padding: 60px 20px;
     }
