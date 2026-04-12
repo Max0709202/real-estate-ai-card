@@ -828,7 +828,7 @@ $defaultGreetings = [
                             <h3>資格</h3>
                             <div class="qualifications-section">
                                 <div class="form-group">
-                                    <label>主な資格（選択）</label>
+                                    <label>主な資格（複数選択可）</label>
                                     <div class="checkbox-list">
                                         <label class="checkbox-item">
                                             <input type="checkbox" name="qualification_takken" value="1">

@@ -2220,6 +2220,7 @@ body {
     justify-content: center;
     gap: 4px;
     margin-bottom: 20px;
+    position: relative;
 }
 
 .price-yen {

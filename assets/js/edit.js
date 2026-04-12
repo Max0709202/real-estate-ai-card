@@ -460,15 +460,15 @@ function populateEditForms(data) {
                 const takkenCheckbox = document.querySelector('input[name="qualification_takken"]');
                 if (takkenCheckbox) takkenCheckbox.checked = true;
             }
-            // Only check one architect qualification (mutual exclusivity)
-            // Priority: 一級建築士 > 二級建築士 > 木造建築士
             if (qualifications.includes('一級建築士')) {
                 const kenchikushi1Checkbox = document.querySelector('input[name="qualification_kenchikushi_1"]');
                 if (kenchikushi1Checkbox) kenchikushi1Checkbox.checked = true;
-            } else if (qualifications.includes('二級建築士')) {
+            }
+            if (qualifications.includes('二級建築士')) {
                 const kenchikushi2Checkbox = document.querySelector('input[name="qualification_kenchikushi_2"]');
                 if (kenchikushi2Checkbox) kenchikushi2Checkbox.checked = true;
-            } else if (qualifications.includes('木造建築士')) {
+            }
+            if (qualifications.includes('木造建築士')) {
                 const kenchikushi3Checkbox = document.querySelector('input[name="qualification_kenchikushi_3"]');
                 if (kenchikushi3Checkbox) kenchikushi3Checkbox.checked = true;
             }
@@ -641,11 +641,6 @@ function populateEditForms(data) {
     }
     
     console.log('Edit forms populated');
-    
-    // Set up mutual exclusivity for architect checkboxes after populating data
-    setTimeout(() => {
-        setupArchitectCheckboxMutualExclusivity();
-    }, 100);
 }
 
 // Display greetings from database for edit page
@@ -1154,50 +1149,6 @@ function setupCommunicationCheckboxes() {
     });
 }
 
-// Set up mutual exclusivity for architect qualification checkboxes
-// Only one of the three architect checkboxes can be checked at a time
-// 宅地建物取引士 checkbox remains independent
-function setupArchitectCheckboxMutualExclusivity() {
-    const architectCheckboxes = [
-        document.querySelector('input[name="qualification_kenchikushi_1"]'), // 一級建築士
-        document.querySelector('input[name="qualification_kenchikushi_2"]'), // 二級建築士
-        document.querySelector('input[name="qualification_kenchikushi_3"]')  // 木造建築士
-    ];
-    
-    // Filter out null checkboxes
-    const validCheckboxes = architectCheckboxes.filter(cb => cb !== null);
-    
-    if (validCheckboxes.length === 0) {
-        return; // Checkboxes don't exist yet
-    }
-    
-    // Add change event listener to each architect checkbox
-    // Use data attribute to prevent duplicate listeners
-    validCheckboxes.forEach(checkbox => {
-        if (checkbox.dataset.mutualExclusivitySetup === 'true') {
-            return; // Already set up
-        }
-        checkbox.dataset.mutualExclusivitySetup = 'true';
-        
-        checkbox.addEventListener('change', function() {
-            if (this.checked) {
-                // If this checkbox is checked, uncheck all other architect checkboxes
-                const allArchitectCheckboxes = [
-                    document.querySelector('input[name="qualification_kenchikushi_1"]'),
-                    document.querySelector('input[name="qualification_kenchikushi_2"]'),
-                    document.querySelector('input[name="qualification_kenchikushi_3"]')
-                ].filter(cb => cb !== null);
-                
-                allArchitectCheckboxes.forEach(otherCheckbox => {
-                    if (otherCheckbox !== this) {
-                        otherCheckbox.checked = false;
-                    }
-                });
-            }
-        });
-    });
-}
-
 // ==============================================
 // Communication help modals (LINE / Facebook / Chatwork)
 // ==============================================
@@ -1347,11 +1298,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-    
-    // Set up mutual exclusivity for architect qualification checkboxes
-    setTimeout(() => {
-        setupArchitectCheckboxMutualExclusivity();
-    }, 300);
     
     // Initialize free input pair drag and drop
     setTimeout(() => {

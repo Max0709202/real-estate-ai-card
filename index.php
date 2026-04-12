@@ -878,7 +878,12 @@ if ($excludeFromSearch) {
                     <span class="price-yen">¥</span>
                     <span class="price-number"><?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_MONTHLY)); ?></span>
                     <span class="price-period">/月（税込）</span>
+                    <?php if ($userType === 'existing'): ?>
+                    <div class="existing-user-price" style="position: absolute; height: 10px; background-color: red; width: 56%; rotate: 350deg; top: 34%;">
+                    </div>
+                    <?php endif; ?>
                 </div>
+                
                 <div class="pricing-plus">+</div>
                 <?php if ($userType === 'existing'): ?>
                 <p class="pricing-initial">初期費用 <?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>円（税込）</p>
