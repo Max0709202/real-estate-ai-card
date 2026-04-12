@@ -21,7 +21,7 @@ if (empty($_SESSION['user_id']) && $userType === 'existing' && !empty($invitatio
         $db = $database->getConnection();
         
         $stmt = $db->prepare("
-            SELECT id, email, role_type, invitation_token_expires_at
+            SELECT id, email, role_type, invitation_token_expires_at, COALESCE(is_era_member, 0) AS is_era_member
             FROM email_invitations
             WHERE invitation_token = ? AND role_type = 'existing'
         ");
@@ -31,6 +31,7 @@ if (empty($_SESSION['user_id']) && $userType === 'existing' && !empty($invitatio
         if ($invitation) {
             $isGuestAccess = true;
             $guestInvitationData = $invitation;
+            $isEraMember = ((int)($invitation['is_era_member'] ?? 0)) === 1;
             // Store in session for this visit
             $_SESSION['guest_invitation_id'] = $invitation['id'];
             $_SESSION['guest_invitation_email'] = $invitation['email'];
@@ -69,6 +70,7 @@ $userEmailForCard = '';
 $showCancelSubscriptionButton = false;
 $stripeCustomerId = '';
 $showUpdatePaymentMethodButton = false;
+$isEraMember = false;
 
 // Determine user type: from session (logged-in user), URL parameter, or guest access
 if ($isGuestAccess) {
@@ -238,10 +240,12 @@ try {
         }
     }
 
-    // Get user type and account status for payment section
-    $stmt = $db->prepare("SELECT user_type FROM users WHERE id = ?");
+    // Get user type, ERA flag, and account status for payment section
+    $stmt = $db->prepare("SELECT user_type, COALESCE(is_era_member, 0) AS is_era_member FROM users WHERE id = ?");
     $stmt->execute([$userId]);
-    $userType = $stmt->fetchColumn() ?: 'new';
+    $userRowMain = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $userType = !empty($userRowMain['user_type']) ? $userRowMain['user_type'] : 'new';
+    $isEraMember = ((int)($userRowMain['is_era_member'] ?? 0)) === 1;
 
     // Check if account is canceled
     $isCanceledAccount = false;
@@ -457,6 +461,7 @@ try {
 } catch (Exception $e) {
     error_log("Error fetching subscription info: " . $e->getMessage());
     $userType = 'new';
+    $isEraMember = false;
     $isCanceledAccount = false;
     $isActive = false;
     $needsPayment = true;
@@ -598,9 +603,9 @@ $defaultGreetings = [
                         <div class="form-group">
                             <label>会社名 <span class="required">*</span></label>
                             <input type="text" name="company_name" class="form-control" required>
-                            <?php if ($userType === 'existing'): ?>
+                            <?php if ($isEraMember): ?>
                                 <div class="lixil-era-badge" style="margin-top: 1rem; user-select: none; pointer-events: none; width:10rem;">
-                                    <img src="assets/images/lixil logo.png" alt="LIXIL 不動産球果加盟店" style="width:100%;">
+                                    <img src="assets/images/lixil logo.png" alt="LIXIL不動産ショップ" style="width:100%;">
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -714,9 +719,9 @@ $defaultGreetings = [
                         <div class="form-group">
                             <label>会社名 <span class="required">*</span></label>
                             <input type="text" name="company_name_profile" class="form-control" required>
-                            <?php if ($userType === 'existing'): ?>
+                            <?php if ($isEraMember): ?>
                                 <div class="lixil-era-badge" style="margin-top: 1rem; user-select: none; pointer-events: none; width:10rem;">
-                                    <img src="assets/images/lixil logo.png" alt="LIXIL 不動産球果加盟店" style="width:100%;">
+                                    <img src="assets/images/lixil logo.png" alt="LIXIL不動産ショップ" style="width:100%;">
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -1213,8 +1218,8 @@ $defaultGreetings = [
                         <?php elseif ($userType === 'existing'): ?>
                             <!-- 既存・ERA会員向け -->
                             <div class="payment-method-detail payment-method-credit">
-                                <p>2026年8月31日まで 初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>（税込）</p>
-                                <p>月額費用：無料</p>
+                                <p>初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>（税込）</p>
+                                <p>月額費用：無料（セルフィンプロを導入期間は月額費用は発生いたしません。）</p>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -1240,8 +1245,8 @@ $defaultGreetings = [
                                 <?php endif; ?>
                             <?php elseif ($userType === 'existing'): ?>
                                 <div class="payment-method-detail payment-method-bank">
-                                    <p>2026年8月31日まで 初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>（税込）</p>
-                                    <p>月額費用：無料</p>
+                                    <p>初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>（税込）</p>
+                                    <p>月額費用：無料（セルフィンプロを導入期間は月額費用は発生いたしません。）</p>
                                 </div>
                             <?php endif; ?>
                         </div>

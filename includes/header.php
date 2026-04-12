@@ -17,6 +17,7 @@ $existingNavAmp     = existing_user_nav_suffix(true);
 
 $isLoggedIn = !empty($_SESSION['user_id']);
 $showNavLinks = isset($showNavLinks) ? $showNavLinks : true;
+$isEraMember = false;
 
 // Check if user has completed payment and has QR code
 $showMyCard = false;
@@ -70,10 +71,14 @@ if ($isLoggedIn) {
         $database = new Database();
         $db = $database->getConnection();
 
-        // Check email verification status
-        $stmt = $db->prepare("SELECT email_verified FROM users WHERE id = ?");
+        // Check email verification status and ERA membership (LIXIL / ERA header badge)
+        $stmt = $db->prepare("SELECT email_verified, COALESCE(is_era_member, 0) AS is_era_member FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $userData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($userData && ((int)($userData['is_era_member'] ?? 0)) === 1) {
+            $isEraMember = true;
+        }
 
         if ($userData && $userData['email_verified'] == 1) {
             $isEmailVerified = true;
@@ -110,6 +115,7 @@ if ($isLoggedIn) {
 <link rel="stylesheet" href="assets/css/mobile.css">
 <!-- Modal Notification CSS -->
 <link rel="stylesheet" href="assets/css/modal.css">
+<link rel="stylesheet" href="/new_lp.css">
 <!-- Modal Notification Script (load early so functions are available) -->
 <script src="assets/js/modal.js"></script>
 <header class="header">
@@ -120,11 +126,13 @@ if ($isLoggedIn) {
                     <img src="assets/images/logo.png" alt="不動産AI名刺">
                 </a>
             </div>
-            <div class="lixil-logo">
-                <a href="https://www.erajapan.co.jp/" target="_blank">
-                    <img src="assets/images/lixil logo.png" alt="LIXIL 不動産球果加盟店" style="width:30%;">
+            <?php if ($isEraMember): ?>
+            <div class="lixil-logo" style="position: absolute; left: 30%;">
+                <a href="https://www.erajapan.co.jp/" target="_blank" rel="noopener noreferrer">
+                    <img src="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/assets/images/' . rawurlencode('lixil logo.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="LIXIL不動産ショップ" style="width:30%;">
                 </a>
             </div>
+            <?php endif; ?>
             <nav class="nav">
 
                 <?php if ($isLoggedIn): ?>

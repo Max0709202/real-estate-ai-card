@@ -376,7 +376,7 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
                             <span class="summary-value">無料</span>
                         </div>
                         <p class="summary-note-monthly">
-                            キャンペーン期間中は月額費用はかかりません。自動更新の停止やキャンセルはマイページからお手続きできます。
+                            セルフィンプロを導入期間は月額費用は発生いたしません。自動更新の停止やキャンセルはマイページからお手続きできます。
                         </p>
                     </div>
                     <?php elseif ($paymentTypeForSummary === 'renewal'): ?>

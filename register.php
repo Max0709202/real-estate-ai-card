@@ -11,6 +11,7 @@ startSessionIfNotStarted();
 // 認証チェック - 未登録の場合はモーダルを表示
 $isLoggedIn = !empty($_SESSION['user_id']);
 $userEmailForCard = '';
+$isEraMember = false;
 
 $userType = $_GET['type'] ?? 'new'; // new, existing, free
 $invitationToken = trim((string) ($_GET['token'] ?? ''));
@@ -33,13 +34,16 @@ if ($isLoggedIn) {
 
         $userId = $_SESSION['user_id'];
 
-        // ユーザータイプを取得（ログイン済みの場合はDBの値を優先）
-        $stmt = $db->prepare("SELECT user_type FROM users WHERE id = ?");
+        // ユーザータイプ・ERA会員フラグを取得（ログイン済みの場合はDBの値を優先）
+        $stmt = $db->prepare("SELECT user_type, COALESCE(is_era_member, 0) AS is_era_member FROM users WHERE id = ?");
         $stmt->execute([$userId]);
-        $userTypeFromDb = $stmt->fetchColumn();
-        if ($userTypeFromDb && in_array($userTypeFromDb, ['new', 'existing'])) {
-            // DBに保存されているuser_typeを優先（既存ユーザーの場合）
-            $userType = $userTypeFromDb;
+        $userRowType = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($userRowType) {
+            $userTypeFromDb = $userRowType['user_type'] ?? null;
+            if ($userTypeFromDb && in_array($userTypeFromDb, ['new', 'existing'], true)) {
+                $userType = $userTypeFromDb;
+            }
+            $isEraMember = ((int)($userRowType['is_era_member'] ?? 0)) === 1;
         }
 
         $stmt = $db->prepare("SELECT email FROM users WHERE id = ?");
@@ -317,9 +321,9 @@ $prefectures = [
                     <div class="form-group">
                         <label>会社名 <span class="required">*</span></label>
                         <input type="text" name="company_name" class="form-control" required>
-                        <?php if ($userType === 'existing'): ?>
+                        <?php if ($isEraMember): ?>
                             <div class="lixil-era-badge" style="margin-top: 1rem; user-select: none; pointer-events: none; width:10rem;">
-                                <img src="assets/images/lixil logo.png" alt="LIXIL 不動産球果加盟店" style="width:100%;">
+                                <img src="assets/images/lixil logo.png" alt="LIXIL不動産ショップ" style="width:100%;">
                             </div>
                         <?php endif; ?>
                     </div>
@@ -1016,8 +1020,8 @@ $prefectures = [
                         <?php elseif ($userType === 'existing'): ?>
                             <!-- 既存・ERA会員向け -->
                             <div class="payment-method-detail payment-method-credit">
-                                <p>2026年8月31日まで 初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>（税込）</p>
-                                <p>月額費用：無料</p>
+                                <p>初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>（税込）</p>
+                                <p>月額費用：無料（セルフィンプロを導入期間は月額費用は発生いたしません。）</p>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -1037,8 +1041,8 @@ $prefectures = [
                             <?php endif; ?>
                         <?php elseif ($userType === 'existing'): ?>
                             <div class="payment-method-detail payment-method-bank">
-                                <p>2026年8月31日まで 初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>（税込）</p>
-                                <p>月額費用：無料</p>
+                                <p>初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>（税込）</p>
+                                <p>月額費用：無料（セルフィンプロを導入期間は月額費用は発生いたしません。）</p>
                             </div>
                         <?php endif; ?>
                     </div>
