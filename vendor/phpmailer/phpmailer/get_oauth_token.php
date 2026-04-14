@@ -49,26 +49,187 @@ use Greew\OAuth2\Client\Provider\Azure;
 
 if (!isset($_GET['code']) && !isset($_POST['provider'])) {
     ?>
-<html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OAuth Token Setup</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --primary: #0f62fe;
+      --primary-hover: #0b4fd1;
+      --ring: rgba(15, 98, 254, 0.2);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #f7f9ff 0%, var(--bg) 100%);
+      min-height: 100vh;
+      padding: 24px 12px;
+    }
+
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 1.25rem;
+      line-height: 1.4;
+      font-weight: 700;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 0.95rem;
+    }
+
+    .provider-group {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(140px, 1fr));
+      gap: 10px;
+      margin: 12px 0 24px;
+    }
+
+    .provider-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #fff;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-size: 0.95rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+      background: #fff;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px var(--ring);
+    }
+
+    .actions {
+      margin-top: 18px;
+    }
+
+    input[type="submit"] {
+      appearance: none;
+      border: 0;
+      border-radius: 10px;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 12px 18px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.05s;
+    }
+
+    input[type="submit"]:hover {
+      background: var(--primary-hover);
+    }
+
+    input[type="submit"]:active {
+      transform: translateY(1px);
+    }
+
+    @media (max-width: 560px) {
+      .card { padding: 18px; }
+      .provider-group { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
 <body>
-<form method="post">
-    <h1>Select Provider</h1>
-    <input type="radio" name="provider" value="Google" id="providerGoogle">
-    <label for="providerGoogle">Google</label><br>
-    <input type="radio" name="provider" value="Yahoo" id="providerYahoo">
-    <label for="providerYahoo">Yahoo</label><br>
-    <input type="radio" name="provider" value="Microsoft" id="providerMicrosoft">
-    <label for="providerMicrosoft">Microsoft</label><br>
-    <input type="radio" name="provider" value="Azure" id="providerAzure">
-    <label for="providerAzure">Azure</label><br>
-    <h1>Enter id and secret</h1>
-    <p>These details are obtained by setting up an app in your provider's developer console.
-    </p>
-    <p>ClientId: <input type="text" name="clientId"><p>
-    <p>ClientSecret: <input type="text" name="clientSecret"></p>
-    <p>TenantID (only relevant for Azure): <input type="text" name="tenantId"></p>
-    <input type="submit" value="Continue">
-</form>
+  <div class="wrap">
+    <form method="post" class="card">
+      <h1>Select Provider</h1>
+
+      <div class="provider-group">
+        <label class="provider-item" for="providerGoogle">
+          <input type="radio" name="provider" value="Google" id="providerGoogle">
+          <span>Google</span>
+        </label>
+
+        <label class="provider-item" for="providerYahoo">
+          <input type="radio" name="provider" value="Yahoo" id="providerYahoo">
+          <span>Yahoo</span>
+        </label>
+
+        <label class="provider-item" for="providerMicrosoft">
+          <input type="radio" name="provider" value="Microsoft" id="providerMicrosoft">
+          <span>Microsoft</span>
+        </label>
+
+        <label class="provider-item" for="providerAzure">
+          <input type="radio" name="provider" value="Azure" id="providerAzure">
+          <span>Azure</span>
+        </label>
+      </div>
+
+      <h1>Enter ID and Secret</h1>
+      <p>These details are obtained by setting up an app in your provider’s developer console.</p>
+
+      <div class="field">
+        <label for="clientId">Client ID</label>
+        <input type="text" name="clientId" id="clientId" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label for="clientSecret">Client Secret</label>
+        <input type="text" name="clientSecret" id="clientSecret" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label for="tenantId">Tenant ID (Azure only)</label>
+        <input type="text" name="tenantId" id="tenantId" autocomplete="off">
+      </div>
+
+      <div class="actions">
+        <input type="submit" value="Continue">
+      </div>
+    </form>
+  </div>
 </body>
 </html>
     <?php

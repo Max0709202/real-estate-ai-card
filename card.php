@@ -95,63 +95,117 @@ if (!$card) {
 if (!$preview && (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || $card['is_published'] == 0)) {
     // Display custom message instead of 404
     ?>
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>名刺を表示できません</title>
-    <style>
-        body {
-            font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0;
-            padding: 20px;
-        }
-        .message-container {
-            background: #fff;
-            border-radius: 12px;
-            padding: 3rem;
-            max-width: 500px;
-            text-align: center;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        }
-        .message-icon {
-            font-size: 4rem;
-            margin-bottom: 1.5rem;
-        }
-        .message-title {
-            font-size: 1.5rem;
-            color: #333;
-            margin-bottom: 1rem;
-            font-weight: bold;
-        }
-        .message-description {
-            color: #666;
-            line-height: 1.8;
-            margin-bottom: 2rem;
-        }
-    </style>
-</head>
-<body>
-    <div class="message-container">
-        <div class="message-icon">⚠️</div>
-        <h1 class="message-title">この名刺は現在ご利用いただけません</h1>
-        <p class="message-description">
-            <?php if (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST'])): ?>
-                入金確認が完了していないため、名刺を表示することができません。<br>
-                名刺のご利用には入金確認が必要です。
-            <?php elseif ($card['is_published'] == 0): ?>
-                この名刺は現在非公開のため表示できません。
-            <?php endif; ?>
-        </p>
-    </div>
-</body>
-</html>
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="UTF-8">
+        <title>サブスクリプション通知</title>
+        </head>
+        <body style="margin:0; padding:0; background-color:#667eea;">
+
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,#667eea,#764ba2); padding:40px 0;">
+        <tr>
+            <td align="center">
+
+            <!-- Card -->
+            <table width="500" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:12px; padding:30px; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+
+                <!-- Icon -->
+                <tr>
+                <td style="font-size:48px; padding-bottom:20px;">
+                    ⚠️
+                </td>
+                </tr>
+
+                <!-- Title -->
+                <tr>
+                <td style="font-size:20px; font-weight:bold; color:#333; padding-bottom:15px;">
+                    サブスクリプションがキャンセルされました
+                </td>
+                </tr>
+
+                <!-- Description -->
+                <tr>
+                <td style="color:#666; line-height:1.8; padding-bottom:25px; text-align:left;">
+                    {$initiatedBy} によりサブスクリプションがキャンセルされました。
+                </td>
+                </tr>
+
+                <!-- Info Table -->
+                <tr>
+                <td>
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; font-size:14px;">
+                    
+                    <tr>
+                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">ユーザーID</td>
+                        <td style="padding:10px; border:1px solid #ddd;">{$userId}</td>
+                    </tr>
+
+                    <tr>
+                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">メールアドレス</td>
+                        <td style="padding:10px; border:1px solid #ddd;">{$userEmail}</td>
+                    </tr>
+
+                    <tr>
+                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">サブスクリプションID</td>
+                        <td style="padding:10px; border:1px solid #ddd;">{$subscriptionId}</td>
+                    </tr>
+
+                    <tr>
+                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">ビジネスカードID</td>
+                        <td style="padding:10px; border:1px solid #ddd;">{$businessCardId}</td>
+                    </tr>
+
+                    <tr>
+                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">URLスラッグ</td>
+                        <td style="padding:10px; border:1px solid #ddd; background:#fff3cd;">{$urlSlug}</td>
+                    </tr>
+
+                    <tr>
+                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">キャンセル種別</td>
+                        <td style="padding:10px; border:1px solid #ddd;">{$cancellationType}</td>
+                    </tr>
+
+                    <tr>
+                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">操作者</td>
+                        <td style="padding:10px; border:1px solid #ddd;">{$initiatedBy}</td>
+                    </tr>
+
+                    <tr>
+                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">キャンセル日時</td>
+                        <td style="padding:10px; border:1px solid #ddd;">{$cancellationDate}</td>
+                    </tr>
+
+                    <!-- Optional URL -->
+                    " . ($cardFullUrl ? "
+                    <tr>
+                        <td style='background:#f1f1f1; padding:10px; border:1px solid #ddd;'>名刺URL</td>
+                        <td style='padding:10px; border:1px solid #ddd;'>
+                        <a href='{$cardFullUrl}' target='_blank' style='color:#667eea;'>{$cardFullUrl}</a>
+                        </td>
+                    </tr>
+                    " : "") . "
+
+                    </table>
+                </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                <td style="padding-top:25px; font-size:12px; color:#888;">
+                    このメールは自動送信されています。返信はできません。<br>
+                    © " . date('Y') . " 不動産AI名刺
+                </td>
+                </tr>
+
+            </table>
+
+            </td>
+        </tr>
+        </table>
+
+        </body>
+        </html>
     <?php
     exit();
 }

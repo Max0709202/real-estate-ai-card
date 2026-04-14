@@ -86,46 +86,92 @@ try {
     // Prepare email content (same as send-invitation-email.php)
     $displayName = $invitation['username'] ?: 'ご担当者様';
     $roleTypeJa = ['new' => '新規ユーザー', 'existing' => '既存ユーザー'];
-    $roleLabel = $roleTypeJa[$roleType] ?? '新規ユーザー';
+    $roleLabel = $roleTypeJa[$roleType] ?? '既存ユーザー';
 
     $subject = "【不動産AI名刺】サービスへのご招待";
 
     $htmlBody = "
-    <html>
-    <head>
-        <style>
-            body { font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #2c5282; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { background: #f7fafc; padding: 30px; border: 1px solid #e2e8f0; }
-            .button { display: inline-block; padding: 12px 30px; background:rgb(68 97 165); color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
-            .footer { text-align: center; padding: 20px; color: #718096; font-size: 12px; }
-        </style>
-    </head>
-    <body>
-        <div class='container'>
-            <div class='header'>
-                <h1>不動産AI名刺へようこそ</h1>
-            </div>
-            <div class='content'>
-                <p>{$displayName} 様</p>
-                <p>不動産AI名刺サービスへのご招待です。</p>
-                <p>下記のリンクからアクセスして、サービスをご利用ください。</p>
-                <p><strong>ユーザータイプ:</strong> {$roleLabel}</p>
-                <p style='text-align: center;'>
-                    <a href='{$landingPage}' class='button' target='_blank'>サービスにアクセス</a>
-                </p>
-                <p style='font-size: 14px; color: #666;'>
-                    リンク: <a href='{$landingPage}' style='word-wrap: break-word;' target='_blank'>{$landingPage}</a>
-                </p>
-                <p>ご不明な点がございましたら、お気軽にお問い合わせください。</p>
-            </div>
-            <div class='footer'>
-                <p>このメールは不動産AI名刺から自動送信されています。</p>
-            </div>
-        </div>
-    </body>
-    </html>
+        <html>
+        <head>
+        <meta charset='UTF-8'>
+        <title>不動産AI名刺</title>
+        </head>
+        <body style='margin:0; padding:0; background-color:#f0f0f0;'>
+
+        <table width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f0f0f0;'>
+        <tr>
+            <td align='center'>
+
+            <!-- Container -->
+            <table width='600' cellpadding='0' cellspacing='0' border='0' style='background-color:#ffffff; margin:20px auto; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;'>
+
+                <!-- Header -->
+                <tr>
+                <td style='background-color:#2c5282; color:#ffffff; padding:20px; text-align:center;'>
+                    <h1 style='margin:0; font-size:24px;'>不動産AI名刺へようこそ</h1>
+                </td>
+                </tr>
+
+                <!-- Content -->
+                <tr>
+                <td style='padding:30px; background-color:#f7fafc;'>
+
+                    <p style='margin:0 0 15px 0;'>{$displayName} 様</p>
+
+                    <p style='margin:0 0 15px 0;'>
+                    不動産AI名刺サービスへのご招待です。
+                    </p>
+
+                    <p style='margin:0 0 15px 0;'>
+                    下記のリンクからアクセスして、サービスをご利用ください。
+                    </p>
+
+                    <p style='margin:0 0 20px 0;'>
+                    <strong>ユーザータイプ:</strong> {$roleLabel}
+                    </p>
+
+                    <!-- Button -->
+                    <table cellpadding='0' cellspacing='0' border='0' align='center' style='margin:20px auto;'>
+                    <tr>
+                        <td align='center' bgcolor='#4461a5' style='border-radius:5px;'>
+                        <a href='{$landingPage}' target='_blank'
+                            style='display:inline-block; padding:12px 30px; color:#ffffff; text-decoration:none; font-weight:bold;'>
+                            サービスにアクセス
+                        </a>
+                        </td>
+                    </tr>
+                    </table>
+
+                    <!-- Link fallback -->
+                    <p style='font-size:14px; color:#666; word-break:break-all;'>
+                    リンク:
+                    <a href='{$landingPage}' target='_blank' style='color:#4461a5;'>
+                        {$landingPage}
+                    </a>
+                    </p>
+
+                    <p style='margin-top:20px;'>
+                    ご不明な点がございましたら、お気軽にお問い合わせください。
+                    </p>
+
+                </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                <td style='text-align:center; padding:20px; font-size:12px; color:#718096;'>
+                    このメールは不動産AI名刺から自動送信されています。
+                </td>
+                </tr>
+
+            </table>
+
+            </td>
+        </tr>
+        </table>
+
+        </body>
+        </html>
     ";
 
     $plainBody = "{$displayName} 様\n\n";

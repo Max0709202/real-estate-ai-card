@@ -65,15 +65,45 @@ try {
     
     $emailSubject = '【不動産AI名刺】管理者アカウント登録';
     $emailBody = "
-        <html>
-        <head><meta charset='UTF-8'></head>
-        <body>
-            <p>管理者アカウントが作成されました。</p>
-            <p>以下のリンクをクリックしてメール認証を完了してください：</p>
-            <p><a href='{$verificationLink}'>メール認証を完了する</a></p>
-            <p>このリンクは24時間有効です。</p>
-        </body>
-        </html>
+            <html>
+            <head>
+                <meta charset='UTF-8'>
+            </head>
+            <body style='margin:0;padding:0;background:#f4f6fb;font-family:'Hiragino Sans','Yu Gothic',Meiryo,sans-serif;color:#1f2937;'>
+                <table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='background:#f4f6fb;padding:24px 12px;'>
+                    <tr>
+                        <td align='center'>
+                            <table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='max-width:560px;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;'>
+                                <tr>
+                                    <td style='background:#2c5282;color:#ffffff;padding:18px 24px;font-size:20px;font-weight:700;'>
+                                        不動産AI名刺 管理者
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style='padding:24px;'>
+                                        <p style='margin:0 0 14px;font-size:15px;line-height:1.8;'>管理者アカウントが作成されました。</p>
+                                        <p style='margin:0 0 20px;font-size:15px;line-height:1.8;'>以下のボタンをクリックしてメール認証を完了してください。</p>
+
+                                        <p style='margin:0 0 22px;text-align:center;'>
+                                            <a href='{$verificationLink}' style='display:inline-block;background:#2c5282;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:8px;'>
+                                                メール認証を完了する
+                                            </a>
+                                        </p>
+
+                                        <p style='margin:0 0 16px;font-size:13px;line-height:1.8;color:#6b7280;'>このリンクは24時間有効です。</p>
+
+                                        <div style='margin-top:18px;padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;'>
+                                            <p style='margin:0 0 6px;font-size:12px;color:#6b7280;word-break:break-all;'>ボタンが押せない場合は、下記URLをコピーしてブラウザで開いてください。</p>
+                                            <p style='margin:0;font-size:12px;color:#2563eb;word-break:break-all;'>{$verificationLink}</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
     ";
 
     sendEmail($input['email'], $emailSubject, $emailBody, strip_tags($emailBody));
