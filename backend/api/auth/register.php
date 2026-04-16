@@ -179,118 +179,47 @@ try {
     $emailSubject = '【不動産AI名刺】メール認証のお願い';
 
     // HTML本文
+    $logoUrl = rtrim(BASE_URL, '/') . '/assets/images/logo.png';
     $emailBodyHtml = "
-            <html>
-            <head>
+        <html>
+        <head>
             <meta charset='UTF-8'>
-            <title>サブスクリプション通知</title>
-            </head>
-
-            <body style='margin:0; padding:0; background-color:#f0f0f0;'>
-
+            <title>メール認証のお願い</title>
+        </head>
+        <body style='margin:0; padding:0; background-color:#f0f0f0;'>
             <table width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f0f0f0;'>
-            <tr>
-            <td align='center'>
-
-            <!-- Container -->
-            <table width='600' cellpadding='0' cellspacing='0' border='0' style='background-color:#ffffff; border:3px solid #a3a3a3; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;'>
-
-                <!-- Header -->
                 <tr>
-                    <td align='center' style='padding:30px 20px;'>
-                        <div style='background:#ffffff; padding:15px; display:inline-block;'>
-                            <img src='' . BASE_URL . '/assets/images/logo.png' alt='不動産AI名刺' style='max-width:100px; height:auto; display:block;'>
-                        </div>
-                    </td>
-                </tr>
-
-                <!-- Content -->
-                <tr>
-                    <td style='background-color:#f9f9f9; padding:30px;'>
-
-                        <p style='margin:0 0 20px 0;'>
-                            サブスクリプションがキャンセルされました。（{$initiatedBy}による操作）
-                        </p>
-
-                        <!-- Info Table -->
-                        <table width='100%' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse; background:#ffffff; margin-bottom:20px;'>
-
+                    <td align='center' style='padding:24px 12px;'>
+                        <table width='600' cellpadding='0' cellspacing='0' border='0' style='max-width:600px; width:100%; background-color:#ffffff; border:3px solid #a3a3a3; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;'>
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold; width:30%;'>ユーザーID</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$userId}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>メールアドレス</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$userEmail}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>サブスクリプションID</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$subscriptionId}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>ビジネスカードID</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$businessCardId}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>URLスラッグ</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    <span style='background:#fff3cd; padding:2px 6px;'>{$urlSlug}</span>
+                                <td align='center' style='padding:30px 20px 10px;'>
+                                    <img src='{$logoUrl}' alt='不動産AI名刺' style='max-width:120px; height:auto; display:block;'>
                                 </td>
                             </tr>
-
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>キャンセル種別</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$cancellationType}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>操作者</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$initiatedBy}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>キャンセル日時</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$cancellationDate}</td>
-                            </tr>
-
-                            ' . ($cardFullUrl ? '
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>名刺URL</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    <a href='{$cardFullUrl}' target='_blank' style='color:#0066cc; word-break:break-all;'>
-                                        {$cardFullUrl}
-                                    </a>
+                                <td style='background-color:#f9f9f9; padding:30px;'>
+                                    <p style='margin:0 0 16px 0; line-height:1.8;'>不動産AI名刺へのご登録ありがとうございます。</p>
+                                    <p style='margin:0 0 16px 0; line-height:1.8;'>以下のボタンをクリックして、メール認証を完了してください。<br>このリンクは15分間有効です。</p>
+                                    <div style='text-align:center; margin:28px 0;'>
+                                        <a href='{$verificationLink}' target='_blank' rel='noopener noreferrer' style='display:inline-block; background:#0066cc; color:#ffffff; text-decoration:none; font-weight:bold; padding:12px 24px; border-radius:6px;'>メール認証を完了する</a>
+                                    </div>
+                                    <p style='margin:0 0 10px 0; line-height:1.8;'>ボタンが開けない場合は、以下のURLをブラウザにコピーしてご利用ください。</p>
+                                    <p style='margin:0 0 16px 0; word-break:break-all;'><a href='{$verificationLink}' target='_blank' rel='noopener noreferrer' style='color:#0066cc;'>{$verificationLink}</a></p>
+                                    <p style='margin:0; line-height:1.8;'>このメールに覚えがない場合は、破棄してください。</p>
                                 </td>
                             </tr>
-                            ' : '') . '
-
-                        </table>
-
-                        <!-- Footer -->
-                        <table width='100%' cellpadding='0' cellspacing='0' border='0'>
                             <tr>
-                                <td style='border-top:1px solid #ddd; padding-top:20px; font-size:12px; color:#666;'>
+                                <td style='padding:20px 30px; border-top:1px solid #ddd; font-size:12px; color:#666;'>
                                     <p style='margin:0 0 5px 0;'>このメールは自動送信されています。返信はできません。</p>
-                                    <p style='margin:0;'>© ' . date('Y') . ' 不動産AI名刺 All rights reserved.</p>
+                                    <p style='margin:0;'>© " . date('Y') . " 不動産AI名刺 All rights reserved.</p>
                                 </td>
                             </tr>
                         </table>
-
                     </td>
                 </tr>
-
             </table>
-
-            </td>
-            </tr>
-            </table>
-
-            </body>
-            </html>
+        </body>
+        </html>
     ";
 
     // プレーンテキスト（必須）

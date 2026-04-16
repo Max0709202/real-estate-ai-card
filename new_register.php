@@ -18,6 +18,7 @@ if ($invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
 $isTokenBased = !empty($invitationToken);
 $tokenValid = false;
 $tokenData = null;
+$prefilledEmail = '';
 
 // Validate token if provided and ensure type matches token's role_type（DB 直参照、cURL 不使用）
 if ($isTokenBased) {
@@ -43,6 +44,10 @@ if ($isTokenBased) {
 // If type is existing but no token, log warning but allow registration to proceed
 if ($userType === 'existing' && empty($invitationToken)) {
     error_log("Warning: Registration with type={$userType} but no token provided");
+}
+
+if ($tokenValid && !empty($tokenData['email'])) {
+    $prefilledEmail = (string)$tokenData['email'];
 }
 ?>
 <!DOCTYPE html>
@@ -83,16 +88,16 @@ if ($userType === 'existing' && empty($invitationToken)) {
                     <input type="hidden" name="invitation_token" id="invitation_token" value="<?php echo htmlspecialchars($invitationToken); ?>">
                     <?php endif; ?>
 
-                    <?php if ($userType === 'existing'): ?>
-                    <div class="form-group">
-                        <label>既存URL（既存利用者のみ）</label>
-                        <input type="text" name="existing_url" class="form-control" placeholder="既存のサービスURLを入力">
-                    </div>
-                    <?php endif; ?>
-
                     <div class="form-group">
                         <label>メールアドレス <span class="required">*</span></label>
-                        <input type="email" name="email" class="form-control" required>
+                        <input
+                            type="email"
+                            name="email"
+                            class="form-control"
+                            value="<?php echo htmlspecialchars($prefilledEmail, ENT_QUOTES, 'UTF-8'); ?>"
+                            autocomplete="email"
+                            required
+                        >
                     </div>
 
                     <div class="form-group">

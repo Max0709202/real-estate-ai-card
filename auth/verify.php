@@ -14,7 +14,6 @@ $message = '';
 $success = false;
 $error = '';
 $redirectUrl = null;
-$invitationToken = null;
 $userTypeForRedirect = null;
 
 if (!empty($token)) {
@@ -57,16 +56,13 @@ if (!empty($token)) {
                     $_SESSION['user_type'] = $user['user_type'];
                     $_SESSION['email_verified'] = true;
 
-                    // Prepare redirect URL with invitation_token and user_type if available
+                    // 遷移先は絶対URL（メール内ブラウザ等で相対パスが解決されない問題の回避）
                     $userTypeForRedirect = $user['user_type'];
-                    $invitationToken = $user['invitation_token'];
-                    
-                    // Only redirect with token for existing users who have an invitation_token
-                    if ($userTypeForRedirect === 'existing' && !empty($invitationToken)) {
-                        $redirectUrl = "../register.php?type=" . urlencode($userTypeForRedirect) ;
+                    $registerBase = rtrim(BASE_URL, '/') . '/register.php';
+                    if ($userTypeForRedirect === 'existing') {
+                        $redirectUrl = $registerBase . '?type=' . urlencode($userTypeForRedirect);
                     } else {
-                        // For new users or users without invitation_token, redirect normally
-                        $redirectUrl = "../register.php";
+                        $redirectUrl = $registerBase;
                     }
 
                     $success = true;
@@ -190,15 +186,15 @@ if (!empty($token)) {
             </p>
             <div>
                 <?php if ($redirectUrl): ?>
-                    <a href="<?php echo htmlspecialchars($redirectUrl); ?>" class="btn-primary">作成・編集ページへ</a>
+                    <a href="<?php echo htmlspecialchars($redirectUrl, ENT_QUOTES, 'UTF-8'); ?>" class="btn-primary" style="position:relative;z-index:2;pointer-events:auto;">作成・編集ページへ</a>
                     <script>
                         // Auto-redirect after 2 seconds
                         setTimeout(function() {
-                            window.location.href = <?php echo json_encode($redirectUrl); ?>;
+                            window.location.assign(<?php echo json_encode($redirectUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>);
                         }, 2000);
                     </script>
                 <?php else: ?>
-                    <a href="../register.php" class="btn-primary">作成・編集ページへ</a>
+                    <a href="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/register.php', ENT_QUOTES, 'UTF-8'); ?>" class="btn-primary" style="position:relative;z-index:2;pointer-events:auto;">作成・編集ページへ</a>
                 <?php endif; ?>
             </div>
         <?php else: ?>
