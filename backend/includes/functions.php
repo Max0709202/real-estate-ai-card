@@ -33,6 +33,8 @@ if (!$autoloadLoaded) {
     throw new RuntimeException('Composer autoload not found. Run: composer install in backend/');
 }
 
+require_once __DIR__ . '/upload_security.php';
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -739,97 +741,161 @@ function resizeImage($filePath, $maxWidth = 800, $maxHeight = 800, $quality = 85
 }
 
 /**
- * ファイルアップロード
+ * ファイルアップロード（隔離→ClamAV→MIME寸法検証→公開ディレクトリへ保存→向き補正→リサイズ→メタデータ除去再エンコード）
  *
  * @param array $file $_FILES array element
  * @param string $subDirectory Subdirectory (e.g., 'logo/', 'photo/', 'free/')
+ * @param int|null $userId For audit logging
  * @return array Success/failure with file info
  */
-function uploadFile($file, $subDirectory = '') {
+function uploadFile($file, $subDirectory = '', $userId = null) {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+
+    if (!upload_security_check_rate_limit($ip)) {
+        upload_security_log_event('rate_limited', ['sub' => $subDirectory], $userId);
+        return ['success' => false, 'message' => 'リクエストが多すぎます。しばらくしてから再度お試しください。'];
+    }
+
     if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
         error_log("uploadFile: File not uploaded - tmp_name: " . ($file['tmp_name'] ?? 'not set'));
         return ['success' => false, 'message' => 'ファイルがアップロードされていません'];
     }
 
-    // ファイルサイズチェック（リサイズ前の上限）
     if ($file['size'] > MAX_FILE_SIZE) {
         error_log("uploadFile: File too large - size: " . $file['size'] . ", max: " . MAX_FILE_SIZE);
+        upload_security_log_event('reject_size', ['size' => $file['size']], $userId);
         return ['success' => false, 'message' => 'ファイルサイズが大きすぎます（最大: ' . (MAX_FILE_SIZE / 1024 / 1024) . 'MB）'];
     }
 
-    // ファイルタイプチェック
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-
-    if (!in_array($mimeType, ALLOWED_IMAGE_TYPES)) {
-        error_log("uploadFile: Invalid file type - mime: $mimeType, allowed: " . implode(', ', ALLOWED_IMAGE_TYPES));
-        return ['success' => false, 'message' => '許可されていないファイルタイプです: ' . $mimeType];
+    $nameErr = upload_security_validate_client_filename($file['name'] ?? '');
+    if ($nameErr !== null) {
+        upload_security_log_event('reject_filename', ['name' => $file['name'] ?? ''], $userId);
+        return ['success' => false, 'message' => $nameErr];
     }
 
-    // ディレクトリ作成
+    $quarantineDir = defined('UPLOAD_QUARANTINE_DIR') ? UPLOAD_QUARANTINE_DIR : (sys_get_temp_dir() . '/ai_fcard_quarantine/');
+    if (!is_dir($quarantineDir)) {
+        if (!@mkdir($quarantineDir, 0755, true)) {
+            error_log("uploadFile: Cannot create quarantine: $quarantineDir");
+            return ['success' => false, 'message' => 'サーバー設定エラーです。'];
+        }
+    }
+
+    $quarantineName = 'q_' . bin2hex(random_bytes(16)) . '.part';
+    $quarantinePath = $quarantineDir . $quarantineName;
+
+    if (!move_uploaded_file($file['tmp_name'], $quarantinePath)) {
+        error_log("uploadFile: move to quarantine failed");
+        return ['success' => false, 'message' => 'ファイルの受信に失敗しました'];
+    }
+
+    $hashQuarantine = @hash_file('sha256', $quarantinePath);
+
+    $clam = upload_security_clamav_scan($quarantinePath);
+    if (!$clam['ok']) {
+        @unlink($quarantinePath);
+        if (!empty($clam['infected'])) {
+            upload_security_log_event('malware_detected', [
+                'sha256' => $hashQuarantine,
+                'detail' => $clam['message'] ?? '',
+            ], $userId);
+            return ['success' => false, 'message' => 'ファイルがセキュリティチェックに失敗しました。別のファイルをお試しください。'];
+        }
+        return ['success' => false, 'message' => $clam['message'] ?? 'セキュリティスキャンに失敗しました。'];
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $quarantinePath);
+    finfo_close($finfo);
+
+    if (!in_array($mimeType, ALLOWED_IMAGE_TYPES, true)) {
+        @unlink($quarantinePath);
+        upload_security_log_event('reject_mime', ['mime' => $mimeType, 'sha256' => $hashQuarantine], $userId);
+        return ['success' => false, 'message' => '許可されていないファイルタイプです。'];
+    }
+
+    $dimCheck = upload_security_validate_image_dimensions($quarantinePath, $mimeType);
+    if (!$dimCheck['ok']) {
+        @unlink($quarantinePath);
+        upload_security_log_event('reject_dimensions', ['message' => $dimCheck['message'] ?? '', 'sha256' => $hashQuarantine], $userId);
+        return ['success' => false, 'message' => $dimCheck['message'] ?? '画像の検証に失敗しました。'];
+    }
+
+    $ext = upload_security_mime_to_extension($mimeType);
+    if ($ext === null) {
+        @unlink($quarantinePath);
+        return ['success' => false, 'message' => '許可されていないファイル形式です。'];
+    }
+
     $uploadDir = UPLOAD_DIR . $subDirectory;
     if (!is_dir($uploadDir)) {
-        error_log("uploadFile: Creating directory: $uploadDir");
         if (!mkdir($uploadDir, 0755, true)) {
+            @unlink($quarantinePath);
             error_log("uploadFile: Failed to create directory: $uploadDir");
             return ['success' => false, 'message' => 'アップロードディレクトリの作成に失敗しました'];
         }
     }
 
-    // ファイル名生成
-    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $fileName = uniqid() . '_' . time() . '.' . $extension;
+    $fileName = uniqid('', true) . '_' . time() . '.' . $ext;
     $filePath = $uploadDir . $fileName;
 
-    // 元のファイル情報を取得
-    $originalSize = $file['size'];
-    $originalInfo = @getimagesize($file['tmp_name']);
+    if (!@rename($quarantinePath, $filePath)) {
+        @unlink($quarantinePath);
+        error_log("uploadFile: rename quarantine to final failed");
+        return ['success' => false, 'message' => 'ファイルの保存に失敗しました'];
+    }
+
+    $originalSize = filesize($filePath);
+    $originalInfo = @getimagesize($filePath);
     $originalWidth = $originalInfo ? $originalInfo[0] : 0;
     $originalHeight = $originalInfo ? $originalInfo[1] : 0;
 
-    error_log("uploadFile: Moving file to: $filePath (Original: {$originalWidth}x{$originalHeight}, " . round($originalSize / 1024, 2) . "KB)");
+    error_log("uploadFile: Saved $filePath ({$originalWidth}x{$originalHeight}, " . round($originalSize / 1024, 2) . "KB)");
 
-    // ファイル移動
-    if (!move_uploaded_file($file['tmp_name'], $filePath)) {
-        error_log("uploadFile: Failed to move file from " . $file['tmp_name'] . " to $filePath");
-        return ['success' => false, 'message' => 'ファイルの移動に失敗しました'];
-    }
+    $shaFinal = @hash_file('sha256', $filePath);
+    upload_security_log_event('stored', [
+        'sha256' => $shaFinal,
+        'mime'   => $mimeType,
+        'bytes'  => $originalSize,
+        'clamav' => empty($clam['skipped']) ? 'scanned' : 'skipped',
+    ], $userId);
 
-    // EXIF向き情報の正規化（リサイズ前に実行）
-    // これにより、スマートフォンで撮影した画像が正しい向きで保存されます
-    $orientationNormalized = false;
+    // EXIF orientation (JPEG) before resize
     try {
-        $orientationNormalized = normalizeImageOrientation($filePath, $mimeType);
-        if ($orientationNormalized) {
-            error_log("uploadFile: Image orientation normalized successfully");
-            // 正規化後の画像情報を再取得（向きが変わった可能性があるため）
-            $normalizedInfo = @getimagesize($filePath);
-            if ($normalizedInfo) {
-                $originalWidth = $normalizedInfo[0];
-                $originalHeight = $normalizedInfo[1];
-                error_log("uploadFile: After normalization - {$originalWidth}x{$originalHeight}");
-            }
-        } else {
-            error_log("uploadFile: Image orientation normalization failed or skipped (non-JPEG or no EXIF)");
+        normalizeImageOrientation($filePath, $mimeType);
+        $normalizedInfo = @getimagesize($filePath);
+        if ($normalizedInfo) {
+            $originalWidth = $normalizedInfo[0];
+            $originalHeight = $normalizedInfo[1];
         }
     } catch (Exception $e) {
         error_log("uploadFile: Orientation normalization error - " . $e->getMessage());
-        // 正規化エラーは致命的ではないため、処理を続行
     }
 
-    // 画像リサイズ（有効な場合、正規化後に実行）
     $resizeInfo = null;
     if (defined('IMAGE_RESIZE_ENABLED') && IMAGE_RESIZE_ENABLED) {
         try {
             $resizeInfo = resizeImageWithType($filePath, $subDirectory);
         } catch (Exception $e) {
             error_log("uploadFile: Resize failed - " . $e->getMessage());
-            $resizeInfo = null;
+            @unlink($filePath);
+            return ['success' => false, 'message' => '画像の処理に失敗しました。'];
+        }
+        if ($resizeInfo === false) {
+            @unlink($filePath);
+            upload_security_log_event('reject_resize_failed', ['sha256' => $shaFinal], $userId);
+            return ['success' => false, 'message' => '画像の処理に失敗しました。'];
         }
     }
 
-    // リサイズ後のファイル情報
+    $quality = defined('IMAGE_QUALITY') ? (int) IMAGE_QUALITY : 85;
+    if (!upload_security_reencode_strip_metadata($filePath, $mimeType, $quality)) {
+        error_log("uploadFile: reencode/strip metadata failed for $filePath");
+        @unlink($filePath);
+        upload_security_log_event('reject_reencode_failed', ['sha256' => $shaFinal], $userId);
+        return ['success' => false, 'message' => '画像の処理に失敗しました。'];
+    }
+
     $finalSize = filesize($filePath);
     $finalInfo = @getimagesize($filePath);
     $finalWidth = $finalInfo ? $finalInfo[0] : $originalWidth;
@@ -848,7 +914,8 @@ function uploadFile($file, $subDirectory = '') {
         'final_size' => $finalSize,
         'original_dimensions' => ['width' => $originalWidth, 'height' => $originalHeight],
         'final_dimensions' => ['width' => $finalWidth, 'height' => $finalHeight],
-        'was_resized' => $resizeInfo !== null && $resizeInfo !== false
+        'was_resized' => is_array($resizeInfo) && (($resizeInfo['resized'] ?? false) === true),
+        'sha256' => @hash_file('sha256', $filePath) ?: $shaFinal,
     ];
 }
 

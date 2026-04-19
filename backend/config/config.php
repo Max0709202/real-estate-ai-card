@@ -52,8 +52,16 @@ define('API_BASE_URL', BASE_URL . '/backend/api');
 
 // ファイルアップロード設定
 define('UPLOAD_DIR', __DIR__ . '/../uploads/');
+/** Pre-validation staging (not web-accessible; ClamAV + MIME checks run here first) */
+define('UPLOAD_QUARANTINE_DIR', __DIR__ . '/../uploads_quarantine/');
 define('MAX_FILE_SIZE', 10 * 1024 * 1024); // 10MB (before resize)
 define('ALLOWED_IMAGE_TYPES', ['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+/** Max width/height in pixels (decompression bomb mitigation) */
+define('UPLOAD_MAX_DIMENSION', 8000);
+/** Max total pixels (width * height) */
+define('UPLOAD_MAX_PIXELS', 25000000);
+/** Per-IP upload attempts per minute (0 = unlimited) */
+define('UPLOAD_RATE_LIMIT_PER_MINUTE', 30);
 
 // 画像リサイズ設定
 define('IMAGE_RESIZE_ENABLED', true);

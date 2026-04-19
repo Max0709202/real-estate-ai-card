@@ -27,6 +27,7 @@ if (in_array($origin, $allowedOrigins, true)) {
 }
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+header('X-Content-Type-Options: nosniff');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
     exit;
@@ -128,8 +129,8 @@ try {
         $fileType = 'photo';
     }
 
-    // アップロード処理（自動リサイズ含む）
-    $uploadResult = uploadFile($file, $fileType . '/');
+    // アップロード処理（自動リサイズ・隔離・ClamAV・再エンコード含む）
+    $uploadResult = uploadFile($file, $fileType . '/', (int) $userId);
 
     if (!$uploadResult['success']) {
         cleanJsonResponse(false, null, $uploadResult['message'], 400);

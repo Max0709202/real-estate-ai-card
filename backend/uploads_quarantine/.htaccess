@@ -1,0 +1,8 @@
+# Quarantine is not web-accessible; deny all HTTP access if exposed by misconfiguration.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order deny,allow
+  Deny from all
+</IfModule>

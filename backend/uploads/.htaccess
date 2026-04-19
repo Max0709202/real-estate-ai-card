@@ -1,0 +1,24 @@
+# Disallow script execution in uploaded content (Apache).
+# Rewrite [F] returns HTTP 403 Forbidden (clearer than php_engine off alone, which may expose source).
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule \.(php|phtml|phar|pht|php3|php4|php5|php7|php8)$ - [F,L,NC]
+</IfModule>
+
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+  php_flag engine off
+</IfModule>
+
+<FilesMatch "(?i)\.(php|phtml|phar|pht|php3|php4|php5|php7|php8|cgi|pl|asp|aspx|jsp|sh|bash|bat|cmd|exe)$">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>
