@@ -15,7 +15,7 @@ $isEraMember = false;
 
 $userType = $_GET['type'] ?? 'new'; // new, existing, free
 $invitationToken = trim((string) ($_GET['token'] ?? ''));
-if ($invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
+if (!$isLoggedIn && $invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
     $invitationToken = trim((string) $_SESSION['existing_invite_token']);
 }
 $isTokenBased = !empty($invitationToken);
@@ -155,36 +155,53 @@ if ($isLoggedIn) {
 // Validate token if provided with enhanced security
 if ($isTokenBased) {
     try {
-        // Use enhanced validation that checks if token belongs to logged-in user
-        $validationUrl = BASE_URL . '/backend/api/auth/validate-user-invitation-token.php?token=' . urlencode($invitationToken);
-        if (!empty($userType) && $userType === 'existing') {
-            $validationUrl .= '&type=' . urlencode($userType);
-        }
+        require_once __DIR__ . '/backend/config/database.php';
+        $database = new Database();
+        $db = $database->getConnection();
 
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $validationUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id());
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        $loggedInUserId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
 
-        if ($httpCode === 200) {
-            $result = json_decode($response, true);
-            if ($result && $result['success']) {
+        if ($loggedInUserId > 0) {
+            // Security: for logged-in users, token must belong to their account
+            $stmt = $db->prepare("
+                SELECT id, email, user_type, invitation_token, email_verified
+                FROM users
+                WHERE id = ? AND invitation_token = ?
+            ");
+            $stmt->execute([$loggedInUserId, $invitationToken]);
+            $userTokenRow = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($userTokenRow) {
+                if (!empty($userType) && $userType !== $userTokenRow['user_type']) {
+                    error_log("Security Warning: Token type mismatch in register.php. requested={$userType}, actual={$userTokenRow['user_type']}, user_id={$loggedInUserId}");
+                    $tokenValid = false;
+                } else {
+                    $tokenValid = true;
+                    $tokenData = [
+                        'valid' => true,
+                        'email' => $userTokenRow['email'],
+                        'user_type' => $userTokenRow['user_type'],
+                        'email_verified' => (bool) $userTokenRow['email_verified'],
+                    ];
+                    if ($userTokenRow['user_type'] === 'existing') {
+                        $userType = 'existing';
+                    }
+                }
+            } else {
+                error_log("Security: Token validation failed in register.php - token doesn't belong to logged-in user. user_id={$loggedInUserId}");
+                $tokenValid = false;
+            }
+        } else {
+            // Guest flow: validate against invitation table
+            $invCheck = validateInvitationTokenInDatabase($db, $invitationToken);
+            if ($invCheck['ok']) {
                 $tokenValid = true;
-                $tokenData = $result['data'];
-                // Override userType from token/response if it's existing
+                $tokenData = $invCheck['data'];
                 $responseUserType = $tokenData['user_type'] ?? $tokenData['role_type'] ?? null;
                 if ($responseUserType === 'existing') {
-                    $userType = $responseUserType;
+                    $userType = 'existing';
                 }
             }
-        } elseif ($httpCode === 403) {
-            // Token doesn't belong to user - security violation
-            error_log("Security: Token validation failed - token doesn't belong to user. User ID: " . ($_SESSION['user_id'] ?? 'not logged in'));
-            $tokenValid = false;
         }
     } catch (Exception $e) {
         error_log("Token validation error: " . $e->getMessage());
@@ -1123,6 +1140,7 @@ $prefectures = [
         window.tokenValid = <?php echo json_encode($tokenValid); ?>;
         window.tokenData = <?php echo json_encode($tokenData); ?>;
         window.isCanceledAccount = <?php echo json_encode($isCanceledAccount); ?>;
+        window.isLoggedIn = <?php echo json_encode($isLoggedIn); ?>;
 
         // Helper function to build URLs with token and type parameters
         function buildUrlWithToken(baseUrl) {
@@ -1134,7 +1152,7 @@ $prefectures = [
 
         // Validate token on page load if present
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.isTokenBased && !window.tokenValid) {
+            if (window.isTokenBased && !window.tokenValid && !window.isLoggedIn) {
                 showError('無効な招待リンクです。管理者にお問い合わせください。');
                 // Optionally redirect after 3 seconds
                 setTimeout(function() {
