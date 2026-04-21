@@ -159,6 +159,214 @@ function initializeCommunicationDragAndDrop(type) {
 // Global variable to store business card data
 let businessCardData = null;
 let pendingCardHeaderBgFileEdit = null;
+/** Radio value for “not uploaded yet” local file selection (same group as presets + custom URL). */
+const CARD_HEADER_BG_PENDING_RADIO = '__pending_card_header_bg__';
+/** Last known uploaded custom header path (kept so user can switch preset ↔ custom without re-uploading). */
+let cardHeaderSavedCustomRelPathEdit = null;
+let cardHeaderPendingObjectUrlEdit = null;
+
+const STORAGE_KEY_LAST_CUSTOM_CARD_HEADER_EDIT = 'fcard_last_custom_card_header_bg_edit';
+
+function isPresetCardHeaderPath(relPath) {
+    const s = String(relPath || '').trim();
+    for (let i = 1; i <= 10; i++) {
+        if (s === 'assets/images/card-header (' + i + ').jpg') return true;
+    }
+    return false;
+}
+
+function readLastCustomCardHeaderFromStorageEdit() {
+    try {
+        const v = localStorage.getItem(STORAGE_KEY_LAST_CUSTOM_CARD_HEADER_EDIT);
+        return v ? String(v).trim() : '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function writeLastCustomCardHeaderToStorageEdit(relPath) {
+    try {
+        const p = String(relPath || '').trim();
+        if (!p || p === CARD_HEADER_BG_PENDING_RADIO) return;
+        if (isPresetCardHeaderPath(p)) return;
+        localStorage.setItem(STORAGE_KEY_LAST_CUSTOM_CARD_HEADER_EDIT, p);
+    } catch (e) { /* ignore */ }
+}
+
+/** Resolve card header image path for <img src> / CSS url (same rules as logo/photo on this page). */
+function resolveCardHeaderAssetUrl(relPath) {
+    let p = String(relPath || '').trim();
+    if (!p) return '';
+    if (typeof window !== 'undefined' && window.BASE_URL && p.startsWith(window.BASE_URL)) {
+        p = p.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+    }
+    if (!p.startsWith('http')) {
+        if (typeof window !== 'undefined' && window.BASE_URL) {
+            p = window.BASE_URL + '/' + p.replace(/^\/+/, '');
+        } else {
+            if (p.startsWith('backend/')) {
+                p = '../' + p;
+            } else if (!p.startsWith('../')) {
+                p = '../' + p;
+            }
+        }
+    }
+    return p;
+}
+
+function removeCardHeaderCustomTileEdit(grid) {
+    const el = document.getElementById('card-header-custom-template-tile-edit');
+    if (el && grid && el.parentNode === grid) {
+        el.remove();
+    }
+}
+
+function updateCardHeaderTemplateBadgesEdit(grid) {
+    if (!grid) return;
+    grid.querySelectorAll('.template-tile').forEach(tile => {
+        const radio = tile.querySelector('input[type="radio"]');
+        const badge = tile.querySelector('.template-selected-badge');
+        if (badge) badge.style.display = (radio && radio.checked) ? 'inline-block' : 'none';
+    });
+}
+
+/**
+ * Sync template grid: 10 presets + 11th tile (オリジナル) when a custom path exists, is selected, or a file is pending upload.
+ * options.fromServer: when server returns a preset, restore last custom upload from localStorage (DB only stores the active header).
+ */
+function syncCardHeaderTemplateGridEdit(finalBg, options) {
+    const fromServer = !!(options && options.fromServer);
+    const grid = document.getElementById('card-header-template-grid-edit');
+    const hidden = document.getElementById('card_header_bg_edit');
+    const preview = document.getElementById('card-header-bg-preview-edit');
+    const uploadArea = document.getElementById('card-header-bg-upload-edit');
+    if (!grid || !hidden) return;
+
+    const defaultBg = 'assets/images/card-header (1).jpg';
+    let bgToUse = String(finalBg || '').trim() || defaultBg;
+
+    removeCardHeaderCustomTileEdit(grid);
+
+    const presetInputs = grid.querySelectorAll('.template-tile:not(#card-header-custom-template-tile-edit) input[name="card_header_bg_choice"]');
+    const presetPaths = [];
+    presetInputs.forEach(inp => presetPaths.push(inp.value));
+
+    if (fromServer && presetPaths.includes(bgToUse)) {
+        const stored = readLastCustomCardHeaderFromStorageEdit();
+        cardHeaderSavedCustomRelPathEdit = (stored && !isPresetCardHeaderPath(stored)) ? stored : null;
+    }
+    if (!presetPaths.includes(bgToUse) && bgToUse && bgToUse !== CARD_HEADER_BG_PENDING_RADIO) {
+        cardHeaderSavedCustomRelPathEdit = bgToUse;
+        writeLastCustomCardHeaderToStorageEdit(bgToUse);
+    }
+    if (bgToUse === CARD_HEADER_BG_PENDING_RADIO && !pendingCardHeaderBgFileEdit) {
+        bgToUse = defaultBg;
+    }
+    hidden.value = bgToUse;
+
+    const presetSelected = presetPaths.includes(bgToUse);
+    const pendingActive = !!(pendingCardHeaderBgFileEdit && cardHeaderPendingObjectUrlEdit);
+
+    presetInputs.forEach(r => {
+        r.checked = presetSelected && r.value === bgToUse;
+    });
+
+    grid.querySelectorAll('.template-tile:not(#card-header-custom-template-tile-edit)').forEach(tile => {
+        const radio = tile.querySelector('input[type="radio"]');
+        const badge = tile.querySelector('.template-selected-badge');
+        if (badge) badge.style.display = (radio && radio.checked) ? 'inline-block' : 'none';
+    });
+
+    const savedPath = cardHeaderSavedCustomRelPathEdit;
+    const selectionIsSavedCustom =
+        !!bgToUse && bgToUse !== CARD_HEADER_BG_PENDING_RADIO && !presetPaths.includes(bgToUse);
+
+    const showCustomTile =
+        pendingActive ||
+        bgToUse === CARD_HEADER_BG_PENDING_RADIO ||
+        (!!savedPath && presetSelected) ||
+        selectionIsSavedCustom;
+
+    if (!showCustomTile) {
+        if (preview && !pendingCardHeaderBgFileEdit) {
+            preview.innerHTML = '';
+        }
+        if (uploadArea) delete uploadArea.dataset.cardHeaderExisting;
+        return;
+    }
+
+    let radioVal = '';
+    let imgUrl = '';
+    let customChecked = false;
+
+    if (presetSelected && savedPath && !pendingActive) {
+        radioVal = savedPath;
+        imgUrl = resolveCardHeaderAssetUrl(savedPath);
+        customChecked = false;
+    } else if (pendingActive) {
+        radioVal = CARD_HEADER_BG_PENDING_RADIO;
+        imgUrl = cardHeaderPendingObjectUrlEdit || '';
+        customChecked = true;
+    } else if (selectionIsSavedCustom) {
+        radioVal = bgToUse;
+        imgUrl = resolveCardHeaderAssetUrl(bgToUse);
+        customChecked = true;
+    }
+
+    if (!radioVal || !imgUrl) {
+        return;
+    }
+
+    const tile = document.createElement('label');
+    tile.className = 'template-tile';
+    tile.id = 'card-header-custom-template-tile-edit';
+    tile.setAttribute('style', 'border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;cursor:pointer;background:#fff;position:relative;');
+
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'card_header_bg_choice';
+    radio.value = radioVal;
+    radio.checked = customChecked;
+    radio.style.cssText = 'position:absolute;opacity:0;width:1px;height:1px;inset:0';
+
+    const bgDiv = document.createElement('div');
+    bgDiv.style.cssText = 'height:90px;background-size:cover;background-position:center;';
+    bgDiv.style.backgroundImage = 'url("' + imgUrl.replace(/\\/g, '/').replace(/"/g, '\\"') + '")';
+
+    const footer = document.createElement('div');
+    footer.style.cssText = 'padding:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;';
+    const spanLabel = document.createElement('span');
+    spanLabel.style.cssText = 'font-size:12px;color:#2d3748;font-weight:600;';
+    spanLabel.textContent = 'オリジナル';
+    const badge = document.createElement('span');
+    badge.className = 'template-selected-badge';
+    badge.style.cssText = 'font-size:11px;padding:2px 8px;border-radius:999px;background:#c6f6d5;color:#22543d;';
+    badge.textContent = '選択中';
+    footer.appendChild(spanLabel);
+    footer.appendChild(badge);
+
+    tile.appendChild(radio);
+    tile.appendChild(bgDiv);
+    tile.appendChild(footer);
+    grid.appendChild(tile);
+
+    updateCardHeaderTemplateBadgesEdit(grid);
+
+    if (preview) {
+        if (customChecked && imgUrl) {
+            preview.innerHTML = '';
+            const img = document.createElement('img');
+            img.src = imgUrl;
+            img.alt = 'ヘッダー背景プレビュー';
+            img.style.cssText = 'max-width:100%;height:140px;object-fit:cover;border-radius:10px';
+            img.onerror = () => { preview.innerHTML = ''; };
+            preview.appendChild(img);
+        } else if (presetSelected && !pendingCardHeaderBgFileEdit) {
+            preview.innerHTML = '';
+        }
+    }
+    if (uploadArea && savedPath) uploadArea.dataset.cardHeaderExisting = savedPath;
+}
 
 // Load business card data from server (without reloading)
 async function loadBusinessCardData() {
@@ -181,8 +389,10 @@ async function loadBusinessCardData() {
             businessCardData = result.data;
             // Also set window.businessCardData for easier access from other scripts
             window.businessCardData = result.data;
-            // Note: We don't reload the page to avoid browser warnings
-            // The form data is already saved, so we just need to navigate to the next step
+            const bg = result.data.card_header_bg != null && result.data.card_header_bg !== ''
+                ? String(result.data.card_header_bg).trim()
+                : '';
+            syncCardHeaderTemplateGridEdit(bg || 'assets/images/card-header (1).jpg', { fromServer: true });
         }
     } catch (error) {
         console.error('Error loading business card data:', error);
@@ -326,22 +536,7 @@ function populateEditForms(data) {
         const defaultBg = 'assets/images/card-header (1).jpg';
         const savedBg = (data && data.card_header_bg) ? String(data.card_header_bg).trim() : '';
         const finalBg = savedBg || defaultBg;
-
-        const hidden = document.getElementById('card_header_bg_edit');
-        if (hidden) hidden.value = finalBg;
-
-        const grid = document.getElementById('card-header-template-grid-edit');
-        if (grid) {
-            const radios = grid.querySelectorAll('input[name=\"card_header_bg_choice\"]');
-            radios.forEach(r => {
-                r.checked = (r.value === finalBg);
-            });
-            grid.querySelectorAll('.template-tile').forEach(tile => {
-                const radio = tile.querySelector('input[type=\"radio\"]');
-                const badge = tile.querySelector('.template-selected-badge');
-                if (badge) badge.style.display = (radio && radio.checked) ? 'inline-block' : 'none';
-            });
-        }
+        syncCardHeaderTemplateGridEdit(finalBg, { fromServer: true });
     } catch (e) {
         console.warn('Failed to populate template selection (edit):', e);
     }
@@ -1320,24 +1515,41 @@ function setupCardHeaderTemplateStepEdit() {
     const preview = document.getElementById('card-header-bg-preview-edit');
 
     function updateBadges() {
-        if (!grid) return;
-        grid.querySelectorAll('.template-tile').forEach(tile => {
-            const radio = tile.querySelector('input[type=\"radio\"]');
-            const badge = tile.querySelector('.template-selected-badge');
-            if (badge) badge.style.display = (radio && radio.checked) ? 'inline-block' : 'none';
-        });
+        updateCardHeaderTemplateBadgesEdit(grid);
     }
 
     if (grid) {
         grid.addEventListener('change', function(e) {
             const t = e.target;
-            if (t && t.name === 'card_header_bg_choice') {
-                if (hidden) hidden.value = t.value;
+            if (!t || t.name !== 'card_header_bg_choice') return;
+
+            const presetPaths = Array.from(
+                grid.querySelectorAll('.template-tile:not(#card-header-custom-template-tile-edit) input[name="card_header_bg_choice"]')
+            ).map(inp => inp.value);
+            const isPreset = presetPaths.includes(t.value);
+
+            if (hidden) hidden.value = t.value;
+
+            if (isPreset) {
                 pendingCardHeaderBgFileEdit = null;
+                if (cardHeaderPendingObjectUrlEdit) {
+                    URL.revokeObjectURL(cardHeaderPendingObjectUrlEdit);
+                    cardHeaderPendingObjectUrlEdit = null;
+                }
                 if (fileInput) fileInput.value = '';
-                if (preview) preview.innerHTML = '';
-                updateBadges();
+            } else if (t.value === CARD_HEADER_BG_PENDING_RADIO) {
+                // Keep pending file / object URL for save
+            } else {
+                pendingCardHeaderBgFileEdit = null;
+                if (cardHeaderPendingObjectUrlEdit) {
+                    URL.revokeObjectURL(cardHeaderPendingObjectUrlEdit);
+                    cardHeaderPendingObjectUrlEdit = null;
+                }
+                if (fileInput) fileInput.value = '';
             }
+
+            syncCardHeaderTemplateGridEdit(hidden ? hidden.value : '', { fromServer: false });
+            updateBadges();
         });
         updateBadges();
     }
@@ -1352,13 +1564,13 @@ function setupCardHeaderTemplateStepEdit() {
                 return;
             }
             pendingCardHeaderBgFileEdit = f;
-            if (preview) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    preview.innerHTML = `<img src=\"${ev.target.result}\" alt=\"ヘッダー背景プレビュー\" style=\"max-width: 100%; height: 140px; object-fit: cover; border-radius: 10px;\">`;
-                };
-                reader.readAsDataURL(f);
+            if (cardHeaderPendingObjectUrlEdit) {
+                URL.revokeObjectURL(cardHeaderPendingObjectUrlEdit);
             }
+            cardHeaderPendingObjectUrlEdit = URL.createObjectURL(f);
+            if (hidden) hidden.value = CARD_HEADER_BG_PENDING_RADIO;
+            syncCardHeaderTemplateGridEdit(CARD_HEADER_BG_PENDING_RADIO, { fromServer: false });
+            updateBadges();
         });
     }
 
@@ -1393,7 +1605,12 @@ async function saveTemplateEditStepAndNext() {
                 const fullPath = uploadResult.data.file_path;
                 finalPath = fullPath.split('/php/')[1] || fullPath;
                 if (hidden) hidden.value = finalPath;
+                writeLastCustomCardHeaderToStorageEdit(finalPath);
                 pendingCardHeaderBgFileEdit = null;
+                if (cardHeaderPendingObjectUrlEdit) {
+                    URL.revokeObjectURL(cardHeaderPendingObjectUrlEdit);
+                    cardHeaderPendingObjectUrlEdit = null;
+                }
             } else {
                 console.warn('Template upload failed:', uploadResult);
             }
@@ -1401,6 +1618,12 @@ async function saveTemplateEditStepAndNext() {
             console.error('Template upload error:', err);
         }
     }
+
+    const defHeaderEdit = 'assets/images/card-header (1).jpg';
+    if (finalPath === CARD_HEADER_BG_PENDING_RADIO) {
+        finalPath = cardHeaderSavedCustomRelPathEdit || defHeaderEdit;
+    }
+    if (hidden) hidden.value = finalPath;
 
     try {
         const response = await fetch('backend/api/business-card/update.php', {
@@ -2263,9 +2486,17 @@ window.goToEditSection = function(sectionId) {
     
     // Show target section
     const targetSection = document.getElementById(sectionId);
-    if (targetSection) {
+        if (targetSection) {
         targetSection.classList.add('active');
         targetSection.style.display = 'block';
+
+        if (sectionId === 'template-section') {
+            const d = window.businessCardData;
+            const savedBg = (d && d.card_header_bg) ? String(d.card_header_bg).trim() : '';
+            const hiddenEl = document.getElementById('card_header_bg_edit');
+            const fallback = (hiddenEl && hiddenEl.value) ? hiddenEl.value : 'assets/images/card-header (1).jpg';
+            syncCardHeaderTemplateGridEdit(savedBg || fallback, { fromServer: false });
+        }
         
         // Sync company name from step 1 (header-greeting) to step 2 (company-profile) when navigating to company-profile
         if (sectionId === 'company-profile-section') {
