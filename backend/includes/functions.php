@@ -1474,104 +1474,48 @@ function sendUserCancellationConfirmationEmail($userEmail, $cancelImmediately) {
         $detailMessage = '現在の課金期間の終了日まで、デジタル名刺は引き続きご利用いただけます。期間終了後、自動的に公開が停止されます。';
     }
 
-    $emailBody = "
+    $baseUrl = defined('BASE_URL') ? rtrim((string) BASE_URL, '/') : '';
+    $logoUrl = htmlspecialchars($baseUrl . '/assets/images/logo.png', ENT_QUOTES, 'UTF-8');
+    $mainHtml = htmlspecialchars($mainMessage, ENT_QUOTES, 'UTF-8');
+    $detailHtml = htmlspecialchars($detailMessage, ENT_QUOTES, 'UTF-8');
+    $dateHtml = htmlspecialchars($cancellationDate, ENT_QUOTES, 'UTF-8');
+    $yearHtml = htmlspecialchars(date('Y'), ENT_QUOTES, 'UTF-8');
+
+    $emailBody = <<<HTML
             <!DOCTYPE html>
             <html>
             <head>
-            <meta charset='UTF-8'>
+            <meta charset="UTF-8">
+            <title>サブスクリプションキャンセル</title>
             </head>
-            <body style='margin:0; padding:0; background-color:#f0f0f0;'>
+            <body style="margin:0; padding:0; background-color:#f0f0f0;">
 
-            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f0f0f0;'>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f0f0;">
             <tr>
-            <td align='center'>
+            <td align="center">
 
-            <!-- Container -->
-            <table width='600' cellpadding='0' cellspacing='0' border='0' style='background-color:#ffffff; border:3px solid #a3a3a3; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;'>
+            <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff; border:3px solid #a3a3a3; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;">
 
-                <!-- Header -->
                 <tr>
-                    <td align='center' style='padding:30px 20px;'>
-                        <div style='background:#ffffff; padding:15px; display:inline-block;'>
-                            <img src='' . BASE_URL . '/assets/images/logo.png' . '' 
-                                alt='不動産AI名刺' 
-                                style='max-width:100px; height:auto; display:block;'>
+                    <td align="center" style="padding:30px 20px;">
+                        <div style="background:#ffffff; padding:15px; display:inline-block;">
+                            <img src="{$logoUrl}" alt="不動産AI名刺" style="max-width:100px; height:auto; display:block;">
                         </div>
                     </td>
                 </tr>
 
-                <!-- Content -->
                 <tr>
-                    <td style='background:#f9f9f9; padding:30px;'>
+                    <td style="background:#f9f9f9; padding:30px;">
 
-                        <p style='margin:0 0 15px 0;'>
-                            サブスクリプションがキャンセルされました。（{$initiatedBy}による操作）
-                        </p>
+                        <p style="margin:0 0 12px 0;">いつも不動産AI名刺をご利用いただき、ありがとうございます。</p>
+                        <p style="margin:0 0 12px 0;">{$mainHtml}</p>
+                        <p style="margin:0 0 20px 0;">{$detailHtml}</p>
 
-                        <!-- Info Table -->
-                        <table width='100%' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse; margin:20px 0; background:#ffffff;'>
+                        <p style="margin:0; font-size:14px; color:#555;">キャンセル日時：{$dateHtml}</p>
 
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold; width:30%;'>ユーザーID</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$userId}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>メールアドレス</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$userEmail}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>サブスクリプションID</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$subscriptionId}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>ビジネスカードID</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$businessCardId}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>URLスラッグ</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    <span style='background:#fff3cd; padding:2px 6px; border-radius:3px;'>
-                                        {$urlSlug}
-                                    </span>
-                                </td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>キャンセル種別</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$cancellationType}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>操作者</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$initiatedBy}</td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>キャンセル日時</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>{$cancellationDate}</td>
-                            </tr>
-
-                            ' . ($cardFullUrl ? '
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>名刺URL</td>
-                                <td style='padding:12px; border:1px solid #dee2e6; word-break:break-all;'>
-                                    <a href='{$cardFullUrl}' target='_blank' style='color:#4461a5;'>
-                                        {$cardFullUrl}
-                                    </a>
-                                </td>
-                            </tr>
-                            ' : '') . '
-
-                        </table>
-
-                        <!-- Footer -->
-                        <div style='margin-top:30px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;'>
-                            <p style='margin:0 0 5px 0;'>このメールは自動送信されています。返信はできません。</p>
-                            <p style='margin:0;'>© ' . date('Y') . ' 不動産AI名刺 All rights reserved.</p>
+                        <div style="margin-top:30px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;">
+                            <p style="margin:0 0 5px 0;">このメールは自動送信されています。返信はできません。</p>
+                            <p style="margin:0;">© {$yearHtml} 不動産AI名刺 All rights reserved.</p>
                         </div>
 
                     </td>
@@ -1585,7 +1529,7 @@ function sendUserCancellationConfirmationEmail($userEmail, $cancelImmediately) {
 
             </body>
             </html>
-    ";
+HTML;
 
     $emailBodyText =
         "いつも不動産AI名刺をご利用いただき、ありがとうございます。\n\n" .
@@ -1620,145 +1564,104 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
     // メール件名（ユーザータイプに応じて変更）
     $emailSubject = '【不動産AI名刺】ユーザー登録通知（' . $userTypeLabel . '）';
 
-    // HTML本文
-    $emailBody = "
+    $baseUrl = defined('BASE_URL') ? rtrim((string) BASE_URL, '/') : '';
+    $logoUrl = htmlspecialchars($baseUrl . '/assets/images/logo.png', ENT_QUOTES, 'UTF-8');
+    $userEmailHtml = htmlspecialchars($userEmail, ENT_QUOTES, 'UTF-8');
+    $urlSlugHtml = htmlspecialchars($urlSlug, ENT_QUOTES, 'UTF-8');
+    $userTypeLabelHtml = htmlspecialchars($userTypeLabel, ENT_QUOTES, 'UTF-8');
+    $registrationDateHtml = htmlspecialchars($registrationDate, ENT_QUOTES, 'UTF-8');
+    $yearHtml = htmlspecialchars(date('Y'), ENT_QUOTES, 'UTF-8');
+    $userIdHtml = htmlspecialchars((string) (int) $userId, ENT_QUOTES, 'UTF-8');
+
+    // HTML本文（登録通知専用。キャンセル通知テンプレの誤貼り付けを解消）
+    $emailBody = <<<HTML
+            <!DOCTYPE html>
             <html>
             <head>
-            <meta charset='UTF-8'>
-            <title>サブスクリプションキャンセル通知</title>
+            <meta charset="UTF-8">
+            <title>ユーザー登録通知</title>
             </head>
+            <body style="margin:0; padding:0; background-color:#f0f0f0;">
 
-            <body style='margin:0; padding:0; background-color:#f0f0f0;'>
-
-            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f0f0f0;'>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f0f0;">
             <tr>
-            <td align='center'>
+            <td align="center">
 
-            <!-- Container -->
-            <table width='600' cellpadding='0' cellspacing='0' border='0'
-                style='background:#ffffff; margin:20px auto; border:3px solid #a3a3a3; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;'>
+            <table width="600" cellpadding="0" cellspacing="0" border="0"
+                style="background:#ffffff; margin:20px auto; border:3px solid #a3a3a3; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;">
 
-                <!-- Header -->
                 <tr>
-                    <td align='center' style='padding:30px 20px;'>
-                        <table cellpadding='0' cellspacing='0' border='0'>
+                    <td align="center" style="padding:30px 20px;">
+                        <table cellpadding="0" cellspacing="0" border="0">
                             <tr>
-                                <td style='background:#ffffff; padding:15px;'>
-                                    <img src='<?php echo BASE_URL; ?>/assets/images/logo.png'
-                                        alt='不動産AI名刺'
-                                        style='max-width:100px; height:auto; display:block;'>
+                                <td style="background:#ffffff; padding:15px;">
+                                    <img src="{$logoUrl}" alt="不動産AI名刺" style="max-width:100px; height:auto; display:block;">
                                 </td>
                             </tr>
                         </table>
                     </td>
                 </tr>
 
-                <!-- Content -->
                 <tr>
-                    <td style='background:#f9f9f9; padding:30px;'>
+                    <td style="background:#f9f9f9; padding:30px;">
 
-                        <p style='margin:0 0 20px 0;'>
-                            サブスクリプションがキャンセルされました。（{$initiatedBy}による操作）
+                        <p style="margin:0 0 20px 0;">
+                            {$userTypeLabelHtml}の登録がありました。
                         </p>
 
-                        <!-- Info Table -->
-                        <table width='100%' cellpadding='0' cellspacing='0' border='0'
-                            style='border-collapse:collapse; background:#ffffff;'>
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                            style="border-collapse:collapse; background:#ffffff;">
 
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold; width:30%;'>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold; width:30%;">
                                     ユーザーID
                                 </td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    {$userId}
+                                <td style="padding:12px; border:1px solid #dee2e6;">
+                                    {$userIdHtml}
                                 </td>
                             </tr>
 
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">
                                     メールアドレス
                                 </td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    {$userEmail}
+                                <td style="padding:12px; border:1px solid #dee2e6;">
+                                    {$userEmailHtml}
                                 </td>
                             </tr>
 
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                                    サブスクリプションID
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">
+                                    ユーザータイプ
                                 </td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    {$subscriptionId}
-                                </td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                                    ビジネスカードID
-                                </td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    {$businessCardId}
+                                <td style="padding:12px; border:1px solid #dee2e6;">
+                                    {$userTypeLabelHtml}
                                 </td>
                             </tr>
 
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">
                                     URLスラッグ
                                 </td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    <span style='background:#fff3cd; padding:2px 6px;'>
-                                        {$urlSlug}
-                                    </span>
+                                <td style="padding:12px; border:1px solid #dee2e6;">
+                                    <span style="background:#fff3cd; padding:2px 6px;">{$urlSlugHtml}</span>
                                 </td>
                             </tr>
 
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                                    キャンセル種別
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">
+                                    登録日時
                                 </td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    {$cancellationType}
-                                </td>
-                            </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                                    操作者
-                                </td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    {$initiatedBy}
+                                <td style="padding:12px; border:1px solid #dee2e6;">
+                                    {$registrationDateHtml}
                                 </td>
                             </tr>
-
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                                    キャンセル日時
-                                </td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    {$cancellationDate}
-                                </td>
-                            </tr>
-
-                            <!-- Optional Row -->
-                            <?php if ($cardFullUrl): ?>
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                                    名刺URL
-                                </td>
-                                <td style='padding:12px; border:1px solid #dee2e6; word-break:break-all;'>
-                                    <a href='<?php echo $cardFullUrl; ?>' target='_blank' style='color:#4461a5;'>
-                                        <?php echo $cardFullUrl; ?>
-                                    </a>
-                                </td>
-                            </tr>
-                            <?php endif; ?>
 
                         </table>
 
-                        <!-- Footer -->
-                        <div style='margin-top:30px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;'>
-                            <p style='margin:0;'>このメールは自動送信されています。返信はできません。</p>
-                            <p style='margin:5px 0 0 0;'>© <?php echo date('Y'); ?> 不動産AI名刺 All rights reserved.</p>
+                        <div style="margin-top:30px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;">
+                            <p style="margin:0;">このメールは自動送信されています。返信はできません。</p>
+                            <p style="margin:5px 0 0 0;">© {$yearHtml} 不動産AI名刺 All rights reserved.</p>
                         </div>
 
                     </td>
@@ -1772,7 +1675,7 @@ function sendAdminNotificationEmail($userEmail, $userType, $userId, $urlSlug) {
 
             </body>
             </html>
-    ";
+HTML;
 
     // プレーンテキスト版
     $emailBodyText =

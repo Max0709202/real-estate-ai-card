@@ -52,8 +52,8 @@ try {
         $verificationToken = generateToken(32);
     }
     
-    // トークンの有効期限を15分後に設定（再送信時も新しい期限を設定）
-    $tokenExpiresAt = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+    // トークンの有効期限を2時間後に設定（再送信時も新しい期限を設定）
+    $tokenExpiresAt = date('Y-m-d H:i:s', strtotime('+2 hours'));
     $stmt = $db->prepare("UPDATE users SET verification_token = ?, verification_token_expires_at = ? WHERE id = ?");
     $stmt->execute([$verificationToken, $tokenExpiresAt, $user['id']]);
 
@@ -82,7 +82,7 @@ try {
                             <tr>
                                 <td style='background-color:#f9f9f9; padding:30px;'>
                                     <p style='margin:0 0 16px 0; line-height:1.8;'>メール認証URLを再送信しました。</p>
-                                    <p style='margin:0 0 16px 0; line-height:1.8;'>以下のボタンをクリックして、メール認証を完了してください。<br>このリンクは15分間有効です。</p>
+                                    <p style='margin:0 0 16px 0; line-height:1.8;'>以下のボタンをクリックして、メール認証を完了してください。<br>このリンクは2時間有効です。</p>
                                     <div style='text-align:center; margin:28px 0;'>
                                         <a href='{$verificationLink}' target='_blank' rel='noopener noreferrer' style='display:inline-block; background:#0066cc; color:#ffffff; text-decoration:none; font-weight:bold; padding:12px 24px; border-radius:6px;'>メール認証を完了する</a>
                                     </div>

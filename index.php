@@ -16,39 +16,6 @@ $tokenData       = null;
 // Get userType from URL parameter first, default to 'new'
 $userType = $_GET['type'] ?? 'new';
 
-// --- IPアドレスから既存ユーザー（含ERA）かどうかを判定 ---
-// トップページにパラメータ無しでアクセスした場合、
-// 過去に招待リンク経由でアクセスした端末(IP)であれば
-// 自動的に index.php?type=existing へ振り分ける
-try {
-    $clientIp = $_SERVER['REMOTE_ADDR'] ?? '';
-
-    if (!$isTokenBased && (empty($_GET['type']) || $_GET['type'] === 'new') && !empty($clientIp)) {
-        require_once __DIR__ . '/backend/config/database.php';
-        $database = new Database();
-        $db       = $database->getConnection();
-
-        $stmt = $db->prepare("
-            SELECT u.user_type, u.is_era_member
-            FROM existing_user_ips e
-            JOIN users u ON e.user_id = u.id
-            WHERE e.ip_address = ?
-            ORDER BY e.created_at DESC
-            LIMIT 1
-        ");
-        $stmt->execute([$clientIp]);
-        $ipUser = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($ipUser && $ipUser['user_type'] === 'existing') {
-            // Remembered existing/ERA device → redirect with type=existing
-            header('Location: index.php?type=existing');
-            exit;
-        }
-    }
-} catch (Exception $e) {
-    error_log('Existing-user IP detection failed in index.php: ' . $e->getMessage());
-}
-
 if ($isTokenBased) {
     // Validate token via DB（cURL→BASE_URL は同一サーバ到達失敗で常に無効になることがある）
     try {

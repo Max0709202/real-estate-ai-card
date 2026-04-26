@@ -100,8 +100,8 @@ try {
         // トークン生成
         $verificationToken = generateToken(32);
 
-        // トークンの有効期限を15分後に設定
-        $tokenExpiresAt = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+        // トークンの有効期限を2時間後に設定
+        $tokenExpiresAt = date('Y-m-d H:i:s', strtotime('+2 hours'));
 
         // パスワードハッシュ
         $passwordHash = hashPassword($input['password']);
@@ -199,7 +199,7 @@ try {
                             <tr>
                                 <td style='background-color:#f9f9f9; padding:30px;'>
                                     <p style='margin:0 0 16px 0; line-height:1.8;'>不動産AI名刺へのご登録ありがとうございます。</p>
-                                    <p style='margin:0 0 16px 0; line-height:1.8;'>以下のボタンをクリックして、メール認証を完了してください。<br>このリンクは15分間有効です。</p>
+                                    <p style='margin:0 0 16px 0; line-height:1.8;'>以下のボタンをクリックして、メール認証を完了してください。<br>このリンクは2時間有効です。</p>
                                     <div style='text-align:center; margin:28px 0;'>
                                         <a href='{$verificationLink}' target='_blank' rel='noopener noreferrer' style='display:inline-block; background:#0066cc; color:#ffffff; text-decoration:none; font-weight:bold; padding:12px 24px; border-radius:6px;'>メール認証を完了する</a>
                                     </div>
@@ -225,7 +225,7 @@ try {
     // プレーンテキスト（必須）
     $emailBodyText =
         "不動産AI名刺へのご登録ありがとうございます。\n\n" .
-        "以下のリンクをクリックしてメール認証を完了してください（15分間有効）：\n" .
+        "以下のリンクをクリックしてメール認証を完了してください（2時間有効）：\n" .
         "$verificationLink\n\n" .
         "期限を過ぎた場合は、再度メール認証をリクエストしてください。\n\n" .
         "このメールに覚えがない場合は破棄してください。\n";
@@ -274,7 +274,7 @@ try {
         unset($_SESSION['existing_invite_token']);
     }
 
-    // 既存招待経由: update-era-membership.php と同様に IP を記録（トップの type=existing 振り分け用）
+    // 既存招待経由: update-era-membership.php と同様に IP を記録
     if (($input['user_type'] ?? '') === 'existing' && !empty($invitationToken)) {
         $clientIp  = $_SERVER['REMOTE_ADDR'] ?? '';
         $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';

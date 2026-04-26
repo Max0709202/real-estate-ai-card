@@ -88,8 +88,7 @@ try {
     $updateInvStmt->execute([$isEraMember ? 1 : 0, $invitation['id']]);
     
     // --- IPアドレスの記録（既存ユーザー／ERA会員向け招待リンクアクセス時） ---
-    // 招待リンクをクリックして編集画面に進む端末のIPアドレスを記録し、
-    // 後でトップページアクセス時の自動判別に利用する
+    // 招待リンクをクリックして編集画面に進む端末の IP を記録する
     $clientIp  = $_SERVER['REMOTE_ADDR']     ?? '';
     $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
