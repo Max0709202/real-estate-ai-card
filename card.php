@@ -93,119 +93,52 @@ if (!$card) {
 // Card can only be viewed if payment_status is CR, BANK_PAID, or ST, and is_published is 1
 // However, allow preview mode when preview=1 parameter is set (for edit page)
 if (!$preview && (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || $card['is_published'] == 0)) {
-    // Display custom message instead of 404
+    // 未入金/非公開時は理由説明モーダルを表示
+    $isPaymentAllowed = in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST'], true);
+    $isPublished = ((int)($card['is_published'] ?? 0) === 1);
+    $reasonTitle = 'この名刺は現在ご利用いただけません';
+    $reasonMessage = !$isPaymentAllowed
+        ? '現在、入金確認が完了していないため名刺を公開できません。'
+        : '現在、名刺が非公開設定のため表示できません。';
     ?>
-        <!DOCTYPE html>
-        <html>
-        <head>
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
         <meta charset="UTF-8">
-        <title>サブスクリプション通知</title>
-        </head>
-        <body style="margin:0; padding:0; background-color:#667eea;">
-
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,#667eea,#764ba2); padding:40px 0;">
-        <tr>
-            <td align="center">
-
-            <!-- Card -->
-            <table width="500" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:12px; padding:30px; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,0.2);">
-
-                <!-- Icon -->
-                <tr>
-                <td style="font-size:48px; padding-bottom:20px;">
-                    ⚠️
-                </td>
-                </tr>
-
-                <!-- Title -->
-                <tr>
-                <td style="font-size:20px; font-weight:bold; color:#333; padding-bottom:15px;">
-                    サブスクリプションがキャンセルされました
-                </td>
-                </tr>
-
-                <!-- Description -->
-                <tr>
-                <td style="color:#666; line-height:1.8; padding-bottom:25px; text-align:left;">
-                    {$initiatedBy} によりサブスクリプションがキャンセルされました。
-                </td>
-                </tr>
-
-                <!-- Info Table -->
-                <tr>
-                <td>
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; font-size:14px;">
-                    
-                    <tr>
-                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">ユーザーID</td>
-                        <td style="padding:10px; border:1px solid #ddd;">{$userId}</td>
-                    </tr>
-
-                    <tr>
-                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">メールアドレス</td>
-                        <td style="padding:10px; border:1px solid #ddd;">{$userEmail}</td>
-                    </tr>
-
-                    <tr>
-                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">サブスクリプションID</td>
-                        <td style="padding:10px; border:1px solid #ddd;">{$subscriptionId}</td>
-                    </tr>
-
-                    <tr>
-                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">ビジネスカードID</td>
-                        <td style="padding:10px; border:1px solid #ddd;">{$businessCardId}</td>
-                    </tr>
-
-                    <tr>
-                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">URLスラッグ</td>
-                        <td style="padding:10px; border:1px solid #ddd; background:#fff3cd;">{$urlSlug}</td>
-                    </tr>
-
-                    <tr>
-                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">キャンセル種別</td>
-                        <td style="padding:10px; border:1px solid #ddd;">{$cancellationType}</td>
-                    </tr>
-
-                    <tr>
-                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">操作者</td>
-                        <td style="padding:10px; border:1px solid #ddd;">{$initiatedBy}</td>
-                    </tr>
-
-                    <tr>
-                        <td style="background:#f1f1f1; padding:10px; border:1px solid #ddd;">キャンセル日時</td>
-                        <td style="padding:10px; border:1px solid #ddd;">{$cancellationDate}</td>
-                    </tr>
-
-                    <!-- Optional URL -->
-                    " . ($cardFullUrl ? "
-                    <tr>
-                        <td style='background:#f1f1f1; padding:10px; border:1px solid #ddd;'>名刺URL</td>
-                        <td style='padding:10px; border:1px solid #ddd;'>
-                        <a href='{$cardFullUrl}' target='_blank' style='color:#667eea;'>{$cardFullUrl}</a>
-                        </td>
-                    </tr>
-                    " : "") . "
-
-                    </table>
-                </td>
-                </tr>
-
-                <!-- Footer -->
-                <tr>
-                <td style="padding-top:25px; font-size:12px; color:#888;">
-                    このメールは自動送信されています。返信はできません。<br>
-                    © " . date('Y') . " 不動産AI名刺
-                </td>
-                </tr>
-
-            </table>
-
-            </td>
-        </tr>
-        </table>
-
-        </body>
-        </html>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>名刺の利用状況 - 不動産AI名刺</title>
+    </head>
+    <body style="margin:0; min-height:100vh; font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI',Meiryo,sans-serif; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);">
+        <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;">
+            <div role="dialog" aria-modal="true" aria-labelledby="unavailable-title" style="width:100%; max-width:560px; background:#fff; border-radius:14px; box-shadow:0 18px 48px rgba(0,0,0,0.25); overflow:hidden;">
+                <div style="padding:22px 24px 10px; text-align:center;">
+                    <div style="font-size:42px; line-height:1;">⚠️</div>
+                    <h1 id="unavailable-title" style="margin:10px 0 0; font-size:22px; color:#222; font-weight:700;"><?php echo htmlspecialchars($reasonTitle, ENT_QUOTES, 'UTF-8'); ?></h1>
+                </div>
+                <div style="padding:8px 24px 24px; color:#444; line-height:1.85; font-size:15px;">
+                    <div style="background:#f8f9ff; border:1px solid #dfe3ff; border-radius:10px; padding:12px 14px; margin-bottom:14px;">
+                        <?php echo htmlspecialchars($reasonMessage, ENT_QUOTES, 'UTF-8'); ?>
+                    </div>
+                    <strong>ご利用を再開するには</strong>
+                    <ul style="margin:10px 0 0; padding-left:1.2em;">
+                        <?php if (!$isPaymentAllowed): ?>
+                            <li style="margin:0 0 8px;">マイページでお支払い手続きを完了してください。</li>
+                            <li style="margin:0 0 8px;">入金確認後、名刺が自動で公開されます。</li>
+                        <?php endif; ?>
+                        <?php if (!$isPublished): ?>
+                            <li style="margin:0 0 8px;">管理者またはご本人による公開設定（OPEN）が必要です。</li>
+                        <?php endif; ?>
+                        <li style="margin:0 0 8px;">反映まで少し時間がかかる場合があります。時間をおいて再度お試しください。</li>
+                    </ul>
+                </div>
+                <div style="padding:0 24px 22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+                    <a href="login.php" style="display:inline-block; padding:11px 20px; border-radius:9px; text-decoration:none; font-weight:700; font-size:14px; border:0; color:#fff; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);">ログインして確認する</a>
+                    <a href="index.php" style="display:inline-block; padding:11px 20px; border-radius:9px; text-decoration:none; font-weight:700; font-size:14px; border:0; color:#333; background:#ececf4;">トップへ戻る</a>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
     <?php
     exit();
 }
