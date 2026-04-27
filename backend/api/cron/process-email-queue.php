@@ -6,6 +6,7 @@
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
+define('EMAIL_QUEUE_PROCESSOR_MODE', true);
 require_once __DIR__ . '/../../includes/functions.php';
 
 // Maximum emails to process per run (to avoid hitting Gmail limits)

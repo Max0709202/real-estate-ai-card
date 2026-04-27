@@ -6,6 +6,72 @@ let editCropOriginalEvent = null;
 let editImageObjectURL = null; // Track object URL for cleanup
 let editCropperImageLoadHandler = null; // Track onload handler
 
+function normalizeBirthDateDigits(value) {
+    return String(value || '').replace(/\D/g, '').slice(0, 8);
+}
+
+function isValidBirthDateParts(y, m, d) {
+    const year = Number(y);
+    const month = Number(m);
+    const day = Number(d);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+    if (year < 1900 || year > 2100) return false;
+    const dt = new Date(year, month - 1, day);
+    return dt.getFullYear() === year && dt.getMonth() === (month - 1) && dt.getDate() === day;
+}
+
+function formatBirthDateDisplayFromAny(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const normalized = raw.replace(/\./g, '/').replace(/-/g, '/');
+    const matched = normalized.match(/^(\d{4})\/?(\d{2})\/?(\d{2})$/);
+    if (!matched) return '';
+    const y = matched[1];
+    const m = matched[2];
+    const d = matched[3];
+    if (!isValidBirthDateParts(y, m, d)) return '';
+    return `${y}/${m}/${d}`;
+}
+
+function bindBirthDateInput(input) {
+    if (!input || input.dataset.birthBound === '1') return;
+    input.dataset.birthBound = '1';
+
+    input.addEventListener('input', () => {
+        const digits = normalizeBirthDateDigits(input.value);
+        if (digits.length <= 4) {
+            input.value = digits;
+        } else if (digits.length <= 6) {
+            input.value = `${digits.slice(0, 4)}/${digits.slice(4)}`;
+        } else {
+            input.value = `${digits.slice(0, 4)}/${digits.slice(4, 6)}/${digits.slice(6, 8)}`;
+        }
+    });
+
+    input.addEventListener('blur', () => {
+        const normalized = formatBirthDateDisplayFromAny(input.value);
+        if (normalized) input.value = normalized;
+    });
+
+    if (typeof window.flatpickr === 'function') {
+        window.flatpickr(input, {
+            dateFormat: 'Y/m/d',
+            allowInput: true,
+            disableMobile: true,
+            monthSelectorType: 'dropdown',
+            onClose: (_selectedDates, dateStr, instance) => {
+                if (dateStr) {
+                    instance.input.value = formatBirthDateDisplayFromAny(dateStr);
+                }
+            }
+        });
+    }
+}
+
+function setupBirthDateInputs() {
+    document.querySelectorAll('input[name="birth_date"]').forEach(bindBirthDateInput);
+}
+
 // Move communication item up or down
 function moveCommunicationItem(index, direction, type) {
     const gridId = type === 'message' ? 'message-apps-grid' : 'sns-grid';
@@ -633,7 +699,10 @@ function populateEditForms(data) {
         }
         if (data.birth_date) {
         const birthInput = document.querySelector('input[name="birth_date"]');
-        if (birthInput) birthInput.value = data.birth_date;
+        if (birthInput) {
+            const formatted = formatBirthDateDisplayFromAny(data.birth_date);
+            birthInput.value = formatted || data.birth_date;
+        }
         }
         if (data.current_residence) {
         const residenceInput = document.querySelector('input[name="current_residence"]');
@@ -1460,6 +1529,7 @@ function showCommunicationHelpModal(helpType) {
 
 // Initialize communication drag and drop on page load
 document.addEventListener('DOMContentLoaded', function() {
+    setupBirthDateInputs();
     // Ensure cropper modal is direct child of body - prevents it from being hidden by parent layout (e.g. after Save & Next)
     const cropperModal = document.getElementById('image-cropper-modal');
     if (cropperModal && cropperModal.parentElement !== document.body) {

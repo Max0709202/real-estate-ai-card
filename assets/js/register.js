@@ -225,8 +225,81 @@ function buildUrlWithToken(baseUrl) {
     return baseUrl;
 }
 
+function normalizeBirthDateDigits(value) {
+    return String(value || '').replace(/\D/g, '').slice(0, 8);
+}
+
+function isValidDateParts(y, m, d) {
+    const year = Number(y);
+    const month = Number(m);
+    const day = Number(d);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+    if (year < 1900 || year > 2100) return false;
+    const dt = new Date(year, month - 1, day);
+    return dt.getFullYear() === year && dt.getMonth() === (month - 1) && dt.getDate() === day;
+}
+
+function formatBirthDateDisplayFromAny(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const normalized = raw.replace(/\./g, '/').replace(/-/g, '/');
+    const matched = normalized.match(/^(\d{4})\/?(\d{2})\/?(\d{2})$/);
+    if (!matched) return '';
+    const y = matched[1];
+    const m = matched[2];
+    const d = matched[3];
+    if (!isValidDateParts(y, m, d)) return '';
+    return `${y}/${m}/${d}`;
+}
+
+function formatBirthDateStorageFromAny(value) {
+    const display = formatBirthDateDisplayFromAny(value);
+    if (!display) return '';
+    return display.replace(/\//g, '-');
+}
+
+function bindBirthDateInput(input) {
+    if (!input || input.dataset.birthBound === '1') return;
+    input.dataset.birthBound = '1';
+
+    input.addEventListener('input', () => {
+        const digits = normalizeBirthDateDigits(input.value);
+        if (digits.length <= 4) {
+            input.value = digits;
+        } else if (digits.length <= 6) {
+            input.value = `${digits.slice(0, 4)}/${digits.slice(4)}`;
+        } else {
+            input.value = `${digits.slice(0, 4)}/${digits.slice(4, 6)}/${digits.slice(6, 8)}`;
+        }
+    });
+
+    input.addEventListener('blur', () => {
+        const normalized = formatBirthDateDisplayFromAny(input.value);
+        if (normalized) input.value = normalized;
+    });
+
+    if (typeof window.flatpickr === 'function') {
+        window.flatpickr(input, {
+            dateFormat: 'Y/m/d',
+            allowInput: true,
+            disableMobile: true,
+            monthSelectorType: 'dropdown',
+            onClose: (_selectedDates, dateStr, instance) => {
+                if (dateStr) {
+                    instance.input.value = formatBirthDateDisplayFromAny(dateStr);
+                }
+            }
+        });
+    }
+}
+
+function setupBirthDateInputs() {
+    document.querySelectorAll('input[name="birth_date"]').forEach(bindBirthDateInput);
+}
+
 // Load existing business card data on page load
 document.addEventListener('DOMContentLoaded', async function() {
+    setupBirthDateInputs();
     await loadExistingBusinessCardData();
 
     // Ensure default greetings are displayed if container is still empty (for new users)
@@ -650,7 +723,10 @@ function populateRegistrationForms(data) {
     }
     if (data.birth_date) {
         const birthInput = document.querySelector('input[name="birth_date"]');
-        if (birthInput) birthInput.value = data.birth_date;
+        if (birthInput) {
+            const formatted = formatBirthDateDisplayFromAny(data.birth_date);
+            birthInput.value = formatted || data.birth_date;
+        }
     }
     if (data.current_residence) {
         const residenceInput = document.querySelector('input[name="current_residence"]');
@@ -1778,6 +1854,7 @@ document.getElementById('header-greeting-form')?.addEventListener('submit', asyn
     
     const formDataObj = new FormData(e.target);
     const data = Object.fromEntries(formDataObj);
+    data.birth_date = formatBirthDateStorageFromAny(data.birth_date);
     
     // IMPORTANT: Remove file input values from data object to prevent overwriting existing images
     // File inputs in FormData become empty File objects when no file is selected

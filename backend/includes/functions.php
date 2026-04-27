@@ -1253,12 +1253,18 @@ function sendEmail(
             strpos($msg, 'connection failed') !== false ||
             strpos($msg, 'could not connect') !== false ||
             strpos($msg, 'try again later') !== false ||
-            strpos($msg, '4.') !== false // many SMTP temp errors include 4.x.x
+            preg_match('/\b4\d\d\b/', $msg) === 1 || // SMTP 4xx
+            preg_match('/\b4\.\d\.\d\b/', $msg) === 1 // SMTP enhanced status 4.x.x
         ) {
             $temporaryError = true;
         }
 
-        if ($temporaryError && function_exists('queueEmailForLater')) {
+        // Verification mail should never be silently delayed into queue.
+        $nonQueueEmailTypes = ['verification', 'verification_resend'];
+        $isQueueProcessorMode = defined('EMAIL_QUEUE_PROCESSOR_MODE') && EMAIL_QUEUE_PROCESSOR_MODE === true;
+        $canQueueThisEmailType = !in_array($emailType, $nonQueueEmailTypes, true);
+
+        if ($temporaryError && !$isQueueProcessorMode && $canQueueThisEmailType && function_exists('queueEmailForLater')) {
             queueEmailForLater($to, $subject, $htmlMessage, $textMessage, $emailType, $userId, $relatedId);
             error_log("[Email Queue] Temporary failure. Queued email to {$to}");
         }
@@ -1277,6 +1283,24 @@ function queueEmailForLater($to, $subject, $htmlMessage, $textMessage, $emailTyp
         require_once __DIR__ . '/../config/database.php';
         $database = new Database();
         $db = $database->getConnection();
+
+        // Deduplicate near-identical queued emails in a short window.
+        $dupStmt = $db->prepare("
+            SELECT id
+            FROM email_queue
+            WHERE recipient_email = ?
+              AND email_type = ?
+              AND subject = ?
+              AND status IN ('pending', 'processing')
+              AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+            ORDER BY id DESC
+            LIMIT 1
+        ");
+        $dupStmt->execute([$to, $emailType, $subject]);
+        if ($dupStmt->fetch(PDO::FETCH_ASSOC)) {
+            error_log("[Email Queue] Duplicate skipped for {$to} (type={$emailType})");
+            return true;
+        }
 
         // Check if email_queue table exists, if not, just log the attempt
         $stmt = $db->prepare("
@@ -1498,9 +1522,7 @@ function sendUserCancellationConfirmationEmail($userEmail, $cancelImmediately) {
 
                 <tr>
                     <td align="center" style="padding:30px 20px;">
-                        <div style="background:#ffffff; padding:15px; display:inline-block;">
-                            <img src="{$logoUrl}" alt="不動産AI名刺" style="max-width:100px; height:auto; display:block;">
-                        </div>
+                        <img src="{$logoUrl}" alt="不動産AI名刺" style="max-width:100px; height:auto; display:block;">
                     </td>
                 </tr>
 

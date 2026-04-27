@@ -516,6 +516,7 @@ $defaultGreetings = [
 
     <!-- Cropper.js CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
         .btn-secondary {
             background: #6c757d;
@@ -536,6 +537,27 @@ $defaultGreetings = [
         }
         .btn-payment-red:hover {
             background: #c82333;
+        }
+        .flatpickr-calendar {
+            font-size: 16px;
+            width: 340px;
+        }
+        .flatpickr-day {
+            max-width: 42px;
+            height: 42px;
+            line-height: 42px;
+        }
+        .flatpickr-months .flatpickr-month {
+            height: 48px;
+        }
+        .flatpickr-current-month {
+            font-size: 16px;
+            padding-top: 8px;
+        }
+        .flatpickr-weekday {
+            height: 34px;
+            line-height: 34px;
+            font-size: 13px;
         }
     </style>
 </head>
@@ -808,7 +830,7 @@ $defaultGreetings = [
 
                         <div class="form-group">
                             <label>生年月日</label>
-                            <input type="date" name="birth_date" class="form-control">
+                            <input type="text" name="birth_date" class="form-control birth-date-input" inputmode="numeric" autocomplete="bday" placeholder="YYYY/MM/DD（例: 19800810）">
                         </div>
 
                         <div class="form-row">
@@ -1404,6 +1426,7 @@ $defaultGreetings = [
         };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="assets/js/edit.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script>
@@ -1435,6 +1458,19 @@ $defaultGreetings = [
                 directInputBtnPc.addEventListener('click', handleDirectInputClick);
             }
         });
+
+        function formatBirthDateToStorage(raw) {
+            const v = String(raw || '').trim().replace(/\./g, '/').replace(/-/g, '/');
+            const m = v.match(/^(\d{4})\/?(\d{2})\/?(\d{2})$/);
+            if (!m) return '';
+            const y = Number(m[1]);
+            const mo = Number(m[2]);
+            const d = Number(m[3]);
+            if (!Number.isInteger(y) || !Number.isInteger(mo) || !Number.isInteger(d)) return '';
+            const dt = new Date(y, mo - 1, d);
+            if (dt.getFullYear() !== y || dt.getMonth() !== (mo - 1) || dt.getDate() !== d) return '';
+            return `${m[1]}-${m[2]}-${m[3]}`;
+        }
 
         // Collect current form data from all forms
         function collectCurrentFormData() {
@@ -1508,6 +1544,7 @@ $defaultGreetings = [
                 for (let [key, value] of formData.entries()) {
                     if (value) data[key] = value;
                 }
+                data.birth_date = formatBirthDateToStorage(data.birth_date);
 
                 // Combine names
                 const lastName = data.last_name || '';
@@ -2469,6 +2506,7 @@ $defaultGreetings = [
                     for (let [key, value] of formData.entries()) {
                         data[key] = value;
                     }
+                    data.birth_date = formatBirthDateToStorage(data.birth_date);
                     
                     // Combine last_name and first_name
                     const lastName = data.last_name || '';

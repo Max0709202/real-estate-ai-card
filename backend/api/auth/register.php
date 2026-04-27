@@ -235,6 +235,13 @@ try {
 
     if (!$emailSent) {
         error_log("[Email Error] Verification email send failed: " . $input['email']);
+        sendJsonResponse([
+            'success' => false,
+            'account_created' => true,
+            'email_send_failed' => true,
+            'message' => 'アカウント登録は完了しましたが、認証メールの送信に失敗しました。ログイン画面の「認証メールを再送信する」から再送してください。'
+        ], 503);
+        exit;
     }
 
 

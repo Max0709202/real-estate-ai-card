@@ -273,6 +273,30 @@ $prefectures = [
     <link rel="stylesheet" href="assets/css/admin.css">
     <!-- Cropper.js CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        .flatpickr-calendar {
+            font-size: 16px;
+            width: 340px;
+        }
+        .flatpickr-day {
+            max-width: 42px;
+            height: 42px;
+            line-height: 42px;
+        }
+        .flatpickr-months .flatpickr-month {
+            height: 48px;
+        }
+        .flatpickr-current-month {
+            font-size: 16px;
+            padding-top: 8px;
+        }
+        .flatpickr-weekday {
+            height: 34px;
+            line-height: 34px;
+            font-size: 13px;
+        }
+    </style>
 </head>
 <body>
     <?php
@@ -531,7 +555,7 @@ $prefectures = [
 
                     <div class="form-group">
                         <label>生年月日</label>
-                        <input type="date" name="birth_date" class="form-control">
+                        <input type="text" name="birth_date" class="form-control birth-date-input" inputmode="numeric" autocomplete="bday" placeholder="YYYY/MM/DD（例: 19800810）">
                     </div>
 
                     <div class="form-row">
@@ -1116,6 +1140,7 @@ $prefectures = [
 
     <!-- Cropper.js (modal.js loaded via header.php) -->
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
         // Make BASE_URL and upload URL available to JavaScript
         window.BASE_URL = <?php echo json_encode(BASE_URL); ?>;
