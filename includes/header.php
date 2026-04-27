@@ -24,6 +24,7 @@ $showMyCard = false;
 $cardSlug = '';
 $isEmailVerified = false;
 $registerPageUrl = 'new_register.php?type=new'; // Default for non-logged-in users
+$createPageUrl = 'new_register.php?type=new'; // Header CTA ("不動産AI名刺を作る")
 
 // Check for token-based access (existing/free users from email invitation)
 // Get token and type from current URL to preserve them in the registration link
@@ -49,8 +50,10 @@ if ($isTokenBased && !$isLoggedIn) {
 
             if ($tokenUserType === 'existing') {
                 $registerPageUrl = 'login.php?type=' . $tokenUserType . '&token=' . urlencode($invitationToken);
+                $createPageUrl = 'new_register.php?type=' . $tokenUserType . '&token=' . urlencode($invitationToken);
             } elseif ($urlUserType === 'existing') {
                 $registerPageUrl = 'login.php?type=' . $urlUserType . '&token=' . urlencode($invitationToken);
+                $createPageUrl = 'new_register.php?type=' . $urlUserType . '&token=' . urlencode($invitationToken);
             }
         }
     } catch (Exception $e) {
@@ -60,8 +63,10 @@ if ($isTokenBased && !$isLoggedIn) {
     // If type is in URL but no token, still set the URL (though token should be present)
     // Existing users should login (not re-register)
     $registerPageUrl = 'login.php?type=' . $urlUserType;
+    $createPageUrl = 'new_register.php?type=' . $urlUserType;
     if ($invitationToken) {
         $registerPageUrl .= '&token=' . urlencode($invitationToken);
+        $createPageUrl .= '&token=' . urlencode($invitationToken);
     }
 }
 
@@ -84,6 +89,7 @@ if ($isLoggedIn) {
             $isEmailVerified = true;
             // If email is verified, redirect to register.php
             $registerPageUrl = 'register.php';
+            $createPageUrl = 'register.php';
         }
 
         // Check if user can currently view My Card.
@@ -449,7 +455,7 @@ if ($isLoggedIn) {
                 <?php endif; ?>
 
                 <?php if ($showNavLinks): ?>
-                <a href="<?php echo htmlspecialchars($registerPageUrl); ?>" class="btn-primary">不動産AI名刺を作る</a>
+                <a href="<?php echo htmlspecialchars($createPageUrl); ?>" class="btn-primary">不動産AI名刺を作る</a>
                 <?php endif; ?>
                 
             </nav>
