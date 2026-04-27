@@ -15,6 +15,10 @@ startSessionIfNotStarted();
 
 $paymentId = $_GET['payment_id'] ?? '';
 $paymentIntentId = $_GET['pi'] ?? '';
+if (!empty($paymentIntentId) && strpos($paymentIntentId, '?') !== false) {
+    // Defensive: older/broken URLs may append query params into pi itself.
+    $paymentIntentId = strtok($paymentIntentId, '?');
+}
 $userType = $_GET['type'] ?? ($_SESSION['user_type'] ?? 'new');
 $urlTypeParam = ($userType === 'existing') ? existing_user_nav_suffix(true) : '';
 

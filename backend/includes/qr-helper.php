@@ -64,17 +64,28 @@ function generateBusinessCardQRCode($businessCardId, $db) {
         
         // Generate QR code using BaconQrCode
         try {
+            if (!class_exists('\BaconQrCode\Writer') || !class_exists('\BaconQrCode\Renderer\RendererStyle\RendererStyle')) {
+                return [
+                    'success' => false,
+                    'message' => 'QR code library (BaconQrCode) is not installed'
+                ];
+            }
             $renderer = new ImageRenderer(
                 new RendererStyle(400, 2), // Size 400x400, margin 2
                 new ImagickImageBackEnd()
             );
             $writer = new Writer($renderer);
             $writer->writeFile($qrUrl, $qrCodePath);
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             // Fallback: Try with GD backend if Imagick is not available
             error_log("Imagick not available, trying GD backend: " . $e->getMessage());
             try {
-                require_once __DIR__ . '/../vendor/bacon/bacon-qr-code/src/Renderer/Image/SvgImageBackEnd.php';
+                if (!class_exists('\BaconQrCode\Renderer\Image\SvgImageBackEnd')) {
+                    return [
+                        'success' => false,
+                        'message' => 'QR fallback backend (SvgImageBackEnd) is not available'
+                    ];
+                }
                 $renderer = new ImageRenderer(
                     new RendererStyle(400, 2),
                     new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
@@ -89,7 +100,7 @@ function generateBusinessCardQRCode($businessCardId, $db) {
                 $qrCodePath = QR_CODE_DIR . $qrCodeFileName;
                 $qrCodeRelativePath = 'uploads/qr_codes/' . $qrCodeFileName;
                 file_put_contents($qrCodePath, $svgContent);
-            } catch (Exception $e2) {
+            } catch (Throwable $e2) {
                 error_log("QR Code generation failed: " . $e2->getMessage());
                 return [
                     'success' => false,
@@ -213,7 +224,7 @@ function generateBusinessCardQRCode($businessCardId, $db) {
             'url_slug' => $card['url_slug']
         ];
         
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         error_log("QR Code generation error: " . $e->getMessage());
         return [
             'success' => false,

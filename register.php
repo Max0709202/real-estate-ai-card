@@ -1170,7 +1170,8 @@ $prefectures = [
         // Helper function to build URLs with token and type parameters
         function buildUrlWithToken(baseUrl) {
             if (window.invitationToken && window.userType === 'existing') {
-                return baseUrl + '?type=' + encodeURIComponent(window.userType) + '&token=' + encodeURIComponent(window.invitationToken);
+                const sep = baseUrl.includes('?') ? '&' : '?';
+                return baseUrl + sep + 'type=' + encodeURIComponent(window.userType) + '&token=' + encodeURIComponent(window.invitationToken);
             }
             return baseUrl;
         }
