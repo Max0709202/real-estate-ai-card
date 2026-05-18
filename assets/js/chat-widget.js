@@ -112,12 +112,23 @@
             });
     }
 
-    function appendBotMessage(text, isLoading) {
+    function appendBotMessage(text, isLoading, sources) {
         var wrap = document.createElement('div');
         wrap.className = 'chat-msg bot' + (isLoading ? ' chat-msg-loading' : '');
         var time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-        var img = agentPhoto ? '<img class="chat-msg-avatar" src="' + escapeHtml(agentPhoto) + '" alt="">' : '';
-        wrap.innerHTML = img + '<div><div class="chat-msg-bubble">' + escapeHtml(text) + '</div><div class="chat-msg-time">' + time + '</div></div>';
+        var img = agentPhoto ? '<img class="chat-msg-avatar" src="' + escapeAttribute(agentPhoto) + '" alt="">' : '';
+        wrap.innerHTML = img + '<div class="chat-msg-content"><div class="chat-msg-bubble">' + escapeHtml(text) + '</div><div class="chat-msg-time">' + time + '</div></div>';
+        if (sources && sources.length) {
+            var sourceBox = document.createElement('div');
+            sourceBox.className = 'chat-msg-sources';
+            sourceBox.innerHTML = '<span>参照情報</span>' + sources.slice(0, 3).map(function (source) {
+                var title = source.title || source.url || 'Source';
+                var url = source.url || '#';
+                return '<a href="' + escapeAttribute(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(title) + '</a>';
+            }).join('');
+            var content = wrap.querySelector('.chat-msg-content');
+            if (content) content.appendChild(sourceBox);
+        }
         messagesContainer.appendChild(wrap);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
         return wrap;
@@ -136,6 +147,10 @@
         var div = document.createElement('div');
         div.textContent = s;
         return div.innerHTML;
+    }
+
+    function escapeAttribute(s) {
+        return escapeHtml(String(s || '')).replace(/"/g, '&quot;');
     }
 
     function sendMessage(text) {
@@ -166,7 +181,7 @@
                 sendingMessage = false;
                 loadingRow.remove();
                 if (data.success && data.data && data.data.reply) {
-                    appendBotMessage(data.data.reply, false);
+                    appendBotMessage(data.data.reply, false, data.data.sources || []);
                 } else {
                     appendBotMessage(data.message || 'エラーが発生しました。');
                 }

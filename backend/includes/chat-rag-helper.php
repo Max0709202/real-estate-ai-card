@@ -1,0 +1,524 @@
+<?php
+/**
+ * Local RAG and conversation memory helpers for the real estate chat widget.
+ * The live chat path should read local chunks only; external site fetching belongs
+ * in backend/scripts/sync_chat_knowledge.php or a cron job.
+ */
+
+function chatDefaultKnowledgeSources() {
+    return [
+        [
+            'source_key' => 'nta_housing_loan_1211_1',
+            'title' => '国税庁: 住宅の新築等をし、令和4年以降に居住した場合の住宅借入金等特別控除',
+            'url' => 'https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1211-1.htm',
+            'source_type' => 'official_tax',
+            'priority' => 10,
+        ],
+        [
+            'source_key' => 'nta_housing_loan_1225',
+            'title' => '国税庁: 住宅借入金等特別控除の対象となる住宅ローン等',
+            'url' => 'https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1225.htm',
+            'source_type' => 'official_tax',
+            'priority' => 11,
+        ],
+        [
+            'source_key' => 'nta_home_sale_3302',
+            'title' => '国税庁: マイホームを売ったときの特例',
+            'url' => 'https://www.nta.go.jp/taxes/shiraberu/taxanswer/joto/3302.htm',
+            'source_type' => 'official_tax',
+            'priority' => 12,
+        ],
+        [
+            'source_key' => 'mlit_housing_loan_tax_r7',
+            'title' => '国土交通省: 住宅ローン減税（所得税・個人住民税）',
+            'url' => 'https://www.mlit.go.jp/jutakukentiku/house/shienjigyo_r7-06.html',
+            'source_type' => 'official_mlit',
+            'priority' => 20,
+        ],
+        [
+            'source_key' => 'mlit_reform_tax',
+            'title' => '国土交通省: 住宅をリフォームした場合に使える減税制度',
+            'url' => 'https://www.mlit.go.jp/jutakukentiku/house/jutakukentiku_house_tk4_000251.html',
+            'source_type' => 'official_mlit',
+            'priority' => 21,
+        ],
+        [
+            'source_key' => 'mlit_mirai_eco_2026',
+            'title' => '国土交通省: みらいエコ住宅2026事業について',
+            'url' => 'https://www.mlit.go.jp/jutakukentiku/house/jutakukentiku_house_tk4_000310.html',
+            'source_type' => 'official_mlit',
+            'priority' => 22,
+        ],
+        [
+            'source_key' => 'mirai_eco_2026_about',
+            'title' => 'みらいエコ住宅2026事業公式: 事業概要',
+            'url' => 'https://mirai-eco2026.mlit.go.jp/about/',
+            'source_type' => 'official_subsidy',
+            'priority' => 23,
+        ],
+        [
+            'source_key' => 'jhf_interest_rates',
+            'title' => '住宅金融支援機構: 金利情報',
+            'url' => 'https://www.jhf.go.jp/kinri/index.html',
+            'source_type' => 'official_finance',
+            'priority' => 30,
+        ],
+        [
+            'source_key' => 'flat35_zeh',
+            'title' => 'フラット35: フラット35S（ZEH）',
+            'url' => 'https://www.flat35.com/loan/lineup/flat35s_zeh/index.html',
+            'source_type' => 'official_finance',
+            'priority' => 31,
+        ],
+        [
+            'source_key' => 'company_blog_renovation_info',
+            'title' => '自社参考ブログ: 戸建てリノベINFO',
+            'url' => defined('CHAT_BLOG_BASE_URL') ? CHAT_BLOG_BASE_URL : 'https://smile.re-agent.info/blog/',
+            'source_type' => 'company_blog',
+            'priority' => 90,
+        ],
+    ];
+}
+
+function ensureChatRagTables($db) {
+    $db->exec("CREATE TABLE IF NOT EXISTS chat_knowledge_sources (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        source_key VARCHAR(120) NOT NULL UNIQUE,
+        title VARCHAR(255) NOT NULL,
+        url TEXT NOT NULL,
+        source_type VARCHAR(50) NOT NULL DEFAULT 'official',
+        priority INT NOT NULL DEFAULT 100,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        last_fetched_at TIMESTAMP NULL DEFAULT NULL,
+        last_status VARCHAR(30) NULL DEFAULT NULL,
+        last_error TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_chat_knowledge_sources_enabled (enabled, priority)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $db->exec("CREATE TABLE IF NOT EXISTS chat_knowledge_chunks (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        source_id INT NOT NULL,
+        chunk_index INT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        url TEXT NOT NULL,
+        content MEDIUMTEXT NOT NULL,
+        content_hash CHAR(64) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (source_id) REFERENCES chat_knowledge_sources(id) ON DELETE CASCADE,
+        UNIQUE KEY uniq_chat_knowledge_chunk (source_id, chunk_index),
+        INDEX idx_chat_knowledge_chunks_source (source_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $db->exec("CREATE TABLE IF NOT EXISTS chat_session_memory (
+        session_id CHAR(36) PRIMARY KEY,
+        business_card_id INT NULL,
+        memory_json JSON NULL,
+        last_summary TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
+        INDEX idx_chat_session_memory_card (business_card_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function seedDefaultChatKnowledgeSources($db) {
+    ensureChatRagTables($db);
+    $sql = "INSERT INTO chat_knowledge_sources (source_key, title, url, source_type, priority, enabled)
+            VALUES (?, ?, ?, ?, ?, 1)
+            ON DUPLICATE KEY UPDATE title = VALUES(title), url = VALUES(url), source_type = VALUES(source_type), priority = VALUES(priority), enabled = 1";
+    $stmt = $db->prepare($sql);
+    foreach (chatDefaultKnowledgeSources() as $source) {
+        $stmt->execute([
+            $source['source_key'],
+            $source['title'],
+            $source['url'],
+            $source['source_type'],
+            $source['priority'],
+        ]);
+    }
+}
+
+function chatShouldUseFreshSources($message) {
+    return (bool) preg_match('/今年度|最新|202[0-9]|令和[0-9０-９]+|税制|減税|補助金|控除|金利|フラット\s*35|省エネ|ZEH|長期優良住宅|法改正|自治体|制度|住宅ローン|住宅借入金|みらいエコ|子育て|若者夫婦/u', $message);
+}
+
+function chatExtractSearchTerms($message) {
+    $terms = [];
+    $keywords = [
+        '住宅ローン減税', '住宅ローン控除', '住宅借入金等特別控除', '住宅ローン', '補助金', '税制', '減税', '控除',
+        '金利', 'フラット35', 'フラット３５', '省エネ', 'ZEH', '長期優良住宅', '子育て', '若者夫婦', '中古', '新築',
+        'マンション', '戸建て', '売却', '住み替え', '投資', '3,000万円', '3000万円', '特別控除', '自治体', '制度',
+        'みらいエコ', 'リフォーム', 'リノベ', '建築基準', '入居', '年収', '借入', '予算'
+    ];
+    foreach ($keywords as $keyword) {
+        if (mb_stripos($message, $keyword) !== false) {
+            $terms[] = $keyword;
+        }
+    }
+    if (preg_match_all('/(20[0-9]{2}|令和[0-9０-９]+|[0-9０-９,\.]+\s*(万円|億円|円))/u', $message, $m)) {
+        foreach ($m[1] as $term) {
+            $terms[] = trim($term);
+        }
+    }
+    if (preg_match('/住宅ローン減税|住宅ローン控除|住宅借入金/u', $message)) {
+        $terms = array_merge($terms, ['住宅借入金等特別控除', '省エネ', '子育て', '入居', '控除']);
+    }
+    if (preg_match('/売却|住み替え|3000|3,000|譲渡/u', $message)) {
+        $terms = array_merge($terms, ['マイホーム', '3,000万円', '特別控除', '譲渡所得']);
+    }
+    if (preg_match('/補助金|省エネ|ZEH|長期優良|みらいエコ/u', $message)) {
+        $terms = array_merge($terms, ['みらいエコ', '省エネ', '長期優良住宅', 'ZEH']);
+    }
+    $terms = array_values(array_unique(array_filter(array_map('trim', $terms))));
+    return array_slice($terms, 0, 16);
+}
+
+function chatScoreKnowledgeChunk($row, $terms) {
+    $haystack = mb_strtolower(($row['title'] ?? '') . "\n" . ($row['content'] ?? ''));
+    $score = max(0, 100 - (int)($row['priority'] ?? 100));
+    foreach ($terms as $term) {
+        $needle = mb_strtolower($term);
+        if ($needle === '') continue;
+        $titleHit = mb_stripos(mb_strtolower($row['title'] ?? ''), $needle) !== false;
+        $bodyHit = mb_stripos($haystack, $needle) !== false;
+        if ($titleHit) $score += 18;
+        if ($bodyHit) $score += 8;
+    }
+    if (in_array($row['source_type'] ?? '', ['official_tax', 'official_mlit', 'official_finance', 'official_subsidy'], true)) {
+        $score += 15;
+    }
+    return $score;
+}
+
+function getChatRagContextForChat($db, $message, $limit = 6) {
+    $empty = [
+        'context' => '',
+        'sources' => [],
+        'requires_fresh' => chatShouldUseFreshSources($message),
+        'has_local_knowledge' => false,
+    ];
+    if (!$db) return $empty;
+
+    try {
+        ensureChatRagTables($db);
+        seedDefaultChatKnowledgeSources($db);
+
+        $terms = chatExtractSearchTerms($message);
+        $where = "s.enabled = 1";
+        $params = [];
+        if (!empty($terms)) {
+            $likes = [];
+            foreach (array_slice($terms, 0, 8) as $term) {
+                $likes[] = "(c.content LIKE ? OR c.title LIKE ? OR s.title LIKE ?)";
+                $like = '%' . $term . '%';
+                $params[] = $like;
+                $params[] = $like;
+                $params[] = $like;
+            }
+            $where .= " AND (" . implode(' OR ', $likes) . ")";
+        }
+
+        $sql = "SELECT c.id, c.title, c.url, c.content, c.updated_at,
+                       s.title AS source_title, s.source_type, s.priority, s.last_fetched_at
+                FROM chat_knowledge_chunks c
+                JOIN chat_knowledge_sources s ON s.id = c.source_id
+                WHERE {$where}
+                ORDER BY s.priority ASC, c.id ASC
+                LIMIT 300";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($rows) && !empty($terms)) {
+            $stmt = $db->query("SELECT c.id, c.title, c.url, c.content, c.updated_at,
+                                       s.title AS source_title, s.source_type, s.priority, s.last_fetched_at
+                                FROM chat_knowledge_chunks c
+                                JOIN chat_knowledge_sources s ON s.id = c.source_id
+                                WHERE s.enabled = 1
+                                ORDER BY s.priority ASC, c.id ASC
+                                LIMIT 120");
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        if (empty($rows)) return $empty;
+
+        foreach ($rows as &$row) {
+            $row['_score'] = chatScoreKnowledgeChunk($row, $terms);
+        }
+        unset($row);
+        usort($rows, function ($a, $b) {
+            if ($a['_score'] === $b['_score']) {
+                return ((int)$a['priority']) <=> ((int)$b['priority']);
+            }
+            return $b['_score'] <=> $a['_score'];
+        });
+
+        $selected = array_slice(array_filter($rows, function ($row) {
+            return $row['_score'] > 0;
+        }), 0, $limit);
+        if (empty($selected)) {
+            $selected = array_slice($rows, 0, min(3, $limit));
+        }
+
+        $parts = [];
+        $sources = [];
+        $seenUrls = [];
+        $totalLength = 0;
+        foreach ($selected as $idx => $row) {
+            $snippet = trim($row['content']);
+            if (mb_strlen($snippet) > 900) {
+                $snippet = mb_substr($snippet, 0, 900) . '…';
+            }
+            $label = '[' . ($idx + 1) . '] ' . $row['source_title'];
+            $fetched = $row['last_fetched_at'] ? '取得日: ' . $row['last_fetched_at'] : '取得日: 未同期';
+            $part = $label . "\nURL: " . $row['url'] . "\n" . $fetched . "\n抜粋: " . $snippet;
+            $parts[] = $part;
+            $totalLength += mb_strlen($part);
+            if (!isset($seenUrls[$row['url']])) {
+                $seenUrls[$row['url']] = true;
+                $sources[] = [
+                    'url' => $row['url'],
+                    'title' => $row['source_title'],
+                    'type' => $row['source_type'],
+                    'last_fetched_at' => $row['last_fetched_at'],
+                ];
+            }
+            if ($totalLength > 4800) break;
+        }
+
+        return [
+            'context' => "【ローカルRAG参照情報】\n" . implode("\n\n", $parts),
+            'sources' => $sources,
+            'requires_fresh' => chatShouldUseFreshSources($message),
+            'has_local_knowledge' => !empty($sources),
+        ];
+    } catch (Throwable $e) {
+        error_log('Chat RAG context error: ' . $e->getMessage());
+        return $empty;
+    }
+}
+
+function chatExtractPageTitle($html, $fallback) {
+    if (preg_match('/<title[^>]*>(.*?)<\/title>/isu', $html, $m)) {
+        $title = trim(html_entity_decode(strip_tags($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($title !== '') return mb_substr($title, 0, 255);
+    }
+    return $fallback;
+}
+
+function chatSplitIntoChunks($text, $chunkSize = 1500, $overlap = 160) {
+    $text = trim(preg_replace('/\s+/u', ' ', $text));
+    if ($text === '') return [];
+    $chunks = [];
+    $length = mb_strlen($text);
+    $start = 0;
+    while ($start < $length) {
+        $chunk = mb_substr($text, $start, $chunkSize);
+        $chunks[] = trim($chunk);
+        $next = $start + $chunkSize - $overlap;
+        if ($next <= $start) $next = $start + $chunkSize;
+        $start = $next;
+    }
+    return array_values(array_filter($chunks, function ($chunk) {
+        return mb_strlen($chunk) > 120;
+    }));
+}
+
+function syncChatKnowledgeSources($db, $limit = null) {
+    ensureChatRagTables($db);
+    seedDefaultChatKnowledgeSources($db);
+
+    $sql = "SELECT * FROM chat_knowledge_sources WHERE enabled = 1 ORDER BY priority ASC, id ASC";
+    if ($limit !== null) {
+        $sql .= " LIMIT " . max(1, (int)$limit);
+    }
+    $sources = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $results = [];
+
+    foreach ($sources as $source) {
+        $status = ['source_key' => $source['source_key'], 'url' => $source['url'], 'chunks' => 0, 'status' => 'failed'];
+        try {
+            $html = fetchUrlForChat($source['url'], 12);
+            if ($html === '') {
+                throw new RuntimeException('Empty response');
+            }
+            $title = chatExtractPageTitle($html, $source['title']);
+            $text = extractTextFromHtml($html, 40000);
+            if (mb_strlen($text) < 200) {
+                throw new RuntimeException('Extracted text is too short');
+            }
+            $chunks = chatSplitIntoChunks($text);
+            if (empty($chunks)) {
+                throw new RuntimeException('No chunks produced');
+            }
+
+            $db->beginTransaction();
+            $delete = $db->prepare('DELETE FROM chat_knowledge_chunks WHERE source_id = ?');
+            $delete->execute([$source['id']]);
+            $insert = $db->prepare('INSERT INTO chat_knowledge_chunks (source_id, chunk_index, title, url, content, content_hash) VALUES (?, ?, ?, ?, ?, ?)');
+            foreach ($chunks as $idx => $chunk) {
+                $insert->execute([$source['id'], $idx, $title, $source['url'], $chunk, hash('sha256', $chunk)]);
+            }
+            $update = $db->prepare("UPDATE chat_knowledge_sources SET title = ?, last_fetched_at = CURRENT_TIMESTAMP, last_status = 'ok', last_error = NULL WHERE id = ?");
+            $update->execute([$title, $source['id']]);
+            $db->commit();
+
+            $status['chunks'] = count($chunks);
+            $status['status'] = 'ok';
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $update = $db->prepare("UPDATE chat_knowledge_sources SET last_status = 'failed', last_error = ? WHERE id = ?");
+            $update->execute([mb_substr($e->getMessage(), 0, 1000), $source['id']]);
+            $status['error'] = $e->getMessage();
+        }
+        $results[] = $status;
+    }
+    return $results;
+}
+
+function chatMemoryDefault() {
+    return [
+        'intent' => null,
+        'property_type' => null,
+        'topics' => [],
+        'budget' => null,
+        'income_range' => null,
+        'family' => null,
+        'child_rearing_household' => null,
+        'preferred_area' => null,
+        'loan_plan' => null,
+        'missing_info' => [],
+        'last_summary' => null,
+    ];
+}
+
+function getChatSessionMemory($db, $sessionId) {
+    if (!$db || $sessionId === '') return chatMemoryDefault();
+    try {
+        ensureChatRagTables($db);
+        $stmt = $db->prepare('SELECT memory_json, last_summary FROM chat_session_memory WHERE session_id = ?');
+        $stmt->execute([$sessionId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return chatMemoryDefault();
+        $memory = json_decode($row['memory_json'] ?: '{}', true);
+        if (!is_array($memory)) $memory = [];
+        $memory = array_merge(chatMemoryDefault(), $memory);
+        if (!empty($row['last_summary'])) $memory['last_summary'] = $row['last_summary'];
+        return $memory;
+    } catch (Throwable $e) {
+        error_log('Chat memory load error: ' . $e->getMessage());
+        return chatMemoryDefault();
+    }
+}
+
+function chatSetIfDetected(&$memory, $key, $value) {
+    if ($value !== null && $value !== '') $memory[$key] = $value;
+}
+
+function chatAddTopic(&$memory, $topic) {
+    if (!isset($memory['topics']) || !is_array($memory['topics'])) $memory['topics'] = [];
+    if (!in_array($topic, $memory['topics'], true)) $memory['topics'][] = $topic;
+}
+
+function chatDetectMemoryFromMessage(&$memory, $message) {
+    if (preg_match('/購入|買いたい|買う|取得/u', $message)) chatSetIfDetected($memory, 'intent', 'purchase');
+    if (preg_match('/売却|売りたい|売る|査定/u', $message)) chatSetIfDetected($memory, 'intent', 'sale');
+    if (preg_match('/住み替え|買い替え/u', $message)) chatSetIfDetected($memory, 'intent', 'relocation');
+    if (preg_match('/投資|収益/u', $message)) chatSetIfDetected($memory, 'intent', 'investment');
+
+    $property = null;
+    if (preg_match('/中古.*マンション|マンション.*中古/u', $message)) $property = '中古マンション';
+    elseif (preg_match('/新築.*マンション|マンション.*新築/u', $message)) $property = '新築マンション';
+    elseif (preg_match('/中古.*(戸建|一戸建)|(?:戸建|一戸建).*中古/u', $message)) $property = '中古戸建て';
+    elseif (preg_match('/新築.*(戸建|一戸建)|(?:戸建|一戸建).*新築/u', $message)) $property = '新築戸建て';
+    elseif (preg_match('/マンション/u', $message)) $property = 'マンション';
+    elseif (preg_match('/戸建|一戸建/u', $message)) $property = '戸建て';
+    chatSetIfDetected($memory, 'property_type', $property);
+
+    $topicMap = [
+        '住宅ローン減税' => '/住宅ローン減税|住宅ローン控除|住宅借入金/u',
+        '補助金' => '/補助金|みらいエコ|子育てグリーン/u',
+        '金利・フラット35' => '/金利|フラット\s*35|フラット３５/u',
+        '省エネ・ZEH' => '/省エネ|ZEH|長期優良住宅|GX/u',
+        '3,000万円特別控除' => '/3,000万円|3000万円|特別控除|譲渡所得/u',
+        'リフォーム・リノベ' => '/リフォーム|リノベ/u',
+    ];
+    foreach ($topicMap as $topic => $pattern) {
+        if (preg_match($pattern, $message)) chatAddTopic($memory, $topic);
+    }
+
+    if (preg_match('/子育て|子ども|子供|こども|18歳|若者夫婦/u', $message)) {
+        $memory['child_rearing_household'] = true;
+        $memory['family'] = $memory['family'] ?: '子育て世帯または若者夫婦世帯の可能性あり';
+    }
+    if (preg_match('/ローン|借入/u', $message)) $memory['loan_plan'] = '住宅ローン利用予定または検討中';
+    if (preg_match('/年収\s*([0-9０-９,\.]+\s*(万円|万|円))/u', $message, $m)) $memory['income_range'] = $m[1];
+    if (preg_match('/(?:予算|価格|物件価格|購入価格)\s*(?:は|が|:|：)?\s*([0-9０-９,\.]+\s*(万円|万|億円|円))/u', $message, $m)) $memory['budget'] = $m[1];
+    if (preg_match('/([一-龥ぁ-んァ-ン]{2,12}(都|道|府|県|市|区|町|村))/u', $message, $m)) $memory['preferred_area'] = $m[1];
+}
+
+function chatBuildMissingInfo($memory) {
+    $missing = [];
+    $topics = isset($memory['topics']) && is_array($memory['topics']) ? $memory['topics'] : [];
+    if (in_array('住宅ローン減税', $topics, true)) {
+        foreach (['新築/中古', '入居予定年', '借入予定額', '年収帯', '省エネ性能', '子育て世帯・若者夫婦世帯該当性', '3,000万円特別控除の利用予定'] as $item) {
+            $missing[] = $item;
+        }
+    }
+    if (($memory['intent'] ?? null) === 'purchase') {
+        foreach (['購入予定価格', '自己資金', '住宅ローン利用予定', '希望エリア'] as $item) $missing[] = $item;
+    }
+    if (($memory['intent'] ?? null) === 'sale' || ($memory['intent'] ?? null) === 'relocation') {
+        foreach (['所有期間', '購入価格', '売却見込み価格', '住宅ローン残債', '居住用/投資用'] as $item) $missing[] = $item;
+    }
+    return array_values(array_unique(array_slice($missing, 0, 10)));
+}
+
+function chatComposeMemorySummary($memory) {
+    $parts = [];
+    if (!empty($memory['intent'])) $parts[] = '相談目的: ' . $memory['intent'];
+    if (!empty($memory['property_type'])) $parts[] = '物件種別: ' . $memory['property_type'];
+    if (!empty($memory['budget'])) $parts[] = '予算/価格: ' . $memory['budget'];
+    if (!empty($memory['income_range'])) $parts[] = '年収帯: ' . $memory['income_range'];
+    if (!empty($memory['preferred_area'])) $parts[] = '希望エリア: ' . $memory['preferred_area'];
+    if (!empty($memory['loan_plan'])) $parts[] = 'ローン: ' . $memory['loan_plan'];
+    if (!empty($memory['child_rearing_household'])) $parts[] = '子育て世帯等: 可能性あり';
+    if (!empty($memory['topics'])) $parts[] = '関心テーマ: ' . implode('、', $memory['topics']);
+    if (empty($parts)) return null;
+    return implode(' / ', $parts);
+}
+
+function updateChatSessionMemoryHeuristic($db, $sessionId, $businessCardId, $userMessage) {
+    if (!$db || $sessionId === '') return;
+    try {
+        ensureChatRagTables($db);
+        $memory = getChatSessionMemory($db, $sessionId);
+        chatDetectMemoryFromMessage($memory, $userMessage);
+        $memory['missing_info'] = chatBuildMissingInfo($memory);
+        $summary = chatComposeMemorySummary($memory);
+        $memory['last_summary'] = $summary;
+        $json = json_encode($memory, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $stmt = $db->prepare("INSERT INTO chat_session_memory (session_id, business_card_id, memory_json, last_summary)
+                              VALUES (?, ?, ?, ?)
+                              ON DUPLICATE KEY UPDATE business_card_id = VALUES(business_card_id), memory_json = VALUES(memory_json), last_summary = VALUES(last_summary), updated_at = CURRENT_TIMESTAMP");
+        $stmt->execute([$sessionId, $businessCardId, $json, $summary]);
+    } catch (Throwable $e) {
+        error_log('Chat memory update error: ' . $e->getMessage());
+    }
+}
+
+function buildChatMemoryContext($memory) {
+    if (!$memory || !is_array($memory)) return '';
+    $lines = [];
+    if (!empty($memory['last_summary'])) $lines[] = '前回までの要約: ' . $memory['last_summary'];
+    foreach (['intent' => '相談目的', 'property_type' => '物件種別', 'budget' => '予算/価格', 'income_range' => '年収帯', 'preferred_area' => '希望エリア', 'loan_plan' => 'ローン利用'] as $key => $label) {
+        if (!empty($memory[$key])) $lines[] = $label . ': ' . $memory[$key];
+    }
+    if (!empty($memory['child_rearing_household'])) $lines[] = '子育て世帯・若者夫婦世帯: 該当する可能性あり';
+    if (!empty($memory['topics']) && is_array($memory['topics'])) $lines[] = '関心テーマ: ' . implode('、', $memory['topics']);
+    if (!empty($memory['missing_info']) && is_array($memory['missing_info'])) $lines[] = '未確認事項: ' . implode('、', $memory['missing_info']);
+    if (empty($lines)) return '';
+    return "【会話メモリー】\n" . implode("\n", $lines);
+}

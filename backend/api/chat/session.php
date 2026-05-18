@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/chat-rag-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -49,10 +50,18 @@ try {
         $lead['structured_data'] = json_decode($lead['structured_data'], true);
     }
 
+    $stmt = $db->prepare("SELECT memory_json, last_summary, updated_at FROM chat_session_memory WHERE session_id = ?");
+    $stmt->execute([$sessionId]);
+    $memory = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($memory && !empty($memory['memory_json'])) {
+        $memory['memory_json'] = json_decode($memory['memory_json'], true);
+    }
+
     $data = [
         'session' => $session,
         'messages' => $messages,
         'lead' => $lead,
+        'memory' => $memory,
     ];
     sendSuccessResponse($data, 'OK');
 } catch (Exception $e) {

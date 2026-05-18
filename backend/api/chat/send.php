@@ -69,7 +69,7 @@ try {
     $conversationHistory = array_reverse(array_map(function ($r) { return ['role' => $r['role'], 'message' => $r['message']]; }, $rows));
 
     $agentName = $card['name'] ?? '担当者';
-    $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName);
+    $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName, $db, $sessionId);
 
     if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
         error_log('Chat OpenAI error: ' . ($result['error'] ?? 'empty reply'));
@@ -83,6 +83,9 @@ try {
     // Save bot message
     $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'bot', ?)");
     $stmt->execute([$sessionId, $reply]);
+
+    // Update lightweight conversation memory for future turns
+    updateChatSessionMemoryHeuristic($db, $sessionId, $card['id'], $message);
 
     // Update session last_seen
     $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
@@ -103,7 +106,7 @@ try {
  */
 function getBotReplyPlaceholder($userMessage) {
     $disclaimer = "※参考情報です。個別のご相談は担当者までお問い合わせください。";
-    $intro = "ご質問ありがとうございます。戸建てリノベINFOのコンテンツに基づく回答は現在準備中です。";
-    $suggest = "不動産のご相談（購入・売却・リノベなど）や、ローンシミュレーションのご希望がございましたら、下のボタンからお試しください。";
+    $intro = "ご質問ありがとうございます。現在、AI回答の生成に失敗しました。";
+    $suggest = "不動産のご相談（購入・売却・リノベ・制度確認など）は、条件により答えが変わります。担当者への確認やローンシミュレーションもあわせてご利用ください。";
     return $intro . "\n\n" . $suggest . "\n\n" . $disclaimer;
 }

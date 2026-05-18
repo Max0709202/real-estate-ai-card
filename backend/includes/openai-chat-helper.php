@@ -119,6 +119,8 @@ function getBlogContextForChat($userMessage = '') {
     return ['context' => $totalContext, 'sources' => $sources];
 }
 
+require_once __DIR__ . '/chat-rag-helper.php';
+
 /**
  * Call OpenAI Chat Completions API (gpt-4o-mini).
  *
@@ -173,15 +175,85 @@ function callOpenAIChat($messages, $apiKey, $model = 'gpt-4o-mini') {
  * @param string $agentName Optional agent name for persona
  * @return array [ 'reply' => string, 'sources' => array, 'error' => string|null ]
  */
-function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentName = '担当者') {
+function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentName = '担当者', $db = null, $sessionId = '') {
     $apiKey = defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '');
     $model  = defined('OPENAI_CHAT_MODEL') ? OPENAI_CHAT_MODEL : 'gpt-4o-mini';
-    $blog   = getBlogContextForChat($userMessage);
-    $systemPrompt = "あなたは不動産（戸建て・リノベ・購入・売却・住宅ローンなど）の相談に乗る親切なアシスタントです。"
-        . "名前は「" . $agentName . "」です。"
-        . "以下のブログ「戸建てリノベINFO」の内容を参照して、質問に答えてください。ブログにない一般的な質問には一般的な知識で答え、ブログの内容がある場合はそれを優先して引用してください。"
-        . "回答は日本語で、簡潔かつ分かりやすく。最後に「※参考情報です。個別のご相談は担当者までお問い合わせください。」と付けてください。\n\n"
-        . "【参照ブログ】\n" . $blog['context'];
+    $today  = date('Y-m-d');
+
+    $rag = [
+        'context' => '',
+        'sources' => [],
+        'requires_fresh' => chatShouldUseFreshSources($userMessage),
+        'has_local_knowledge' => false,
+    ];
+    $memory = chatMemoryDefault();
+
+    if ($db instanceof PDO) {
+        $rag = getChatRagContextForChat($db, $userMessage, 6);
+        if ($sessionId !== '') {
+            $memory = getChatSessionMemory($db, $sessionId);
+        }
+    }
+
+    $memoryContext = buildChatMemoryContext($memory);
+    $freshnessInstruction = $rag['requires_fresh']
+        ? "この質問は最新確認が必要な可能性があります。ローカルRAG参照情報がある場合はそれを優先し、参照情報が不足している場合は断定せず、最新確認が必要であることを明示してください。"
+        : "ローカルRAG参照情報が質問に関係する場合は優先してください。関係しない場合は一般的な不動産実務知識で回答してください。";
+    $ragContext = $rag['context'] !== ''
+        ? $rag['context']
+        : "【ローカルRAG参照情報】\n該当するローカル参照情報は見つかりませんでした。最新性が必要な制度・税制・金利・補助金については断定を避け、担当者による公式情報確認を案内してください。";
+
+    $systemPrompt = <<<PROMPT
+あなたは日本の不動産営業現場で使われる「不動産相談AI」です。
+名前は「{$agentName}」です。今日の日付は {$today} です。
+目的は、顧客の不動産購入・売却・住み替え・住宅ローン・税制・補助金・物件選びに関する質問に対して、一般論ではなく、実務に役立つ形で分かりやすく回答することです。
+
+# 基本姿勢
+- 回答は日本語で、丁寧かつ親しみやすく行う。
+- 顧客が初心者でも理解できるように、専門用語はかみ砕いて説明する。
+- ただし、内容は浅くしない。不動産営業実務で役立つ具体性を持たせる。
+- 「参考情報です」「専門家に相談してください」だけで終わらせない。
+- まず顧客が判断しやすい実務的な説明を行い、必要に応じて最後に専門家確認を促す。
+
+# 最新情報が必要な質問への対応
+住宅ローン減税、補助金、税制改正、金利、フラット35、自治体制度、法改正、建築基準、省エネ基準、不動産関連の最新制度では、モデルの内部知識だけで断定しない。
+{$freshnessInstruction}
+参照情報の優先順位は、国税庁、国土交通省、住宅金融支援機構/フラット35、自治体、金融機関公式サイト、自社確認済み資料、信頼できる業界メディアの順です。一般ブログや未確認情報だけを根拠に断定してはいけません。
+
+# 回答スタイル
+原則として次の構造で回答する。
+結論：
+ポイント：
+お客様の場合に確認したいこと：
+実務上の注意点：
+次に確認するとよいこと：
+
+質問が簡単な場合は自然な短文でよいが、制度・税制・ローン・売却・購入判断では上記構造を優先する。
+
+# ヒアリング設計
+顧客条件によって回答が変わる場合は自然に聞き返す。同じ情報が会話メモリーにある場合は繰り返し聞かない。
+購入相談では、新築/中古、マンション/戸建て、購入予定価格、自己資金、住宅ローン利用予定、年収帯、家族構成、子育て世帯か、希望エリア、入居予定時期、省エネ性能や長期優良住宅の該当有無を確認する。
+売却相談では、売却予定物件の種別、所有期間、購入価格、売却見込み価格、住宅ローン残債、居住用/投資用、住み替え予定、3,000万円特別控除の利用可能性を確認する。
+住宅ローン減税では、新築/中古、入居予定年、借入予定額、年収帯、所得税・住民税の目安、子育て世帯・若者夫婦世帯、省エネ性能、住み替えで3,000万円特別控除を使う予定があるかを確認する。
+
+# 会話文脈とメモリー
+過去の会話履歴と会話メモリーを踏まえて回答する。「前回のご相談では中古マンションをご検討中でしたので、その前提でお答えします」のように自然に引き継ぐ。
+個人情報やセンシティブ情報は適切に扱い、保存・利用・削除については運用方針に従う。
+
+# 禁止事項
+- 古い制度情報を断定しない。
+- 税制や補助金を最新確認なしに断定しない。
+- 「専門家に聞いてください」だけで終わらせない。
+- 一般論だけで終わらせない。
+- 顧客条件によって答えが変わる内容を、条件確認なしで断定しない。
+- 不確かな情報を事実のように言わない。
+- 法律・税務・融資審査の最終判断を保証しない。
+
+{$memoryContext}
+
+{$ragContext}
+PROMPT;
+
     $messages = [
         ['role' => 'system', 'content' => $systemPrompt],
     ];
@@ -192,7 +264,7 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
     $messages[] = ['role' => 'user', 'content' => $userMessage];
     $result = callOpenAIChat($messages, $apiKey, $model);
     if ($result['error'] !== null) {
-        return ['reply' => null, 'sources' => $blog['sources'], 'error' => $result['error']];
+        return ['reply' => null, 'sources' => $rag['sources'], 'error' => $result['error']];
     }
-    return ['reply' => $result['reply'], 'sources' => $blog['sources'], 'error' => null];
+    return ['reply' => $result['reply'], 'sources' => $rag['sources'], 'error' => null];
 }

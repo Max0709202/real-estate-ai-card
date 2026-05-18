@@ -1,8 +1,8 @@
 /* Chat widget on AI business card page - mobile-first */
 .chat-widget-root {
     position: fixed;
-    bottom: 1rem;
-    right: 1rem;
+    bottom: 1.25rem;
+    right: 1.25rem;
     z-index: 9999;
     font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
 }
@@ -36,8 +36,9 @@
     right: 0;
     display: flex;
     flex-direction: column;
-    width: min(100vw - 2rem, 380px);
-    max-height: 70vh;
+    width: min(92vw, 560px);
+    height: min(82vh, 760px);
+    max-height: 82vh;
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
@@ -92,8 +93,7 @@
     flex: 1;
     overflow-y: auto;
     padding: 1rem;
-    min-height: 180px;
-    max-height: 40vh;
+    min-height: 280px;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -103,7 +103,10 @@
     display: flex;
     gap: 0.5rem;
     align-items: flex-start;
-    max-width: 95%;
+    max-width: 96%;
+}
+.chat-msg-content {
+    min-width: 0;
 }
 .chat-msg.user {
     flex-direction: row-reverse;
@@ -122,8 +125,8 @@
 .chat-msg-bubble {
     padding: 0.6rem 0.9rem;
     border-radius: 12px;
-    font-size: 0.9rem;
-    line-height: 1.5;
+    font-size: 0.95rem;
+    line-height: 1.65;
     white-space: pre-wrap;
     word-break: break-word;
 }
@@ -144,6 +147,25 @@
 }
 .chat-msg.user .chat-msg-time {
     text-align: right;
+}
+
+
+.chat-msg-sources {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.45rem;
+    font-size: 0.75rem;
+    line-height: 1.35;
+}
+.chat-msg-sources span {
+    color: #667085;
+    font-weight: 600;
+}
+.chat-msg-sources a {
+    color: #0052a3;
+    text-decoration: underline;
+    overflow-wrap: anywhere;
 }
 
 .chat-widget-quick-actions {
@@ -174,7 +196,7 @@
 }
 .chat-widget-input {
     flex: 1;
-    min-height: 44px;
+    min-height: 72px;
     padding: 0.5rem 0.75rem;
     border: 1px solid #ddd;
     border-radius: 8px;
@@ -221,7 +243,16 @@
     }
 
     .chat-widget-panel {
-        width: calc(100vw - 1.5rem);
-        max-height: 72vh;
+        position: fixed;
+        inset: 0;
+        width: auto;
+        height: 100dvh;
+        max-height: none;
+        border-radius: 0;
+    }
+
+    .chat-widget-toggle {
+        width: 52px;
+        height: 52px;
     }
 }
