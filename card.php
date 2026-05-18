@@ -1206,7 +1206,7 @@ if (!empty($card['profile_photo'])) {
         <button type="button" id="chat-widget-toggle" class="chat-widget-toggle" aria-label="チャットを開く">
             <span class="chat-widget-toggle-icon">💬</span>
         </button>
-        <div id="chat-widget-panel" class="chat-widget-panel" hidden>
+        <div id="chat-widget-panel" style="display: none;" hidden class="chat-widget-panel">
             <div class="chat-widget-header">
                 <img id="chat-widget-avatar" class="chat-widget-avatar" src="" alt="" width="40" height="40">
                 <div class="chat-widget-header-text">

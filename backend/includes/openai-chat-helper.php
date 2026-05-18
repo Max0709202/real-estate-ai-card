@@ -120,6 +120,7 @@ function getBlogContextForChat($userMessage = '') {
 }
 
 require_once __DIR__ . '/chat-rag-helper.php';
+require_once __DIR__ . '/chat-intake-helper.php';
 
 /**
  * Call OpenAI Chat Completions API (gpt-4o-mini).
@@ -196,6 +197,7 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
     }
 
     $memoryContext = buildChatMemoryContext($memory);
+    $leadContext = ($db instanceof PDO && $sessionId !== '') ? getChatLeadContextForPrompt($db, $sessionId) : '';
     $freshnessInstruction = $rag['requires_fresh']
         ? "この質問は最新確認が必要な可能性があります。ローカルRAG参照情報がある場合はそれを優先し、参照情報が不足している場合は断定せず、最新確認が必要であることを明示してください。"
         : "ローカルRAG参照情報が質問に関係する場合は優先してください。関係しない場合は一般的な不動産実務知識で回答してください。";
@@ -250,6 +252,8 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
 - 法律・税務・融資審査の最終判断を保証しない。
 
 {$memoryContext}
+
+{$leadContext}
 
 {$ragContext}
 PROMPT;

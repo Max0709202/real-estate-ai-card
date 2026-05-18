@@ -150,7 +150,7 @@ function chatExtractSearchTerms($message) {
         '住宅ローン減税', '住宅ローン控除', '住宅借入金等特別控除', '住宅ローン', '補助金', '税制', '減税', '控除',
         '金利', 'フラット35', 'フラット３５', '省エネ', 'ZEH', '長期優良住宅', '子育て', '若者夫婦', '中古', '新築',
         'マンション', '戸建て', '売却', '住み替え', '投資', '3,000万円', '3000万円', '特別控除', '自治体', '制度',
-        'みらいエコ', 'リフォーム', 'リノベ', '建築基準', '入居', '年収', '借入', '予算'
+        'みらいエコ', 'リフォーム', 'リノベ', '建築基準', '入居', '年収', '借入', '予算', 'インスペクション', '建物状況調査', '耐震', '管理状態', '修繕積立金', '既存住宅', '中古住宅'
     ];
     foreach ($keywords as $keyword) {
         if (mb_stripos($message, $keyword) !== false) {
@@ -171,13 +171,16 @@ function chatExtractSearchTerms($message) {
     if (preg_match('/補助金|省エネ|ZEH|長期優良|みらいエコ/u', $message)) {
         $terms = array_merge($terms, ['みらいエコ', '省エネ', '長期優良住宅', 'ZEH']);
     }
+    if (preg_match('/インスペクション|建物状況調査|耐震|管理状態|修繕積立/u', $message)) {
+        $terms = array_merge($terms, ['インスペクション', '建物状況調査', '中古住宅', '既存住宅', '耐震', '管理状態', '修繕積立金']);
+    }
     $terms = array_values(array_unique(array_filter(array_map('trim', $terms))));
     return array_slice($terms, 0, 16);
 }
 
 function chatScoreKnowledgeChunk($row, $terms) {
     $haystack = mb_strtolower(($row['title'] ?? '') . "\n" . ($row['content'] ?? ''));
-    $score = max(0, 100 - (int)($row['priority'] ?? 100));
+    $score = max(0, (int) floor((100 - (int)($row['priority'] ?? 100)) / 10));
     foreach ($terms as $term) {
         $needle = mb_strtolower($term);
         if ($needle === '') continue;
@@ -444,6 +447,7 @@ function chatDetectMemoryFromMessage(&$memory, $message) {
         '省エネ・ZEH' => '/省エネ|ZEH|長期優良住宅|GX/u',
         '3,000万円特別控除' => '/3,000万円|3000万円|特別控除|譲渡所得/u',
         'リフォーム・リノベ' => '/リフォーム|リノベ/u',
+        'インスペクション・建物調査' => '/インスペクション|建物状況調査|耐震|管理状態|修繕積立/u',
     ];
     foreach ($topicMap as $topic => $pattern) {
         if (preg_match($pattern, $message)) chatAddTopic($memory, $topic);

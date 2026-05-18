@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../includes/openai-chat-helper.php';
+require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -68,16 +69,25 @@ try {
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $conversationHistory = array_reverse(array_map(function ($r) { return ['role' => $r['role'], 'message' => $r['message']]; }, $rows));
 
-    $agentName = $card['name'] ?? '担当者';
-    $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName, $db, $sessionId);
+    $intake = processChatIntakeMessage($db, $sessionId, $card['id'], $message);
+    $quickReplies = $intake['quick_replies'] ?? [];
+    $leadData = $intake['data'] ?? null;
 
-    if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
-        error_log('Chat OpenAI error: ' . ($result['error'] ?? 'empty reply'));
-        $reply = getBotReplyPlaceholder($message);
-        $sources = [['url' => CHAT_BLOG_BASE_URL, 'title' => '戸建てリノベINFO']];
+    if (!empty($intake['handled'])) {
+        $reply = $intake['reply'];
+        $sources = [];
     } else {
-        $reply = $result['reply'];
-        $sources = $result['sources'];
+        $agentName = $card['name'] ?? '担当者';
+        $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName, $db, $sessionId);
+
+        if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
+            error_log('Chat OpenAI error: ' . ($result['error'] ?? 'empty reply'));
+            $reply = getBotReplyPlaceholder($message);
+            $sources = [['url' => CHAT_BLOG_BASE_URL, 'title' => '戸建てリノベINFO']];
+        } else {
+            $reply = $result['reply'];
+            $sources = $result['sources'];
+        }
     }
 
     // Save bot message
@@ -94,6 +104,8 @@ try {
     sendSuccessResponse([
         'reply' => $reply,
         'sources' => $sources,
+        'quick_replies' => $quickReplies,
+        'lead_data' => $leadData,
     ], 'OK');
 } catch (Exception $e) {
     error_log('Chat send error: ' . $e->getMessage());

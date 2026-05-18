@@ -50,7 +50,7 @@
     }
 
     function showPanel() {
-        panel.removeAttribute('hidden');
+        panel.style.display = 'block';
         syncAgentHeader();
         if (!sessionId && !sessionStarting) startSession();
         if (sessionId && !sendingMessage) setInputEnabled(true);
@@ -58,7 +58,27 @@
     }
 
     function hidePanel() {
-        panel.setAttribute('hidden', '');
+        panel.style.display = 'none';
+    }
+
+    function renderQuickReplies(replies) {
+        if (!quickActions) return;
+        var existing = quickActions.querySelector('.chat-intake-replies');
+        if (existing) existing.remove();
+        if (!replies || !replies.length) return;
+
+        var group = document.createElement('div');
+        group.className = 'chat-intake-replies';
+        replies.forEach(function (reply) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chat-quick-btn chat-intake-reply';
+            btn.setAttribute('data-reply-label', reply.label || reply.value || '');
+            btn.setAttribute('data-reply-value', reply.value || reply.label || '');
+            btn.textContent = reply.label || reply.value || '';
+            group.appendChild(btn);
+        });
+        quickActions.insertBefore(group, quickActions.firstChild);
     }
 
     function startSession() {
@@ -94,9 +114,10 @@
                     }
                     syncAgentHeader();
                     if (!greetingShown) {
-                        appendBotMessage('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。');
+                        appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
                         greetingShown = true;
                     }
+                    renderQuickReplies(data.data.quick_replies || []);
                     if (!canUseLoanSim && quickActions) quickActions.style.display = 'none';
                     setInputEnabled(true);
                 } else {
@@ -155,6 +176,7 @@
 
     function sendMessage(text) {
         if (!text.trim() || sendingMessage) return;
+        renderQuickReplies([]);
         if (!sessionId) {
             appendBotMessage('チャットの接続が完了してから送信してください。');
             if (!sessionStarting) startSession();
@@ -182,6 +204,7 @@
                 loadingRow.remove();
                 if (data.success && data.data && data.data.reply) {
                     appendBotMessage(data.data.reply, false, data.data.sources || []);
+                    renderQuickReplies(data.data.quick_replies || []);
                 } else {
                     appendBotMessage(data.message || 'エラーが発生しました。');
                 }
@@ -217,6 +240,11 @@
         quickActions.addEventListener('click', function (e) {
             var btn = e.target.closest('.chat-quick-btn');
             if (!btn) return;
+            var replyLabel = btn.getAttribute('data-reply-label');
+            if (replyLabel) {
+                sendMessage(replyLabel);
+                return;
+            }
             var action = btn.getAttribute('data-action');
             if (action === 'loan_repayment' || action === 'loan_borrow') {
                 var base = window.location.pathname.replace(/\/[^/]*$/, '/');

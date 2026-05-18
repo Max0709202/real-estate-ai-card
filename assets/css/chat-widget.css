@@ -183,6 +183,23 @@
     border-radius: 20px;
     cursor: pointer;
 }
+
+.chat-intake-replies {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-bottom: 0.25rem;
+}
+.chat-intake-reply {
+    border-color: #1d7dd8;
+    background: #eef6ff;
+    color: #0b5394;
+}
+.chat-intake-reply:hover {
+    background: #dceeff;
+}
+
 .chat-quick-btn:hover {
     background: #e8f0fe;
 }

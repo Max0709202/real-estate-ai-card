@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/chat-helpers.php';
+require_once __DIR__ . '/../../../includes/chat-intake-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -52,11 +53,14 @@ try {
         $photoUrl = (!preg_match('/^https?:\/\//', $p)) ? (BASE_URL . '/' . ltrim($p, '/')) : $p;
     }
 
+    $intake = chatIntakeInitialPayload($card['name'] ?? '担当者');
     $data = [
         'session_id' => $sessionId,
         'agent_name' => $card['name'] ?? '',
         'agent_photo_url' => $photoUrl,
         'can_use_loan_sim' => canUseLoanSim($card),
+        'initial_message' => $intake['initial_message'],
+        'quick_replies' => $intake['quick_replies'],
     ];
     sendSuccessResponse($data, 'セッションを作成しました');
 } catch (Exception $e) {
