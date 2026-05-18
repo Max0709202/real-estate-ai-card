@@ -1202,7 +1202,7 @@ if (!empty($card['profile_photo'])) {
          data-card-slug="<?php echo htmlspecialchars($card['url_slug'] ?? ''); ?>"
          data-agent-name="<?php echo htmlspecialchars($card['name'] ?? ''); ?>"
          data-agent-photo="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>"
-         data-api-base="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/backend/api/chat'); ?>" style="display: none;">
+         data-api-base="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/backend/api/chat'); ?>">
         <button type="button" id="chat-widget-toggle" class="chat-widget-toggle" aria-label="チャットを開く">
             <span class="chat-widget-toggle-icon">💬</span>
         </button>

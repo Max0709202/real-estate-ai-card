@@ -25,15 +25,36 @@
 
     var sessionId = null;
     var canUseLoanSim = true;
+    var sessionStarting = false;
+    var sendingMessage = false;
+    var greetingShown = false;
+
+    function setInputEnabled(enabled) {
+        inputEl.disabled = !enabled;
+        sendBtn.disabled = !enabled;
+    }
+
+    function syncAgentHeader() {
+        if (avatarEl) {
+            if (agentPhoto) {
+                avatarEl.src = agentPhoto;
+                avatarEl.alt = agentName;
+                avatarEl.style.display = '';
+            } else {
+                avatarEl.removeAttribute('src');
+                avatarEl.alt = '';
+                avatarEl.style.display = 'none';
+            }
+        }
+        if (agentNameEl) agentNameEl.textContent = agentName;
+    }
 
     function showPanel() {
         panel.removeAttribute('hidden');
-        if (!sessionId) startSession();
-        if (avatarEl) {
-            avatarEl.src = agentPhoto;
-            avatarEl.alt = agentName;
-        }
-        if (agentNameEl) agentNameEl.textContent = agentName;
+        syncAgentHeader();
+        if (!sessionId && !sessionStarting) startSession();
+        if (sessionId && !sendingMessage) setInputEnabled(true);
+        setTimeout(function () { inputEl.focus(); }, 50);
     }
 
     function hidePanel() {
@@ -41,29 +62,53 @@
     }
 
     function startSession() {
+        if (!cardSlug) {
+            appendBotMessage('カード情報が見つかりません。ページを再読み込みしてからお試しください。');
+            setInputEnabled(false);
+            return;
+        }
+
+        sessionStarting = true;
+        setInputEnabled(false);
+        var loadingRow = appendBotMessage('チャットを接続しています', true);
+
         fetch(apiBase + '/session/start.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ card_slug: cardSlug })
         })
-            .then(function (res) { return res.json(); })
+            .then(function (res) {
+                return res.json().catch(function () {
+                    return { success: false, message: 'サーバーから正しい応答を受け取れませんでした。' };
+                });
+            })
             .then(function (data) {
+                sessionStarting = false;
+                loadingRow.remove();
                 if (data.success && data.data) {
                     sessionId = data.data.session_id;
                     canUseLoanSim = data.data.can_use_loan_sim !== false;
                     if (data.data.agent_name) agentName = data.data.agent_name;
                     if (data.data.agent_photo_url) {
                         agentPhoto = data.data.agent_photo_url;
-                        if (avatarEl) avatarEl.src = agentPhoto;
                     }
-                    appendBotMessage('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。');
+                    syncAgentHeader();
+                    if (!greetingShown) {
+                        appendBotMessage('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。');
+                        greetingShown = true;
+                    }
                     if (!canUseLoanSim && quickActions) quickActions.style.display = 'none';
+                    setInputEnabled(true);
                 } else {
-                    appendBotMessage('申し訳ございません。いまチャットをご利用いただけません。');
+                    appendBotMessage(data.message || '申し訳ございません。いまチャットをご利用いただけません。');
+                    setInputEnabled(false);
                 }
             })
             .catch(function () {
+                sessionStarting = false;
+                loadingRow.remove();
                 appendBotMessage('接続できませんでした。しばらくしてからお試しください。');
+                setInputEnabled(false);
             });
     }
 
@@ -94,7 +139,15 @@
     }
 
     function sendMessage(text) {
-        if (!text.trim() || !sessionId) return;
+        if (!text.trim() || sendingMessage) return;
+        if (!sessionId) {
+            appendBotMessage('チャットの接続が完了してから送信してください。');
+            if (!sessionStarting) startSession();
+            return;
+        }
+
+        sendingMessage = true;
+        setInputEnabled(false);
         appendUserMessage(text);
         inputEl.value = '';
         var loadingRow = appendBotMessage('回答を考えています', true);
@@ -104,18 +157,28 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ session_id: sessionId, message: text })
         })
-            .then(function (res) { return res.json(); })
+            .then(function (res) {
+                return res.json().catch(function () {
+                    return { success: false, message: 'サーバーから正しい応答を受け取れませんでした。' };
+                });
+            })
             .then(function (data) {
+                sendingMessage = false;
                 loadingRow.remove();
                 if (data.success && data.data && data.data.reply) {
                     appendBotMessage(data.data.reply, false);
                 } else {
                     appendBotMessage(data.message || 'エラーが発生しました。');
                 }
+                setInputEnabled(true);
+                inputEl.focus();
             })
             .catch(function () {
+                sendingMessage = false;
                 loadingRow.remove();
                 appendBotMessage('送信に失敗しました。');
+                setInputEnabled(true);
+                inputEl.focus();
             });
     }
 

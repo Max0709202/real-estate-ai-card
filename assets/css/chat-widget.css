@@ -34,6 +34,8 @@
     position: absolute;
     bottom: calc(56px + 0.5rem);
     right: 0;
+    display: flex;
+    flex-direction: column;
     width: min(100vw - 2rem, 380px);
     max-height: 70vh;
     background: #fff;
@@ -180,6 +182,10 @@
     resize: none;
     font-family: inherit;
 }
+.chat-widget-input:disabled {
+    background: #f1f3f5;
+    cursor: not-allowed;
+}
 .chat-widget-send {
     padding: 0.5rem 1rem;
     background: #0066cc;
@@ -206,4 +212,16 @@
     0%, 20% { content: '.'; }
     40% { content: '..'; }
     60%, 100% { content: '...'; }
+}
+
+@media (max-width: 480px) {
+    .chat-widget-root {
+        right: 0.75rem;
+        bottom: 0.75rem;
+    }
+
+    .chat-widget-panel {
+        width: calc(100vw - 1.5rem);
+        max-height: 72vh;
+    }
 }

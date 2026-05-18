@@ -106,6 +106,12 @@ define('TECH_TOOL_ALP_BASE', 'https://self-in.net/alp/index.php?id=');
 define('NOTIFICATION_EMAIL', 'info@ai-fcard.com');
 
 // チャットボット: OpenAI
-define('OPENAI_API_KEY', getenv('OPENAI_API_KEY') ?: '');
-define('OPENAI_CHAT_MODEL', 'gpt-4o-mini');
-define('CHAT_BLOG_BASE_URL', 'https://smile.re-agent.info/blog/');
+if (!defined('OPENAI_API_KEY')) {
+    define('OPENAI_API_KEY', getenv('OPENAI_API_KEY') ?: '');
+}
+if (!defined('OPENAI_CHAT_MODEL')) {
+    define('OPENAI_CHAT_MODEL', getenv('OPENAI_CHAT_MODEL') ?: 'gpt-4o-mini');
+}
+if (!defined('CHAT_BLOG_BASE_URL')) {
+    define('CHAT_BLOG_BASE_URL', 'https://smile.re-agent.info/blog/');
+}
