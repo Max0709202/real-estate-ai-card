@@ -23,11 +23,50 @@
 
     if (!toggleBtn || !panel || !messagesContainer || !inputEl || !sendBtn) return;
 
-    var sessionId = null;
+    var visitorId = getOrCreateVisitorId();
+    var sessionStorageKey = 'ai_fcard_chat_session_' + (cardSlug || 'default');
+    var sessionId = getStoredSessionId();
     var canUseLoanSim = true;
     var sessionStarting = false;
     var sendingMessage = false;
     var greetingShown = false;
+
+    function safeStorageGet(key) {
+        try { return window.localStorage ? localStorage.getItem(key) : null; } catch (e) { return null; }
+    }
+
+    function safeStorageSet(key, value) {
+        try { if (window.localStorage) localStorage.setItem(key, value); } catch (e) {}
+    }
+
+    function safeStorageRemove(key) {
+        try { if (window.localStorage) localStorage.removeItem(key); } catch (e) {}
+    }
+
+    function createClientId() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+        }
+        return 'v-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+    }
+
+    function getOrCreateVisitorId() {
+        var key = 'ai_fcard_chat_visitor_id';
+        var existing = safeStorageGet(key);
+        if (existing) return existing;
+        var id = createClientId();
+        safeStorageSet(key, id);
+        return id;
+    }
+
+    function getStoredSessionId() {
+        var stored = safeStorageGet('ai_fcard_chat_session_' + (cardSlug || 'default'));
+        return stored || null;
+    }
+
+    function storeSessionId(id) {
+        if (id) safeStorageSet(sessionStorageKey, id);
+    }
 
     function setInputEnabled(enabled) {
         inputEl.disabled = !enabled;
@@ -50,15 +89,19 @@
     }
 
     function showPanel() {
-        panel.style.display = 'block';
+        panel.hidden = false;
+        // panel.style.display = 'flex !important';
+        toggleBtn.setAttribute('aria-expanded', 'true');
         syncAgentHeader();
-        if (!sessionId && !sessionStarting) startSession();
-        if (sessionId && !sendingMessage) setInputEnabled(true);
+        if ((!sessionId || !greetingShown) && !sessionStarting) startSession();
+        if (sessionId && greetingShown && !sendingMessage) setInputEnabled(true);
         setTimeout(function () { inputEl.focus(); }, 50);
     }
 
     function hidePanel() {
-        panel.style.display = 'none';
+        panel.hidden = true;
+        // panel.style.display = 'none !important';
+        toggleBtn.setAttribute('aria-expanded', 'false');
     }
 
     function renderQuickReplies(replies) {
@@ -95,7 +138,7 @@
         fetch(apiBase + '/session/start.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ card_slug: cardSlug })
+            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: sessionId || '' })
         })
             .then(function (res) {
                 return res.json().catch(function () {
@@ -107,6 +150,8 @@
                 loadingRow.remove();
                 if (data.success && data.data) {
                     sessionId = data.data.session_id;
+                    storeSessionId(sessionId);
+                    if (data.data.visitor_id) visitorId = data.data.visitor_id;
                     canUseLoanSim = data.data.can_use_loan_sim !== false;
                     if (data.data.agent_name) agentName = data.data.agent_name;
                     if (data.data.agent_photo_url) {
@@ -114,7 +159,15 @@
                     }
                     syncAgentHeader();
                     if (!greetingShown) {
-                        appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
+                        var history = data.data.messages || [];
+                        if (history.length) {
+                            history.forEach(function (msg) {
+                                if (msg.role === 'bot' || msg.role === 'assistant') appendBotMessage(msg.message || '');
+                                else if (msg.role === 'user') appendUserMessage(msg.message || '');
+                            });
+                        } else {
+                            appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
+                        }
                         greetingShown = true;
                     }
                     renderQuickReplies(data.data.quick_replies || []);
@@ -138,7 +191,7 @@
         wrap.className = 'chat-msg bot' + (isLoading ? ' chat-msg-loading' : '');
         var time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
         var img = agentPhoto ? '<img class="chat-msg-avatar" src="' + escapeAttribute(agentPhoto) + '" alt="">' : '';
-        wrap.innerHTML = img + '<div class="chat-msg-content"><div class="chat-msg-bubble">' + escapeHtml(text) + '</div><div class="chat-msg-time">' + time + '</div></div>';
+        wrap.innerHTML = img + '<div class="chat-msg-content"><div class="chat-msg-bubble">' + formatBotMessageHtml(text) + '</div><div class="chat-msg-time">' + time + '</div></div>';
         if (sources && sources.length) {
             var sourceBox = document.createElement('div');
             sourceBox.className = 'chat-msg-sources';
@@ -170,6 +223,10 @@
         return div.innerHTML;
     }
 
+    function formatBotMessageHtml(s) {
+        return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    }
+
     function escapeAttribute(s) {
         return escapeHtml(String(s || '')).replace(/"/g, '&quot;');
     }
@@ -192,7 +249,7 @@
         fetch(apiBase + '/send.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: sessionId, message: text })
+            body: JSON.stringify({ session_id: sessionId, visitor_id: visitorId, message: text })
         })
             .then(function (res) {
                 return res.json().catch(function () {
@@ -206,6 +263,10 @@
                     appendBotMessage(data.data.reply, false, data.data.sources || []);
                     renderQuickReplies(data.data.quick_replies || []);
                 } else {
+                    if (data.message && data.message.indexOf('セッション') !== -1) {
+                        safeStorageRemove(sessionStorageKey);
+                        sessionId = null;
+                    }
                     appendBotMessage(data.message || 'エラーが発生しました。');
                 }
                 setInputEnabled(true);
@@ -220,8 +281,9 @@
             });
     }
 
+    toggleBtn.setAttribute('aria-expanded', 'false');
     toggleBtn.addEventListener('click', function () {
-        if (panel.hasAttribute('hidden')) showPanel();
+        if (panel.hidden) showPanel();
         else hidePanel();
     });
     closeBtn.addEventListener('click', hidePanel);

@@ -45,6 +45,10 @@
     overflow: hidden;
 }
 
+.chat-widget-panel[hidden] {
+    display: none !important;
+}
+
 .chat-widget-header {
     display: flex;
     align-items: center;

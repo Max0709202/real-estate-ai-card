@@ -27,6 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $sessionId = trim($input['session_id'] ?? '');
 $message = trim($input['message'] ?? '');
+$visitorId = trim($input['visitor_id'] ?? '');
+if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
+    $visitorId = '';
+}
 
 if ($sessionId === '' || $message === '') {
     sendErrorResponse('session_id and message are required', 400);
@@ -42,6 +46,10 @@ try {
 
     if (!$session) {
         sendErrorResponse('セッションが見つかりません', 404);
+    }
+    if ($visitorId !== '') {
+        $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?) WHERE id = ?");
+        $stmt->execute([$visitorId, $sessionId]);
     }
 
     $stmt = $db->prepare("SELECT * FROM business_cards WHERE id = ?");

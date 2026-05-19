@@ -46,27 +46,63 @@ if ($excludeFromSearch) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+
+    <!-- Primary SEO -->
+    <title>不動産AI名刺 | 商談機会を逃さない次世代営業ツール</title>
+
+    <meta name="description" content="不動産AI名刺は、QRコード・AI・ビッグデータを活用し、不動産営業のDX化を支援する次世代型営業ツールです。顧客との接点強化、情報提供、自動フォローを実現します。">
+
+    <meta name="keywords" content="不動産AI名刺, 不動産DX, デジタル名刺, 不動産営業, AI営業, QRコード名刺, 不動産テック">
+
+    <meta name="author" content="不動産AI名刺">
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://ai-fcard.com/">
+
+    <!-- Robots -->
+    <?php if (!empty($excludeFromSearch)): ?>
+        <!-- No index: invitation token URLs and existing member LP -->
+        <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+        <meta name="googlebot" content="noindex, nofollow">
+    <?php else: ?>
+        <meta name="robots" content="index, follow">
+    <?php endif; ?>
+
+    <!-- OGP -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="不動産AI名刺">
+    <meta property="og:title" content="不動産AI名刺 | 商談機会を逃さない次世代営業ツール">
+    <meta property="og:description" content="AI・QRコード・不動産ビッグデータを活用した次世代型営業支援ツール。不動産営業のDX化を強力にサポート。">
+    <meta property="og:url" content="https://ai-fcard.com/">
+    <meta property="og:image" content="https://ai-fcard.com/assets/images/ogp.jpg">
+    <meta property="og:locale" content="ja_JP">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="不動産AI名刺 | 商談機会を逃さない次世代営業ツール">
+    <meta name="twitter:description" content="AI・QRコード・不動産ビッグデータを活用した不動産営業DXツール。">
+    <meta name="twitter:image" content="https://ai-fcard.com/assets/images/ogp.jpg">
+
+    <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="32x32" href="favicon.php?size=32&v=2">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon.php?size=16&v=2">
-    <?php if (!empty($excludeFromSearch)): ?>
-    <!-- No index: invitation token URLs and 既存/ERA LP (pricing differs from new members) -->
-    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
-    <meta name="googlebot" content="noindex, nofollow">
-    <?php endif; ?>
-    <title>不動産AI名刺 - 商談機会を逃さない</title>
-    <!-- Google Fonts - Noto Sans JP -->
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+
+    <!-- CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
-    <!-- Swiper CSS -->
     <link rel="stylesheet" href="assets/css/lp.css">
     <link rel="stylesheet" href="assets/css/modal.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
     <link rel="stylesheet" href="assets/css/new_lp.css">
-
     <link rel="stylesheet" href="new_lp.css">
+
+    <!-- Swiper -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
 </head>
 <body>
     <?php include __DIR__ . '/includes/header.php'; ?>
@@ -239,7 +275,6 @@ if ($excludeFromSearch) {
         <div class="problems-section-container">
             <!-- Header (shared) -->
             <div class="problems-section-header">
-                <p class="problems-section-label">problem</p>
                 <h2 class="problems-section-title">こんなお悩みありませんか？</h2>
                 <div class="title-decoration">
                     <svg width="118" height="13" viewBox="0 0 118 13" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -275,7 +310,7 @@ if ($excludeFromSearch) {
                                     fill="#0071E4" />
                             </svg>
                         </div>
-                        <h3 class="problem-card-heading">他顧客への情報提供が不十分</h3>
+                        <h3 class="problem-card-heading">他顧客ではなく、顧客への情報提供が不十分</h3>
                         <p class="problem-card-text">物件情報や市場データを効果的に共有できず、信頼構築に時間がかかる</p>
                     </div>
                     <div class="problem-card problem-card-3">
@@ -308,7 +343,7 @@ if ($excludeFromSearch) {
                     <li class="problems-smart-item">
                         <span class="problems-smart-check">✓</span>
                         <div>
-                            <h3 class="problems-smart-heading">他顧客への情報提供が不十分</h3>
+                            <h3 class="problems-smart-heading">他顧客ではなく、顧客への情報提供が不十分</h3>
                             <p class="problems-smart-text">物件情報や市場データを効果的に共有できず、信頼構築に時間がかかる</p>
                         </div>
                     </li>
@@ -329,7 +364,6 @@ if ($excludeFromSearch) {
         <div class="features-section-container">
             <!-- Header -->
             <div class="features-section-header">
-                <p class="features-section-label">feature</p>
                 <h2 class="features-section-title">不動産AI名刺の特徴</h2>
             </div>
 
@@ -379,7 +413,6 @@ if ($excludeFromSearch) {
         <div class="video-section-container">
             <!-- Header -->
             <div class="video-section-header">
-                <p class="video-section-label">how to use</p>
                 <h2 class="video-section-title">動画で見る不動産AI名刺の使い方</h2>
             </div>
 
@@ -411,7 +444,6 @@ if ($excludeFromSearch) {
         <div class="flow-container">
             <!-- Header -->
             <div class="flow-header">
-                <p class="flow-label">flow</p>
                 <h2 class="flow-title">
                     <span class="flow-title-dark">営業プロセスを</span><span class="flow-title-blue">「自動化」</span><span
                         class="flow-title-dark">する</span>
@@ -474,7 +506,6 @@ if ($excludeFromSearch) {
         <div class="capabilities-container">
             <!-- Header -->
             <div class="capabilities-header">
-                <p class="capabilities-label">Capabilities</p>
                 <h2 class="capabilities-title">不動産 AI 名刺の機能</h2>
             </div>
 
@@ -602,7 +633,7 @@ if ($excludeFromSearch) {
                     <!-- Card 1 -->
                     <div class="tool-card">
                         <div class="tool-card-icon">
-                            <img src="assets/images/lp_icon/mdb.png" style="width:100%;"/>
+                            <img src="assets/images/lp_icon/mdb.png" style="width:100%;" alt="全国マンションデータベース"/>
                         </div>
                         <!-- <h4>全国マンション<br>データベース</h4> -->
                         <p>国内最大規模のマンションデータベース。マンションの基礎情報・販売履歴をはじめ、口コミなども閲覧できます。</p>
@@ -614,7 +645,7 @@ if ($excludeFromSearch) {
                     <!--Card 2 -->
                     <div class="tool-card">
                         <div class="tool-card-icon">
-                            <img src="assets/images/lp_icon/rlp.png" style="width:100%;"/>
+                            <img src="assets/images/lp_icon/rlp.png" style="width:100%;" alt="新着売却情報配信"/>
                         </div>
                         <p>希望条件に合う新着の売却情報を売り出しから24時間以内にAI評価付きで毎日配信します。希望物件の見落としが無くなります。</p>
                         <a href="https://self-in.net/rlp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center; align-items: center; text-decoration:none;">
@@ -625,7 +656,7 @@ if ($excludeFromSearch) {
                     <!-- Card 3 -->
                     <div class="tool-card">
                         <div class="tool-card-icon">
-                            <img src="assets/images/lp_icon/llp.png" style="width:100%;"/>
+                            <img src="assets/images/lp_icon/llp.png" style="width:100%;" alt="土地情報配信"/>
                         </div>
                         <p>建てたい工務店は決まっているのに、土地情報を探しているお客様向け。新着の土地売却情報を売り出しから24時間以内に毎日配信します。</p>
                         <a href="https://self-in.net/llp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center; align-items: center; text-decoration:none;">
@@ -636,7 +667,7 @@ if ($excludeFromSearch) {
                     <!-- Card 4 -->
                     <div class="tool-card">
                         <div class="tool-card-icon">
-                            <img src="assets/images/lp_icon/ai.png" style="width:100%;"/>
+                            <img src="assets/images/lp_icon/ai.png" style="width:100%;" alt="AI査定"/>
                         </div>
                         <p>個人情報不要で、膨大な販売履歴より瞬時にマンションの価格を査定します。いつでも自分のマンションの査定が可能です。</p>
                         <a href="https://self-in.com/demo/ai" target="_blank" style="display: flex; justify-content: center; align-items: center; text-decoration:none;">
@@ -648,7 +679,7 @@ if ($excludeFromSearch) {
                     <div class="tool-card">
                         <div class="tool-card-icon">
                             <!-- REPLACE THIS SVG WITH YOUR ICON -->
-                            <img src="assets/images/lp_icon/slp.png" style="width:100%;"/>
+                            <img src="assets/images/lp_icon/slp.png" style="width:100%;" alt="セルフインスペクション"/>
                         </div>
                         <p>物件の良し悪しを自動でしかも一瞬で判定するセルフインスペクションWEBアプリ。ネガティブ情報の発見にご活用ください。</p>
                         <a href="https://self-in.net/slp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center; align-items: center; text-decoration:none;">
@@ -660,7 +691,7 @@ if ($excludeFromSearch) {
                     <div class="tool-card">
                         <!-- REPLACE THIS SVG WITH YOUR ICON -->
                         <div class="tool-card-icon">
-                            <img src="assets/images/lp_icon/olp.png" style="width:100%;"/>
+                            <img src="assets/images/lp_icon/olp.png" style="width:100%;" alt="オンライン査定"/>
                         </div>
                         <p>今日の自宅の価格、今日の残債、今日売ったらいくら手元に残るかなど、登録すると1週間に1回配信されます。他住戸の売り出し情報が出たら直ちに情報を配信します。</p>
                         <a href="https://self-in.net/olp/index.php?id=demo" target="_blank" style="display: flex; justify-content: center;align-items: center; text-decoration:none;">
@@ -673,7 +704,7 @@ if ($excludeFromSearch) {
             <!-- Point 3: Quick Setup -->
             <div class="capability-point point-setup">
                 <div class="capability-image-left">
-                    <img src="./images/section9-2.png" alt="Quick Setup">
+                    <img src="./images/section9-2.png" alt="Quick Setup" alt="Quick Setup">
                 </div>
                 <div class="capability-content-right">
                     <div class="point-badge">
@@ -832,7 +863,6 @@ if ($excludeFromSearch) {
         <div class="pricing-container">
             <!-- Header -->
             <div class="pricing-header">
-                <p class="pricing-label">Pricing</p>
                 <h2 class="pricing-title">費用・決済方法について</h2>
             </div>
 

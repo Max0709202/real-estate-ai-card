@@ -189,7 +189,17 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
     ];
     $memory = chatMemoryDefault();
 
+    $liveRefresh = [
+        'attempted' => false,
+        'updated' => 0,
+        'failed' => 0,
+        'skipped' => true,
+        'source_keys' => [],
+        'errors' => [],
+    ];
+
     if ($db instanceof PDO) {
+        $liveRefresh = refreshChatKnowledgeForMessage($db, $userMessage, 24);
         $rag = getChatRagContextForChat($db, $userMessage, 6);
         if ($sessionId !== '') {
             $memory = getChatSessionMemory($db, $sessionId);
@@ -204,6 +214,17 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
     $ragContext = $rag['context'] !== ''
         ? $rag['context']
         : "【ローカルRAG参照情報】\n該当するローカル参照情報は見つかりませんでした。最新性が必要な制度・税制・金利・補助金については断定を避け、担当者による公式情報確認を案内してください。";
+
+    $refreshContext = '';
+    if (!empty($rag['requires_fresh'])) {
+        if (!empty($liveRefresh['attempted']) && (int)$liveRefresh['updated'] > 0) {
+            $refreshContext = "\n【最新情報チェック】\nこの質問に関連する公式RAGソースを会話中に再取得しました。回答では取得済みの参照情報を優先してください。";
+        } elseif (!empty($liveRefresh['attempted']) && (int)$liveRefresh['failed'] > 0) {
+            $refreshContext = "\n【最新情報チェック】\n公式RAGソースの再取得を試みましたが一部失敗しました。手元の参照情報だけで断定せず、必要に応じて最新確認が必要であることを明示してください。";
+        } else {
+            $refreshContext = "\n【最新情報チェック】\nローカル公式RAGソースは直近同期済み、または今回の質問で追加再取得は不要と判定されています。";
+        }
+    }
 
     $systemPrompt = <<<PROMPT
 あなたは日本の不動産営業現場で使われる「不動産相談AI」です。
@@ -255,7 +276,7 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
 
 {$leadContext}
 
-{$ragContext}
+{$ragContext}{$refreshContext}
 PROMPT;
 
     $messages = [
@@ -268,7 +289,7 @@ PROMPT;
     $messages[] = ['role' => 'user', 'content' => $userMessage];
     $result = callOpenAIChat($messages, $apiKey, $model);
     if ($result['error'] !== null) {
-        return ['reply' => null, 'sources' => $rag['sources'], 'error' => $result['error']];
+        return ['reply' => null, 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => $result['error']];
     }
-    return ['reply' => $result['reply'], 'sources' => $rag['sources'], 'error' => null];
+    return ['reply' => $result['reply'], 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => null];
 }

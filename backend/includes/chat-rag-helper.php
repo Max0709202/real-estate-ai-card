@@ -1,8 +1,8 @@
 <?php
 /**
  * Local RAG and conversation memory helpers for the real estate chat widget.
- * The live chat path should read local chunks only; external site fetching belongs
- * in backend/scripts/sync_chat_knowledge.php or a cron job.
+ * The live chat path normally reads local chunks. For latest-sensitive questions,
+ * it may refresh stale official sources before retrieving context.
  */
 
 function chatDefaultKnowledgeSources() {
@@ -142,6 +142,94 @@ function seedDefaultChatKnowledgeSources($db) {
 
 function chatShouldUseFreshSources($message) {
     return (bool) preg_match('/今年度|最新|202[0-9]|令和[0-9０-９]+|税制|減税|補助金|控除|金利|フラット\s*35|省エネ|ZEH|長期優良住宅|法改正|自治体|制度|住宅ローン|住宅借入金|みらいエコ|子育て|若者夫婦/u', $message);
+}
+
+
+function chatOfficialSourceTypes() {
+    return ['official_tax', 'official_mlit', 'official_finance', 'official_subsidy'];
+}
+
+function chatRelevantFreshSourceKeys($message) {
+    $keys = [];
+    $add = function ($items) use (&$keys) {
+        foreach ($items as $item) {
+            if (!in_array($item, $keys, true)) $keys[] = $item;
+        }
+    };
+
+    if (preg_match('/住宅ローン減税|住宅ローン控除|住宅借入金|控除|税制|減税|子育て|若者夫婦/u', $message)) {
+        $add(['nta_housing_loan_1211_1', 'nta_housing_loan_1225', 'mlit_housing_loan_tax_r7']);
+    }
+    if (preg_match('/売却|住み替え|3000|3,000|譲渡|特別控除/u', $message)) {
+        $add(['nta_home_sale_3302']);
+    }
+    if (preg_match('/補助金|省エネ|ZEH|長期優良|みらいエコ|リフォーム/u', $message)) {
+        $add(['mlit_mirai_eco_2026', 'mirai_eco_2026_about', 'mlit_reform_tax', 'flat35_zeh']);
+    }
+    if (preg_match('/金利|フラット\s*35|フラット３５/u', $message)) {
+        $add(['jhf_interest_rates', 'flat35_zeh']);
+    }
+    if (empty($keys)) {
+        $add(['mlit_housing_loan_tax_r7', 'jhf_interest_rates', 'mirai_eco_2026_about']);
+    }
+
+    return array_slice($keys, 0, 4);
+}
+
+function refreshChatKnowledgeForMessage($db, $message, $maxAgeHours = 24) {
+    $status = [
+        'attempted' => false,
+        'updated' => 0,
+        'failed' => 0,
+        'skipped' => true,
+        'source_keys' => [],
+        'errors' => [],
+    ];
+    if (!$db || !chatShouldUseFreshSources($message)) return $status;
+
+    try {
+        ensureChatRagTables($db);
+        seedDefaultChatKnowledgeSources($db);
+
+        $keys = chatRelevantFreshSourceKeys($message);
+        if (empty($keys)) return $status;
+
+        $placeholders = implode(',', array_fill(0, count($keys), '?'));
+        $hours = max(1, min(168, (int)$maxAgeHours));
+        $sql = "SELECT source_key FROM chat_knowledge_sources
+                WHERE enabled = 1
+                  AND source_key IN ({$placeholders})
+                  AND source_type IN ('official_tax', 'official_mlit', 'official_finance', 'official_subsidy')
+                  AND (last_fetched_at IS NULL OR last_fetched_at < DATE_SUB(NOW(), INTERVAL {$hours} HOUR) OR last_status IS NULL OR last_status <> 'ok')
+                ORDER BY priority ASC
+                LIMIT 4";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($keys);
+        $staleKeys = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($staleKeys)) return $status;
+
+        $status['attempted'] = true;
+        $status['skipped'] = false;
+        $status['source_keys'] = $staleKeys;
+        $results = syncChatKnowledgeSources($db, null, chatOfficialSourceTypes(), $staleKeys);
+        foreach ($results as $result) {
+            if (($result['status'] ?? '') === 'ok') {
+                $status['updated']++;
+            } else {
+                $status['failed']++;
+                if (!empty($result['error'])) $status['errors'][] = $result['source_key'] . ': ' . $result['error'];
+            }
+        }
+    } catch (Throwable $e) {
+        $status['attempted'] = true;
+        $status['skipped'] = false;
+        $status['failed']++;
+        $status['errors'][] = $e->getMessage();
+        error_log('Chat live knowledge refresh error: ' . $e->getMessage());
+    }
+
+    return $status;
 }
 
 function chatExtractSearchTerms($message) {
@@ -329,15 +417,27 @@ function chatSplitIntoChunks($text, $chunkSize = 1500, $overlap = 160) {
     }));
 }
 
-function syncChatKnowledgeSources($db, $limit = null) {
+function syncChatKnowledgeSources($db, $limit = null, $sourceTypes = null, $sourceKeys = null) {
     ensureChatRagTables($db);
     seedDefaultChatKnowledgeSources($db);
 
-    $sql = "SELECT * FROM chat_knowledge_sources WHERE enabled = 1 ORDER BY priority ASC, id ASC";
+    $sql = "SELECT * FROM chat_knowledge_sources WHERE enabled = 1 AND url NOT LIKE 'file:%'";
+    $params = [];
+    if (is_array($sourceTypes) && !empty($sourceTypes)) {
+        $sql .= " AND source_type IN (" . implode(',', array_fill(0, count($sourceTypes), '?')) . ")";
+        foreach ($sourceTypes as $type) $params[] = $type;
+    }
+    if (is_array($sourceKeys) && !empty($sourceKeys)) {
+        $sql .= " AND source_key IN (" . implode(',', array_fill(0, count($sourceKeys), '?')) . ")";
+        foreach ($sourceKeys as $key) $params[] = $key;
+    }
+    $sql .= " ORDER BY priority ASC, id ASC";
     if ($limit !== null) {
         $sql .= " LIMIT " . max(1, (int)$limit);
     }
-    $sources = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $sources = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $results = [];
 
     foreach ($sources as $source) {

@@ -25,6 +25,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $cardSlug = trim($input['card_slug'] ?? '');
+$visitorId = trim($input['visitor_id'] ?? '');
+$currentSessionId = trim($input['current_session_id'] ?? '');
+if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
+    $visitorId = '';
+}
+if ($currentSessionId !== '' && !preg_match('/^[A-Fa-f0-9-]{36}$/', $currentSessionId)) {
+    $currentSessionId = '';
+}
 
 if ($cardSlug === '') {
     sendErrorResponse('card_slug is required', 400);
@@ -43,9 +51,46 @@ try {
         sendErrorResponse('この名刺ではチャットボットはご利用いただけません。', 403);
     }
 
-    $sessionId = generateChatSessionId();
-    $stmt = $db->prepare("INSERT INTO chat_sessions (id, business_card_id, visitor_identifier) VALUES (?, ?, ?)");
-    $stmt->execute([$sessionId, $card['id'], $input['visitor_id'] ?? null]);
+    $sessionId = '';
+    $isResumed = false;
+
+    if ($visitorId !== '') {
+        if ($currentSessionId !== '') {
+            $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? AND visitor_identifier = ? LIMIT 1");
+            $stmt->execute([$currentSessionId, $card['id'], $visitorId]);
+            $sessionId = (string)($stmt->fetchColumn() ?: '');
+        }
+        if ($sessionId === '') {
+            $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE business_card_id = ? AND visitor_identifier = ? ORDER BY last_seen_at DESC, created_at DESC LIMIT 1");
+            $stmt->execute([$card['id'], $visitorId]);
+            $sessionId = (string)($stmt->fetchColumn() ?: '');
+        }
+        if ($sessionId !== '') {
+            $isResumed = true;
+            $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$sessionId]);
+        }
+    }
+
+    if ($sessionId === '') {
+        $sessionId = generateChatSessionId();
+        $stmt = $db->prepare("INSERT INTO chat_sessions (id, business_card_id, visitor_identifier) VALUES (?, ?, ?)");
+        $stmt->execute([$sessionId, $card['id'], $visitorId !== '' ? $visitorId : null]);
+    }
+
+    $messages = [];
+    if ($isResumed) {
+        $stmt = $db->prepare("SELECT role, message, created_at FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 40");
+        $stmt->execute([$sessionId]);
+        $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
+        foreach ($rows as $row) {
+            $messages[] = [
+                'role' => $row['role'],
+                'message' => $row['message'],
+                'created_at' => $row['created_at'],
+            ];
+        }
+    }
 
     $photoUrl = '';
     if (!empty($card['profile_photo'])) {
@@ -56,6 +101,9 @@ try {
     $intake = chatIntakeInitialPayload($card['name'] ?? '担当者');
     $data = [
         'session_id' => $sessionId,
+        'visitor_id' => $visitorId,
+        'is_resumed' => $isResumed,
+        'messages' => $messages,
         'agent_name' => $card['name'] ?? '',
         'agent_photo_url' => $photoUrl,
         'can_use_loan_sim' => canUseLoanSim($card),
