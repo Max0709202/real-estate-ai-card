@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-rag-helper.php';
+require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -57,11 +58,17 @@ try {
         $memory['memory_json'] = json_decode($memory['memory_json'], true);
     }
 
+    ensureChatLeadContactTable($db);
+    $stmt = $db->prepare("SELECT customer_name, contact_method, contact_value, phone, email, line_id, raw_contact, consent_given, created_at, updated_at FROM chat_lead_contacts WHERE session_id = ?");
+    $stmt->execute([$sessionId]);
+    $contact = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
     $data = [
         'session' => $session,
         'messages' => $messages,
         'lead' => $lead,
         'memory' => $memory,
+        'contact' => $contact,
     ];
     sendSuccessResponse($data, 'OK');
 } catch (Exception $e) {

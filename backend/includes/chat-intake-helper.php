@@ -37,6 +37,15 @@ function chatIntakeDefaultData() {
         'summary_for_sales' => null,
         'next_action' => null,
         'missing_fields' => [],
+        'customer_name' => null,
+        'customer_phone' => null,
+        'customer_email' => null,
+        'customer_contact_raw' => null,
+        'customer_line' => null,
+        'preferred_contact_method' => null,
+        'preferred_contact_value' => null,
+        'contact_status' => 'anonymous',
+        'contact_consent' => false,
         'move_date' => null,
         'schedule_progress' => null,
         'delay_alert' => null,
@@ -109,20 +118,23 @@ function chatIntakeFieldDefinitions() {
         'consultation_reason' => ['question' => '相場を知りたい理由に近いものを教えてください。', 'choices' => [['label' => '売却検討', 'value' => '売却検討'], ['label' => '相続', 'value' => '相続'], ['label' => '資産把握', 'value' => '資産把握'], ['label' => '住み替え', 'value' => '住み替え'], ['label' => '興味本位', 'value' => '興味本位']]],
         'report_request' => ['question' => '今後、相場変動レポートを受け取りたいですか。', 'choices' => [['label' => '希望する', 'value' => '希望する'], ['label' => '検討する', 'value' => '検討する'], ['label' => '不要', 'value' => '不要']]],
         'move_date' => ['question' => '引っ越し希望日や決済・引渡希望日はありますか。例: 2026-09-30 のように入力できます。', 'choices' => [['label' => '未定', 'value' => '未定']]],
+        'contact_request' => ['question' => 'ここまでで主な内容は整理できました。担当者から具体的なご案内を希望される場合は、お名前とご希望の連絡方法を自由に入力してください。
+例：山田太郎／メール yamada@example.com、電話 090-xxxx-xxxx、LINE ID xxxx など。
+もちろん、匿名のままチャットを続けることもできます。', 'choices' => [['label' => '今回は匿名のまま', 'value' => 'anonymous']]],
     ];
 }
 
 function chatIntakeScenarioFields($customerType) {
     $map = [
-        'purchase' => ['preferred_area', 'preferred_station_line', 'commute_destination', 'budget', 'competitor_viewing_status', 'viewed_property_count', 'preferred_area_size', 'layout', 'property_type', 'station_walk_minutes', 'priority', 'family_structure', 'purchase_timing', 'loan_status', 'renovation_preference', 'move_date'],
-        'replacement' => ['current_property_type', 'selling_strategy', 'property_location', 'loan_balance', 'minimum_price', 'preferred_area', 'budget', 'selling_reason', 'purchase_timing', 'competitor_status', 'move_date'],
-        'sale' => ['property_location', 'property_type', 'selling_reason', 'selling_timing', 'loan_balance', 'minimum_price', 'appraisal_status', 'appraisal_request', 'disclosure_flags', 'preferred_contact', 'move_date'],
-        'investment_buy' => ['investment_type', 'owner_change_ok', 'preferred_area', 'budget', 'target_yield', 'loan_status', 'purchase_timing', 'competitor_status'],
-        'investment_sale' => ['property_location', 'property_type', 'sublease_status', 'sublease_cancelable', 'rent_income', 'loan_balance', 'minimum_price', 'selling_reason', 'competitor_status', 'move_date'],
-        'loan' => ['income', 'employment_type', 'years_employed', 'down_payment', 'desired_loan_amount', 'other_debts', 'pre_approval_status', 'loan_concern', 'loan_simulation_used'],
-        'market' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'report_request'],
-        'inheritance' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'report_request'],
-        'other' => ['property_location', 'property_type', 'preferred_contact'],
+        'purchase' => ['preferred_area', 'preferred_station_line', 'commute_destination', 'budget', 'competitor_viewing_status', 'viewed_property_count', 'preferred_area_size', 'layout', 'property_type', 'station_walk_minutes', 'priority', 'family_structure', 'purchase_timing', 'loan_status', 'renovation_preference', 'move_date', 'contact_request'],
+        'replacement' => ['current_property_type', 'selling_strategy', 'property_location', 'loan_balance', 'minimum_price', 'preferred_area', 'budget', 'selling_reason', 'purchase_timing', 'competitor_status', 'move_date', 'contact_request'],
+        'sale' => ['property_location', 'property_type', 'selling_reason', 'selling_timing', 'loan_balance', 'minimum_price', 'appraisal_status', 'appraisal_request', 'disclosure_flags', 'preferred_contact', 'move_date', 'contact_request'],
+        'investment_buy' => ['investment_type', 'owner_change_ok', 'preferred_area', 'budget', 'target_yield', 'loan_status', 'purchase_timing', 'competitor_status', 'contact_request'],
+        'investment_sale' => ['property_location', 'property_type', 'sublease_status', 'sublease_cancelable', 'rent_income', 'loan_balance', 'minimum_price', 'selling_reason', 'competitor_status', 'move_date', 'contact_request'],
+        'loan' => ['income', 'employment_type', 'years_employed', 'down_payment', 'desired_loan_amount', 'other_debts', 'pre_approval_status', 'loan_concern', 'loan_simulation_used', 'contact_request'],
+        'market' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'report_request', 'contact_request'],
+        'inheritance' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'report_request', 'contact_request'],
+        'other' => ['property_location', 'property_type', 'preferred_contact', 'contact_request'],
     ];
     return $map[$customerType] ?? [];
 }
@@ -139,13 +151,69 @@ function chatIntakeLoad($db, $sessionId, $businessCardId) {
     return $data;
 }
 
+function ensureChatLeadContactTable($db) {
+    $db->exec("CREATE TABLE IF NOT EXISTS chat_lead_contacts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        session_id CHAR(36) NOT NULL UNIQUE,
+        business_card_id INT NOT NULL,
+        customer_name VARCHAR(255) NULL,
+        contact_method VARCHAR(50) NULL,
+        contact_value VARCHAR(255) NULL,
+        phone VARCHAR(50) NULL,
+        email VARCHAR(255) NULL,
+        line_id VARCHAR(255) NULL,
+        raw_contact TEXT NULL,
+        consent_given TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY (business_card_id) REFERENCES business_cards(id) ON DELETE CASCADE,
+        INDEX idx_chat_lead_contacts_card (business_card_id),
+        INDEX idx_chat_lead_contacts_method (contact_method)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function chatIntakeSaveContact($db, $sessionId, $businessCardId, $data) {
+    if (empty($data['contact_consent']) || empty($data['customer_contact_raw'])) return;
+    ensureChatLeadContactTable($db);
+    $method = $data['preferred_contact_method'] ?? null;
+    $value = $data['preferred_contact_value'] ?? $data['customer_contact_raw'];
+    $stmt = $db->prepare("INSERT INTO chat_lead_contacts
+        (session_id, business_card_id, customer_name, contact_method, contact_value, phone, email, line_id, raw_contact, consent_given)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        ON DUPLICATE KEY UPDATE
+            business_card_id = VALUES(business_card_id),
+            customer_name = VALUES(customer_name),
+            contact_method = VALUES(contact_method),
+            contact_value = VALUES(contact_value),
+            phone = VALUES(phone),
+            email = VALUES(email),
+            line_id = VALUES(line_id),
+            raw_contact = VALUES(raw_contact),
+            consent_given = 1,
+            updated_at = CURRENT_TIMESTAMP");
+    $stmt->execute([
+        $sessionId,
+        $businessCardId,
+        $data['customer_name'] ?? null,
+        $method,
+        $value,
+        $data['customer_phone'] ?? null,
+        $data['customer_email'] ?? null,
+        $data['customer_line'] ?? null,
+        $data['customer_contact_raw'] ?? null,
+    ]);
+}
+
 function chatIntakeSave($db, $sessionId, $businessCardId, $data) {
     $data['_updated_at'] = date('c');
     $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $consent = !empty($data['contact_consent']) ? 1 : 0;
     $stmt = $db->prepare("INSERT INTO chat_leads (session_id, business_card_id, structured_data, consent_given)
-                          VALUES (?, ?, ?, 0)
-                          ON DUPLICATE KEY UPDATE structured_data = VALUES(structured_data), updated_at = CURRENT_TIMESTAMP");
-    $stmt->execute([$sessionId, $businessCardId, $json]);
+                          VALUES (?, ?, ?, ?)
+                          ON DUPLICATE KEY UPDATE structured_data = VALUES(structured_data), consent_given = VALUES(consent_given), updated_at = CURRENT_TIMESTAMP");
+    $stmt->execute([$sessionId, $businessCardId, $json, $consent]);
+    chatIntakeSaveContact($db, $sessionId, $businessCardId, $data);
 }
 
 function chatIntakeInitialPayload($agentName) {
@@ -161,6 +229,53 @@ function chatIntakeNormalizeChoiceValue($field, $message) {
         if ($message === $choice['label'] || $message === $choice['value']) return $choice['value'];
     }
     return $message;
+}
+
+function chatIntakeSetContact(&$data, $value) {
+    $value = trim((string)$value);
+    if ($value === '' || $value === 'anonymous' || $value === '今回は匿名のまま' || $value === '匿名') {
+        $data['contact_status'] = 'anonymous';
+        $data['contact_consent'] = false;
+        return;
+    }
+
+    $data['customer_contact_raw'] = $value;
+    $data['contact_status'] = 'provided';
+    $data['contact_consent'] = true;
+
+    if (preg_match('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/iu', $value, $m)) {
+        $data['customer_email'] = $m[0];
+    }
+    if (preg_match('/(?:\+81[-\s]?)?0\d{1,4}[-\s]?\d{1,4}[-\s]?\d{3,4}/u', $value, $m)) {
+        $data['customer_phone'] = preg_replace('/\s+/u', '', $m[0]);
+    }
+    if (preg_match('/(?:LINE|ライン)\s*(?:ID|id)?\s*[:：]?\s*([A-Za-z0-9_.\-@]{3,})/u', $value, $m)) {
+        $data['customer_line'] = $m[1];
+    }
+
+    if (!empty($data['customer_email'])) {
+        $data['preferred_contact_method'] = 'email';
+        $data['preferred_contact_value'] = $data['customer_email'];
+    } elseif (!empty($data['customer_phone'])) {
+        $data['preferred_contact_method'] = 'phone';
+        $data['preferred_contact_value'] = $data['customer_phone'];
+    } elseif (!empty($data['customer_line'])) {
+        $data['preferred_contact_method'] = 'line';
+        $data['preferred_contact_value'] = $data['customer_line'];
+    } else {
+        $data['preferred_contact_method'] = 'other';
+        $data['preferred_contact_value'] = $value;
+    }
+
+    $name = $value;
+    if (!empty($data['customer_email'])) $name = str_replace($data['customer_email'], '', $name);
+    if (!empty($data['customer_phone'])) $name = str_replace($data['customer_phone'], '', $name);
+    if (!empty($data['customer_line'])) $name = str_replace($data['customer_line'], '', $name);
+    $name = preg_replace('/(?:電話|TEL|tel|メール|mail|LINE|ライン|連絡先|[:：])/u', ' ', $name);
+    $name = trim(preg_replace('/\s+/u', ' ', $name));
+    if ($name !== '' && mb_strlen($name) <= 60) {
+        $data['customer_name'] = $name;
+    }
 }
 
 function chatIntakeSetField(&$data, $field, $value) {
@@ -180,6 +295,8 @@ function chatIntakeSetField(&$data, $field, $value) {
         $data[$field] = array_values(array_unique($data[$field]));
     } elseif ($field === 'move_date') {
         $data['move_date'] = chatIntakeParseDate($value) ?: ($value === '未定' ? null : $value);
+    } elseif ($field === 'contact_request') {
+        chatIntakeSetContact($data, $value);
     } else {
         $data[$field] = $value;
     }
@@ -216,6 +333,11 @@ function chatIntakeAdvice($field, $value, $data) {
     if ($field === 'sublease_status') return 'サブリース契約は、買主層や利回り評価、売却価格に影響することがあります。解除可否まで確認できると、売却戦略を立てやすくなります。';
     if ($field === 'loan_simulation_used') return '月々返済額の目安を把握すると、購入予算を現実的に整理しやすくなります。固定金利と変動金利の差も比較しておくと安心です。';
     if ($field === 'move_date' && !empty($data['move_date'])) return '引っ越し希望日が分かると、内覧・ローン審査・契約・決済までの逆算スケジュールを作りやすくなります。「進捗を見せて」と入力すると現在のタスク確認もできます。';
+    if ($field === 'contact_request') {
+        return !empty($data['contact_consent'])
+            ? 'ありがとうございます。お名前・ご連絡先を担当者が確認できるように保存しました。いただいた条件とあわせて、次のご案内につなげます。'
+            : '承知しました。匿名のままでも、条件整理や一般的なご相談はこのまま続けられます。';
+    }
     return 'ありがとうございます。いただいた内容を条件整理に反映しました。';
 }
 
@@ -231,6 +353,7 @@ function chatIntakeEvaluateTemperature(&$data) {
     if (($data['competitor_viewing_status'] ?? null) === 'yes') $score += 15;
     if (($data['loan_simulation_used'] ?? null) === 'yes') $score += 20;
     if (!empty($data['move_date'])) $score += 15;
+    if (!empty($data['contact_consent'])) $score += 20;
     $data['temperature_score'] = min(100, $score);
     $data['temperature'] = $score >= 60 ? 'high' : ($score >= 30 ? 'middle' : 'low');
 }
@@ -245,6 +368,8 @@ function chatIntakeBuildSummary(&$data) {
     if (!empty($data['selling_timing'])) $parts[] = '売却時期: ' . $data['selling_timing'];
     if (!empty($data['loan_status'])) $parts[] = 'ローン: ' . $data['loan_status'];
     if (!empty($data['move_date'])) $parts[] = '引越/引渡希望: ' . $data['move_date'];
+    if (!empty($data['customer_name'])) $parts[] = '顧客名: ' . $data['customer_name'];
+    if (!empty($data['customer_phone']) || !empty($data['customer_email'])) $parts[] = '連絡先取得済み';
     $data['summary_for_sales'] = implode(' / ', $parts);
     $data['missing_fields'] = [];
     foreach (chatIntakeScenarioFields($data['customer_type'] ?? '') as $field) {
@@ -319,7 +444,7 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message) {
 
     $defs = chatIntakeFieldDefinitions();
     $advice = chatIntakeAdvice($field, $value, $data);
-    $question = $nextField && isset($defs[$nextField]) ? $defs[$nextField]['question'] : 'ありがとうございます。主要な条件はかなり整理できました。必要であれば、この内容を担当者に共有して次の提案につなげられます。';
+    $question = $nextField && isset($defs[$nextField]) ? $defs[$nextField]['question'] : 'ありがとうございます。主要な条件はかなり整理できました。担当者が確認できる形で相談内容を保存しました。引き続き、このチャットで追加のご相談もできます。';
     $quick = $nextField && isset($defs[$nextField]) ? ($defs[$nextField]['choices'] ?? []) : [];
     return [
         'handled' => true,
@@ -339,7 +464,9 @@ function buildChatLeadContext($data) {
         'layout' => '間取り', 'property_type' => '物件種別', 'purchase_timing' => '購入時期', 'selling_timing' => '売却時期',
         'loan_status' => 'ローン状況', 'loan_balance' => 'ローン残債', 'sublease_status' => 'サブリース有無',
         'sublease_cancelable' => 'サブリース解除可否', 'summary_for_sales' => '営業向け要約', 'next_action' => '次アクション',
-        'move_date' => '引越/引渡希望日'
+        'move_date' => '引越/引渡希望日', 'customer_name' => '顧客名', 'customer_phone' => '電話番号',
+        'customer_email' => 'メールアドレス', 'customer_line' => 'LINE', 'preferred_contact_method' => '希望連絡方法',
+        'preferred_contact' => '希望連絡方法', 'contact_status' => '連絡先状態'
     ];
     $lines = [];
     foreach ($labels as $key => $label) {

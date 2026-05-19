@@ -610,7 +610,7 @@ $defaultGreetings = [
                         <span class="step-number">7/7</span>
                         <span class="step-label">決済</span>
                     </a>
-                    <a href="#chat-history" class="nav-item" data-step="chat" data-section="chat-history-section" style="display: none;">
+                    <a href="#chat-history" class="nav-item" data-step="chat" data-section="chat-history-section">
                         <span class="step-label">チャット履歴</span>
                     </a>
                 </nav>
@@ -3165,8 +3165,10 @@ $defaultGreetings = [
                             var date = s.last_seen_at || s.created_at || '';
                             var dateStr = date ? new Date(date).toLocaleString('ja-JP') : '-';
                             var leadBadge = s.has_lead ? ' <span class="chat-lead-badge">ヒアリングあり</span>' : '';
+                            var contactBadge = s.has_contact ? ' <span class="chat-lead-badge">連絡先あり</span>' : '';
+                            var customerName = s.customer_name ? ' <span class="chat-session-customer">' + escapeHtml(s.customer_name) + '</span>' : '';
                             html += '<li class="chat-session-item" data-session-id="' + (s.id || '') + '">';
-                            html += '<span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + leadBadge;
+                            html += '<span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + customerName + leadBadge + contactBadge;
                             html += '<span class="chat-session-meta">' + (s.message_count || 0) + '件</span>';
                             html += '</li>';
                         });
@@ -3204,6 +3206,16 @@ $defaultGreetings = [
                         }
                         var d = res.data;
                         var html = '';
+                        if (d.contact) {
+                            html += '<h4>連絡先情報</h4><div class="chat-contact-data">';
+                            html += '<p><strong>顧客名:</strong> ' + escapeHtml(d.contact.customer_name || '未入力') + '</p>';
+                            html += '<p><strong>希望連絡方法:</strong> ' + escapeHtml(d.contact.contact_method || '未分類') + '</p>';
+                            html += '<p><strong>連絡先:</strong> ' + escapeHtml(d.contact.contact_value || d.contact.raw_contact || '') + '</p>';
+                            if (d.contact.phone) html += '<p><strong>電話:</strong> ' + escapeHtml(d.contact.phone) + '</p>';
+                            if (d.contact.email) html += '<p><strong>メール:</strong> ' + escapeHtml(d.contact.email) + '</p>';
+                            if (d.contact.line_id) html += '<p><strong>LINE:</strong> ' + escapeHtml(d.contact.line_id) + '</p>';
+                            html += '</div>';
+                        }
                         if (d.lead && d.lead.structured_data) {
                             html += '<h4>ヒアリング内容</h4><pre class="chat-lead-data">' + escapeHtml(JSON.stringify(d.lead.structured_data, null, 2)) + '</pre>';
                         }

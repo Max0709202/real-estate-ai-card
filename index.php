@@ -95,11 +95,11 @@ if ($excludeFromSearch) {
 
     <!-- CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
-    <link rel="stylesheet" href="assets/css/mobile.css">
+    <!-- <link rel="stylesheet" href="assets/css/mobile.css"> -->
     <link rel="stylesheet" href="assets/css/lp.css">
-    <link rel="stylesheet" href="assets/css/modal.css">
+    <!-- <link rel="stylesheet" href="assets/css/modal.css"> -->
     <link rel="stylesheet" href="assets/css/new_lp.css">
-    <link rel="stylesheet" href="new_lp.css">
+    <!-- <link rel="stylesheet" href="new_lp.css"> -->
 
     <!-- Swiper -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
@@ -1034,9 +1034,9 @@ if ($excludeFromSearch) {
                 </p>
 
                 <!-- Button -->
-                 <a href="https://ai-fcard.com/register.php">
-                    <button class="cta-button">不動産AI名刺をつくる</button>
-                </a>
+                <?php if ($showNavLinks): ?>
+                    <a href="<?php echo htmlspecialchars($createPageUrl); ?>"><button class="cta-button">不動産AI名刺をつくる</button></a>
+                <?php endif; ?>
             </div>
 
             <!-- Illustration -->
