@@ -19,7 +19,10 @@
     var sendBtn = document.getElementById('chat-widget-send');
     var avatarEl = document.getElementById('chat-widget-avatar');
     var agentNameEl = document.getElementById('chat-widget-agent-name');
+    var toggleAvatarEl = document.getElementById('chat-widget-toggle-avatar');
+    var toggleLabelEl = document.getElementById('chat-widget-toggle-label');
     var quickActions = document.getElementById('chat-widget-quick-actions');
+    var pwaModalIds = ['pwaIosModal1', 'pwaIosModal2', 'pwaIosModalSafari'];
 
     if (!toggleBtn || !panel || !messagesContainer || !inputEl || !sendBtn) return;
 
@@ -72,6 +75,15 @@
             }
         }
         if (agentNameEl) agentNameEl.textContent = agentName;
+        if (toggleLabelEl) toggleLabelEl.textContent = agentName + ' AIチャット';
+        if (toggleAvatarEl) {
+            if (agentPhoto && toggleAvatarEl.tagName === 'IMG') {
+                toggleAvatarEl.src = agentPhoto;
+                toggleAvatarEl.alt = '';
+            } else if (!agentPhoto && toggleAvatarEl.tagName !== 'IMG') {
+                toggleAvatarEl.textContent = (agentName || 'AI').charAt(0);
+            }
+        }
     }
 
     function showPanel() {
@@ -86,6 +98,59 @@
     function hidePanel() {
         panel.hidden = true;
         toggleBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    function getVisiblePwaModal() {
+        for (var i = 0; i < pwaModalIds.length; i++) {
+            var modal = document.getElementById(pwaModalIds[i]);
+            if (!modal || modal.hasAttribute('hidden')) continue;
+            var style = window.getComputedStyle ? window.getComputedStyle(modal) : null;
+            if (style && (style.display === 'none' || style.visibility === 'hidden')) continue;
+            return modal;
+        }
+        return null;
+    }
+
+    function updateChatPositionForPwaModal() {
+        var modal = getVisiblePwaModal();
+        if (!modal) {
+            root.classList.remove('is-pwa-modal-visible');
+            root.style.removeProperty('--chat-widget-pwa-bottom');
+            return;
+        }
+
+        var modalBox = modal.querySelector('.pwa-ios-modal-box');
+        var offset = 360;
+        if (modalBox && typeof modalBox.getBoundingClientRect === 'function') {
+            var rect = modalBox.getBoundingClientRect();
+            if (rect.height > 0) {
+                offset = Math.ceil(window.innerHeight - rect.top + 12);
+            }
+        }
+        var toggleHeight = toggleBtn.offsetHeight || 58;
+        var maxOffset = Math.max(96, window.innerHeight - toggleHeight - 12);
+        offset = Math.max(96, Math.min(offset, maxOffset));
+        root.style.setProperty('--chat-widget-pwa-bottom', offset + 'px');
+        root.classList.add('is-pwa-modal-visible');
+    }
+
+    function watchPwaModals() {
+        var scheduleUpdate = function () {
+            window.requestAnimationFrame(updateChatPositionForPwaModal);
+        };
+
+        pwaModalIds.forEach(function (id) {
+            var modal = document.getElementById(id);
+            if (!modal) return;
+            if (window.MutationObserver) {
+                var observer = new MutationObserver(scheduleUpdate);
+                observer.observe(modal, { attributes: true, attributeFilter: ['hidden', 'style', 'class'] });
+            }
+        });
+
+        window.addEventListener('resize', scheduleUpdate);
+        window.addEventListener('orientationchange', scheduleUpdate);
+        scheduleUpdate();
     }
 
     function renderQuickReplies(replies) {
@@ -272,6 +337,8 @@
                 inputEl.focus();
             });
     }
+
+    watchPwaModals();
 
     toggleBtn.setAttribute('aria-expanded', 'false');
     toggleBtn.addEventListener('click', function () {

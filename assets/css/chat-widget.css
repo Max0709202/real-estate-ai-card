@@ -5,22 +5,56 @@
     right: 1.25rem;
     z-index: 9999;
     font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    transition: bottom 0.2s ease;
+}
+
+.chat-widget-root.is-pwa-modal-visible {
+    bottom: var(--chat-widget-pwa-bottom, 24rem);
+    z-index: 10002;
 }
 
 .chat-widget-toggle {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: #0066cc;
+    min-width: 220px;
+    max-width: min(88vw, 320px);
+    height: 58px;
+    border-radius: 999px;
+    background: #0b4f9f;
     color: #fff;
     border: none;
-    box-shadow: 0 4px 16px rgba(0, 102, 204, 0.4);
+    box-shadow: 0 4px 16px rgba(11, 79, 159, 0.32);
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
+    justify-content: flex-start;
+    gap: 0.6rem;
+    padding: 0.35rem 1.1rem 0.35rem 0.4rem;
+    font-size: 1rem;
     transition: transform 0.2s, box-shadow 0.2s;
+}
+.chat-widget-toggle-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: 0 0 46px;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    background: #fff;
+}
+.chat-widget-toggle-avatar-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #0b4f9f;
+    font-weight: 700;
+}
+.chat-widget-toggle-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0;
 }
 .chat-widget-toggle:hover {
     transform: scale(1.05);
@@ -285,6 +319,10 @@
         bottom: 0.75rem;
     }
 
+    .chat-widget-root.is-pwa-modal-visible {
+        bottom: var(--chat-widget-pwa-bottom, 22rem);
+    }
+
     .chat-widget-panel {
         position: fixed;
         inset: 0;
@@ -295,7 +333,16 @@
     }
 
     .chat-widget-toggle {
-        width: 52px;
-        height: 52px;
+        min-width: min(86vw, 290px);
+        height: 56px;
+        padding-right: 0.9rem;
+    }
+    .chat-widget-toggle-avatar {
+        width: 44px;
+        height: 44px;
+        flex-basis: 44px;
+    }
+    .chat-widget-toggle-label {
+        font-size: 0.95rem;
     }
 }

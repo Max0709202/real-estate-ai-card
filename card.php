@@ -1204,9 +1204,14 @@ if (!empty($card['profile_photo'])) {
          data-agent-photo="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>"
          data-api-base="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/backend/api/chat'); ?>">
         <button type="button" id="chat-widget-toggle" class="chat-widget-toggle" aria-label="チャットを開く">
-            <span class="chat-widget-toggle-icon">💬</span>
+            <?php if (!empty($agentPhotoUrlForChat)): ?>
+                <img id="chat-widget-toggle-avatar" class="chat-widget-toggle-avatar" src="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>" alt="" width="46" height="46">
+            <?php else: ?>
+                <span id="chat-widget-toggle-avatar" class="chat-widget-toggle-avatar chat-widget-toggle-avatar-fallback" aria-hidden="true"><?php echo htmlspecialchars(mb_substr($card['name'] ?? 'AI', 0, 1)); ?></span>
+            <?php endif; ?>
+            <span id="chat-widget-toggle-label" class="chat-widget-toggle-label"><?php echo htmlspecialchars(($card['name'] ?? '担当者') . ' AIチャット'); ?></span>
         </button>
-        <div id="chat-widget-panel"  hidden class="chat-widget-panel">
+        <div id="chat-widget-panel" hidden class="chat-widget-panel">
             <div class="chat-widget-header">
                 <img id="chat-widget-avatar" class="chat-widget-avatar" src="" alt="" width="40" height="40">
                 <div class="chat-widget-header-text">
