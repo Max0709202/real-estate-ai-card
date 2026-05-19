@@ -3216,6 +3216,20 @@ $defaultGreetings = [
                             if (d.contact.line_id) html += '<p><strong>LINE:</strong> ' + escapeHtml(d.contact.line_id) + '</p>';
                             html += '</div>';
                         }
+                        var buttonArchive = d.lead && d.lead.structured_data && Array.isArray(d.lead.structured_data._button_selection_archive) ? d.lead.structured_data._button_selection_archive : [];
+                        if (buttonArchive.length) {
+                            html += '<h4>選択ボタン履歴</h4><div class="chat-contact-data">';
+                            buttonArchive.forEach(function(item) {
+                                var label = item.label || '';
+                                if (!label && Array.isArray(item.selected)) {
+                                    label = item.selected.map(function(selectedItem) { return selectedItem.label || ''; }).filter(Boolean).join('、');
+                                }
+                                var field = item.field ? ' / 項目: ' + item.field : '';
+                                var createdAt = item.created_at ? ' / ' + new Date(item.created_at).toLocaleString('ja-JP') : '';
+                                html += '<p><strong>' + escapeHtml(label || '選択内容なし') + '</strong>' + escapeHtml(field + createdAt) + '</p>';
+                            });
+                            html += '</div>';
+                        }
                         html += '<h4>会話履歴</h4><div class="chat-transcript">';
                         (d.messages || []).forEach(function(m) {
                             html += '<p><strong>' + (m.role === 'user' ? 'お客様' : 'ボット') + '</strong>: ' + escapeHtml(m.message) + '</p>';

@@ -28,6 +28,7 @@ $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $sessionId = trim($input['session_id'] ?? '');
 $message = trim($input['message'] ?? '');
 $visitorId = trim($input['visitor_id'] ?? '');
+$buttonSelection = isset($input['button_selection']) && is_array($input['button_selection']) ? $input['button_selection'] : null;
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
     $visitorId = '';
 }
@@ -60,6 +61,10 @@ try {
     }
     if (!canUseChatbot($card)) {
         sendErrorResponse('チャットボットはご利用いただけません。', 403);
+    }
+
+    if ($buttonSelection !== null) {
+        chatIntakeArchiveButtonSelection($db, $sessionId, $card['id'], $buttonSelection, $message);
     }
 
     // Save user message

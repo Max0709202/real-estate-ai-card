@@ -14,9 +14,12 @@
     var toggleBtn = document.getElementById('chat-widget-toggle');
     var panel = document.getElementById('chat-widget-panel');
     var closeBtn = document.getElementById('chat-widget-close');
+    var refreshBtn = document.getElementById('chat-widget-refresh');
     var messagesContainer = document.getElementById('chat-widget-messages');
     var inputEl = document.getElementById('chat-widget-input');
     var sendBtn = document.getElementById('chat-widget-send');
+    var voiceBtn = document.getElementById('chat-widget-voice');
+    var voiceStatusEl = document.getElementById('chat-widget-voice-status');
     var avatarEl = document.getElementById('chat-widget-avatar');
     var agentNameEl = document.getElementById('chat-widget-agent-name');
     var toggleAvatarEl = document.getElementById('chat-widget-toggle-avatar');
@@ -32,6 +35,11 @@
     var sessionStarting = false;
     var sendingMessage = false;
     var greetingShown = false;
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    var recognition = null;
+    var isListening = false;
+    var finalVoiceTranscript = '';
+    var voiceHadError = false;
 
     function safeStorageGet(key) {
         try { return window.localStorage ? localStorage.getItem(key) : null; } catch (e) { return null; }
@@ -60,6 +68,36 @@
     function setInputEnabled(enabled) {
         inputEl.disabled = !enabled;
         sendBtn.disabled = !enabled;
+        updateVoiceButtonState();
+    }
+
+    function setVoiceStatus(message) {
+        if (!voiceStatusEl) return;
+        if (!message) {
+            voiceStatusEl.hidden = true;
+            voiceStatusEl.textContent = '';
+            return;
+        }
+        voiceStatusEl.textContent = message;
+        voiceStatusEl.hidden = false;
+    }
+
+    function updateVoiceButtonState() {
+        if (!voiceBtn) return;
+        var canListen = !!SpeechRecognition && !sendingMessage && !sessionStarting && !inputEl.disabled;
+        voiceBtn.disabled = !canListen;
+        voiceBtn.classList.toggle('is-listening', isListening);
+        voiceBtn.setAttribute('aria-pressed', isListening ? 'true' : 'false');
+        if (!SpeechRecognition) {
+            voiceBtn.title = 'このブラウザは音声入力に対応していません';
+            voiceBtn.setAttribute('aria-label', '音声入力は未対応です');
+        } else if (isListening) {
+            voiceBtn.title = '音声入力を停止';
+            voiceBtn.setAttribute('aria-label', '音声入力を停止');
+        } else {
+            voiceBtn.title = '音声で入力';
+            voiceBtn.setAttribute('aria-label', '音声で入力');
+        }
     }
 
     function syncAgentHeader() {
@@ -98,6 +136,18 @@
     function hidePanel() {
         panel.hidden = true;
         toggleBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    function appendVoiceAvailabilityNotice() {
+        var existing = messagesContainer.querySelector('.chat-widget-voice-notice');
+        if (existing) existing.remove();
+        if (!voiceBtn || !SpeechRecognition) return;
+
+        var notice = document.createElement('div');
+        notice.className = 'chat-widget-voice-notice';
+        notice.innerHTML = '<span class="chat-widget-voice-notice-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"></path><path d="M17.3 11c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.42 2.72 6.23 6.1 6.65V21h1.8v-3.35c3.38-.42 6.1-3.23 6.1-6.65h-1.7z"></path></svg></span><span>マイクアイコンから音声入力をご利用いただけます</span>';
+        messagesContainer.appendChild(notice);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
     function getVisiblePwaModal() {
@@ -174,6 +224,7 @@
             btn.className = 'chat-quick-btn chat-intake-reply';
             btn.setAttribute('data-reply-label', reply.label || reply.value || '');
             btn.setAttribute('data-reply-value', reply.value || reply.label || '');
+            if (reply.field) btn.setAttribute('data-reply-field', reply.field);
             if (isMulti) btn.setAttribute('data-multi-select', '1');
             btn.textContent = reply.label || reply.value || '';
             group.appendChild(btn);
@@ -190,7 +241,18 @@
         quickActions.insertBefore(group, quickActions.firstChild);
     }
 
-    function startSession() {
+    function startSession(reset) {
+        if (reset) {
+            sessionId = null;
+            greetingShown = false;
+            canUseLoanSim = true;
+            messagesContainer.innerHTML = '';
+            renderQuickReplies([]);
+            setVoiceStatus('');
+            inputEl.value = '';
+            if (quickActions) quickActions.style.display = '';
+        }
+
         if (!cardSlug) {
             appendBotMessage('カード情報が見つかりません。ページを再読み込みしてからお試しください。');
             setInputEnabled(false);
@@ -226,6 +288,7 @@
                     if (!greetingShown) {
                         messagesContainer.innerHTML = '';
                         appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
+                        appendVoiceAvailabilityNotice();
                         greetingShown = true;
                     }
                     renderQuickReplies(data.data.quick_replies || []);
@@ -289,8 +352,78 @@
         return escapeHtml(String(s || '')).replace(/"/g, '&quot;');
     }
 
-    function sendMessage(text) {
+    function stopVoiceInput() {
+        if (!recognition || !isListening) return;
+        try { recognition.stop(); } catch (e) {}
+    }
+
+    function startVoiceInput() {
+        if (!SpeechRecognition || !voiceBtn || sendingMessage || sessionStarting || inputEl.disabled) return;
+        if (isListening) {
+            stopVoiceInput();
+            return;
+        }
+
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ja-JP';
+        recognition.interimResults = true;
+        recognition.continuous = false;
+        finalVoiceTranscript = '';
+        voiceHadError = false;
+        isListening = true;
+        updateVoiceButtonState();
+        setVoiceStatus('聞き取り中です。話し終えると自動で送信します。');
+
+        recognition.onresult = function (event) {
+            var interim = '';
+            for (var i = event.resultIndex; i < event.results.length; i++) {
+                var transcript = event.results[i][0] && event.results[i][0].transcript ? event.results[i][0].transcript : '';
+                if (event.results[i].isFinal) {
+                    finalVoiceTranscript += transcript;
+                } else {
+                    interim += transcript;
+                }
+            }
+            var combined = (finalVoiceTranscript + interim).trim();
+            if (combined) inputEl.value = combined;
+        };
+
+        recognition.onerror = function (event) {
+            voiceHadError = true;
+            var message = '音声を認識できませんでした。もう一度お試しください。';
+            if (event && event.error === 'not-allowed') message = 'マイクの利用が許可されていません。ブラウザの設定をご確認ください。';
+            if (event && event.error === 'no-speech') message = '音声が聞き取れませんでした。もう一度お試しください。';
+            setVoiceStatus(message);
+        };
+
+        recognition.onend = function () {
+            isListening = false;
+            updateVoiceButtonState();
+            var text = finalVoiceTranscript.trim();
+            if (text && !voiceHadError) {
+                setVoiceStatus('音声を認識しました。送信します。');
+                sendMessage(text);
+            } else if (SpeechRecognition && !voiceHadError) {
+                setVoiceStatus('音声入力を終了しました。');
+            }
+        };
+
+        try {
+            recognition.start();
+        } catch (e) {
+            isListening = false;
+            updateVoiceButtonState();
+            setVoiceStatus('音声入力を開始できませんでした。もう一度お試しください。');
+        }
+    }
+
+    function sendMessage(text, options) {
+        options = options || {};
         if (!text.trim() || sendingMessage) return;
+        if (isListening) {
+            stopVoiceInput();
+            return;
+        }
         renderQuickReplies([]);
         if (!sessionId) {
             appendBotMessage('チャットの接続が完了してから送信してください。');
@@ -304,10 +437,13 @@
         inputEl.value = '';
         var loadingRow = appendBotMessage('回答を考えています', true);
 
+        var payload = { session_id: sessionId, visitor_id: visitorId, message: text };
+        if (options.buttonSelection) payload.button_selection = options.buttonSelection;
+
         fetch(apiBase + '/send.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: sessionId, visitor_id: visitorId, message: text })
+            body: JSON.stringify(payload)
         })
             .then(function (res) {
                 return res.json().catch(function () {
@@ -327,6 +463,8 @@
                     appendBotMessage(data.message || 'エラーが発生しました。');
                 }
                 setInputEnabled(true);
+                updateVoiceButtonState();
+                setVoiceStatus('');
                 inputEl.focus();
             })
             .catch(function () {
@@ -334,8 +472,14 @@
                 loadingRow.remove();
                 appendBotMessage('送信に失敗しました。');
                 setInputEnabled(true);
+                updateVoiceButtonState();
                 inputEl.focus();
             });
+    }
+
+    updateVoiceButtonState();
+    if (!SpeechRecognition && voiceBtn) {
+        voiceBtn.classList.add('is-unsupported');
     }
 
     watchPwaModals();
@@ -346,10 +490,20 @@
         else hidePanel();
     });
     closeBtn.addEventListener('click', hidePanel);
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function () {
+            if (sessionStarting || sendingMessage) return;
+            if (isListening) stopVoiceInput();
+            startSession(true);
+        });
+    }
 
     sendBtn.addEventListener('click', function () {
         sendMessage(inputEl.value.trim());
     });
+    if (voiceBtn) {
+        voiceBtn.addEventListener('click', startVoiceInput);
+    }
     inputEl.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -371,14 +525,35 @@
             }
             if (btn.getAttribute('data-multi-submit') === '1' && multiGroup) {
                 var selected = Array.prototype.slice.call(multiGroup.querySelectorAll('.chat-intake-reply.is-selected')).map(function (el) {
-                    return el.getAttribute('data-reply-label') || el.getAttribute('data-reply-value') || '';
-                }).filter(Boolean);
-                if (selected.length) sendMessage(selected.join('、'));
+                    return {
+                        label: el.getAttribute('data-reply-label') || el.getAttribute('data-reply-value') || '',
+                        value: el.getAttribute('data-reply-value') || el.getAttribute('data-reply-label') || '',
+                        field: el.getAttribute('data-reply-field') || ''
+                    };
+                }).filter(function (item) { return !!item.label; });
+                if (selected.length) {
+                    sendMessage(selected.map(function (item) { return item.label; }).join('、'), {
+                        buttonSelection: {
+                            label: selected.map(function (item) { return item.label; }).join('、'),
+                            value: selected.map(function (item) { return item.value; }).join('、'),
+                            field: selected[0].field || '',
+                            multi_select: true,
+                            selected: selected
+                        }
+                    });
+                }
                 return;
             }
             var replyLabel = btn.getAttribute('data-reply-label');
             if (replyLabel) {
-                sendMessage(replyLabel);
+                sendMessage(replyLabel, {
+                    buttonSelection: {
+                        label: replyLabel,
+                        value: btn.getAttribute('data-reply-value') || replyLabel,
+                        field: btn.getAttribute('data-reply-field') || '',
+                        multi_select: false
+                    }
+                });
                 return;
             }
             var action = btn.getAttribute('data-action');

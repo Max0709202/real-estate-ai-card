@@ -53,6 +53,7 @@ function chatIntakeDefaultData() {
         'completed_tasks' => [],
         '_current_field' => 'customer_type',
         '_asked_fields' => [],
+        '_button_selection_archive' => [],
         '_updated_at' => date('c'),
     ];
 }
@@ -233,6 +234,48 @@ function chatIntakeSave($db, $sessionId, $businessCardId, $data) {
                           ON DUPLICATE KEY UPDATE structured_data = VALUES(structured_data), consent_given = VALUES(consent_given), updated_at = CURRENT_TIMESTAMP");
     $stmt->execute([$sessionId, $businessCardId, $json, $consent]);
     chatIntakeSaveContact($db, $sessionId, $businessCardId, $data);
+}
+
+function chatIntakeArchiveButtonSelection($db, $sessionId, $businessCardId, $selection, $message = '') {
+    if (!is_array($selection)) return;
+
+    $cleanText = function ($value, $limit = 200) {
+        $value = trim((string)$value);
+        if ($value === '') return null;
+        return mb_substr($value, 0, $limit);
+    };
+
+    $entry = [
+        'label' => $cleanText($selection['label'] ?? $message),
+        'value' => $cleanText($selection['value'] ?? ''),
+        'field' => $cleanText($selection['field'] ?? '', 80),
+        'multi_select' => !empty($selection['multi_select']),
+        'message' => $cleanText($message, 500),
+        'created_at' => date('c'),
+    ];
+
+    if (!empty($selection['selected']) && is_array($selection['selected'])) {
+        $entry['selected'] = [];
+        foreach (array_slice($selection['selected'], 0, 20) as $item) {
+            if (!is_array($item)) continue;
+            $label = $cleanText($item['label'] ?? '');
+            if ($label === null) continue;
+            $entry['selected'][] = [
+                'label' => $label,
+                'value' => $cleanText($item['value'] ?? '') ?: $label,
+                'field' => $cleanText($item['field'] ?? '', 80),
+            ];
+        }
+    }
+
+    if ($entry['label'] === null && empty($entry['selected'])) return;
+
+    $data = chatIntakeLoad($db, $sessionId, $businessCardId);
+    $archive = $data['_button_selection_archive'] ?? [];
+    if (!is_array($archive)) $archive = [];
+    $archive[] = $entry;
+    $data['_button_selection_archive'] = array_slice($archive, -100);
+    chatIntakeSave($db, $sessionId, $businessCardId, $data);
 }
 
 function chatIntakeInitialPayload($agentName) {
