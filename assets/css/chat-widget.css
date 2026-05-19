@@ -204,6 +204,28 @@
     background: #dceeff;
 }
 
+.chat-intake-multi-hint {
+    flex-basis: 100%;
+    font-size: 0.75rem;
+    color: #475467;
+    line-height: 1.4;
+}
+.chat-intake-reply.is-selected {
+    background: #0066cc;
+    border-color: #0066cc;
+    color: #fff;
+}
+.chat-intake-submit {
+    background: #12b76a;
+    border-color: #12b76a;
+    color: #fff;
+    font-weight: 700;
+}
+.chat-intake-submit:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 .chat-quick-btn:hover {
     background: #e8f0fe;
 }

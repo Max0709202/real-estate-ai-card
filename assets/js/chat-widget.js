@@ -110,17 +110,34 @@
         if (existing) existing.remove();
         if (!replies || !replies.length) return;
 
+        var isMulti = replies.some(function (reply) { return !!reply.multi_select; });
         var group = document.createElement('div');
-        group.className = 'chat-intake-replies';
+        group.className = 'chat-intake-replies' + (isMulti ? ' chat-intake-replies-multi' : '');
+        if (isMulti) {
+            var hint = document.createElement('div');
+            hint.className = 'chat-intake-multi-hint';
+            hint.textContent = '複数選択できます。選び終わったら「決定」を押してください。';
+            group.appendChild(hint);
+        }
         replies.forEach(function (reply) {
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'chat-quick-btn chat-intake-reply';
             btn.setAttribute('data-reply-label', reply.label || reply.value || '');
             btn.setAttribute('data-reply-value', reply.value || reply.label || '');
+            if (isMulti) btn.setAttribute('data-multi-select', '1');
             btn.textContent = reply.label || reply.value || '';
             group.appendChild(btn);
         });
+        if (isMulti) {
+            var submit = document.createElement('button');
+            submit.type = 'button';
+            submit.className = 'chat-quick-btn chat-intake-submit';
+            submit.setAttribute('data-multi-submit', '1');
+            submit.disabled = true;
+            submit.textContent = '決定';
+            group.appendChild(submit);
+        }
         quickActions.insertBefore(group, quickActions.firstChild);
     }
 
@@ -302,6 +319,21 @@
         quickActions.addEventListener('click', function (e) {
             var btn = e.target.closest('.chat-quick-btn');
             if (!btn) return;
+            var multiGroup = btn.closest('.chat-intake-replies-multi');
+            if (btn.getAttribute('data-multi-select') === '1' && multiGroup) {
+                btn.classList.toggle('is-selected');
+                btn.setAttribute('aria-pressed', btn.classList.contains('is-selected') ? 'true' : 'false');
+                var submitBtn = multiGroup.querySelector('[data-multi-submit="1"]');
+                if (submitBtn) submitBtn.disabled = multiGroup.querySelectorAll('.chat-intake-reply.is-selected').length === 0;
+                return;
+            }
+            if (btn.getAttribute('data-multi-submit') === '1' && multiGroup) {
+                var selected = Array.prototype.slice.call(multiGroup.querySelectorAll('.chat-intake-reply.is-selected')).map(function (el) {
+                    return el.getAttribute('data-reply-label') || el.getAttribute('data-reply-value') || '';
+                }).filter(Boolean);
+                if (selected.length) sendMessage(selected.join('、'));
+                return;
+            }
             var replyLabel = btn.getAttribute('data-reply-label');
             if (replyLabel) {
                 sendMessage(replyLabel);

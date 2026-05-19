@@ -71,6 +71,25 @@ function chatIntakeTypeChoices() {
     ];
 }
 
+function chatIntakeMultiSelectFields() {
+    return ['priority', 'property_type', 'disclosure_flags', 'other_debts', 'loan_concern', 'preferred_contact'];
+}
+
+function chatIntakeIsMultiSelectField($field) {
+    return in_array($field, chatIntakeMultiSelectFields(), true);
+}
+
+function chatIntakeQuickRepliesForField($field) {
+    $defs = chatIntakeFieldDefinitions();
+    $choices = $defs[$field]['choices'] ?? [];
+    if (!chatIntakeIsMultiSelectField($field)) return $choices;
+    return array_map(function ($choice) use ($field) {
+        $choice['multi_select'] = true;
+        $choice['field'] = $field;
+        return $choice;
+    }, $choices);
+}
+
 function chatIntakeFieldDefinitions() {
     return [
         'customer_type' => ['question' => 'まず、今回のご相談内容に近いものを教えてください。', 'choices' => chatIntakeTypeChoices()],
@@ -82,9 +101,9 @@ function chatIntakeFieldDefinitions() {
         'viewed_property_count' => ['question' => 'これまでに内覧した物件数を教えてください。', 'choices' => [['label' => '1〜2件', 'value' => '1-2'], ['label' => '3〜5件', 'value' => '3-5'], ['label' => '6〜10件', 'value' => '6-10'], ['label' => '10件以上', 'value' => '10+']]],
         'preferred_area_size' => ['question' => 'ご希望の広さ（㎡数）の範囲はありますか。', 'choices' => [['label' => '50㎡未満', 'value' => '<50'], ['label' => '50〜70㎡', 'value' => '50-70'], ['label' => '70〜90㎡', 'value' => '70-90'], ['label' => '90〜120㎡', 'value' => '90-120'], ['label' => '120㎡以上', 'value' => '120+'], ['label' => '未定', 'value' => '未定']]],
         'layout' => ['question' => 'ご希望の間取りを教えてください。', 'choices' => [['label' => '1LDK', 'value' => '1LDK'], ['label' => '2LDK', 'value' => '2LDK'], ['label' => '3LDK', 'value' => '3LDK'], ['label' => '4LDK以上', 'value' => '4LDK以上'], ['label' => '未定', 'value' => '未定']]],
-        'property_type' => ['question' => '物件種別の希望はありますか。', 'choices' => [['label' => 'マンション', 'value' => 'マンション'], ['label' => '戸建て', 'value' => '戸建て'], ['label' => 'どちらも検討', 'value' => 'どちらも検討'], ['label' => '土地', 'value' => '土地']]],
+        'property_type' => ['question' => '物件種別の希望はありますか。複数選択できます。', 'choices' => [['label' => 'マンション', 'value' => 'マンション'], ['label' => '戸建て', 'value' => '戸建て'], ['label' => 'どちらも検討', 'value' => 'どちらも検討'], ['label' => '土地', 'value' => '土地']]],
         'station_walk_minutes' => ['question' => '駅からの距離はどの程度まで許容できますか。', 'choices' => [['label' => '5分以内', 'value' => '5'], ['label' => '10分以内', 'value' => '10'], ['label' => '15分以内', 'value' => '15'], ['label' => 'バス可', 'value' => 'bus'], ['label' => '未定', 'value' => '未定']]],
-        'priority' => ['question' => '住まい選びで最も重視したいことは何ですか。', 'choices' => [['label' => '利便性', 'value' => '利便性'], ['label' => '広さ', 'value' => '広さ'], ['label' => '学区', 'value' => '学区'], ['label' => '資産価値', 'value' => '資産価値'], ['label' => '静かな環境', 'value' => '静かな環境'], ['label' => '価格', 'value' => '価格']]],
+        'priority' => ['question' => '住まい選びで重視したいことは何ですか。複数選択できます。', 'choices' => [['label' => '利便性', 'value' => '利便性'], ['label' => '広さ', 'value' => '広さ'], ['label' => '学区', 'value' => '学区'], ['label' => '資産価値', 'value' => '資産価値'], ['label' => '静かな環境', 'value' => '静かな環境'], ['label' => '価格', 'value' => '価格']]],
         'family_structure' => ['question' => 'ご家族構成を差し支えない範囲で教えてください。', 'choices' => [['label' => '単身', 'value' => '単身'], ['label' => '夫婦', 'value' => '夫婦'], ['label' => '子どもあり', 'value' => '子どもあり'], ['label' => '親と同居予定', 'value' => '親と同居予定'], ['label' => '回答しない', 'value' => '未回答']]],
         'purchase_timing' => ['question' => 'いつ頃までにお引越しを希望されていますか。', 'choices' => [['label' => 'すぐ', 'value' => 'すぐ'], ['label' => '3か月以内', 'value' => '3か月以内'], ['label' => '半年以内', 'value' => '半年以内'], ['label' => '1年以内', 'value' => '1年以内'], ['label' => '未定', 'value' => '未定']]],
         'loan_status' => ['question' => '住宅ローンの状況を教えてください。', 'choices' => [['label' => '事前審査済', 'value' => '事前審査済'], ['label' => 'これから', 'value' => 'これから'], ['label' => '現金購入', 'value' => '現金購入'], ['label' => 'わからない', 'value' => 'わからない']]],
@@ -98,8 +117,8 @@ function chatIntakeFieldDefinitions() {
         'minimum_price' => ['question' => '最低希望価格や売却希望価格はありますか。未定でも大丈夫です。', 'choices' => [['label' => '未定', 'value' => '未定']]],
         'appraisal_status' => ['question' => '過去に査定を受けたことはありますか。', 'choices' => [['label' => '初めて', 'value' => '初めて'], ['label' => '1社', 'value' => '1社'], ['label' => '複数社', 'value' => '複数社'], ['label' => '媒介契約中', 'value' => '媒介契約中']]],
         'appraisal_request' => ['question' => '無料査定を希望されますか。', 'choices' => [['label' => '希望する', 'value' => '希望する'], ['label' => 'まず相場だけ', 'value' => 'まず相場だけ'], ['label' => 'まだ検討中', 'value' => 'まだ検討中']]],
-        'disclosure_flags' => ['question' => '告知事項として気になる点はありますか。', 'choices' => [['label' => '雨漏り', 'value' => '雨漏り'], ['label' => 'シロアリ', 'value' => 'シロアリ'], ['label' => '事故・孤独死', 'value' => '事故・孤独死'], ['label' => '騒音', 'value' => '騒音'], ['label' => '越境', 'value' => '越境'], ['label' => '特になし', 'value' => '特になし'], ['label' => '不明', 'value' => '不明']]],
-        'preferred_contact' => ['question' => '連絡希望方法を教えてください。', 'choices' => [['label' => '電話', 'value' => '電話'], ['label' => 'メール', 'value' => 'メール'], ['label' => 'LINE', 'value' => 'LINE'], ['label' => 'チャット継続', 'value' => 'チャット継続']]],
+        'disclosure_flags' => ['question' => '告知事項として気になる点はありますか。複数選択できます。', 'choices' => [['label' => '雨漏り', 'value' => '雨漏り'], ['label' => 'シロアリ', 'value' => 'シロアリ'], ['label' => '事故・孤独死', 'value' => '事故・孤独死'], ['label' => '騒音', 'value' => '騒音'], ['label' => '越境', 'value' => '越境'], ['label' => '特になし', 'value' => '特になし'], ['label' => '不明', 'value' => '不明']]],
+        'preferred_contact' => ['question' => '連絡希望方法を教えてください。複数選択できます。', 'choices' => [['label' => '電話', 'value' => '電話'], ['label' => 'メール', 'value' => 'メール'], ['label' => 'LINE', 'value' => 'LINE'], ['label' => 'チャット継続', 'value' => 'チャット継続']]],
         'investment_type' => ['question' => '希望する投資物件の種別を教えてください。', 'choices' => [['label' => '区分マンション', 'value' => '区分マンション'], ['label' => '一棟アパート', 'value' => '一棟アパート'], ['label' => '一棟マンション', 'value' => '一棟マンション'], ['label' => '未定', 'value' => '未定']]],
         'owner_change_ok' => ['question' => 'オーナーチェンジ物件も検討対象ですか。', 'choices' => [['label' => '対象', 'value' => '対象'], ['label' => '対象外', 'value' => '対象外'], ['label' => '内容による', 'value' => '内容による']]],
         'target_yield' => ['question' => '希望利回りはありますか。未定でも大丈夫です。', 'choices' => [['label' => '未定', 'value' => '未定']]],
@@ -111,9 +130,9 @@ function chatIntakeFieldDefinitions() {
         'years_employed' => ['question' => '勤続年数を教えてください。', 'choices' => [['label' => '1年未満', 'value' => '1年未満'], ['label' => '1〜3年', 'value' => '1〜3年'], ['label' => '3年以上', 'value' => '3年以上']]],
         'down_payment' => ['question' => '自己資金の目安はありますか。未定でも大丈夫です。', 'choices' => [['label' => '未定', 'value' => '未定']]],
         'desired_loan_amount' => ['question' => '希望借入額はありますか。未定でも大丈夫です。', 'choices' => [['label' => '未定', 'value' => '未定']]],
-        'other_debts' => ['question' => '他のお借入れはありますか。', 'choices' => [['label' => '車', 'value' => '車'], ['label' => 'カードローン', 'value' => 'カードローン'], ['label' => '教育ローン', 'value' => '教育ローン'], ['label' => 'なし', 'value' => 'なし'], ['label' => '答えたくない', 'value' => '未回答']]],
+        'other_debts' => ['question' => '他のお借入れはありますか。複数選択できます。', 'choices' => [['label' => '車', 'value' => '車'], ['label' => 'カードローン', 'value' => 'カードローン'], ['label' => '教育ローン', 'value' => '教育ローン'], ['label' => 'なし', 'value' => 'なし'], ['label' => '答えたくない', 'value' => '未回答']]],
         'pre_approval_status' => ['question' => '事前審査は済んでいますか。', 'choices' => [['label' => '済', 'value' => '済'], ['label' => 'これから', 'value' => 'これから'], ['label' => '否決経験あり', 'value' => '否決経験あり'], ['label' => 'わからない', 'value' => 'わからない']]],
-        'loan_concern' => ['question' => '住宅ローンで一番気になる点は何ですか。', 'choices' => [['label' => '借入可能額', 'value' => '借入可能額'], ['label' => '月々返済', 'value' => '月々返済'], ['label' => '金利', 'value' => '金利'], ['label' => 'ペアローン', 'value' => 'ペアローン'], ['label' => '団信', 'value' => '団信'], ['label' => '転職後', 'value' => '転職後']]],
+        'loan_concern' => ['question' => '住宅ローンで気になる点は何ですか。複数選択できます。', 'choices' => [['label' => '借入可能額', 'value' => '借入可能額'], ['label' => '月々返済', 'value' => '月々返済'], ['label' => '金利', 'value' => '金利'], ['label' => 'ペアローン', 'value' => 'ペアローン'], ['label' => '団信', 'value' => '団信'], ['label' => '転職後', 'value' => '転職後']]],
         'loan_simulation_used' => ['question' => '住宅ローンシミュレーターで月々返済額などを試算してみますか。', 'choices' => [['label' => '利用する', 'value' => 'yes'], ['label' => 'あとで利用する', 'value' => 'later'], ['label' => '不要', 'value' => 'no']]],
         'consultation_reason' => ['question' => '相場を知りたい理由に近いものを教えてください。', 'choices' => [['label' => '売却検討', 'value' => '売却検討'], ['label' => '相続', 'value' => '相続'], ['label' => '資産把握', 'value' => '資産把握'], ['label' => '住み替え', 'value' => '住み替え'], ['label' => '興味本位', 'value' => '興味本位']]],
         'report_request' => ['question' => '今後、相場変動レポートを受け取りたいですか。', 'choices' => [['label' => '希望する', 'value' => '希望する'], ['label' => '検討する', 'value' => '検討する'], ['label' => '不要', 'value' => '不要']]],
@@ -225,10 +244,25 @@ function chatIntakeInitialPayload($agentName) {
 
 function chatIntakeNormalizeChoiceValue($field, $message) {
     $defs = chatIntakeFieldDefinitions();
-    foreach (($defs[$field]['choices'] ?? []) as $choice) {
-        if ($message === $choice['label'] || $message === $choice['value']) return $choice['value'];
+    $choices = $defs[$field]['choices'] ?? [];
+    $mapOne = function ($raw) use ($choices) {
+        $raw = trim((string)$raw);
+        foreach ($choices as $choice) {
+            if ($raw === $choice['label'] || $raw === $choice['value']) return $choice['value'];
+        }
+        return $raw;
+    };
+
+    if (chatIntakeIsMultiSelectField($field)) {
+        $parts = preg_split('/\s*(?:、|,|，|\/|・|\n)+\s*/u', (string)$message, -1, PREG_SPLIT_NO_EMPTY);
+        if (!$parts || count($parts) <= 1) {
+            $parts = [(string)$message];
+        }
+        $values = array_map($mapOne, $parts);
+        return array_values(array_unique(array_filter($values, function ($v) { return trim((string)$v) !== ''; })));
     }
-    return $message;
+
+    return $mapOne($message);
 }
 
 function chatIntakeSetContact(&$data, $value) {
@@ -279,8 +313,16 @@ function chatIntakeSetContact(&$data, $value) {
 }
 
 function chatIntakeSetField(&$data, $field, $value) {
-    $value = trim((string)$value);
-    if ($field === '' || $value === '') return;
+    if ($field === '') return;
+    if (is_array($value)) {
+        $values = array_values(array_unique(array_filter(array_map('trim', array_map('strval', $value)), function ($v) { return $v !== ''; })));
+        if (empty($values)) return;
+    } else {
+        $value = trim((string)$value);
+        if ($value === '') return;
+        $values = [$value];
+    }
+
     if ($field === 'preferred_area') $data['preferred_area'] = $value === '未定' ? [] : array_values(array_unique(array_merge($data['preferred_area'] ?? [], [$value])));
     elseif ($field === 'preferred_station_line') $data['preferred_station'] = $value === '未定' ? [] : array_values(array_unique(array_merge($data['preferred_station'] ?? [], [$value])));
     elseif ($field === 'budget') {
@@ -289,10 +331,18 @@ function chatIntakeSetField(&$data, $field, $value) {
             if (count($nums) >= 2) { $data['budget_min'] = min($nums); $data['budget_max'] = max($nums); }
             else { $data['budget_max'] = $nums[0]; }
         } else $data['budget_note'] = $value;
-    } elseif ($field === 'priority' || $field === 'disclosure_flags') {
+    } elseif (chatIntakeIsMultiSelectField($field)) {
         if (!isset($data[$field]) || !is_array($data[$field])) $data[$field] = [];
-        if ($value !== '特になし' && $value !== '不明') $data[$field][] = $value;
-        $data[$field] = array_values(array_unique($data[$field]));
+        $clearValues = ['特になし', '不明', 'なし', '未回答', 'チャット継続'];
+        $selectedClear = array_values(array_intersect($values, $clearValues));
+        if (!empty($selectedClear)) {
+            $data[$field] = [$selectedClear[0]];
+        } else {
+            foreach ($values as $item) {
+                if (!in_array($item, $data[$field], true)) $data[$field][] = $item;
+            }
+            $data[$field] = array_values(array_unique($data[$field]));
+        }
     } elseif ($field === 'move_date') {
         $data['move_date'] = chatIntakeParseDate($value) ?: ($value === '未定' ? null : $value);
     } elseif ($field === 'contact_request') {
@@ -322,10 +372,12 @@ function chatIntakeNextField($data) {
 }
 
 function chatIntakeAdvice($field, $value, $data) {
+    $displayValue = is_array($value) ? implode('、', $value) : $value;
     if ($field === 'customer_type') return 'ありがとうございます。ご相談内容に合わせて、必要な条件を少しずつ整理していきます。';
     if ($field === 'competitor_viewing_status' && ($value === 'yes' || $value === 'はい')) {
         return 'ご回答ありがとうございます。すでに内覧を始めている場合は、条件整理とスピード感がかなり重要です。物件探しでは、最初の数件を比較用として見て、その後に「今までで一番良い」と思える物件が出たら前向きに判断する、という考え方も役立ちます。';
     }
+    if (chatIntakeIsMultiSelectField($field)) return 'ありがとうございます。「' . $displayValue . '」を条件整理に反映しました。複数の希望が分かると、提案の優先順位をつけやすくなります。';
     if ($field === 'viewed_property_count') return '内覧件数が分かると、条件が固まり始めている段階か、まだ比較軸を作る段階かを判断しやすくなります。良かった点・合わなかった点を整理すると、次の提案精度が上がります。';
     if ($field === 'preferred_area_size') return '広さの希望を先に整理しておくと、間取りだけで判断するよりミスマッチを減らせます。同じ3LDKでも、㎡数で暮らしやすさはかなり変わります。';
     if ($field === 'selling_strategy') return '買い替えは、売却先行なら資金面は安全ですが仮住まいが必要になることがあり、購入先行なら気に入った物件を逃しにくい一方で資金計画の確認が重要です。';
@@ -363,7 +415,7 @@ function chatIntakeBuildSummary(&$data) {
     if (!empty($data['customer_type'])) $parts[] = '種別: ' . $data['customer_type'];
     if (!empty($data['preferred_area'])) $parts[] = '希望エリア: ' . implode('、', $data['preferred_area']);
     if (!empty($data['budget_min']) || !empty($data['budget_max'])) $parts[] = '予算: ' . ($data['budget_min'] ?? '') . '〜' . ($data['budget_max'] ?? '') . '万円目安';
-    if (!empty($data['property_type'])) $parts[] = '物件種別: ' . $data['property_type'];
+    if (!empty($data['property_type'])) $parts[] = '物件種別: ' . (is_array($data['property_type']) ? implode('、', $data['property_type']) : $data['property_type']);
     if (!empty($data['purchase_timing'])) $parts[] = '購入時期: ' . $data['purchase_timing'];
     if (!empty($data['selling_timing'])) $parts[] = '売却時期: ' . $data['selling_timing'];
     if (!empty($data['loan_status'])) $parts[] = 'ローン: ' . $data['loan_status'];
@@ -430,7 +482,7 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message) {
     $value = chatIntakeNormalizeChoiceValue($field, $message);
     if ($field === 'customer_type') {
         $validTypes = array_map(function ($choice) { return $choice['value']; }, chatIntakeTypeChoices());
-        if (!in_array($value, $validTypes, true)) {
+        if (is_array($value) || !in_array($value, $validTypes, true)) {
             return ['handled' => false, 'data' => $data];
         }
     }
@@ -445,7 +497,7 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message) {
     $defs = chatIntakeFieldDefinitions();
     $advice = chatIntakeAdvice($field, $value, $data);
     $question = $nextField && isset($defs[$nextField]) ? $defs[$nextField]['question'] : 'ありがとうございます。主要な条件はかなり整理できました。担当者が確認できる形で相談内容を保存しました。引き続き、このチャットで追加のご相談もできます。';
-    $quick = $nextField && isset($defs[$nextField]) ? ($defs[$nextField]['choices'] ?? []) : [];
+    $quick = $nextField && isset($defs[$nextField]) ? chatIntakeQuickRepliesForField($nextField) : [];
     return [
         'handled' => true,
         'reply' => $advice . "\n\n" . $question,
