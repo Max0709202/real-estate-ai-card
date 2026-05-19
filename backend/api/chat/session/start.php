@@ -27,6 +27,7 @@ $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $cardSlug = trim($input['card_slug'] ?? '');
 $visitorId = trim($input['visitor_id'] ?? '');
 $currentSessionId = trim($input['current_session_id'] ?? '');
+$resumeRequested = !empty($input['resume']);
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
     $visitorId = '';
 }
@@ -54,7 +55,7 @@ try {
     $sessionId = '';
     $isResumed = false;
 
-    if ($visitorId !== '') {
+    if ($resumeRequested && $visitorId !== '') {
         if ($currentSessionId !== '') {
             $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? AND visitor_identifier = ? LIMIT 1");
             $stmt->execute([$currentSessionId, $card['id'], $visitorId]);

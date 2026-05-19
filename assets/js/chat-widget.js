@@ -24,8 +24,7 @@
     if (!toggleBtn || !panel || !messagesContainer || !inputEl || !sendBtn) return;
 
     var visitorId = getOrCreateVisitorId();
-    var sessionStorageKey = 'ai_fcard_chat_session_' + (cardSlug || 'default');
-    var sessionId = getStoredSessionId();
+    var sessionId = null;
     var canUseLoanSim = true;
     var sessionStarting = false;
     var sendingMessage = false;
@@ -37,10 +36,6 @@
 
     function safeStorageSet(key, value) {
         try { if (window.localStorage) localStorage.setItem(key, value); } catch (e) {}
-    }
-
-    function safeStorageRemove(key) {
-        try { if (window.localStorage) localStorage.removeItem(key); } catch (e) {}
     }
 
     function createClientId() {
@@ -57,15 +52,6 @@
         var id = createClientId();
         safeStorageSet(key, id);
         return id;
-    }
-
-    function getStoredSessionId() {
-        var stored = safeStorageGet('ai_fcard_chat_session_' + (cardSlug || 'default'));
-        return stored || null;
-    }
-
-    function storeSessionId(id) {
-        if (id) safeStorageSet(sessionStorageKey, id);
     }
 
     function setInputEnabled(enabled) {
@@ -90,7 +76,6 @@
 
     function showPanel() {
         panel.hidden = false;
-        // panel.style.display = 'flex !important';
         toggleBtn.setAttribute('aria-expanded', 'true');
         syncAgentHeader();
         if ((!sessionId || !greetingShown) && !sessionStarting) startSession();
@@ -100,7 +85,6 @@
 
     function hidePanel() {
         panel.hidden = true;
-        // panel.style.display = 'none !important';
         toggleBtn.setAttribute('aria-expanded', 'false');
     }
 
@@ -155,7 +139,7 @@
         fetch(apiBase + '/session/start.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: sessionId || '' })
+            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: '', resume: false })
         })
             .then(function (res) {
                 return res.json().catch(function () {
@@ -167,7 +151,6 @@
                 loadingRow.remove();
                 if (data.success && data.data) {
                     sessionId = data.data.session_id;
-                    storeSessionId(sessionId);
                     if (data.data.visitor_id) visitorId = data.data.visitor_id;
                     canUseLoanSim = data.data.can_use_loan_sim !== false;
                     if (data.data.agent_name) agentName = data.data.agent_name;
@@ -176,15 +159,8 @@
                     }
                     syncAgentHeader();
                     if (!greetingShown) {
-                        var history = data.data.messages || [];
-                        if (history.length) {
-                            history.forEach(function (msg) {
-                                if (msg.role === 'bot' || msg.role === 'assistant') appendBotMessage(msg.message || '');
-                                else if (msg.role === 'user') appendUserMessage(msg.message || '');
-                            });
-                        } else {
-                            appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
-                        }
+                        messagesContainer.innerHTML = '';
+                        appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
                         greetingShown = true;
                     }
                     renderQuickReplies(data.data.quick_replies || []);
@@ -281,7 +257,6 @@
                     renderQuickReplies(data.data.quick_replies || []);
                 } else {
                     if (data.message && data.message.indexOf('セッション') !== -1) {
-                        safeStorageRemove(sessionStorageKey);
                         sessionId = null;
                     }
                     appendBotMessage(data.message || 'エラーが発生しました。');

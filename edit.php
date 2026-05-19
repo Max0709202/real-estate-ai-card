@@ -3216,9 +3216,6 @@ $defaultGreetings = [
                             if (d.contact.line_id) html += '<p><strong>LINE:</strong> ' + escapeHtml(d.contact.line_id) + '</p>';
                             html += '</div>';
                         }
-                        if (d.lead && d.lead.structured_data) {
-                            html += '<h4>ヒアリング内容</h4><pre class="chat-lead-data">' + escapeHtml(JSON.stringify(d.lead.structured_data, null, 2)) + '</pre>';
-                        }
                         html += '<h4>会話履歴</h4><div class="chat-transcript">';
                         (d.messages || []).forEach(function(m) {
                             html += '<p><strong>' + (m.role === 'user' ? 'お客様' : 'ボット') + '</strong>: ' + escapeHtml(m.message) + '</p>';
