@@ -8,8 +8,12 @@
     transition: bottom 0.2s ease;
 }
 
+.chat-widget-root.is-install-banner-visible {
+    bottom: 9.25rem !important;
+}
+
 .chat-widget-root.is-pwa-modal-visible {
-    bottom: var(--chat-widget-pwa-bottom, 24rem);
+    bottom: var(--chat-widget-pwa-bottom, 24rem) !important;
     z-index: 10002;
 }
 
@@ -448,11 +452,10 @@
 @media (max-width: 480px) {
     .chat-widget-root {
         right: 0.75rem;
-        bottom: 0.75rem;
     }
 
     .chat-widget-root.is-pwa-modal-visible {
-        bottom: var(--chat-widget-pwa-bottom, 22rem);
+        bottom: var(--chat-widget-pwa-bottom, 22rem) !important;
     }
 
     .chat-widget-panel {

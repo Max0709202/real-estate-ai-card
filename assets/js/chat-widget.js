@@ -184,6 +184,38 @@
         root.classList.add('is-pwa-modal-visible');
     }
 
+    function isVisibleElement(el) {
+        if (!el || !document.documentElement.contains(el)) return false;
+        if (el.hidden) return false;
+        var style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+        if (style && (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0')) return false;
+        return !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length));
+    }
+
+    function updateChatPositionForInstallBanner() {
+        var installCloseBtn = document.getElementById('installCloseBtn');
+        root.classList.toggle('is-install-banner-visible', isVisibleElement(installCloseBtn));
+    }
+
+    function watchInstallBanner() {
+        var scheduleUpdate = function () {
+            window.requestAnimationFrame(updateChatPositionForInstallBanner);
+        };
+        var installBanner = document.getElementById('installBanner');
+        var installCloseBtn = document.getElementById('installCloseBtn');
+
+        if (window.MutationObserver) {
+            var observer = new MutationObserver(scheduleUpdate);
+            if (installBanner) observer.observe(installBanner, { attributes: true, childList: true, subtree: true, attributeFilter: ['hidden', 'style', 'class'] });
+            if (installCloseBtn) observer.observe(installCloseBtn, { attributes: true, attributeFilter: ['hidden', 'style', 'class'] });
+            if (document.body) observer.observe(document.body, { childList: true, subtree: true });
+        }
+
+        window.addEventListener('resize', scheduleUpdate);
+        window.addEventListener('orientationchange', scheduleUpdate);
+        scheduleUpdate();
+    }
+
     function watchPwaModals() {
         var scheduleUpdate = function () {
             window.requestAnimationFrame(updateChatPositionForPwaModal);
@@ -483,6 +515,7 @@
     }
 
     watchPwaModals();
+    watchInstallBanner();
 
     toggleBtn.setAttribute('aria-expanded', 'false');
     toggleBtn.addEventListener('click', function () {
