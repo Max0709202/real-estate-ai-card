@@ -414,26 +414,111 @@ function chatIntakeNextField($data) {
     return null;
 }
 
+function chatIntakeDisplayValue($value) {
+    return is_array($value) ? implode('、', $value) : (string)$value;
+}
+
+function chatIntakeScenarioIntro($customerType) {
+    $map = [
+        'purchase' => '購入のご相談ですね。最初は条件を完璧に固めるより、「エリア・予算・広さ・時期」の優先順位を少しずつ整理すると、物件探しが進めやすくなります。',
+        'replacement' => '住み替えのご相談ですね。買い替えは購入条件だけでなく、今のお住まいの売却価格や残債、売却先行か購入先行かで進め方が大きく変わります。',
+        'sale' => '売却のご相談ですね。まずは「どの物件を、いつ頃、どのくらいの価格感で」動かしたいかを整理できると、査定や販売戦略につなげやすくなります。',
+        'investment_buy' => '投資物件の購入ですね。利回りだけでなく、空室リスク・修繕リスク・融資条件・出口戦略まで見ると判断しやすくなります。',
+        'investment_sale' => '投資物件の売却ですね。居住用と違い、買主は収益性や賃貸状況を重視するため、賃料・空室・サブリースの有無が大切です。',
+        'loan' => '住宅ローンのご相談ですね。借入可能額だけで決めるより、毎月返済・金利タイプ・自己資金とのバランスで見ると安心です。',
+        'market' => '相場のご相談ですね。すぐ売る前提でなくても、現状価格を知っておくと今後の購入・売却・相続の判断材料になります。',
+        'inheritance' => '相続関連のご相談ですね。名義や共有者、売却時期によって進め方が変わるため、まずは分かる範囲で状況整理から始めましょう。',
+        'other' => '承知しました。内容に合わせて、必要なことだけを少しずつ確認していきます。',
+    ];
+    return $map[$customerType] ?? 'ありがとうございます。ご相談内容に合わせて、必要な条件を少しずつ整理していきます。';
+}
+
 function chatIntakeAdvice($field, $value, $data) {
-    $displayValue = is_array($value) ? implode('、', $value) : $value;
-    if ($field === 'customer_type') return 'ありがとうございます。ご相談内容に合わせて、必要な条件を少しずつ整理していきます。';
-    if ($field === 'competitor_viewing_status' && ($value === 'yes' || $value === 'はい')) {
-        return 'ご回答ありがとうございます。すでに内覧を始めている場合は、条件整理とスピード感がかなり重要です。物件探しでは、最初の数件を比較用として見て、その後に「今までで一番良い」と思える物件が出たら前向きに判断する、という考え方も役立ちます。';
-    }
-    if (chatIntakeIsMultiSelectField($field)) return 'ありがとうございます。「' . $displayValue . '」を条件整理に反映しました。複数の希望が分かると、提案の優先順位をつけやすくなります。';
-    if ($field === 'viewed_property_count') return '内覧件数が分かると、条件が固まり始めている段階か、まだ比較軸を作る段階かを判断しやすくなります。良かった点・合わなかった点を整理すると、次の提案精度が上がります。';
+    $displayValue = chatIntakeDisplayValue($value);
+    if ($field === 'customer_type') return chatIntakeScenarioIntro(is_array($value) ? '' : $value);
+    if ($field === 'preferred_area') return $displayValue === '未定'
+        ? 'エリアがまだ未定でも大丈夫です。最初は「通勤しやすさ」「実家や学校との距離」「予算とのバランス」から候補を広げる方が進めやすいです。'
+        : '「' . $displayValue . '」周辺でお考えですね。エリアが見えてくると、価格帯や広さ、駅距離の現実的なバランスもかなり整理しやすくなります。';
+    if ($field === 'preferred_station_line') return $displayValue === '未定'
+        ? '駅や沿線は後から絞っても問題ありません。生活圏や通勤時間から逆算すると、意外な候補エリアが見つかることもあります。'
+        : '駅・沿線の希望も分かりました。駅距離を少し広げるだけで、同じ予算でも広さや築年数の選択肢が増えることがあります。';
+    if ($field === 'budget') return 'ご予算感を共有いただきありがとうございます。物件価格だけでなく、諸費用・リフォーム費・毎月返済まで含めて見ると、無理のないラインが見えやすくなります。';
+    if ($field === 'competitor_viewing_status' && ($value === 'yes' || $value === 'はい')) return 'すでに内覧を始めているのですね。ここからは条件整理とスピード感がかなり大切です。物件探しでは、最初の数件を比較用として見て、その後に「今までで一番良い」と思える物件が出たら前向きに判断する、という考え方も役立ちます。';
+    if ($field === 'competitor_viewing_status') return 'まだ内覧前なのですね。この段階では、先に条件の優先順位を整理しておくと、実際に見学した時に迷いにくくなります。';
+    if ($field === 'viewed_property_count') return '内覧件数が分かると、条件が固まり始めている段階か、まだ比較軸を作る段階かを判断しやすくなります。見た物件の「良かった点・合わなかった点」を整理すると、次の提案精度が上がります。';
     if ($field === 'preferred_area_size') return '広さの希望を先に整理しておくと、間取りだけで判断するよりミスマッチを減らせます。同じ3LDKでも、㎡数で暮らしやすさはかなり変わります。';
+    if ($field === 'layout') return '間取りの希望も分かりました。実際には、同じ間取りでも収納量やリビングの形で使いやすさが変わるため、広さとセットで見るのがおすすめです。';
+    if ($field === 'station_walk_minutes') return '駅距離の許容範囲は、価格と資産性のバランスに直結します。徒歩分数を少し広げられると、広さや築年数で条件が良くなるケースもあります。';
+    if (chatIntakeIsMultiSelectField($field)) return 'ありがとうございます。「' . $displayValue . '」を条件整理に反映しました。複数の希望が分かると、何を優先して提案すべきか見えやすくなります。';
+    if ($field === 'family_structure') return 'ご家族構成ありがとうございます。人数や将来の変化によって、必要な広さ・学区・収納・駅距離の優先度が変わってきます。';
+    if ($field === 'purchase_timing' || $field === 'selling_timing') return '時期感が分かると、今すぐ動くべきことと、少し準備してからでよいことを分けやすくなります。特に3か月以内の場合は、ローンや査定も早めに並行した方が安心です。';
+    if ($field === 'loan_status' || $field === 'pre_approval_status') return 'ローン状況も大切な判断材料です。事前審査が済んでいると、良い物件が出た時に申込みまで進めやすくなります。これからの場合も、早めに目安を見ておくと安心です。';
+    if ($field === 'renovation_preference') return 'リフォームの考え方も分かりました。中古物件は、リフォーム済みを選ぶか、自分好みに直すかで、総額や入居時期が変わります。';
+    if ($field === 'current_property_type') return '現在のお住まいの種別が分かると、売却査定や買い替えスケジュールを組み立てやすくなります。';
     if ($field === 'selling_strategy') return '買い替えは、売却先行なら資金面は安全ですが仮住まいが必要になることがあり、購入先行なら気に入った物件を逃しにくい一方で資金計画の確認が重要です。';
+    if ($field === 'property_location') return '所在地ありがとうございます。正確な住所でなくても、市区町村やマンション名が分かるだけで、相場や査定の入り口としてかなり役立ちます。';
+    if ($field === 'selling_reason') return '売却理由が分かると、急いだ方がよいのか、価格重視でじっくり進めるべきか、提案の方向性を合わせやすくなります。';
+    if ($field === 'loan_balance') return '残債の有無は、売却後に手元資金が残るか、住み替え資金に回せるかを見るうえで重要です。金額が曖昧でも、まず有無だけ分かれば十分です。';
+    if ($field === 'minimum_price') return '希望価格がある場合は大切にしつつ、周辺相場との距離も見ておくと販売戦略を立てやすくなります。未定でも問題ありません。';
+    if ($field === 'appraisal_status') return '査定経験が分かると、相場把握の段階か、すでに会社比較の段階かが見えます。複数社査定済みの場合は、価格差の理由を見ることが大切です。';
     if ($field === 'appraisal_request') return '査定は「今すぐ売る」ためだけでなく、現状把握としても使えます。まず概算相場を知るだけでも、売却時期や価格戦略を考えやすくなります。';
     if ($field === 'sublease_status') return 'サブリース契約は、買主層や利回り評価、売却価格に影響することがあります。解除可否まで確認できると、売却戦略を立てやすくなります。';
+    if ($field === 'sublease_cancelable') return '解除可否まで分かると、投資家にどう見せるか、どの買主層に提案するかを考えやすくなります。';
+    if ($field === 'rent_income' || $field === 'target_yield') return '収益情報は投資判断の中心です。ただし利回りだけでなく、空室リスクや修繕費、将来売却しやすいかも一緒に見るのが安全です。';
     if ($field === 'loan_simulation_used') return '月々返済額の目安を把握すると、購入予算を現実的に整理しやすくなります。固定金利と変動金利の差も比較しておくと安心です。';
     if ($field === 'move_date' && !empty($data['move_date'])) return '引っ越し希望日が分かると、内覧・ローン審査・契約・決済までの逆算スケジュールを作りやすくなります。「進捗を見せて」と入力すると現在のタスク確認もできます。';
-    if ($field === 'contact_request') {
-        return !empty($data['contact_consent'])
-            ? 'ありがとうございます。お名前・ご連絡先を担当者が確認できるように保存しました。いただいた条件とあわせて、次のご案内につなげます。'
-            : '承知しました。匿名のままでも、条件整理や一般的なご相談はこのまま続けられます。';
-    }
+    if ($field === 'contact_request') return !empty($data['contact_consent']) ? 'ありがとうございます。お名前・ご連絡先を担当者が確認できるように保存しました。いただいた条件とあわせて、次のご案内につなげます。' : '承知しました。匿名のままでも、条件整理や一般的なご相談はこのまま続けられます。';
     return 'ありがとうございます。いただいた内容を条件整理に反映しました。';
+}
+
+function chatIntakeNaturalQuestion($field, $data) {
+    if (!$field) return '主要な条件はかなり整理できました。担当者が確認できる形で相談内容を保存しました。追加で気になることがあれば、そのまま自由に入力してください。';
+    $defs = chatIntakeFieldDefinitions();
+    $question = $defs[$field]['question'] ?? '';
+    $prefixMap = [
+        'preferred_area' => 'まずは物件探しの軸になるエリアから整理したいです。',
+        'preferred_station_line' => 'エリアに加えて、駅や沿線の希望があると提案の精度が上がります。',
+        'commute_destination' => '日々の移動も住み心地に大きく関わります。',
+        'budget' => '次に、無理のない範囲を見立てるために予算感を伺います。',
+        'competitor_viewing_status' => '検討の進み具合も把握しておくと、急ぐべきか整理しやすいです。',
+        'viewed_property_count' => '見学済みの場合は、比較の進み具合を確認させてください。',
+        'preferred_area_size' => '暮らしやすさを考えるうえで、間取りより先に広さの感覚も見ておきたいです。',
+        'layout' => '広さのイメージに合わせて、間取りも確認します。',
+        'property_type' => '提案対象を絞るために、物件種別も確認させてください。',
+        'station_walk_minutes' => '価格と利便性のバランスを見るため、駅距離の許容範囲も伺います。',
+        'priority' => '条件の優先順位が分かると、提案がかなり現実的になります。',
+        'family_structure' => '差し支えない範囲で、暮らす人数のイメージも教えてください。',
+        'purchase_timing' => 'スケジュール感によって、今やるべきことが変わります。',
+        'loan_status' => '資金計画の進み具合も、早めに軽く確認しておくと安心です。',
+        'renovation_preference' => '中古も視野に入る場合は、リフォームの考え方で候補が変わります。',
+        'current_property_type' => '住み替えは、今のお住まいの状況から整理すると分かりやすいです。',
+        'selling_strategy' => '買い替えでは、売却と購入の順番がとても大切です。',
+        'property_location' => '相場や査定の起点になるため、分かる範囲で場所を確認します。',
+        'selling_reason' => '売却理由により、価格重視かスピード重視かが変わります。',
+        'selling_timing' => '売却の急ぎ具合も、販売戦略に関わります。',
+        'loan_balance' => '手残りや住み替え資金を見るために、残債の有無も確認します。',
+        'minimum_price' => '価格面の希望があれば、販売戦略の前提として大切にします。',
+        'appraisal_status' => '査定状況が分かると、今の検討段階を把握しやすいです。',
+        'appraisal_request' => '必要であれば、査定につなげられる状態まで整理できます。',
+        'disclosure_flags' => '売却では、気になる点を早めに整理しておくと後のトラブル予防になります。',
+        'preferred_contact' => '担当者につなぐ場合に備えて、ご希望の連絡方法も確認します。',
+        'income' => 'ローン相談では、まず概算の年収から無理のない借入目安を見ます。',
+        'employment_type' => '審査では勤務形態も見られるため、差し支えない範囲で確認します。',
+        'years_employed' => '勤続年数も審査傾向を見る材料になります。',
+        'down_payment' => '自己資金が分かると、借入額と諸費用のバランスを見やすくなります。',
+        'desired_loan_amount' => '希望借入額がある場合は、返済額の目安と一緒に見ていきます。',
+        'other_debts' => '他のお借入れは返済比率に関わるため、答えられる範囲で大丈夫です。',
+        'loan_concern' => 'ローンで一番気になる点を先に押さえると、説明が的確になります。',
+        'loan_simulation_used' => '必要であれば、シミュレーターで月々返済も整理できます。',
+        'move_date' => '希望日があると、逆算スケジュールを作りやすくなります。',
+        'contact_request' => 'ここまでの内容を担当者が引き継げるようにする場合だけで大丈夫です。',
+    ];
+    $prefix = $prefixMap[$field] ?? '続けて、もう少しだけ確認させてください。';
+    return $prefix . "\n" . $question;
+}
+
+function chatIntakeBuildReply($field, $value, $nextField, $data) {
+    return chatIntakeAdvice($field, $value, $data) . "\n\n" . chatIntakeNaturalQuestion($nextField, $data);
 }
 
 function chatIntakeEvaluateTemperature(&$data) {
@@ -538,12 +623,11 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message) {
     chatIntakeSave($db, $sessionId, $businessCardId, $data);
 
     $defs = chatIntakeFieldDefinitions();
-    $advice = chatIntakeAdvice($field, $value, $data);
-    $question = $nextField && isset($defs[$nextField]) ? $defs[$nextField]['question'] : 'ありがとうございます。主要な条件はかなり整理できました。担当者が確認できる形で相談内容を保存しました。引き続き、このチャットで追加のご相談もできます。';
+    $reply = chatIntakeBuildReply($field, $value, $nextField, $data);
     $quick = $nextField && isset($defs[$nextField]) ? chatIntakeQuickRepliesForField($nextField) : [];
     return [
         'handled' => true,
-        'reply' => $advice . "\n\n" . $question,
+        'reply' => $reply,
         'quick_replies' => $quick,
         'data' => $data,
     ];
