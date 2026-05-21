@@ -1,7 +1,11 @@
 /* Chat widget on AI business card page - mobile-first */
 .chat-widget-root {
+    --chat-widget-root-bottom: 1.25rem;
+    --chat-widget-toggle-height: 58px;
+    --chat-widget-panel-gap: 0.5rem;
+    --chat-widget-panel-margin: 1.25rem;
     position: fixed;
-    bottom: 1.25rem;
+    bottom: var(--chat-widget-root-bottom) !important;
     right: 1.25rem;
     z-index: 9999;
     font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
@@ -9,11 +13,11 @@
 }
 
 .chat-widget-root.is-install-banner-visible {
-    bottom: 9.25rem !important;
+    --chat-widget-root-bottom: 9.25rem;
 }
 
 .chat-widget-root.is-pwa-modal-visible {
-    bottom: var(--chat-widget-pwa-bottom, 24rem) !important;
+    --chat-widget-root-bottom: var(--chat-widget-pwa-bottom, 24rem);
     z-index: 10002;
 }
 
@@ -70,13 +74,15 @@
 
 .chat-widget-panel {
     position: absolute;
-    bottom: calc(56px + 0.5rem);
+    bottom: calc(var(--chat-widget-toggle-height) + var(--chat-widget-panel-gap));
     right: 0;
     display: flex;
     flex-direction: column;
     width: min(92vw, 560px);
-    height: min(82vh, 760px);
-    max-height: 82vh;
+    height: min(760px, calc(100vh - var(--chat-widget-root-bottom) - var(--chat-widget-toggle-height) - var(--chat-widget-panel-gap) - var(--chat-widget-panel-margin)));
+    max-height: calc(100vh - var(--chat-widget-root-bottom) - var(--chat-widget-toggle-height) - var(--chat-widget-panel-gap) - var(--chat-widget-panel-margin));
+    height: min(760px, calc(100dvh - var(--chat-widget-root-bottom) - var(--chat-widget-toggle-height) - var(--chat-widget-panel-gap) - var(--chat-widget-panel-margin)));
+    max-height: calc(100dvh - var(--chat-widget-root-bottom) - var(--chat-widget-toggle-height) - var(--chat-widget-panel-gap) - var(--chat-widget-panel-margin));
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
@@ -153,7 +159,7 @@
     flex: 1;
     overflow-y: auto;
     padding: 1rem;
-    min-height: 280px;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -451,11 +457,12 @@
 
 @media (max-width: 480px) {
     .chat-widget-root {
+        --chat-widget-toggle-height: 56px;
         right: 0.75rem;
     }
 
     .chat-widget-root.is-pwa-modal-visible {
-        bottom: var(--chat-widget-pwa-bottom, 22rem) !important;
+        --chat-widget-root-bottom: var(--chat-widget-pwa-bottom, 22rem);
     }
 
     .chat-widget-panel {

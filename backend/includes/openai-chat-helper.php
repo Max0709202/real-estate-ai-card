@@ -168,6 +168,35 @@ function callOpenAIChat($messages, $apiKey, $model = 'gpt-4o-mini') {
     return ['reply' => $reply, 'error' => null];
 }
 
+function sanitizeChatReferralLanguage($reply, $agentName = '担当者') {
+    $reply = (string)$reply;
+    if ($reply === '') return $reply;
+
+    $agentLabel = trim((string)$agentName) !== '' ? trim((string)$agentName) : '担当者';
+    $replacement = '詳しい確認は、この名刺の担当「' . $agentLabel . '」へご相談ください。';
+    $leadIn = '(?:詳しくは|詳細は|不明な点は|個別には|個別の確認は)?';
+    $patterns = [
+        '/[^。！？\n]*(?:不動産会社|不動産エージェント)(?:や不動産会社|や不動産エージェント)?に(?:相談|確認|問い合わせ|聞く)[^。！？\n]*(?:おすすめ|お勧め|推奨|良い|よい|望ましい)[^。！？\n]*(?:[。！？]|$)/u',
+        '/[^。！？\n]*(?:不動産会社|不動産エージェント)(?:や不動産会社|や不動産エージェント)?へ(?:相談|確認|問い合わせ)[^。！？\n]*(?:おすすめ|お勧め|推奨|良い|よい|望ましい)[^。！？\n]*(?:[。！？]|$)/u',
+        '/' . $leadIn . '(?:、|。|\s)*?(?:地元|近く|お近く|地域|信頼できる|別|他社|他の)の?不動産会社(?:や不動産エージェント)?に(?:相談|確認|問い合わせ|聞く)[^。！？\n]*(?:[。！？]|$)/u',
+        '/' . $leadIn . '(?:、|。|\s)*?(?:地元|近く|お近く|地域|信頼できる|別|他社|他の)の?不動産エージェントに(?:相談|確認|問い合わせ|聞く)[^。！？\n]*(?:[。！？]|$)/u',
+        '/' . $leadIn . '(?:、|。|\s)*?不動産会社(?:や不動産エージェント)?に(?:相談|確認|問い合わせ|聞く)ことを(?:おすすめ|お勧め|推奨)[^。！？\n]*(?:[。！？]|$)/u',
+        '/' . $leadIn . '(?:、|。|\s)*?不動産エージェントに(?:相談|確認|問い合わせ|聞く)ことを(?:おすすめ|お勧め|推奨)[^。！？\n]*(?:[。！？]|$)/u',
+        '/' . $leadIn . '(?:、|。|\s)*?(?:地元|近く|お近く|地域|信頼できる|別|他社|他の)の?不動産会社[^。！？\n]*(?:[。！？]|$)/u',
+        '/' . $leadIn . '(?:、|。|\s)*?(?:地元|近く|お近く|地域|信頼できる|別|他社|他の)の?不動産エージェント[^。！？\n]*(?:[。！？]|$)/u',
+    ];
+    foreach ($patterns as $pattern) {
+        $reply = preg_replace($pattern, $replacement, $reply);
+    }
+
+    $reply = str_replace(
+        ['地元の不動産会社', '近くの不動産会社', 'お近くの不動産会社', '他の不動産会社', '他社の不動産会社', '地元の不動産エージェント', '他の不動産エージェント'],
+        'この名刺の担当「' . $agentLabel . '」',
+        $reply
+    );
+    return trim(preg_replace('/\n{3,}/u', "\n\n", $reply));
+}
+
 /**
  * Get bot reply using GPT-4o-mini with blog context and conversation history.
  *
@@ -274,6 +303,8 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
 - 顧客条件によって答えが変わる内容を、条件確認なしで断定しない。
 - 不確かな情報を事実のように言わない。
 - 法律・税務・融資審査の最終判断を保証しない。
+- 他の不動産会社、地元の不動産会社、近くの不動産会社、別の不動産エージェント、他社への相談・問い合わせ・確認を促してはいけない。
+- 相談先を案内する場合は、必ずこのAI名刺の担当者、または必要に応じて税理士・金融機関・行政窓口などの専門機関に限定する。
 
 {$memoryContext}
 
@@ -294,5 +325,6 @@ PROMPT;
     if ($result['error'] !== null) {
         return ['reply' => null, 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => $result['error']];
     }
-    return ['reply' => $result['reply'], 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => null];
+    $safeReply = sanitizeChatReferralLanguage($result['reply'], $agentName);
+    return ['reply' => $safeReply, 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => null];
 }
