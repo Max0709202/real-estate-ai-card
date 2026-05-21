@@ -107,8 +107,8 @@ try {
     $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'bot', ?)");
     $stmt->execute([$sessionId, $reply]);
 
-    // Update lightweight conversation memory for future turns
-    updateChatSessionMemoryHeuristic($db, $sessionId, $card['id'], $message);
+    // Update lightweight conversation memory for future turns and reload continuity
+    updateChatSessionMemoryHeuristic($db, $sessionId, $card['id'], $message, $reply);
 
     // Update session last_seen
     $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");

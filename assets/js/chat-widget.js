@@ -49,6 +49,10 @@
         try { if (window.localStorage) localStorage.setItem(key, value); } catch (e) {}
     }
 
+    function safeStorageRemove(key) {
+        try { if (window.localStorage) localStorage.removeItem(key); } catch (e) {}
+    }
+
     function createClientId() {
         if (window.crypto && typeof window.crypto.randomUUID === 'function') {
             return window.crypto.randomUUID();
@@ -63,6 +67,23 @@
         var id = createClientId();
         safeStorageSet(key, id);
         return id;
+    }
+
+    function getSessionStorageKey() {
+        return 'ai_fcard_chat_session_id:' + (cardSlug || 'default') + ':' + visitorId;
+    }
+
+    function getSavedSessionId() {
+        var saved = safeStorageGet(getSessionStorageKey()) || '';
+        return /^[A-Fa-f0-9-]{36}$/.test(saved) ? saved : '';
+    }
+
+    function saveSessionId(id) {
+        if (/^[A-Fa-f0-9-]{36}$/.test(id || '')) safeStorageSet(getSessionStorageKey(), id);
+    }
+
+    function clearSavedSessionId() {
+        safeStorageRemove(getSessionStorageKey());
     }
 
     function setInputEnabled(enabled) {
@@ -282,6 +303,7 @@
             renderQuickReplies([]);
             setVoiceStatus('');
             inputEl.value = '';
+            clearSavedSessionId();
             if (quickActions) quickActions.style.display = '';
         }
 
@@ -294,11 +316,12 @@
         sessionStarting = true;
         setInputEnabled(false);
         var loadingRow = appendBotMessage('チャットを接続しています', true);
+        var savedSessionId = reset ? '' : getSavedSessionId();
 
         fetch(apiBase + '/session/start.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: '', resume: false })
+            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: savedSessionId, resume: !reset })
         })
             .then(function (res) {
                 return res.json().catch(function () {
@@ -311,6 +334,7 @@
                 if (data.success && data.data) {
                     sessionId = data.data.session_id;
                     if (data.data.visitor_id) visitorId = data.data.visitor_id;
+                    saveSessionId(sessionId);
                     canUseLoanSim = data.data.can_use_loan_sim !== false;
                     if (data.data.agent_name) agentName = data.data.agent_name;
                     if (data.data.agent_photo_url) {
@@ -319,11 +343,15 @@
                     syncAgentHeader();
                     if (!greetingShown) {
                         messagesContainer.innerHTML = '';
-                        appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
-                        appendVoiceAvailabilityNotice();
+                        if (data.data.is_resumed && data.data.messages && data.data.messages.length) {
+                            renderSessionMessages(data.data.messages);
+                        } else {
+                            appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
+                            appendVoiceAvailabilityNotice();
+                        }
                         greetingShown = true;
                     }
-                    renderQuickReplies(data.data.quick_replies || []);
+                    renderQuickReplies(data.data.is_resumed ? [] : (data.data.quick_replies || []));
                     if (!canUseLoanSim && quickActions) quickActions.style.display = 'none';
                     setInputEnabled(true);
                 } else {
@@ -339,10 +367,27 @@
             });
     }
 
-    function appendBotMessage(text, isLoading, sources) {
+    function formatMessageTime(createdAt) {
+        var date = createdAt ? new Date(String(createdAt).replace(' ', 'T')) : new Date();
+        if (isNaN(date.getTime())) date = new Date();
+        return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderSessionMessages(messages) {
+        messages.forEach(function (message) {
+            var role = message.role || '';
+            if (role === 'user') {
+                appendUserMessage(message.message || '', message.created_at || '');
+            } else if (role === 'bot' || role === 'assistant') {
+                appendBotMessage(message.message || '', false, null, message.created_at || '');
+            }
+        });
+    }
+
+    function appendBotMessage(text, isLoading, sources, createdAt) {
         var wrap = document.createElement('div');
         wrap.className = 'chat-msg bot' + (isLoading ? ' chat-msg-loading' : '');
-        var time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+        var time = formatMessageTime(createdAt);
         var img = agentPhoto ? '<img class="chat-msg-avatar" src="' + escapeAttribute(agentPhoto) + '" alt="">' : '';
         wrap.innerHTML = img + '<div class="chat-msg-content"><div class="chat-msg-bubble">' + formatBotMessageHtml(text) + '</div><div class="chat-msg-time">' + time + '</div></div>';
         if (sources && sources.length) {
@@ -361,10 +406,10 @@
         return wrap;
     }
 
-    function appendUserMessage(text) {
+    function appendUserMessage(text, createdAt) {
         var wrap = document.createElement('div');
         wrap.className = 'chat-msg user';
-        var time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+        var time = formatMessageTime(createdAt);
         wrap.innerHTML = '<div class="chat-msg-avatar"></div><div><div class="chat-msg-bubble">' + escapeHtml(text) + '</div><div class="chat-msg-time">' + time + '</div></div>';
         messagesContainer.appendChild(wrap);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -491,6 +536,7 @@
                 } else {
                     if (data.message && data.message.indexOf('セッション') !== -1) {
                         sessionId = null;
+                        clearSavedSessionId();
                     }
                     appendBotMessage(data.message || 'エラーが発生しました。');
                 }

@@ -492,8 +492,14 @@ function chatMemoryDefault() {
         'child_rearing_household' => null,
         'preferred_area' => null,
         'loan_plan' => null,
+        'temperature' => null,
+        'lead_summary' => null,
+        'next_action' => null,
+        'recent_context' => null,
+        'previous_suggestions' => [],
         'missing_info' => [],
         'last_summary' => null,
+        'last_updated_at' => null,
     ];
 }
 
@@ -523,6 +529,118 @@ function chatSetIfDetected(&$memory, $key, $value) {
 function chatAddTopic(&$memory, $topic) {
     if (!isset($memory['topics']) || !is_array($memory['topics'])) $memory['topics'] = [];
     if (!in_array($topic, $memory['topics'], true)) $memory['topics'][] = $topic;
+}
+
+function chatMemoryValue($value) {
+    if (is_array($value)) {
+        $items = [];
+        foreach ($value as $item) {
+            if ($item === null || $item === '' || $item === []) continue;
+            $items[] = is_array($item) ? chatMemoryValue($item) : (string)$item;
+        }
+        $items = array_values(array_filter($items, function ($item) { return $item !== ''; }));
+        return empty($items) ? null : implode('、', $items);
+    }
+    if (is_bool($value)) return $value ? 'はい' : 'いいえ';
+    if ($value === null || $value === '') return null;
+    return (string)$value;
+}
+
+function chatMemoryTrim($text, $max = 240) {
+    $text = trim(preg_replace('/\s+/u', ' ', (string)$text));
+    if ($text === '') return '';
+    return mb_strlen($text) > $max ? mb_substr($text, 0, $max) . '…' : $text;
+}
+
+function chatMemoryMapCustomerType($type) {
+    $map = [
+        'purchase' => 'purchase',
+        'replacement' => 'relocation',
+        'sale' => 'sale',
+        'investment_buy' => 'investment_buy',
+        'investment_sale' => 'investment_sale',
+        'loan' => 'loan',
+        'market' => 'market',
+        'inheritance' => 'inheritance',
+        'other' => 'other',
+    ];
+    return $map[$type] ?? $type;
+}
+
+function chatMemoryIntentLabel($intent) {
+    $map = [
+        'purchase' => '購入',
+        'relocation' => '住み替え',
+        'sale' => '売却',
+        'investment' => '投資',
+        'investment_buy' => '投資物件購入',
+        'investment_sale' => '投資物件売却',
+        'loan' => '住宅ローン相談',
+        'market' => '相場相談',
+        'inheritance' => '相続相談',
+        'other' => 'その他',
+    ];
+    return $map[$intent] ?? $intent;
+}
+
+function chatLoadLeadDataForMemory($db, $sessionId) {
+    if (!$db || $sessionId === '') return [];
+    try {
+        $stmt = $db->prepare('SELECT structured_data FROM chat_leads WHERE session_id = ?');
+        $stmt->execute([$sessionId]);
+        $json = $stmt->fetchColumn();
+        $data = $json ? json_decode($json, true) : [];
+        return is_array($data) ? $data : [];
+    } catch (Throwable $e) {
+        error_log('Chat memory lead load error: ' . $e->getMessage());
+        return [];
+    }
+}
+
+function chatApplyLeadDataToMemory(&$memory, $leadData) {
+    if (!$leadData || !is_array($leadData)) return;
+
+    if (!empty($leadData['customer_type'])) $memory['intent'] = chatMemoryMapCustomerType($leadData['customer_type']);
+    foreach (['property_type', 'preferred_area', 'family_structure'] as $key) {
+        $value = chatMemoryValue($leadData[$key] ?? null);
+        if ($value !== null) {
+            if ($key === 'family_structure') $memory['family'] = $value;
+            else $memory[$key] = $value;
+        }
+    }
+
+    $budgetParts = [];
+    if (!empty($leadData['budget_min'])) $budgetParts[] = '下限 ' . $leadData['budget_min'];
+    if (!empty($leadData['budget_max'])) $budgetParts[] = '上限 ' . $leadData['budget_max'];
+    if (!empty($budgetParts)) $memory['budget'] = implode(' / ', $budgetParts);
+
+    $income = chatMemoryValue($leadData['income'] ?? null);
+    if ($income !== null) $memory['income_range'] = $income;
+
+    $loanBits = [];
+    foreach (['loan_status', 'pre_approval_status', 'desired_loan_amount', 'loan_simulation_used', 'simulation_monthly_payment', 'simulation_interest_type'] as $key) {
+        $value = chatMemoryValue($leadData[$key] ?? null);
+        if ($value !== null) $loanBits[] = $value;
+    }
+    if (!empty($loanBits)) $memory['loan_plan'] = implode(' / ', array_unique($loanBits));
+
+    if (!empty($leadData['temperature'])) $memory['temperature'] = $leadData['temperature'];
+    if (!empty($leadData['summary_for_sales'])) $memory['lead_summary'] = chatMemoryTrim($leadData['summary_for_sales'], 360);
+    if (!empty($leadData['next_action'])) $memory['next_action'] = chatMemoryTrim($leadData['next_action'], 220);
+
+    $topicFields = ['priority', 'loan_concern', 'other_debts', 'disclosure_flags'];
+    foreach ($topicFields as $field) {
+        $value = chatMemoryValue($leadData[$field] ?? null);
+        if ($value !== null) chatAddTopic($memory, $value);
+    }
+
+    if (!empty($leadData['family_structure']) && preg_match('/子ども|子供|こども/u', chatMemoryValue($leadData['family_structure']))) {
+        $memory['child_rearing_household'] = true;
+    }
+
+    if (!empty($leadData['missing_fields']) && is_array($leadData['missing_fields'])) {
+        $memory['missing_info'] = array_values(array_unique(array_merge($memory['missing_info'] ?? [], $leadData['missing_fields'])));
+    }
 }
 
 function chatDetectMemoryFromMessage(&$memory, $message) {
@@ -557,14 +675,14 @@ function chatDetectMemoryFromMessage(&$memory, $message) {
         $memory['child_rearing_household'] = true;
         $memory['family'] = $memory['family'] ?: '子育て世帯または若者夫婦世帯の可能性あり';
     }
-    if (preg_match('/ローン|借入/u', $message)) $memory['loan_plan'] = '住宅ローン利用予定または検討中';
+    if (preg_match('/ローン|借入/u', $message)) $memory['loan_plan'] = $memory['loan_plan'] ?: '住宅ローン利用予定または検討中';
     if (preg_match('/年収\s*([0-9０-９,\.]+\s*(万円|万|円))/u', $message, $m)) $memory['income_range'] = $m[1];
     if (preg_match('/(?:予算|価格|物件価格|購入価格)\s*(?:は|が|:|：)?\s*([0-9０-９,\.]+\s*(万円|万|億円|円))/u', $message, $m)) $memory['budget'] = $m[1];
     if (preg_match('/([一-龥ぁ-んァ-ン]{2,12}(都|道|府|県|市|区|町|村))/u', $message, $m)) $memory['preferred_area'] = $m[1];
 }
 
 function chatBuildMissingInfo($memory) {
-    $missing = [];
+    $missing = isset($memory['missing_info']) && is_array($memory['missing_info']) ? $memory['missing_info'] : [];
     $topics = isset($memory['topics']) && is_array($memory['topics']) ? $memory['topics'] : [];
     if (in_array('住宅ローン減税', $topics, true)) {
         foreach (['新築/中古', '入居予定年', '借入予定額', '年収帯', '省エネ性能', '子育て世帯・若者夫婦世帯該当性', '3,000万円特別控除の利用予定'] as $item) {
@@ -577,37 +695,71 @@ function chatBuildMissingInfo($memory) {
     if (($memory['intent'] ?? null) === 'sale' || ($memory['intent'] ?? null) === 'relocation') {
         foreach (['所有期間', '購入価格', '売却見込み価格', '住宅ローン残債', '居住用/投資用'] as $item) $missing[] = $item;
     }
-    return array_values(array_unique(array_slice($missing, 0, 10)));
+    return array_values(array_unique(array_slice(array_filter($missing), 0, 12)));
+}
+
+function chatBuildRecentConversationNote($db, $sessionId) {
+    if (!$db || $sessionId === '') return null;
+    try {
+        $stmt = $db->prepare('SELECT role, message FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 8');
+        $stmt->execute([$sessionId]);
+        $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
+        $parts = [];
+        foreach ($rows as $row) {
+            $label = ($row['role'] ?? '') === 'user' ? '顧客' : 'AI';
+            $snippet = chatMemoryTrim($row['message'] ?? '', 90);
+            if ($snippet !== '') $parts[] = $label . ': ' . $snippet;
+        }
+        return empty($parts) ? null : chatMemoryTrim(implode(' / ', $parts), 700);
+    } catch (Throwable $e) {
+        error_log('Chat memory recent note error: ' . $e->getMessage());
+        return null;
+    }
+}
+
+function chatRememberBotSuggestion(&$memory, $botReply) {
+    $suggestion = chatMemoryTrim($botReply, 220);
+    if ($suggestion === '') return;
+    if (!isset($memory['previous_suggestions']) || !is_array($memory['previous_suggestions'])) $memory['previous_suggestions'] = [];
+    array_unshift($memory['previous_suggestions'], $suggestion);
+    $memory['previous_suggestions'] = array_values(array_unique(array_slice($memory['previous_suggestions'], 0, 3)));
 }
 
 function chatComposeMemorySummary($memory) {
     $parts = [];
-    if (!empty($memory['intent'])) $parts[] = '相談目的: ' . $memory['intent'];
+    if (!empty($memory['intent'])) $parts[] = '相談目的: ' . chatMemoryIntentLabel($memory['intent']);
     if (!empty($memory['property_type'])) $parts[] = '物件種別: ' . $memory['property_type'];
+    if (!empty($memory['preferred_area'])) $parts[] = '希望エリア: ' . $memory['preferred_area'];
     if (!empty($memory['budget'])) $parts[] = '予算/価格: ' . $memory['budget'];
     if (!empty($memory['income_range'])) $parts[] = '年収帯: ' . $memory['income_range'];
-    if (!empty($memory['preferred_area'])) $parts[] = '希望エリア: ' . $memory['preferred_area'];
-    if (!empty($memory['loan_plan'])) $parts[] = 'ローン: ' . $memory['loan_plan'];
+    if (!empty($memory['family'])) $parts[] = '家族構成: ' . $memory['family'];
+    if (!empty($memory['loan_plan'])) $parts[] = 'ローン状況: ' . $memory['loan_plan'];
     if (!empty($memory['child_rearing_household'])) $parts[] = '子育て世帯等: 可能性あり';
-    if (!empty($memory['topics'])) $parts[] = '関心テーマ: ' . implode('、', $memory['topics']);
+    if (!empty($memory['temperature'])) $parts[] = '温度感: ' . $memory['temperature'];
+    if (!empty($memory['topics']) && is_array($memory['topics'])) $parts[] = '関心テーマ: ' . implode('、', array_slice($memory['topics'], 0, 8));
+    if (!empty($memory['lead_summary'])) $parts[] = '営業向け要約: ' . $memory['lead_summary'];
+    if (!empty($memory['next_action'])) $parts[] = '次アクション: ' . $memory['next_action'];
     if (empty($parts)) return null;
-    return implode(' / ', $parts);
+    return chatMemoryTrim(implode(' / ', $parts), 900);
 }
 
-function updateChatSessionMemoryHeuristic($db, $sessionId, $businessCardId, $userMessage) {
+function updateChatSessionMemoryHeuristic($db, $sessionId, $businessCardId, $userMessage, $botReply = '') {
     if (!$db || $sessionId === '') return;
     try {
         ensureChatRagTables($db);
         $memory = getChatSessionMemory($db, $sessionId);
         chatDetectMemoryFromMessage($memory, $userMessage);
+        chatApplyLeadDataToMemory($memory, chatLoadLeadDataForMemory($db, $sessionId));
+        chatRememberBotSuggestion($memory, $botReply);
+        $memory['recent_context'] = chatBuildRecentConversationNote($db, $sessionId);
         $memory['missing_info'] = chatBuildMissingInfo($memory);
-        $summary = chatComposeMemorySummary($memory);
-        $memory['last_summary'] = $summary;
+        $memory['last_summary'] = chatComposeMemorySummary($memory);
+        $memory['last_updated_at'] = date('c');
         $json = json_encode($memory, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $stmt = $db->prepare("INSERT INTO chat_session_memory (session_id, business_card_id, memory_json, last_summary)
                               VALUES (?, ?, ?, ?)
                               ON DUPLICATE KEY UPDATE business_card_id = VALUES(business_card_id), memory_json = VALUES(memory_json), last_summary = VALUES(last_summary), updated_at = CURRENT_TIMESTAMP");
-        $stmt->execute([$sessionId, $businessCardId, $json, $summary]);
+        $stmt->execute([$sessionId, $businessCardId, $json, $memory['last_summary']]);
     } catch (Throwable $e) {
         error_log('Chat memory update error: ' . $e->getMessage());
     }
@@ -617,12 +769,16 @@ function buildChatMemoryContext($memory) {
     if (!$memory || !is_array($memory)) return '';
     $lines = [];
     if (!empty($memory['last_summary'])) $lines[] = '前回までの要約: ' . $memory['last_summary'];
-    foreach (['intent' => '相談目的', 'property_type' => '物件種別', 'budget' => '予算/価格', 'income_range' => '年収帯', 'preferred_area' => '希望エリア', 'loan_plan' => 'ローン利用'] as $key => $label) {
-        if (!empty($memory[$key])) $lines[] = $label . ': ' . $memory[$key];
+    foreach (['intent' => '相談目的', 'property_type' => '物件種別', 'budget' => '予算/価格', 'income_range' => '年収帯', 'family' => '家族構成', 'preferred_area' => '希望エリア', 'loan_plan' => 'ローン利用', 'temperature' => '検討温度感'] as $key => $label) {
+        if (empty($memory[$key])) continue;
+        $value = $key === 'intent' ? chatMemoryIntentLabel($memory[$key]) : $memory[$key];
+        $lines[] = $label . ': ' . $value;
     }
     if (!empty($memory['child_rearing_household'])) $lines[] = '子育て世帯・若者夫婦世帯: 該当する可能性あり';
-    if (!empty($memory['topics']) && is_array($memory['topics'])) $lines[] = '関心テーマ: ' . implode('、', $memory['topics']);
-    if (!empty($memory['missing_info']) && is_array($memory['missing_info'])) $lines[] = '未確認事項: ' . implode('、', $memory['missing_info']);
+    if (!empty($memory['topics']) && is_array($memory['topics'])) $lines[] = '関心テーマ: ' . implode('、', array_slice($memory['topics'], 0, 8));
+    if (!empty($memory['previous_suggestions']) && is_array($memory['previous_suggestions'])) $lines[] = '過去にAIが案内した内容: ' . implode(' / ', array_slice($memory['previous_suggestions'], 0, 2));
+    if (!empty($memory['recent_context'])) $lines[] = '直近の会話要点: ' . $memory['recent_context'];
+    if (!empty($memory['missing_info']) && is_array($memory['missing_info'])) $lines[] = '未確認事項: ' . implode('、', array_slice($memory['missing_info'], 0, 10));
     if (empty($lines)) return '';
     return "【会話メモリー】\n" . implode("\n", $lines);
 }
