@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../../includes/chat-rag-helper.php';
+require_once __DIR__ . '/../../../includes/openai-chat-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -81,17 +82,11 @@ try {
     }
 
     $messages = [];
+    $hasPreviousMessages = false;
     if ($isResumed) {
-        $stmt = $db->prepare("SELECT role, message, created_at FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 40");
+        $stmt = $db->prepare("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?");
         $stmt->execute([$sessionId]);
-        $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
-        foreach ($rows as $row) {
-            $messages[] = [
-                'role' => $row['role'],
-                'message' => $row['message'],
-                'created_at' => $row['created_at'],
-            ];
-        }
+        $hasPreviousMessages = ((int)$stmt->fetchColumn()) > 0;
     }
 
     $photoUrl = '';
@@ -103,7 +98,7 @@ try {
     $agentName = $card['name'] ?? '担当者';
     $intake = chatIntakeInitialPayload($agentName);
     $resumeIntake = $isResumed ? chatIntakeResumePayload($db, $sessionId, $card['id']) : null;
-    $resumeMessage = $isResumed ? getChatResumeMessageForSession($db, $sessionId, $agentName) : '';
+    $resumeMessage = $isResumed ? getChatResumeMessageForSession($db, $sessionId, $agentName, $card['id'], true) : '';
     if ($isResumed && $resumeIntake && !empty($resumeIntake['current_question'])) {
         $resumeMessage = trim($resumeMessage . "
 
@@ -113,7 +108,8 @@ try {
         'session_id' => $sessionId,
         'visitor_id' => $visitorId,
         'is_resumed' => $isResumed,
-        'messages' => $messages,
+        'messages' => [],
+        'has_previous_messages' => $hasPreviousMessages,
         'agent_name' => $card['name'] ?? '',
         'resume_message' => $resumeMessage,
         'current_field' => $resumeIntake['current_field'] ?? null,

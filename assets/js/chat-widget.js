@@ -362,9 +362,8 @@
                     syncAgentHeader();
                     if (!greetingShown) {
                         messagesContainer.innerHTML = '';
-                        if (data.data.is_resumed && data.data.messages && data.data.messages.length) {
-                            renderSessionMessages(data.data.messages);
-                            appendBotMessage(data.data.resume_message || ('おかえりなさい。前回の続きからご相談いただけます。' + defaultPromptText));
+                        if (data.data.is_resumed) {
+                            appendBotMessage(data.data.resume_message || ('おかえりなさい。前回の内容を要約して引き継ぎます。' + defaultPromptText));
                         } else {
                             appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
                             appendVoiceAvailabilityNotice();

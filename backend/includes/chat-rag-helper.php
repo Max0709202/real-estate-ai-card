@@ -816,6 +816,21 @@ function updateChatSessionMemoryHeuristic($db, $sessionId, $businessCardId, $use
     }
 }
 
+function chatSaveSessionMemorySnapshot($db, $sessionId, $businessCardId, $memory) {
+    if (!$db || $sessionId === '' || !is_array($memory)) return;
+    try {
+        ensureChatRagTables($db);
+        $memory['last_updated_at'] = date('c');
+        $json = json_encode($memory, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $stmt = $db->prepare("INSERT INTO chat_session_memory (session_id, business_card_id, memory_json, last_summary)
+                              VALUES (?, ?, ?, ?)
+                              ON DUPLICATE KEY UPDATE business_card_id = VALUES(business_card_id), memory_json = VALUES(memory_json), last_summary = VALUES(last_summary), updated_at = CURRENT_TIMESTAMP");
+        $stmt->execute([$sessionId, $businessCardId, $json, $memory['last_summary'] ?? null]);
+    } catch (Throwable $e) {
+        error_log('Chat memory snapshot save error: ' . $e->getMessage());
+    }
+}
+
 function chatMemoryHasContinuity($memory) {
     if (!$memory || !is_array($memory)) return false;
     foreach (['last_summary', 'intent', 'property_type', 'budget', 'family', 'preferred_area', 'loan_plan', 'recent_context', 'lead_summary'] as $key) {
@@ -837,16 +852,24 @@ function chatBuildResumeMessage($memory, $agentName = '担当者') {
     if (!empty($memory['recent_context'])) $lines[] = '直近の会話: ' . $memory['recent_context'];
 
     $message = 'おかえりなさい。前回までの内容を引き継いで、担当「' . $agentLabel . '」に代わって続きからご相談いただけます。';
+    if (!empty($memory['last_summary'])) {
+        $message .= "
+
+AIブリーフィング:
+" . $memory['last_summary'];
+    }
     if (!empty($lines)) {
-        $message .= "\n\n前回までに伺っている内容:\n・" . implode("\n・", array_slice($lines, 0, 6));
-    } elseif (!empty($memory['last_summary'])) {
-        $message .= "\n\n前回までの要約: " . $memory['last_summary'];
+        $message .= "
+
+把握している主な条件:
+・" . implode("
+・", array_slice($lines, 0, 6));
     }
     $message .= "\n\nこの続きからでも、新しいご相談でも大丈夫です。不動産の購入・売却について、何でもお気軽にご質問ください。最初からやり直す場合は、右上の更新ボタンをご利用ください。";
     return $message;
 }
 
-function getChatResumeMessageForSession($db, $sessionId, $agentName = '担当者') {
+function getChatResumeMessageForSession($db, $sessionId, $agentName = '担当者', $businessCardId = null, $forceAiSummary = false) {
     if (!$db || $sessionId === '') return '';
     $memory = getChatSessionMemory($db, $sessionId);
     if (!chatMemoryHasContinuity($memory)) {
@@ -856,8 +879,17 @@ function getChatResumeMessageForSession($db, $sessionId, $agentName = '担当者
             $memory['last_summary'] = chatComposeMemorySummary($memory);
         }
     }
-    if (!chatMemoryHasContinuity($memory)) {
-        $memory['recent_context'] = chatBuildRecentConversationNote($db, $sessionId);
+    $memory['recent_context'] = chatBuildRecentConversationNote($db, $sessionId) ?: ($memory['recent_context'] ?? null);
+    if ($forceAiSummary) {
+        $aiSummary = chatBuildAISessionSummary($db, $sessionId, $memory);
+        if ($aiSummary !== '') {
+            $memory['last_summary'] = $aiSummary;
+        } elseif (empty($memory['last_summary'])) {
+            $memory['last_summary'] = chatComposeMemorySummary($memory);
+        }
+        if ($businessCardId !== null) {
+            chatSaveSessionMemorySnapshot($db, $sessionId, $businessCardId, $memory);
+        }
     }
     return chatMemoryHasContinuity($memory) ? chatBuildResumeMessage($memory, $agentName) : '';
 }
