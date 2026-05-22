@@ -2675,6 +2675,15 @@ body {
         padding: 60px 20px;
     }
 
+    .pricing-amount {
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .existing-user-price {
+        top:45% !important;
+    }
     .pricing-title {
         font-size: 36px;
     }

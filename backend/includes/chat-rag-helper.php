@@ -583,6 +583,22 @@ function chatMemoryIntentLabel($intent) {
     return $map[$intent] ?? $intent;
 }
 
+function chatMemoryCustomerIntentLabel($intent) {
+    $map = [
+        'purchase' => '購入をご検討中',
+        'relocation' => '住み替えをご検討中',
+        'sale' => '売却をご検討中',
+        'investment' => '投資物件についてご相談中',
+        'investment_buy' => '投資物件の購入をご検討中',
+        'investment_sale' => '投資物件の売却をご検討中',
+        'loan' => '住宅ローンについてご相談中',
+        'market' => '相場についてご相談中',
+        'inheritance' => '相続についてご相談中',
+        'other' => '不動産についてご相談中',
+    ];
+    return $map[$intent] ?? chatMemoryIntentLabel($intent);
+}
+
 function chatLoadLeadDataForMemory($db, $sessionId) {
     if (!$db || $sessionId === '') return [];
     try {
@@ -840,35 +856,31 @@ function chatMemoryHasContinuity($memory) {
 }
 
 function chatBuildResumeMessage($memory, $agentName = '担当者') {
-    $agentLabel = trim((string)$agentName) !== '' ? trim((string)$agentName) : '担当者';
     $lines = [];
-    if (!empty($memory['intent'])) $lines[] = 'ご相談内容: ' . chatMemoryIntentLabel($memory['intent']);
-    if (!empty($memory['preferred_area'])) $lines[] = '希望エリア: ' . $memory['preferred_area'];
-    if (!empty($memory['property_type'])) $lines[] = '物件種別: ' . $memory['property_type'];
-    if (!empty($memory['budget'])) $lines[] = '予算/価格: ' . $memory['budget'];
-    if (!empty($memory['family'])) $lines[] = 'ご家族構成: ' . $memory['family'];
-    if (!empty($memory['loan_plan'])) $lines[] = 'ローン関連: ' . $memory['loan_plan'];
-    if (!empty($memory['topics']) && is_array($memory['topics'])) $lines[] = '関心テーマ: ' . implode('、', array_slice($memory['topics'], 0, 4));
-    if (!empty($memory['recent_context'])) $lines[] = '直近の会話: ' . $memory['recent_context'];
+    if (!empty($memory['intent'])) $lines[] = chatMemoryCustomerIntentLabel($memory['intent']);
+    if (!empty($memory['preferred_area'])) $lines[] = $memory['preferred_area'] . 'を中心に検討';
+    if (!empty($memory['property_type'])) $lines[] = $memory['property_type'] . 'をご希望';
+    if (!empty($memory['budget'])) $lines[] = '予算感を整理中';
+    if (!empty($memory['family'])) $lines[] = '暮らし方に合う条件を整理中';
+    if (!empty($memory['loan_plan'])) $lines[] = '資金面も確認中';
+    if (empty($lines) && !empty($memory['last_summary'])) $lines[] = '前回のご相談内容を引き継ぎ済み';
 
-    $message = 'おかえりなさい。前回までの内容を引き継いで、担当「' . $agentLabel . '」に代わって続きからご相談いただけます。';
-    if (!empty($memory['last_summary'])) {
-        $message .= "
-
-AIブリーフィング:
-" . $memory['last_summary'];
-    }
+    $message = "おかえりなさい。
+前回ご相談いただいた内容をもとに、続きからご案内できます。";
     if (!empty($lines)) {
         $message .= "
 
-把握している主な条件:
+現在把握している内容
 ・" . implode("
-・", array_slice($lines, 0, 6));
+・", array_slice(array_values(array_unique($lines)), 0, 5));
     }
-    $message .= "\n\nこの続きからでも、新しいご相談でも大丈夫です。不動産の購入・売却について、何でもお気軽にご質問ください。最初からやり直す場合は、右上の更新ボタンをご利用ください。";
+    $message .= "
+
+まだ条件が固まっていなくても大丈夫です。「何から決めればいいかわからない」という段階の方も多いので、整理しながら一緒に考えていきましょう。
+
+この続きからでも、新しいご相談でも大丈夫です。気になることをそのまま自由にご質問ください。";
     return $message;
 }
-
 function getChatResumeMessageForSession($db, $sessionId, $agentName = '担当者', $businessCardId = null, $forceAiSummary = false) {
     if (!$db || $sessionId === '') return '';
     $memory = getChatSessionMemory($db, $sessionId);

@@ -99,10 +99,12 @@ try {
     $intake = chatIntakeInitialPayload($agentName);
     $resumeIntake = $isResumed ? chatIntakeResumePayload($db, $sessionId, $card['id']) : null;
     $resumeMessage = $isResumed ? getChatResumeMessageForSession($db, $sessionId, $agentName, $card['id'], true) : '';
-    if ($isResumed && $resumeIntake && !empty($resumeIntake['current_question'])) {
+    $resumeQuickReplies = [];
+    if ($isResumed && $resumeIntake && !empty($resumeIntake['can_ask_next'])) {
+        $resumeQuickReplies = $resumeIntake['quick_replies'] ?? [];
         $resumeMessage = trim($resumeMessage . "
 
-続きの確認です。" . $resumeIntake['current_question']);
+条件整理を続ける場合は、下の選択肢から近いものを選べます。無理に答えなくても大丈夫ですし、そのまま自由に質問していただいても大丈夫です。");
     }
     $data = [
         'session_id' => $sessionId,
@@ -114,10 +116,12 @@ try {
         'resume_message' => $resumeMessage,
         'current_field' => $resumeIntake['current_field'] ?? null,
         'current_question' => $resumeIntake['current_question'] ?? '',
+        'can_ask_next' => $resumeIntake['can_ask_next'] ?? false,
+        'intake_mode' => $resumeIntake['intake_mode'] ?? 'guided',
         'agent_photo_url' => $photoUrl,
         'can_use_loan_sim' => canUseLoanSim($card),
         'initial_message' => $intake['initial_message'],
-        'quick_replies' => $isResumed && $resumeIntake ? ($resumeIntake['quick_replies'] ?? []) : $intake['quick_replies'],
+        'quick_replies' => $isResumed ? $resumeQuickReplies : $intake['quick_replies'],
     ];
     sendSuccessResponse($data, 'セッションを作成しました');
 } catch (Exception $e) {

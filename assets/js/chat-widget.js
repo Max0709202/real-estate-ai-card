@@ -412,7 +412,7 @@
         if (sources && sources.length) {
             var sourceBox = document.createElement('div');
             sourceBox.className = 'chat-msg-sources';
-            sourceBox.innerHTML = '<span>参照情報</span>' + sources.slice(0, 3).map(function (source) {
+            sourceBox.innerHTML = '<span style="display:none;">参照情報</span>' + sources.slice(0, 3).map(function (source) {
                 var title = source.title || source.url || 'Source';
                 var url = source.url || '#';
                 return '<a href="' + escapeAttribute(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(title) + '</a>';

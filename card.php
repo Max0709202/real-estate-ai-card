@@ -1229,8 +1229,8 @@ if (!empty($card['profile_photo'])) {
             </div>
             <div id="chat-widget-messages" class="chat-widget-messages"></div>
             <div class="chat-widget-quick-actions" id="chat-widget-quick-actions">
-                <button type="button" class="chat-quick-btn" data-action="loan_repayment">ローン返済額を試算する</button>
-                <button type="button" class="chat-quick-btn" data-action="loan_borrow">借入可能額を試算する</button>
+                <button style="display:none;" type="button" class="chat-quick-btn" data-action="loan_repayment">ローン返済額を試算する</button>
+                <button style="display:none;" type="button" class="chat-quick-btn" data-action="loan_borrow">借入可能額を試算する</button>
             </div>
             <div class="chat-widget-input-wrap">
                 <textarea id="chat-widget-input" class="chat-widget-input" rows="2" placeholder="メッセージを入力..." maxlength="2000"></textarea>

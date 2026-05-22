@@ -166,7 +166,7 @@ function chatIntakeFieldDefinitions() {
         'viewed_property_count' => ['question' => 'これまでに内覧した物件数を教えてください。', 'choices' => [['label' => '1〜2件', 'value' => '1-2'], ['label' => '3〜5件', 'value' => '3-5'], ['label' => '6〜10件', 'value' => '6-10'], ['label' => '10件以上', 'value' => '10+']]],
         'preferred_area_size' => ['question' => 'ご希望の広さ（㎡数）の範囲はありますか。', 'choices' => [['label' => '50㎡未満', 'value' => '<50'], ['label' => '50〜70㎡未満', 'value' => '50-70'], ['label' => '70〜90㎡未満', 'value' => '70-90'], ['label' => '90〜120㎡未満', 'value' => '90-120'], ['label' => '120㎡以上', 'value' => '120+'], ['label' => '未定', 'value' => '未定']]],
         'layout' => ['question' => 'ご希望の間取りを教えてください。', 'choices' => [['label' => '1LDK', 'value' => '1LDK'], ['label' => '2LDK', 'value' => '2LDK'], ['label' => '3LDK', 'value' => '3LDK'], ['label' => '4LDK以上', 'value' => '4LDK以上'], ['label' => '未定', 'value' => '未定']]],
-        'property_type' => ['question' => '物件種別の希望はありますか。複数選択できます。', 'choices' => [['label' => 'マンション', 'value' => 'マンション'], ['label' => '戸建て', 'value' => '戸建て'], ['label' => 'どちらも検討', 'value' => 'どちらも検討'], ['label' => '土地', 'value' => '土地'], ['label' => '投資用', 'value' => '投資用']]],
+        'property_type' => ['question' => '物件種別の希望はありますか。複数選択できます。', 'choices' => [['label' => 'マンション', 'value' => 'マンション'], ['label' => '戸建て', 'value' => '戸建て'], ['label' => '土地', 'value' => '土地'], ['label' => '投資用', 'value' => '投資用']]],
         'station_walk_minutes' => ['question' => '駅からの距離はどの程度まで許容できますか。', 'choices' => [['label' => '5分以内', 'value' => '5'], ['label' => '10分以内', 'value' => '10'], ['label' => '15分以内', 'value' => '15'], ['label' => 'バス可', 'value' => 'bus'], ['label' => '未定', 'value' => '未定']]],
         'priority' => ['question' => '住まい選びで最も重視したいことは何ですか。複数選択できます。', 'choices' => [['label' => '利便性', 'value' => '利便性'], ['label' => '広さ', 'value' => '広さ'], ['label' => '学区', 'value' => '学区'], ['label' => '資産価値', 'value' => '資産価値'], ['label' => '静かな環境', 'value' => '静かな環境'], ['label' => '価格', 'value' => '価格'], ['label' => 'その他', 'value' => 'その他']]],
         'family_structure' => ['question' => 'ご家族構成を差し支えない範囲で教えてください。', 'choices' => [['label' => '単身', 'value' => '単身'], ['label' => '夫婦', 'value' => '夫婦'], ['label' => '子どもあり', 'value' => '子どもあり'], ['label' => '親と同居予定', 'value' => '親と同居予定'], ['label' => 'その他', 'value' => 'その他'], ['label' => '回答しない', 'value' => '未回答']]],
@@ -302,19 +302,22 @@ function chatIntakeQuestionForCurrentField($data) {
 
 function chatIntakeResumePayload($db, $sessionId, $businessCardId) {
     $data = chatIntakeLoad($db, $sessionId, $businessCardId);
-    $field = chatIntakeCurrentFieldForData($data);
+    $mode = $data['_intake_mode'] ?? 'guided';
+    $field = $mode === 'free' ? null : chatIntakeCurrentFieldForData($data);
     if (($data['_current_field'] ?? null) !== $field) {
         $data['_current_field'] = $field;
         chatIntakeSave($db, $sessionId, $businessCardId, $data);
     }
+    $canAskNext = $mode !== 'free' && $field !== null && $field !== '';
     return [
         'current_field' => $field,
-        'current_question' => chatIntakeQuestionForCurrentField($data),
-        'quick_replies' => chatIntakeQuickRepliesForCurrentField($data),
+        'current_question' => $canAskNext ? chatIntakeQuestionForCurrentField($data) : '',
+        'quick_replies' => $canAskNext ? chatIntakeQuickRepliesForCurrentField($data) : [],
+        'can_ask_next' => $canAskNext,
+        'intake_mode' => $mode,
         'data' => $data,
     ];
 }
-
 function chatIntakeLoad($db, $sessionId, $businessCardId) {
     $stmt = $db->prepare('SELECT structured_data FROM chat_leads WHERE session_id = ?');
     $stmt->execute([$sessionId]);
@@ -543,6 +546,82 @@ function chatIntakeAmountToManYen($rawNumber, $unit = '') {
     return $number >= 100000 ? (int)round($number / 10000) : (int)round($number);
 }
 
+
+function chatIntakeMarkAsked(&$data, $field) {
+    if ($field === null || $field === '') return;
+    $asked = $data['_asked_fields'] ?? [];
+    $asked[] = $field;
+    $data['_asked_fields'] = array_values(array_unique($asked));
+}
+
+function chatIntakeFieldHasValue($data, $field) {
+    if ($field === 'budget') return !empty($data['budget_min']) || !empty($data['budget_max']) || !empty($data['budget_note']);
+    if ($field === 'preferred_station_line') return !empty($data['preferred_station_line']) || !empty($data['preferred_station']);
+    if ($field === 'current_property_location') return !empty($data['current_property_location']);
+    if ($field === 'property_location') return !empty($data['property_location']);
+    if ($field === 'contact_request') return !empty($data['customer_contact_raw']) || (($data['contact_status'] ?? '') === 'anonymous' && in_array('contact_request', $data['_asked_fields'] ?? [], true));
+    if (!array_key_exists($field, $data)) return false;
+    $value = $data[$field];
+    if (is_array($value)) return !empty($value);
+    return $value !== null && $value !== '';
+}
+
+function chatIntakeExtractPreferredArea($message) {
+    $message = trim((string)$message);
+    if ($message === '') return null;
+    $patterns = [
+        '/([一-龥ぁ-んァ-ンA-Za-z0-9０-９・ヶケー\-]{1,30}駅周辺)/u',
+        '/([一-龥ぁ-んァ-ンA-Za-z0-9０-９・ヶケー\-]{1,30}周辺)/u',
+        '/([一-龥ぁ-んァ-ンA-Za-z0-9０-９・ヶケー\-]{1,30}(?:都|道|府|県|市|区|町|村))/u',
+        '/([一-龥ぁ-んァ-ンA-Za-z0-9０-９・ヶケー\-]{1,30}(?:駅|沿線|エリア))/u',
+    ];
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $message, $m)) return trim($m[1]);
+    }
+    return null;
+}
+
+function chatIntakeExtractNaturalFields($message, $data) {
+    $message = trim((string)$message);
+    if ($message === '') return [];
+    $extracted = [];
+
+    if (empty($data['customer_type']) && preg_match('/購入|買いたい|買う|探して|探し|物件を見たい|家を見たい|住まいを探/u', $message)) {
+        $extracted['customer_type'] = 'purchase';
+    }
+
+    $area = chatIntakeExtractPreferredArea($message);
+    if ($area !== null && $area !== '未定') $extracted['preferred_area'] = $area;
+
+    if (preg_match('/一戸建て|戸建て|戸建/u', $message)) $extracted['property_type'] = '戸建て';
+    elseif (preg_match('/マンション/u', $message)) $extracted['property_type'] = 'マンション';
+    elseif (preg_match('/土地/u', $message)) $extracted['property_type'] = '土地';
+
+    if (preg_match('/築\s*([0-9０-９]+)\s*年\s*(?:位|くらい|程度)?\s*(?:まで|以内|以下|未満)?/u', $message, $m)) {
+        $years = mb_convert_kana($m[1], 'n');
+        $extracted['age_tolerance'] = $years . '年以内';
+    } elseif (preg_match('/築浅/u', $message)) {
+        $extracted['age_tolerance'] = '築浅';
+    }
+
+    if (preg_match('/予算|価格|[0-9０-９,\.]+\s*(?:億円|億|万円|万|円|yen|jpy)/iu', $message)) {
+        $extracted['budget'] = $message;
+    }
+
+    return $extracted;
+}
+
+function chatIntakeApplyNaturalFields(&$data, $message, $currentField = null) {
+    $extracted = chatIntakeExtractNaturalFields($message, $data);
+    foreach ($extracted as $field => $value) {
+        if ($field === 'customer_type' && !empty($data['customer_type'])) continue;
+        if ($field !== $currentField && chatIntakeFieldHasValue($data, $field)) continue;
+        chatIntakeSetField($data, $field, $value);
+        if ($field === 'customer_type') $data['customer_type'] = $value;
+    }
+    return $extracted;
+}
+
 function chatIntakeSetField(&$data, $field, $value) {
     if ($field === '') return;
     if (is_array($value)) {
@@ -554,7 +633,14 @@ function chatIntakeSetField(&$data, $field, $value) {
         $values = [$value];
     }
 
-    if ($field === 'preferred_area') $data['preferred_area'] = $value === '未定' ? [] : array_values(array_unique(array_merge($data['preferred_area'] ?? [], [$value])));
+    if ($field === 'preferred_area') {
+        if ($value === '未定') {
+            $data['preferred_area'] = [];
+        } else {
+            $area = chatIntakeExtractPreferredArea($value) ?: $value;
+            $data['preferred_area'] = array_values(array_unique(array_merge($data['preferred_area'] ?? [], [$area])));
+        }
+    }
     elseif ($field === 'preferred_station_line') {
         $data['preferred_station'] = $value === '未定' ? [] : array_values(array_unique(array_merge($data['preferred_station'] ?? [], [$value])));
         $data['preferred_station_line'] = $data['preferred_station'];
@@ -601,9 +687,7 @@ function chatIntakeSetField(&$data, $field, $value) {
     } else {
         $data[$field] = $value;
     }
-    $asked = $data['_asked_fields'] ?? [];
-    $asked[] = $field;
-    $data['_asked_fields'] = array_values(array_unique($asked));
+    chatIntakeMarkAsked($data, $field);
 }
 
 function chatIntakeParseDate($value) {
@@ -617,7 +701,9 @@ function chatIntakeNextField($data) {
     if (empty($data['customer_type'])) return 'customer_type';
     $asked = $data['_asked_fields'] ?? [];
     foreach (chatIntakeScenarioFieldsForData($data) as $field) {
-        if (!in_array($field, $asked, true)) return $field;
+        if (in_array($field, $asked, true)) continue;
+        if (chatIntakeFieldHasValue($data, $field)) continue;
+        return $field;
     }
     return null;
 }
@@ -644,9 +730,11 @@ function chatIntakeScenarioIntro($customerType) {
 function chatIntakeAdvice($field, $value, $data) {
     $displayValue = chatIntakeDisplayValue($value);
     if ($field === 'customer_type') return chatIntakeScenarioIntro(is_array($value) ? '' : $value);
-    if ($field === 'preferred_area') return $displayValue === '未定'
-        ? 'エリアがまだ未定でも大丈夫です。最初は「通勤しやすさ」「実家や学校との距離」「予算とのバランス」から候補を広げる方が進めやすいです。'
-        : '「' . $displayValue . '」周辺でお考えですね。エリアが見えてくると、価格帯や広さ、駅距離の現実的なバランスもかなり整理しやすくなります。';
+    if ($field === 'preferred_area') {
+        if ($displayValue === '未定') return 'エリアがまだ未定でも大丈夫です。最初は「通勤しやすさ」「実家や学校との距離」「予算とのバランス」から候補を広げる方が進めやすいです。';
+        $areaLabel = preg_match('/周辺$/u', $displayValue) ? '「' . $displayValue . '」' : '「' . $displayValue . '」周辺';
+        return $areaLabel . 'でお考えですね。エリアが見えてくると、価格帯や広さ、駅距離の現実的なバランスもかなり整理しやすくなります。';
+    }
     if ($field === 'preferred_station_line') return $displayValue === '未定'
         ? '駅や沿線は後から絞っても問題ありません。生活圏や通勤時間から逆算すると、意外な候補エリアが見つかることもあります。'
         : '駅・沿線の希望も分かりました。駅距離を少し広げるだけで、同じ予算でも広さや築年数の選択肢が増えることがあります。';
@@ -834,17 +922,36 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
     }
 
     if (($data['_intake_mode'] ?? 'guided') === 'free') {
-        return ['handled' => false, 'quick_replies' => chatIntakeQuickRepliesForCurrentField($data), 'data' => $data];
+        return ['handled' => false, 'quick_replies' => [], 'data' => $data];
     }
 
     $field = $data['_current_field'] ?? 'customer_type';
     if ($field === null || $field === '') {
         return ['handled' => false, 'data' => $data];
     }
-    if (!$fromButton && $field !== 'customer_type' && chatIntakeLooksLikeUserQuestion($message)) {
+    $extractedFields = $fromButton ? [] : chatIntakeApplyNaturalFields($data, $message, $field);
+    if (!$fromButton && !isset($extractedFields[$field]) && !empty($extractedFields)) {
+        chatIntakeEvaluateTemperature($data);
+        chatIntakeBuildSummary($data);
+        $nextField = chatIntakeNextField($data);
+        $data['_current_field'] = $nextField;
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
+
+        $defs = chatIntakeFieldDefinitions();
+        $handledField = array_key_first($extractedFields);
+        $reply = chatIntakeBuildReply($handledField, $extractedFields[$handledField], $nextField, $data);
+        $quick = $nextField && isset($defs[$nextField]) ? chatIntakeQuickRepliesForField($nextField, $data) : [];
+        return [
+            'handled' => true,
+            'reply' => $reply,
+            'quick_replies' => $quick,
+            'data' => $data,
+        ];
+    }
+    if (!$fromButton && $field !== 'customer_type' && chatIntakeLooksLikeUserQuestion($message) && !isset($extractedFields[$field])) {
         return ['handled' => false, 'quick_replies' => chatIntakeQuickRepliesForCurrentField($data), 'data' => $data];
     }
-    $value = chatIntakeNormalizeChoiceValue($field, $message);
+    $value = isset($extractedFields[$field]) ? $extractedFields[$field] : chatIntakeNormalizeChoiceValue($field, $message);
     if ($field === 'customer_type') {
         $validTypes = array_map(function ($choice) { return $choice['value']; }, chatIntakeTypeChoices());
         if (is_array($value) || !in_array($value, $validTypes, true)) {
