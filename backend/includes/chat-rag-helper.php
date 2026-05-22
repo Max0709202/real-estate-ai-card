@@ -743,6 +743,56 @@ function chatComposeMemorySummary($memory) {
     return chatMemoryTrim(implode(' / ', $parts), 900);
 }
 
+function chatShouldBuildAISummary($db, $sessionId) {
+    if (!$db || $sessionId === '') return false;
+    try {
+        $stmt = $db->prepare('SELECT COUNT(*) FROM chat_messages WHERE session_id = ?');
+        $stmt->execute([$sessionId]);
+        $count = (int)$stmt->fetchColumn();
+        return $count >= 12 && $count % 8 === 0;
+    } catch (Throwable $e) {
+        error_log('Chat AI summary count error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+function chatBuildAISessionSummary($db, $sessionId, $memory = []) {
+    if (!$db || $sessionId === '' || !function_exists('callOpenAIChat')) return '';
+    $apiKey = defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '');
+    if ($apiKey === '' || $apiKey === 'YOUR_OPENAI_API_KEY_HERE') return '';
+    $model = defined('OPENAI_CHAT_MODEL') ? OPENAI_CHAT_MODEL : 'gpt-4o-mini';
+
+    try {
+        $stmt = $db->prepare('SELECT role, message FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 30');
+        $stmt->execute([$sessionId]);
+        $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
+    } catch (Throwable $e) {
+        error_log('Chat AI summary load error: ' . $e->getMessage());
+        return '';
+    }
+    if (count($rows) < 6) return '';
+
+    $transcript = [];
+    foreach ($rows as $row) {
+        $label = ($row['role'] ?? '') === 'user' ? '顧客' : 'AI';
+        $text = chatMemoryTrim($row['message'] ?? '', 500);
+        if ($text !== '') $transcript[] = $label . ': ' . $text;
+    }
+    if (empty($transcript)) return '';
+
+    $existingSummary = is_array($memory) && !empty($memory['last_summary']) ? $memory['last_summary'] : 'なし';
+    $messages = [
+        ['role' => 'system', 'content' => 'あなたは不動産営業向けCRMの会話メモリー作成担当です。会話ログから、次回接客で使える顧客カルテを日本語で簡潔に作ってください。推測で断定せず、分からない項目は書かないでください。電話番号・メールアドレス・LINE IDなどの連絡先そのものは書かず、連絡先取得済みかどうかだけを書いてください。最大700文字。'],
+        ['role' => 'user', 'content' => "既存要約:\n" . $existingSummary . "\n\n直近会話ログ:\n" . implode("\n", $transcript) . "\n\n出力形式:\n相談目的 / 希望条件 / 不安・関心 / 家族・生活条件 / 温度感 / 次に確認するとよいこと"],
+    ];
+    $result = callOpenAIChat($messages, $apiKey, $model);
+    if (!empty($result['error']) || empty($result['reply'])) {
+        if (!empty($result['error'])) error_log('Chat AI summary error: ' . $result['error']);
+        return '';
+    }
+    return chatMemoryTrim($result['reply'], 900);
+}
+
 function updateChatSessionMemoryHeuristic($db, $sessionId, $businessCardId, $userMessage, $botReply = '') {
     if (!$db || $sessionId === '') return;
     try {
@@ -753,7 +803,8 @@ function updateChatSessionMemoryHeuristic($db, $sessionId, $businessCardId, $use
         chatRememberBotSuggestion($memory, $botReply);
         $memory['recent_context'] = chatBuildRecentConversationNote($db, $sessionId);
         $memory['missing_info'] = chatBuildMissingInfo($memory);
-        $memory['last_summary'] = chatComposeMemorySummary($memory);
+        $aiSummary = chatShouldBuildAISummary($db, $sessionId) ? chatBuildAISessionSummary($db, $sessionId, $memory) : '';
+        $memory['last_summary'] = $aiSummary !== '' ? $aiSummary : chatComposeMemorySummary($memory);
         $memory['last_updated_at'] = date('c');
         $json = json_encode($memory, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $stmt = $db->prepare("INSERT INTO chat_session_memory (session_id, business_card_id, memory_json, last_summary)
@@ -763,6 +814,52 @@ function updateChatSessionMemoryHeuristic($db, $sessionId, $businessCardId, $use
     } catch (Throwable $e) {
         error_log('Chat memory update error: ' . $e->getMessage());
     }
+}
+
+function chatMemoryHasContinuity($memory) {
+    if (!$memory || !is_array($memory)) return false;
+    foreach (['last_summary', 'intent', 'property_type', 'budget', 'family', 'preferred_area', 'loan_plan', 'recent_context', 'lead_summary'] as $key) {
+        if (!empty($memory[$key])) return true;
+    }
+    return false;
+}
+
+function chatBuildResumeMessage($memory, $agentName = '担当者') {
+    $agentLabel = trim((string)$agentName) !== '' ? trim((string)$agentName) : '担当者';
+    $lines = [];
+    if (!empty($memory['intent'])) $lines[] = 'ご相談内容: ' . chatMemoryIntentLabel($memory['intent']);
+    if (!empty($memory['preferred_area'])) $lines[] = '希望エリア: ' . $memory['preferred_area'];
+    if (!empty($memory['property_type'])) $lines[] = '物件種別: ' . $memory['property_type'];
+    if (!empty($memory['budget'])) $lines[] = '予算/価格: ' . $memory['budget'];
+    if (!empty($memory['family'])) $lines[] = 'ご家族構成: ' . $memory['family'];
+    if (!empty($memory['loan_plan'])) $lines[] = 'ローン関連: ' . $memory['loan_plan'];
+    if (!empty($memory['topics']) && is_array($memory['topics'])) $lines[] = '関心テーマ: ' . implode('、', array_slice($memory['topics'], 0, 4));
+    if (!empty($memory['recent_context'])) $lines[] = '直近の会話: ' . $memory['recent_context'];
+
+    $message = 'おかえりなさい。前回までの内容を引き継いで、担当「' . $agentLabel . '」に代わって続きからご相談いただけます。';
+    if (!empty($lines)) {
+        $message .= "\n\n前回までに伺っている内容:\n・" . implode("\n・", array_slice($lines, 0, 6));
+    } elseif (!empty($memory['last_summary'])) {
+        $message .= "\n\n前回までの要約: " . $memory['last_summary'];
+    }
+    $message .= "\n\nこの続きからでも、新しいご相談でも大丈夫です。不動産の購入・売却について、何でもお気軽にご質問ください。最初からやり直す場合は、右上の更新ボタンをご利用ください。";
+    return $message;
+}
+
+function getChatResumeMessageForSession($db, $sessionId, $agentName = '担当者') {
+    if (!$db || $sessionId === '') return '';
+    $memory = getChatSessionMemory($db, $sessionId);
+    if (!chatMemoryHasContinuity($memory)) {
+        $leadData = chatLoadLeadDataForMemory($db, $sessionId);
+        if (!empty($leadData)) {
+            chatApplyLeadDataToMemory($memory, $leadData);
+            $memory['last_summary'] = chatComposeMemorySummary($memory);
+        }
+    }
+    if (!chatMemoryHasContinuity($memory)) {
+        $memory['recent_context'] = chatBuildRecentConversationNote($db, $sessionId);
+    }
+    return chatMemoryHasContinuity($memory) ? chatBuildResumeMessage($memory, $agentName) : '';
 }
 
 function buildChatMemoryContext($memory) {

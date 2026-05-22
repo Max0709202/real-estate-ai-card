@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../../includes/chat-intake-helper.php';
+require_once __DIR__ . '/../../../includes/chat-rag-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -99,17 +100,28 @@ try {
         $photoUrl = (!preg_match('/^https?:\/\//', $p)) ? (BASE_URL . '/' . ltrim($p, '/')) : $p;
     }
 
-    $intake = chatIntakeInitialPayload($card['name'] ?? '担当者');
+    $agentName = $card['name'] ?? '担当者';
+    $intake = chatIntakeInitialPayload($agentName);
+    $resumeIntake = $isResumed ? chatIntakeResumePayload($db, $sessionId, $card['id']) : null;
+    $resumeMessage = $isResumed ? getChatResumeMessageForSession($db, $sessionId, $agentName) : '';
+    if ($isResumed && $resumeIntake && !empty($resumeIntake['current_question'])) {
+        $resumeMessage = trim($resumeMessage . "
+
+続きの確認です。" . $resumeIntake['current_question']);
+    }
     $data = [
         'session_id' => $sessionId,
         'visitor_id' => $visitorId,
         'is_resumed' => $isResumed,
         'messages' => $messages,
         'agent_name' => $card['name'] ?? '',
+        'resume_message' => $resumeMessage,
+        'current_field' => $resumeIntake['current_field'] ?? null,
+        'current_question' => $resumeIntake['current_question'] ?? '',
         'agent_photo_url' => $photoUrl,
         'can_use_loan_sim' => canUseLoanSim($card),
         'initial_message' => $intake['initial_message'],
-        'quick_replies' => $intake['quick_replies'],
+        'quick_replies' => $isResumed && $resumeIntake ? ($resumeIntake['quick_replies'] ?? []) : $intake['quick_replies'],
     ];
     sendSuccessResponse($data, 'セッションを作成しました');
 } catch (Exception $e) {

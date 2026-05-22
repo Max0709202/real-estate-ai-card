@@ -269,6 +269,12 @@
     flex-wrap: wrap;
     gap: 0.5rem;
 }
+.chat-widget-default-prompt {
+    flex-basis: 100%;
+    color: #5f6b7a;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
 .chat-quick-btn {
     font-size: 0.8rem;
     padding: 0.4rem 0.75rem;

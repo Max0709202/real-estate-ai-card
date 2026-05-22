@@ -25,6 +25,7 @@
     var toggleAvatarEl = document.getElementById('chat-widget-toggle-avatar');
     var toggleLabelEl = document.getElementById('chat-widget-toggle-label');
     var quickActions = document.getElementById('chat-widget-quick-actions');
+    var defaultPromptText = '不動産の購入・売却について、何でもお気軽にご質問ください。';
     var pwaModalIds = ['pwaIosModal1', 'pwaIosModal2', 'pwaIosModalSafari'];
 
     if (!toggleBtn || !panel || !messagesContainer || !inputEl || !sendBtn) return;
@@ -157,6 +158,7 @@
     function hidePanel() {
         panel.hidden = true;
         toggleBtn.setAttribute('aria-expanded', 'false');
+        showDefaultQuickPrompt();
     }
 
     function appendVoiceAvailabilityNotice() {
@@ -256,11 +258,28 @@
         scheduleUpdate();
     }
 
+    function clearDynamicQuickActions() {
+        if (!quickActions) return;
+        var dynamicItems = quickActions.querySelectorAll('.chat-intake-replies, .chat-widget-default-prompt');
+        Array.prototype.forEach.call(dynamicItems, function (item) { item.remove(); });
+    }
+
+    function showDefaultQuickPrompt() {
+        if (!quickActions) return;
+        clearDynamicQuickActions();
+        var prompt = document.createElement('div');
+        prompt.className = 'chat-widget-default-prompt';
+        prompt.textContent = defaultPromptText;
+        quickActions.insertBefore(prompt, quickActions.firstChild);
+    }
+
     function renderQuickReplies(replies) {
         if (!quickActions) return;
-        var existing = quickActions.querySelector('.chat-intake-replies');
-        if (existing) existing.remove();
-        if (!replies || !replies.length) return;
+        clearDynamicQuickActions();
+        if (!replies || !replies.length) {
+            showDefaultQuickPrompt();
+            return;
+        }
 
         var isMulti = replies.some(function (reply) { return !!reply.multi_select; });
         var group = document.createElement('div');
@@ -345,13 +364,14 @@
                         messagesContainer.innerHTML = '';
                         if (data.data.is_resumed && data.data.messages && data.data.messages.length) {
                             renderSessionMessages(data.data.messages);
+                            appendBotMessage(data.data.resume_message || ('おかえりなさい。前回の続きからご相談いただけます。' + defaultPromptText));
                         } else {
                             appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
                             appendVoiceAvailabilityNotice();
                         }
                         greetingShown = true;
                     }
-                    renderQuickReplies(data.data.is_resumed ? [] : (data.data.quick_replies || []));
+                    renderQuickReplies(data.data.quick_replies || []);
                     if (!canUseLoanSim && quickActions) quickActions.style.display = 'none';
                     setInputEnabled(true);
                 } else {

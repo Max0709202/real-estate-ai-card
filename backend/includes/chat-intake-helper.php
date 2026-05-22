@@ -10,20 +10,27 @@ function chatIntakeDefaultData() {
         'temperature' => 'low',
         'preferred_area' => [],
         'preferred_station' => [],
+        'preferred_station_line' => [],
         'preferred_line' => [],
         'commute_destination' => null,
+        'purchase_area' => [],
         'budget_min' => null,
         'budget_max' => null,
+        'purchase_budget_min' => null,
+        'purchase_budget_max' => null,
         'competitor_viewing_status' => null,
         'viewed_property_count' => null,
         'preferred_area_size' => null,
         'layout' => null,
         'property_type' => null,
+        'station_walk_minutes' => null,
         'purchase_timing' => null,
         'selling_timing' => null,
+        'move_completion_timing' => null,
         'loan_status' => null,
         'loan_balance' => null,
         'desired_sale_price' => null,
+        'desired_price' => null,
         'minimum_price' => null,
         'sublease_status' => null,
         'sublease_cancelable' => null,
@@ -32,6 +39,35 @@ function chatIntakeDefaultData() {
         'simulation_monthly_payment' => null,
         'simulation_interest_type' => null,
         'competitor_status' => null,
+        'current_property_location' => null,
+        'repair_history' => null,
+        'appeal_points' => [],
+        'building_name' => null,
+        'exclusive_area' => null,
+        'floor_info' => null,
+        'direction' => null,
+        'monthly_cost' => null,
+        'renovation_history' => null,
+        'facility_notes' => null,
+        'land_area' => null,
+        'building_area' => null,
+        'building_age' => null,
+        'road_info' => null,
+        'coverage_ratio' => null,
+        'floor_area_ratio' => null,
+        'land_status' => null,
+        'boundary_issue' => null,
+        'occupancy_status' => null,
+        'gross_yield' => null,
+        'replacement_plan' => null,
+        'age_tolerance' => null,
+        'finance_plan' => null,
+        'equity' => null,
+        'reason_for_move' => null,
+        'temporary_housing' => null,
+        'tax_consideration' => null,
+        'ownership_status' => null,
+        'consultation_type' => null,
         'disclosure_flags' => [],
         'priority' => [],
         'summary_for_sales' => null,
@@ -52,6 +88,7 @@ function chatIntakeDefaultData() {
         'next_task' => null,
         'completed_tasks' => [],
         '_current_field' => 'customer_type',
+        '_intake_mode' => 'guided',
         '_asked_fields' => [],
         '_button_selection_archive' => [],
         '_updated_at' => date('c'),
@@ -73,16 +110,43 @@ function chatIntakeTypeChoices() {
 }
 
 function chatIntakeMultiSelectFields() {
-    return ['priority', 'property_type', 'disclosure_flags', 'other_debts', 'loan_concern', 'preferred_contact'];
+    return ['priority', 'property_type', 'disclosure_flags', 'other_debts', 'loan_concern', 'preferred_contact', 'appeal_points'];
 }
 
 function chatIntakeIsMultiSelectField($field) {
     return in_array($field, chatIntakeMultiSelectFields(), true);
 }
 
-function chatIntakeQuickRepliesForField($field) {
+function chatIntakeRecommendedChoice($field, $data) {
+    $map = [
+        'family_structure' => 'family_structure',
+        'property_type' => 'property_type',
+        'preferred_area_size' => 'preferred_area_size',
+        'layout' => 'layout',
+        'purchase_timing' => 'purchase_timing',
+        'selling_timing' => 'selling_timing',
+        'loan_status' => 'loan_status',
+        'preferred_contact' => 'preferred_contact',
+    ];
+    $sourceKey = $map[$field] ?? null;
+    if ($sourceKey === null || empty($data[$sourceKey])) return null;
+    return chatIntakeDisplayValue($data[$sourceKey]);
+}
+
+function chatIntakeQuickRepliesForField($field, $data = null) {
     $defs = chatIntakeFieldDefinitions();
     $choices = $defs[$field]['choices'] ?? [];
+    if (is_array($data)) {
+        $recommended = chatIntakeRecommendedChoice($field, $data);
+        if ($recommended !== null) {
+            array_unshift($choices, [
+                'label' => '前回の内容: ' . $recommended,
+                'value' => $recommended,
+                'field' => $field,
+                'recommended' => true,
+            ]);
+        }
+    }
     if (!chatIntakeIsMultiSelectField($field)) return $choices;
     return array_map(function ($choice) use ($field) {
         $choice['multi_select'] = true;
@@ -100,25 +164,27 @@ function chatIntakeFieldDefinitions() {
         'budget' => ['question' => 'ご予算のイメージを教えてください。例: 6,000万〜7,000万円、まだ未定など。', 'choices' => [['label' => 'まだ未定', 'value' => '未定']]],
         'competitor_viewing_status' => ['question' => 'すでに他社で物件の内覧をされていますか。', 'choices' => [['label' => 'はい', 'value' => 'yes'], ['label' => 'いいえ', 'value' => 'no']]],
         'viewed_property_count' => ['question' => 'これまでに内覧した物件数を教えてください。', 'choices' => [['label' => '1〜2件', 'value' => '1-2'], ['label' => '3〜5件', 'value' => '3-5'], ['label' => '6〜10件', 'value' => '6-10'], ['label' => '10件以上', 'value' => '10+']]],
-        'preferred_area_size' => ['question' => 'ご希望の広さ（㎡数）の範囲はありますか。', 'choices' => [['label' => '50㎡未満', 'value' => '<50'], ['label' => '50〜70㎡', 'value' => '50-70'], ['label' => '70〜90㎡', 'value' => '70-90'], ['label' => '90〜120㎡', 'value' => '90-120'], ['label' => '120㎡以上', 'value' => '120+'], ['label' => '未定', 'value' => '未定']]],
+        'preferred_area_size' => ['question' => 'ご希望の広さ（㎡数）の範囲はありますか。', 'choices' => [['label' => '50㎡未満', 'value' => '<50'], ['label' => '50〜70㎡未満', 'value' => '50-70'], ['label' => '70〜90㎡未満', 'value' => '70-90'], ['label' => '90〜120㎡未満', 'value' => '90-120'], ['label' => '120㎡以上', 'value' => '120+'], ['label' => '未定', 'value' => '未定']]],
         'layout' => ['question' => 'ご希望の間取りを教えてください。', 'choices' => [['label' => '1LDK', 'value' => '1LDK'], ['label' => '2LDK', 'value' => '2LDK'], ['label' => '3LDK', 'value' => '3LDK'], ['label' => '4LDK以上', 'value' => '4LDK以上'], ['label' => '未定', 'value' => '未定']]],
-        'property_type' => ['question' => '物件種別の希望はありますか。複数選択できます。', 'choices' => [['label' => 'マンション', 'value' => 'マンション'], ['label' => '戸建て', 'value' => '戸建て'], ['label' => 'どちらも検討', 'value' => 'どちらも検討'], ['label' => '土地', 'value' => '土地']]],
+        'property_type' => ['question' => '物件種別の希望はありますか。複数選択できます。', 'choices' => [['label' => 'マンション', 'value' => 'マンション'], ['label' => '戸建て', 'value' => '戸建て'], ['label' => 'どちらも検討', 'value' => 'どちらも検討'], ['label' => '土地', 'value' => '土地'], ['label' => '投資用', 'value' => '投資用']]],
         'station_walk_minutes' => ['question' => '駅からの距離はどの程度まで許容できますか。', 'choices' => [['label' => '5分以内', 'value' => '5'], ['label' => '10分以内', 'value' => '10'], ['label' => '15分以内', 'value' => '15'], ['label' => 'バス可', 'value' => 'bus'], ['label' => '未定', 'value' => '未定']]],
-        'priority' => ['question' => '住まい選びで重視したいことは何ですか。複数選択できます。', 'choices' => [['label' => '利便性', 'value' => '利便性'], ['label' => '広さ', 'value' => '広さ'], ['label' => '学区', 'value' => '学区'], ['label' => '資産価値', 'value' => '資産価値'], ['label' => '静かな環境', 'value' => '静かな環境'], ['label' => '価格', 'value' => '価格']]],
-        'family_structure' => ['question' => 'ご家族構成を差し支えない範囲で教えてください。', 'choices' => [['label' => '単身', 'value' => '単身'], ['label' => '夫婦', 'value' => '夫婦'], ['label' => '子どもあり', 'value' => '子どもあり'], ['label' => '親と同居予定', 'value' => '親と同居予定'], ['label' => '回答しない', 'value' => '未回答']]],
+        'priority' => ['question' => '住まい選びで最も重視したいことは何ですか。複数選択できます。', 'choices' => [['label' => '利便性', 'value' => '利便性'], ['label' => '広さ', 'value' => '広さ'], ['label' => '学区', 'value' => '学区'], ['label' => '資産価値', 'value' => '資産価値'], ['label' => '静かな環境', 'value' => '静かな環境'], ['label' => '価格', 'value' => '価格'], ['label' => 'その他', 'value' => 'その他']]],
+        'family_structure' => ['question' => 'ご家族構成を差し支えない範囲で教えてください。', 'choices' => [['label' => '単身', 'value' => '単身'], ['label' => '夫婦', 'value' => '夫婦'], ['label' => '子どもあり', 'value' => '子どもあり'], ['label' => '親と同居予定', 'value' => '親と同居予定'], ['label' => 'その他', 'value' => 'その他'], ['label' => '回答しない', 'value' => '未回答']]],
         'purchase_timing' => ['question' => 'いつ頃までにお引越しを希望されていますか。', 'choices' => [['label' => 'すぐ', 'value' => 'すぐ'], ['label' => '3か月以内', 'value' => '3か月以内'], ['label' => '半年以内', 'value' => '半年以内'], ['label' => '1年以内', 'value' => '1年以内'], ['label' => '未定', 'value' => '未定']]],
         'loan_status' => ['question' => '住宅ローンの状況を教えてください。', 'choices' => [['label' => '事前審査済', 'value' => '事前審査済'], ['label' => 'これから', 'value' => 'これから'], ['label' => '現金購入', 'value' => '現金購入'], ['label' => 'わからない', 'value' => 'わからない']]],
         'renovation_preference' => ['question' => 'リフォームについての希望はありますか。', 'choices' => [['label' => 'リフォーム済希望', 'value' => 'リフォーム済希望'], ['label' => '自分でリフォームしたい', 'value' => '自分でリフォームしたい'], ['label' => 'どちらでもよい', 'value' => 'どちらでもよい']]],
         'current_property_type' => ['question' => '現在のお住まいはどのような物件ですか。', 'choices' => [['label' => 'マンション', 'value' => 'マンション'], ['label' => '戸建て', 'value' => '戸建て'], ['label' => '土地', 'value' => '土地'], ['label' => 'その他', 'value' => 'その他']]],
+        'current_property_location' => ['question' => '現在のお住まいの所在地を教えてください。住所に抵抗があれば、市区町村やマンション名まででも大丈夫です。', 'choices' => [['label' => '市区町村まで', 'value' => '市区町村まで']]],
         'selling_strategy' => ['question' => '買い替えの進め方はどちらを希望されていますか。', 'choices' => [['label' => '売却先行', 'value' => '売却先行'], ['label' => '購入先行', 'value' => '購入先行'], ['label' => '同時進行', 'value' => '同時進行'], ['label' => '未定', 'value' => '未定']]],
-        'property_location' => ['question' => '物件の所在地を教えてください。住所に抵抗があれば、市区町村やマンション名まででも大丈夫です。', 'choices' => []],
-        'selling_reason' => ['question' => '売却理由に近いものを教えてください。', 'choices' => [['label' => '住み替え', 'value' => '住み替え'], ['label' => '相続', 'value' => '相続'], ['label' => '資産整理', 'value' => '資産整理'], ['label' => '高齢者施設', 'value' => '高齢者施設'], ['label' => '離婚', 'value' => '離婚'], ['label' => 'その他', 'value' => 'その他']]],
+        'property_location' => ['question' => '物件の所在地を教えてください。住所に抵抗があれば、市区町村やマンション名まででも大丈夫です。', 'choices' => [['label' => '市区町村まで', 'value' => '市区町村まで'], ['label' => '今は不明', 'value' => '不明']]],
+        'selling_reason' => ['question' => '売却理由に近いものを教えてください。', 'choices' => [['label' => '住み替え', 'value' => '住み替え'], ['label' => '相続', 'value' => '相続'], ['label' => '資産整理', 'value' => '資産整理'], ['label' => '高齢者施設', 'value' => '高齢者施設'], ['label' => '離婚', 'value' => '離婚'], ['label' => '賃貸へ転居', 'value' => '賃貸へ転居'], ['label' => 'その他', 'value' => 'その他']]],
         'selling_timing' => ['question' => '売却希望時期はありますか。', 'choices' => [['label' => 'すぐ', 'value' => 'すぐ'], ['label' => '3か月以内', 'value' => '3か月以内'], ['label' => '半年以内', 'value' => '半年以内'], ['label' => '1年以内', 'value' => '1年以内'], ['label' => '未定', 'value' => '未定']]],
         'loan_balance' => ['question' => '住宅ローン残債はありますか。金額が分からなければ「あり」「なし」「不明」だけで大丈夫です。', 'choices' => [['label' => 'あり', 'value' => 'あり'], ['label' => 'なし', 'value' => 'なし'], ['label' => 'わからない', 'value' => 'わからない']]],
         'minimum_price' => ['question' => '最低希望価格や売却希望価格はありますか。未定でも大丈夫です。', 'choices' => [['label' => '未定', 'value' => '未定']]],
         'appraisal_status' => ['question' => '過去に査定を受けたことはありますか。', 'choices' => [['label' => '初めて', 'value' => '初めて'], ['label' => '1社', 'value' => '1社'], ['label' => '複数社', 'value' => '複数社'], ['label' => '媒介契約中', 'value' => '媒介契約中']]],
-        'appraisal_request' => ['question' => '無料査定を希望されますか。', 'choices' => [['label' => '希望する', 'value' => '希望する'], ['label' => 'まず相場だけ', 'value' => 'まず相場だけ'], ['label' => 'まだ検討中', 'value' => 'まだ検討中']]],
-        'disclosure_flags' => ['question' => '告知事項として気になる点はありますか。複数選択できます。', 'choices' => [['label' => '雨漏り', 'value' => '雨漏り'], ['label' => 'シロアリ', 'value' => 'シロアリ'], ['label' => '事故・孤独死', 'value' => '事故・孤独死'], ['label' => '騒音', 'value' => '騒音'], ['label' => '越境', 'value' => '越境'], ['label' => '特になし', 'value' => '特になし'], ['label' => '不明', 'value' => '不明']]],
+        'competitor_status' => ['question' => '他社に相談されていますか。', 'choices' => [['label' => '未相談', 'value' => '未相談'], ['label' => '査定済', 'value' => '査定済'], ['label' => '媒介契約中', 'value' => '媒介契約中'], ['label' => '物件見学中', 'value' => '物件見学中'], ['label' => '数件見た', 'value' => '数件見た'], ['label' => '継続的に見ている', 'value' => '継続的に見ている']]],
+        'appraisal_request' => ['question' => '無料査定を希望されますか。', 'choices' => [['label' => '希望する', 'value' => '希望する'], ['label' => 'まず相場だけ知りたい', 'value' => 'まず相場だけ'], ['label' => 'まだ検討中', 'value' => 'まだ検討中']]],
+        'disclosure_flags' => ['question' => '告知事項として気になる点はありますか。複数選択できます。', 'choices' => [['label' => '雨漏り', 'value' => '雨漏り'], ['label' => 'シロアリ', 'value' => 'シロアリ'], ['label' => '事故・孤独死', 'value' => '事故・孤独死'], ['label' => '騒音', 'value' => '騒音'], ['label' => '越境', 'value' => '越境'], ['label' => '違反建築', 'value' => '違反建築'], ['label' => '特になし', 'value' => '特になし'], ['label' => '不明', 'value' => '不明']]],
         'preferred_contact' => ['question' => '連絡希望方法を教えてください。複数選択できます。', 'choices' => [['label' => '電話', 'value' => '電話'], ['label' => 'メール', 'value' => 'メール'], ['label' => 'LINE', 'value' => 'LINE'], ['label' => 'チャット継続', 'value' => 'チャット継続']]],
         'investment_type' => ['question' => '希望する投資物件の種別を教えてください。', 'choices' => [['label' => '区分マンション', 'value' => '区分マンション'], ['label' => '一棟アパート', 'value' => '一棟アパート'], ['label' => '一棟マンション', 'value' => '一棟マンション'], ['label' => '未定', 'value' => '未定']]],
         'owner_change_ok' => ['question' => 'オーナーチェンジ物件も検討対象ですか。', 'choices' => [['label' => '対象', 'value' => '対象'], ['label' => '対象外', 'value' => '対象外'], ['label' => '内容による', 'value' => '内容による']]],
@@ -137,6 +203,35 @@ function chatIntakeFieldDefinitions() {
         'loan_simulation_used' => ['question' => '住宅ローンシミュレーターで月々返済額などを試算してみますか。', 'choices' => [['label' => '利用する', 'value' => 'yes'], ['label' => 'あとで利用する', 'value' => 'later'], ['label' => '不要', 'value' => 'no']]],
         'consultation_reason' => ['question' => '相場を知りたい理由に近いものを教えてください。', 'choices' => [['label' => '売却検討', 'value' => '売却検討'], ['label' => '相続', 'value' => '相続'], ['label' => '資産把握', 'value' => '資産把握'], ['label' => '住み替え', 'value' => '住み替え'], ['label' => '興味本位', 'value' => '興味本位']]],
         'report_request' => ['question' => '今後、相場変動レポートを受け取りたいですか。', 'choices' => [['label' => '希望する', 'value' => '希望する'], ['label' => '検討する', 'value' => '検討する'], ['label' => '不要', 'value' => '不要']]],
+        'reason_for_move' => ['question' => '買い替え理由に近いものを教えてください。', 'choices' => [['label' => '手狭', 'value' => '手狭'], ['label' => '通勤', 'value' => '通勤'], ['label' => '子育て', 'value' => '子育て'], ['label' => '住環境', 'value' => '住環境'], ['label' => '老後', 'value' => '老後'], ['label' => '資産整理', 'value' => '資産整理'], ['label' => 'その他', 'value' => 'その他']]],
+        'temporary_housing' => ['question' => '仮住まいは可能ですか。', 'choices' => [['label' => '可能', 'value' => '可能'], ['label' => 'できれば避けたい', 'value' => 'できれば避けたい'], ['label' => '不可', 'value' => '不可'], ['label' => '未定', 'value' => '未定']]],
+        'tax_consideration' => ['question' => '3,000万円特別控除の利用を検討していますか。', 'choices' => [['label' => '検討中', 'value' => '検討中'], ['label' => '使う予定', 'value' => '使う予定'], ['label' => 'わからない', 'value' => 'わからない']]],
+        'move_completion_timing' => ['question' => 'いつまでに買い替えを完了したいですか。', 'choices' => [['label' => '3か月以内', 'value' => '3か月以内'], ['label' => '半年以内', 'value' => '半年以内'], ['label' => '1年以内', 'value' => '1年以内'], ['label' => '未定', 'value' => '未定']]],
+        'repair_history' => ['question' => 'リフォーム・修繕履歴はありますか。分かる範囲で大丈夫です。', 'choices' => [['label' => 'あり', 'value' => 'あり'], ['label' => 'なし', 'value' => 'なし'], ['label' => '不明', 'value' => '不明']]],
+        'appeal_points' => ['question' => '物件の良い点を教えてください。複数選択できます。', 'choices' => [['label' => '眺望', 'value' => '眺望'], ['label' => '日当たり', 'value' => '日当たり'], ['label' => '管理状態', 'value' => '管理状態'], ['label' => '駅近', 'value' => '駅近'], ['label' => '静か', 'value' => '静か'], ['label' => 'リフォーム済', 'value' => 'リフォーム済']]],
+        'building_name' => ['question' => 'マンション名を教えてください。分かる範囲で大丈夫です。', 'choices' => [['label' => '今は不明', 'value' => '不明']]],
+        'exclusive_area' => ['question' => '専有面積は分かりますか。平方メートルで分かる範囲で大丈夫です。', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'floor_info' => ['question' => '所在階と総階数を教えてください。例: 5階 / 12階建', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'direction' => ['question' => '方位を教えてください。', 'choices' => [['label' => '南', 'value' => '南'], ['label' => '東', 'value' => '東'], ['label' => '西', 'value' => '西'], ['label' => '北', 'value' => '北'], ['label' => '角部屋', 'value' => '角部屋'], ['label' => '不明', 'value' => '不明']]],
+        'monthly_cost' => ['question' => '管理費・修繕積立金は分かりますか。', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'renovation_history' => ['question' => '室内リフォーム履歴はありますか。時期や内容が分かれば教えてください。', 'choices' => [['label' => 'あり', 'value' => 'あり'], ['label' => 'なし', 'value' => 'なし'], ['label' => '不明', 'value' => '不明']]],
+        'facility_notes' => ['question' => 'ペット可否や駐車場など、特徴はありますか。', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'land_area' => ['question' => '土地面積は分かりますか。㎡または坪で大丈夫です。', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'building_area' => ['question' => '建物面積は分かりますか。戸建ての場合のみ、㎡または坪で大丈夫です。', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'building_age' => ['question' => '築年月は分かりますか。', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'road_info' => ['question' => '前面道路について分かる範囲で教えてください。幅員、方位、接道状況などです。', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'coverage_ratio' => ['question' => '建ぺい率は分かりますか。', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'floor_area_ratio' => ['question' => '容積率は分かりますか。', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'land_status' => ['question' => '土地の状態を教えてください。', 'choices' => [['label' => '更地', 'value' => '更地'], ['label' => '古家あり', 'value' => '古家あり'], ['label' => '居住中', 'value' => '居住中'], ['label' => '賃貸中', 'value' => '賃貸中']]],
+        'boundary_issue' => ['question' => '境界・越境で気になる点はありますか。', 'choices' => [['label' => 'あり', 'value' => 'あり'], ['label' => 'なし', 'value' => 'なし'], ['label' => '不明', 'value' => '不明']]],
+        'occupancy_status' => ['question' => '現在の賃貸状況を教えてください。', 'choices' => [['label' => '賃貸中', 'value' => '賃貸中'], ['label' => '空室', 'value' => '空室'], ['label' => '一部空室', 'value' => '一部空室'], ['label' => '自用', 'value' => '自用'], ['label' => '不明', 'value' => '不明']]],
+        'gross_yield' => ['question' => '表面利回りは分かりますか。', 'choices' => [['label' => '不明', 'value' => '不明']]],
+        'replacement_plan' => ['question' => '買い替え予定はありますか。', 'choices' => [['label' => 'あり', 'value' => 'あり'], ['label' => 'なし', 'value' => 'なし'], ['label' => '未定', 'value' => '未定']]],
+        'age_tolerance' => ['question' => '築年数の許容範囲はありますか。', 'choices' => [['label' => '10年以内', 'value' => '10年以内'], ['label' => '20年以内', 'value' => '20年以内'], ['label' => '築古可', 'value' => '築古可'], ['label' => '未定', 'value' => '未定']]],
+        'finance_plan' => ['question' => '融資利用予定はありますか。', 'choices' => [['label' => '利用予定', 'value' => '利用予定'], ['label' => '現金', 'value' => '現金'], ['label' => '未定', 'value' => '未定']]],
+        'equity' => ['question' => '自己資金の目安を教えてください。', 'choices' => [['label' => '未定', 'value' => '未定']]],
+        'ownership_status' => ['question' => '相続の場合、名義や共有者の状況は分かりますか。', 'choices' => [['label' => '単独名義', 'value' => '単独名義'], ['label' => '共有', 'value' => '共有'], ['label' => '相続登記前', 'value' => '相続登記前'], ['label' => '不明', 'value' => '不明']]],
+        'simulation_save_consent' => ['question' => 'シミュレーターで試算した借入希望額や毎月返済額を保存してもよろしいですか。', 'choices' => [['label' => '保存する', 'value' => '保存する'], ['label' => '保存しない', 'value' => '保存しない'], ['label' => 'あとで確認', 'value' => 'あとで確認']]],
         'move_date' => ['question' => '引っ越し希望日や決済・引渡希望日はありますか。例: 2026-09-30 のように入力できます。', 'choices' => [['label' => '未定', 'value' => '未定']]],
         'contact_request' => ['question' => 'ここまでで主な内容は整理できました。担当者から具体的なご案内を希望される場合は、お名前とご希望の連絡方法を自由に入力してください。
 例：山田太郎／メール yamada@example.com、電話 090-xxxx-xxxx、LINE ID xxxx など。
@@ -146,17 +241,78 @@ function chatIntakeFieldDefinitions() {
 
 function chatIntakeScenarioFields($customerType) {
     $map = [
-        'purchase' => ['preferred_area', 'preferred_station_line', 'commute_destination', 'budget', 'competitor_viewing_status', 'viewed_property_count', 'preferred_area_size', 'layout', 'property_type', 'station_walk_minutes', 'priority', 'family_structure', 'purchase_timing', 'loan_status', 'renovation_preference', 'move_date', 'contact_request'],
-        'replacement' => ['current_property_type', 'selling_strategy', 'property_location', 'loan_balance', 'minimum_price', 'preferred_area', 'budget', 'selling_reason', 'purchase_timing', 'competitor_status', 'move_date', 'contact_request'],
-        'sale' => ['property_location', 'property_type', 'selling_reason', 'selling_timing', 'loan_balance', 'minimum_price', 'appraisal_status', 'appraisal_request', 'disclosure_flags', 'preferred_contact', 'move_date', 'contact_request'],
-        'investment_buy' => ['investment_type', 'owner_change_ok', 'preferred_area', 'budget', 'target_yield', 'loan_status', 'purchase_timing', 'competitor_status', 'contact_request'],
-        'investment_sale' => ['property_location', 'property_type', 'sublease_status', 'sublease_cancelable', 'rent_income', 'loan_balance', 'minimum_price', 'selling_reason', 'competitor_status', 'move_date', 'contact_request'],
-        'loan' => ['income', 'employment_type', 'years_employed', 'down_payment', 'desired_loan_amount', 'other_debts', 'pre_approval_status', 'loan_concern', 'loan_simulation_used', 'contact_request'],
+        'purchase' => ['preferred_area', 'preferred_station_line', 'commute_destination', 'budget', 'competitor_viewing_status', 'viewed_property_count', 'preferred_area_size', 'layout', 'property_type', 'station_walk_minutes', 'priority', 'family_structure', 'purchase_timing', 'loan_status', 'renovation_preference', 'contact_request'],
+        'replacement' => ['current_property_type', 'selling_strategy', 'current_property_location', 'loan_balance', 'minimum_price', 'preferred_area', 'budget', 'reason_for_move', 'temporary_housing', 'tax_consideration', 'competitor_status', 'move_completion_timing', 'contact_request'],
+        'sale' => ['property_location', 'property_type', 'selling_reason', 'selling_timing', 'loan_balance', 'minimum_price', 'appraisal_status', 'appraisal_request', 'disclosure_flags', 'repair_history', 'appeal_points', 'preferred_contact', 'contact_request'],
+        'investment_buy' => ['investment_type', 'owner_change_ok', 'preferred_area', 'budget', 'target_yield', 'age_tolerance', 'finance_plan', 'equity', 'purchase_timing', 'competitor_status', 'contact_request'],
+        'investment_sale' => ['property_location', 'property_type', 'occupancy_status', 'sublease_status', 'sublease_cancelable', 'rent_income', 'gross_yield', 'loan_balance', 'desired_price', 'selling_reason', 'replacement_plan', 'competitor_status', 'contact_request'],
+        'loan' => ['income', 'employment_type', 'years_employed', 'down_payment', 'desired_loan_amount', 'other_debts', 'pre_approval_status', 'loan_concern', 'loan_simulation_used', 'simulation_save_consent', 'contact_request'],
         'market' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'report_request', 'contact_request'],
-        'inheritance' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'report_request', 'contact_request'],
+        'inheritance' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'ownership_status', 'report_request', 'contact_request'],
         'other' => ['property_location', 'property_type', 'preferred_contact', 'contact_request'],
     ];
     return $map[$customerType] ?? [];
+}
+
+function chatIntakeInsertFieldsAfter($fields, $afterField, $insertFields) {
+    $pos = array_search($afterField, $fields, true);
+    if ($pos === false) return array_merge($fields, $insertFields);
+    return array_merge(array_slice($fields, 0, $pos + 1), $insertFields, array_slice($fields, $pos + 1));
+}
+
+function chatIntakeScenarioFieldsForData($data) {
+    $fields = chatIntakeScenarioFields($data['customer_type'] ?? '');
+    $propertyType = chatIntakeDisplayValue($data['property_type'] ?? '');
+    if (($data['customer_type'] ?? '') === 'sale') {
+        $insertFields = [];
+        if (mb_strpos($propertyType, 'マンション') !== false) {
+            $insertFields = array_merge($insertFields, ['building_name', 'exclusive_area', 'floor_info', 'direction', 'monthly_cost', 'renovation_history', 'facility_notes']);
+        }
+        if (mb_strpos($propertyType, '戸建') !== false || mb_strpos($propertyType, '土地') !== false) {
+            $insertFields = array_merge($insertFields, ['land_area', 'building_area', 'building_age', 'road_info', 'coverage_ratio', 'floor_area_ratio', 'land_status', 'boundary_issue']);
+        }
+        if (!empty($insertFields)) {
+            $fields = chatIntakeInsertFieldsAfter($fields, 'property_type', $insertFields);
+        }
+    }
+    return array_values(array_unique($fields));
+}
+
+function chatIntakeCurrentFieldForData($data) {
+    $field = $data['_current_field'] ?? null;
+    if (($field === null || $field === '' || $field === 'customer_type') && !empty($data['customer_type'])) {
+        $next = chatIntakeNextField($data);
+        if ($next !== null && $next !== '') return $next;
+    }
+    if ($field === null || $field === '') return chatIntakeNextField($data);
+    return $field;
+}
+
+function chatIntakeQuickRepliesForCurrentField($data) {
+    $field = chatIntakeCurrentFieldForData($data);
+    $defs = chatIntakeFieldDefinitions();
+    return $field && isset($defs[$field]) ? chatIntakeQuickRepliesForField($field, $data) : [];
+}
+
+function chatIntakeQuestionForCurrentField($data) {
+    $field = chatIntakeCurrentFieldForData($data);
+    $defs = chatIntakeFieldDefinitions();
+    return $field && isset($defs[$field]) ? ($defs[$field]['question'] ?? '') : '';
+}
+
+function chatIntakeResumePayload($db, $sessionId, $businessCardId) {
+    $data = chatIntakeLoad($db, $sessionId, $businessCardId);
+    $field = chatIntakeCurrentFieldForData($data);
+    if (($data['_current_field'] ?? null) !== $field) {
+        $data['_current_field'] = $field;
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
+    }
+    return [
+        'current_field' => $field,
+        'current_question' => chatIntakeQuestionForCurrentField($data),
+        'quick_replies' => chatIntakeQuickRepliesForCurrentField($data),
+        'data' => $data,
+    ];
 }
 
 function chatIntakeLoad($db, $sessionId, $businessCardId) {
@@ -285,6 +441,28 @@ function chatIntakeInitialPayload($agentName) {
     ];
 }
 
+function chatIntakeUserWantsFreeConversation($message) {
+    return (bool)preg_match('/(質問|ヒアリング|聞き取り).*(やめ|止め|停止|しない|不要)|勝手な質問|任意の質問|自由に質問|普通に答え|質問ばかり|stop\s+asking|don[’\'`]?t\s+ask|no\s+more\s+questions/iu', (string)$message);
+}
+
+function chatIntakeUserWantsGuidedConversation($message) {
+    return (bool)preg_match('/(条件|希望|相談内容).*(整理|聞いて|質問して)|ヒアリング.*(再開|して)|質問.*(再開|して)|最初から整理/u', (string)$message);
+}
+
+function chatIntakeLooksLikeUserQuestion($message) {
+    $message = trim((string)$message);
+    if ($message === '') return false;
+    if (preg_match('/[?？]/u', $message)) return true;
+    if (preg_match('/(教えて|知りたい|どう|どの|どれ|なぜ|いつ|いくら|できますか|でしょうか|ですか|とは|について|相談したい|悩んで|困って|不安|心配)/u', $message)) return true;
+    if (preg_match('/^(what|why|how|when|where|can|could|should|would|tell me|explain)\b/i', $message)) return true;
+    return false;
+}
+
+function chatIntakeBuildFreeConversationReply($agentName = '担当者') {
+    $agentLabel = trim((string)$agentName) !== '' ? trim((string)$agentName) : '担当者';
+    return "承知しました。こちらから条件整理の質問を続けるのはいったん止めます。\n\nこれまで伺った内容は引き継ぎますので、不動産の購入・売却・ローン・相場など、気になることをそのまま自由にご質問ください。必要な時だけ、担当「{$agentLabel}」へ引き継ぎやすい形で整理します。";
+}
+
 function chatIntakeNormalizeChoiceValue($field, $message) {
     $defs = chatIntakeFieldDefinitions();
     $choices = $defs[$field]['choices'] ?? [];
@@ -355,6 +533,16 @@ function chatIntakeSetContact(&$data, $value) {
     }
 }
 
+function chatIntakeAmountToManYen($rawNumber, $unit = '') {
+    $number = (float)str_replace([',', '，'], '', mb_convert_kana((string)$rawNumber, 'n'));
+    $unit = mb_strtolower((string)$unit);
+    if ($number <= 0) return null;
+    if (mb_strpos($unit, '億') !== false) return (int)round($number * 10000);
+    if ($unit === '円' || $unit === 'yen' || $unit === 'jpy') return (int)round($number / 10000);
+    if (mb_strpos($unit, '万') !== false) return (int)round($number);
+    return $number >= 100000 ? (int)round($number / 10000) : (int)round($number);
+}
+
 function chatIntakeSetField(&$data, $field, $value) {
     if ($field === '') return;
     if (is_array($value)) {
@@ -367,13 +555,33 @@ function chatIntakeSetField(&$data, $field, $value) {
     }
 
     if ($field === 'preferred_area') $data['preferred_area'] = $value === '未定' ? [] : array_values(array_unique(array_merge($data['preferred_area'] ?? [], [$value])));
-    elseif ($field === 'preferred_station_line') $data['preferred_station'] = $value === '未定' ? [] : array_values(array_unique(array_merge($data['preferred_station'] ?? [], [$value])));
+    elseif ($field === 'preferred_station_line') {
+        $data['preferred_station'] = $value === '未定' ? [] : array_values(array_unique(array_merge($data['preferred_station'] ?? [], [$value])));
+        $data['preferred_station_line'] = $data['preferred_station'];
+    }
     elseif ($field === 'budget') {
-        if (preg_match_all('/([0-9０-９,\.]+)\s*(億|万|万円|円)?/u', $value, $m) && count($m[1]) >= 1) {
-            $nums = array_map(function ($raw) { return (int)str_replace([',', '，'], '', mb_convert_kana($raw, 'n')); }, $m[1]);
-            if (count($nums) >= 2) { $data['budget_min'] = min($nums); $data['budget_max'] = max($nums); }
-            else { $data['budget_max'] = $nums[0]; }
+        if (preg_match_all('/([0-9０-９,\.]+)\s*(億円|億|万円|万|円|yen|jpy)?/iu', $value, $m, PREG_SET_ORDER) && count($m) >= 1) {
+            $nums = [];
+            foreach ($m as $match) {
+                $amount = chatIntakeAmountToManYen($match[1], $match[2] ?? '');
+                if ($amount !== null) $nums[] = $amount;
+            }
+            if (count($nums) >= 2) {
+                $data['budget_min'] = min($nums);
+                $data['budget_max'] = max($nums);
+            } elseif (count($nums) === 1) {
+                if (preg_match('/以上|超|over|more than|at least|最低/iu', $value)) {
+                    $data['budget_min'] = $nums[0];
+                } elseif (preg_match('/以下|未満|under|less than|up to|最大/iu', $value)) {
+                    $data['budget_max'] = $nums[0];
+                } else {
+                    $data['budget_max'] = $nums[0];
+                }
+            }
         } else $data['budget_note'] = $value;
+    } elseif ($field === 'current_property_location') {
+        $data['current_property_location'] = $value === '市区町村まで' ? null : $value;
+        $data['property_location'] = $data['current_property_location'];
     } elseif (chatIntakeIsMultiSelectField($field)) {
         if (!isset($data[$field]) || !is_array($data[$field])) $data[$field] = [];
         $clearValues = ['特になし', '不明', 'なし', '未回答', 'チャット継続'];
@@ -408,7 +616,7 @@ function chatIntakeParseDate($value) {
 function chatIntakeNextField($data) {
     if (empty($data['customer_type'])) return 'customer_type';
     $asked = $data['_asked_fields'] ?? [];
-    foreach (chatIntakeScenarioFields($data['customer_type']) as $field) {
+    foreach (chatIntakeScenarioFieldsForData($data) as $field) {
         if (!in_array($field, $asked, true)) return $field;
     }
     return null;
@@ -552,7 +760,7 @@ function chatIntakeBuildSummary(&$data) {
     if (!empty($data['customer_phone']) || !empty($data['customer_email'])) $parts[] = '連絡先取得済み';
     $data['summary_for_sales'] = implode(' / ', $parts);
     $data['missing_fields'] = [];
-    foreach (chatIntakeScenarioFields($data['customer_type'] ?? '') as $field) {
+    foreach (chatIntakeScenarioFieldsForData($data) as $field) {
         if (!in_array($field, $data['_asked_fields'] ?? [], true)) $data['missing_fields'][] = $field;
     }
     $data['next_action'] = chatIntakeNextAction($data);
@@ -584,9 +792,31 @@ function chatIntakeProgressMessage($data) {
     return implode("\n", $lines);
 }
 
-function processChatIntakeMessage($db, $sessionId, $businessCardId, $message) {
+function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $options = []) {
     $data = chatIntakeLoad($db, $sessionId, $businessCardId);
     $data['last_user_message'] = $message;
+    $fromButton = !empty($options['from_button']);
+    $agentName = $options['agent_name'] ?? '担当者';
+
+    if (chatIntakeUserWantsFreeConversation($message)) {
+        $data['_intake_mode'] = 'free';
+        $data['_current_field'] = null;
+        chatIntakeEvaluateTemperature($data);
+        chatIntakeBuildSummary($data);
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
+        return [
+            'handled' => true,
+            'reply' => chatIntakeBuildFreeConversationReply($agentName),
+            'quick_replies' => [],
+            'data' => $data,
+        ];
+    }
+
+    if (chatIntakeUserWantsGuidedConversation($message)) {
+        $data['_intake_mode'] = 'guided';
+        $data['_current_field'] = chatIntakeNextField($data);
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
+    }
 
     if (preg_match('/(.+?)\s*完了/u', $message, $m)) {
         $task = trim($m[1]);
@@ -603,15 +833,22 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message) {
         return ['handled' => true, 'reply' => $progress, 'quick_replies' => [], 'data' => $data];
     }
 
+    if (($data['_intake_mode'] ?? 'guided') === 'free') {
+        return ['handled' => false, 'quick_replies' => chatIntakeQuickRepliesForCurrentField($data), 'data' => $data];
+    }
+
     $field = $data['_current_field'] ?? 'customer_type';
     if ($field === null || $field === '') {
         return ['handled' => false, 'data' => $data];
+    }
+    if (!$fromButton && $field !== 'customer_type' && chatIntakeLooksLikeUserQuestion($message)) {
+        return ['handled' => false, 'quick_replies' => chatIntakeQuickRepliesForCurrentField($data), 'data' => $data];
     }
     $value = chatIntakeNormalizeChoiceValue($field, $message);
     if ($field === 'customer_type') {
         $validTypes = array_map(function ($choice) { return $choice['value']; }, chatIntakeTypeChoices());
         if (is_array($value) || !in_array($value, $validTypes, true)) {
-            return ['handled' => false, 'data' => $data];
+            return ['handled' => false, 'quick_replies' => chatIntakeQuickRepliesForField('customer_type', $data), 'data' => $data];
         }
     }
     chatIntakeSetField($data, $field, $value);
@@ -624,7 +861,7 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message) {
 
     $defs = chatIntakeFieldDefinitions();
     $reply = chatIntakeBuildReply($field, $value, $nextField, $data);
-    $quick = $nextField && isset($defs[$nextField]) ? chatIntakeQuickRepliesForField($nextField) : [];
+    $quick = $nextField && isset($defs[$nextField]) ? chatIntakeQuickRepliesForField($nextField, $data) : [];
     return [
         'handled' => true,
         'reply' => $reply,
@@ -645,7 +882,16 @@ function buildChatLeadContext($data) {
         'sublease_cancelable' => 'サブリース解除可否', 'summary_for_sales' => '営業向け要約', 'next_action' => '次アクション',
         'move_date' => '引越/引渡希望日', 'customer_name' => '顧客名', 'customer_phone' => '電話番号',
         'customer_email' => 'メールアドレス', 'customer_line' => 'LINE', 'preferred_contact_method' => '希望連絡方法',
-        'preferred_contact' => '希望連絡方法', 'contact_status' => '連絡先状態'
+        'preferred_contact' => '希望連絡方法', 'contact_status' => '連絡先状態', 'station_walk_minutes' => '駅徒歩許容分数',
+        'renovation_preference' => 'リフォーム意向', 'current_property_location' => '現居所在地', 'reason_for_move' => '買い替え理由',
+        'temporary_housing' => '仮住まい可否', 'tax_consideration' => '3,000万円控除検討', 'move_completion_timing' => '買い替え完了希望時期',
+        'repair_history' => '修繕履歴', 'appeal_points' => '物件PRポイント', 'building_name' => 'マンション名', 'exclusive_area' => '専有面積',
+        'floor_info' => '所在階・総階数', 'direction' => '方位', 'monthly_cost' => '管理費・修繕積立金', 'renovation_history' => 'リフォーム履歴',
+        'facility_notes' => '設備・特徴', 'land_area' => '土地面積', 'building_area' => '建物面積', 'building_age' => '築年月',
+        'road_info' => '前面道路', 'coverage_ratio' => '建ぺい率', 'floor_area_ratio' => '容積率', 'land_status' => '土地状況',
+        'boundary_issue' => '境界・越境', 'occupancy_status' => '賃貸状況', 'gross_yield' => '表面利回り', 'replacement_plan' => '買い替え予定',
+        'age_tolerance' => '築年数許容', 'finance_plan' => '融資利用予定', 'equity' => '自己資金', 'ownership_status' => '名義・共有状況',
+        'simulation_save_consent' => 'シミュレーター結果保存可否', '_intake_mode' => '会話モード'
     ];
     $lines = [];
     foreach ($labels as $key => $label) {

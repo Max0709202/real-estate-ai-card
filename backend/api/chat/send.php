@@ -82,7 +82,10 @@ try {
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $conversationHistory = array_reverse(array_map(function ($r) { return ['role' => $r['role'], 'message' => $r['message']]; }, $rows));
 
-    $intake = processChatIntakeMessage($db, $sessionId, $card['id'], $message);
+    $intake = processChatIntakeMessage($db, $sessionId, $card['id'], $message, [
+        'from_button' => $buttonSelection !== null,
+        'agent_name' => $card['name'] ?? '担当者',
+    ]);
     $quickReplies = $intake['quick_replies'] ?? [];
     $leadData = $intake['data'] ?? null;
 
