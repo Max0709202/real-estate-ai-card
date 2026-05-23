@@ -36,6 +36,8 @@
     var sessionStarting = false;
     var sendingMessage = false;
     var greetingShown = false;
+    var botTypingTimer = null;
+    var reducedMotionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
     var recognition = null;
     var isListening = false;
@@ -403,25 +405,106 @@
         });
     }
 
-    function appendBotMessage(text, isLoading, sources, createdAt) {
+    function scrollMessagesToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function appendMessageSources(wrap, sources) {
+        if (!sources || !sources.length) return;
+        var sourceBox = document.createElement('div');
+        sourceBox.className = 'chat-msg-sources';
+        sourceBox.innerHTML = '<span style="display:none;">参照情報</span>' + sources.slice(0, 3).map(function (source) {
+            var title = source.title || source.url || 'Source';
+            var url = source.url || '#';
+            return '<a href="' + escapeAttribute(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(title) + '</a>';
+        }).join('');
+        var content = wrap.querySelector('.chat-msg-content');
+        if (content) content.appendChild(sourceBox);
+    }
+
+    function prefersReducedMotion() {
+        return !!(reducedMotionQuery && reducedMotionQuery.matches);
+    }
+
+    function getBotTypewriterStep(totalLength) {
+        if (totalLength > 1400) return 4;
+        if (totalLength > 800) return 3;
+        if (totalLength > 500) return 2;
+        return 1;
+    }
+
+    function getBotTypewriterDelay(character, totalLength) {
+        if (totalLength > 1000) {
+            if (/[\n。！？!?]/.test(character)) return 35;
+            if (/[、,]/.test(character)) return 20;
+            return 5;
+        }
+        if (/[\n。！？!?]/.test(character)) return 120;
+        if (/[、,]/.test(character)) return 60;
+        if (/[）)]/.test(character)) return 35;
+        return 18;
+    }
+
+    function finishBotTypewriter(wrap, bubble, text, sources, onComplete) {
+        wrap.classList.remove('is-typing');
+        bubble.innerHTML = formatBotMessageHtml(text);
+        appendMessageSources(wrap, sources);
+        scrollMessagesToBottom();
+        if (typeof onComplete === 'function') onComplete();
+    }
+
+    function startBotTypewriter(wrap, bubble, text, sources, onComplete) {
+        var index = 0;
+        var totalLength = text.length;
+        var step = getBotTypewriterStep(totalLength);
+
+        if (botTypingTimer) {
+            clearTimeout(botTypingTimer);
+            botTypingTimer = null;
+        }
+
+        wrap.classList.add('is-typing');
+        bubble.innerHTML = '';
+
+        function tick() {
+            index = Math.min(index + step, totalLength);
+            bubble.innerHTML = formatBotMessageHtml(text.slice(0, index));
+            scrollMessagesToBottom();
+
+            if (index >= totalLength) {
+                botTypingTimer = null;
+                finishBotTypewriter(wrap, bubble, text, sources, onComplete);
+                return;
+            }
+
+            botTypingTimer = setTimeout(function () {
+                tick();
+            }, getBotTypewriterDelay(text.charAt(index - 1), totalLength));
+        }
+
+        botTypingTimer = setTimeout(function () {
+            tick();
+        }, 90);
+    }
+
+    function appendBotMessage(text, isLoading, sources, createdAt, options) {
+        text = String(text || '');
+        options = options || {};
         var wrap = document.createElement('div');
         wrap.className = 'chat-msg bot' + (isLoading ? ' chat-msg-loading' : '');
         var time = formatMessageTime(createdAt);
         var img = agentPhoto ? '<img class="chat-msg-avatar" src="' + escapeAttribute(agentPhoto) + '" alt="">' : '';
-        wrap.innerHTML = img + '<div class="chat-msg-content"><div class="chat-msg-bubble">' + formatBotMessageHtml(text) + '</div><div class="chat-msg-time">' + time + '</div></div>';
-        if (sources && sources.length) {
-            var sourceBox = document.createElement('div');
-            sourceBox.className = 'chat-msg-sources';
-            sourceBox.innerHTML = '<span style="display:none;">参照情報</span>' + sources.slice(0, 3).map(function (source) {
-                var title = source.title || source.url || 'Source';
-                var url = source.url || '#';
-                return '<a href="' + escapeAttribute(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(title) + '</a>';
-            }).join('');
-            var content = wrap.querySelector('.chat-msg-content');
-            if (content) content.appendChild(sourceBox);
-        }
+        var shouldType = !!(options.typewriter && !isLoading && !createdAt && text && !prefersReducedMotion());
+        wrap.innerHTML = img + '<div class="chat-msg-content"><div class="chat-msg-bubble">' + (shouldType ? '' : formatBotMessageHtml(text)) + '</div><div class="chat-msg-time">' + time + '</div></div>';
         messagesContainer.appendChild(wrap);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        var bubble = wrap.querySelector('.chat-msg-bubble');
+        if (shouldType && bubble) {
+            startBotTypewriter(wrap, bubble, text, sources, options.onComplete);
+        } else {
+            appendMessageSources(wrap, sources);
+            scrollMessagesToBottom();
+            if (typeof options.onComplete === 'function') options.onComplete();
+        }
         return wrap;
     }
 
@@ -431,7 +514,7 @@
         var time = formatMessageTime(createdAt);
         wrap.innerHTML = '<div class="chat-msg-avatar"></div><div><div class="chat-msg-bubble">' + escapeHtml(text) + '</div><div class="chat-msg-time">' + time + '</div></div>';
         messagesContainer.appendChild(wrap);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        scrollMessagesToBottom();
     }
 
     function escapeHtml(s) {
@@ -547,22 +630,30 @@
                 });
             })
             .then(function (data) {
-                sendingMessage = false;
                 loadingRow.remove();
+                var finishSend = function () {
+                    sendingMessage = false;
+                    setInputEnabled(true);
+                    updateVoiceButtonState();
+                    setVoiceStatus('');
+                    inputEl.focus();
+                };
                 if (data.success && data.data && data.data.reply) {
-                    appendBotMessage(data.data.reply, false, data.data.sources || []);
-                    renderQuickReplies(data.data.quick_replies || []);
+                    appendBotMessage(data.data.reply, false, data.data.sources || [], '', {
+                        typewriter: true,
+                        onComplete: function () {
+                            renderQuickReplies(data.data.quick_replies || []);
+                            finishSend();
+                        }
+                    });
                 } else {
                     if (data.message && data.message.indexOf('セッション') !== -1) {
                         sessionId = null;
                         clearSavedSessionId();
                     }
                     appendBotMessage(data.message || 'エラーが発生しました。');
+                    finishSend();
                 }
-                setInputEnabled(true);
-                updateVoiceButtonState();
-                setVoiceStatus('');
-                inputEl.focus();
             })
             .catch(function () {
                 sendingMessage = false;
