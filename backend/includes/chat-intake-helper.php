@@ -445,7 +445,7 @@ function chatIntakeInitialPayload($agentName) {
 }
 
 function chatIntakeUserWantsFreeConversation($message) {
-    return (bool)preg_match('/(質問|ヒアリング|聞き取り).*(やめ|止め|停止|しない|不要)|勝手な質問|任意の質問|自由に質問|普通に答え|質問ばかり|stop\s+asking|don[’\'`]?t\s+ask|no\s+more\s+questions/iu', (string)$message);
+    return (bool)preg_match('/(質問|ヒアリング|聞き取り).*(やめ|止め|停止|しない|不要)|勝手な質問|任意の質問|自由に質問|質問ばかり|stop\s+asking|don[’\'`]?t\s+ask|no\s+more\s+questions/iu', (string)$message);
 }
 
 function chatIntakeUserWantsGuidedConversation($message) {
@@ -459,6 +459,12 @@ function chatIntakeLooksLikeUserQuestion($message) {
     if (preg_match('/(教えて|知りたい|どう|どの|どれ|なぜ|いつ|いくら|できますか|でしょうか|ですか|とは|について|相談したい|悩んで|困って|不安|心配)/u', $message)) return true;
     if (preg_match('/^(what|why|how|when|where|can|could|should|would|tell me|explain)\b/i', $message)) return true;
     return false;
+}
+
+function chatIntakeUserRequestsDirectAnswer($message) {
+    $message = trim((string)$message);
+    if ($message === '') return false;
+    return (bool)preg_match('/(こちら|こっち|先ほど|さっき|前|上|私|自分)?の?質問.*(答え|回答|返答)|質問に(答え|回答|返答)|聞いた(?:こと|内容).*(答え|回答|返答)|ちゃんと.*(会話|答え|回答|返答)|普通に答え|会話.*(成立|成り立|噛み合)|話.*(通じ|噛み合)|同じ.*(質問|こと).*(繰り返|聞か)|無視しない|答えてください|回答してください/u', $message);
 }
 
 function chatIntakeBuildFreeConversationReply($agentName = '担当者') {
@@ -929,6 +935,24 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
     if ($field === null || $field === '') {
         return ['handled' => false, 'data' => $data];
     }
+
+    $validCustomerTypes = array_map(function ($choice) { return $choice['value']; }, chatIntakeTypeChoices());
+    $normalizedCustomerType = $field === 'customer_type' ? chatIntakeNormalizeChoiceValue($field, $message) : null;
+    $shouldAnswerDirectly = !$fromButton && (
+        chatIntakeUserRequestsDirectAnswer($message)
+        || ($field !== 'customer_type' && chatIntakeLooksLikeUserQuestion($message))
+        || ($field === 'customer_type' && chatIntakeLooksLikeUserQuestion($message) && !in_array($normalizedCustomerType, $validCustomerTypes, true))
+    );
+    if ($shouldAnswerDirectly) {
+        chatIntakeApplyNaturalFields($data, $message, null);
+        $data['_intake_mode'] = 'free';
+        $data['_current_field'] = null;
+        chatIntakeEvaluateTemperature($data);
+        chatIntakeBuildSummary($data);
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
+        return ['handled' => false, 'quick_replies' => [], 'data' => $data];
+    }
+
     $extractedFields = $fromButton ? [] : chatIntakeApplyNaturalFields($data, $message, $field);
     if (!$fromButton && !isset($extractedFields[$field]) && !empty($extractedFields)) {
         chatIntakeEvaluateTemperature($data);
