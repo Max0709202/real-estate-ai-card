@@ -774,9 +774,9 @@ function chatShouldBuildAISummary($db, $sessionId) {
 
 function chatBuildAISessionSummary($db, $sessionId, $memory = []) {
     if (!$db || $sessionId === '' || !function_exists('callOpenAIChat')) return '';
-    $apiKey = defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '');
+    $model = function_exists('chatOpenAISelectModel') ? chatOpenAISelectModel('summary') : (defined('OPENAI_MODEL_SUMMARY') ? OPENAI_MODEL_SUMMARY : 'gpt-4o-mini');
+    $apiKey = function_exists('chatOpenAIApiKeyForModel') ? chatOpenAIApiKeyForModel($model) : (defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: ''));
     if ($apiKey === '' || $apiKey === 'YOUR_OPENAI_API_KEY_HERE') return '';
-    $model = defined('OPENAI_CHAT_MODEL') ? OPENAI_CHAT_MODEL : 'gpt-4o-mini';
 
     try {
         $stmt = $db->prepare('SELECT role, message FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 30');
@@ -801,7 +801,12 @@ function chatBuildAISessionSummary($db, $sessionId, $memory = []) {
         ['role' => 'system', 'content' => 'あなたは不動産営業向けCRMの会話メモリー作成担当です。会話ログから、次回接客で使える顧客カルテを日本語で簡潔に作ってください。推測で断定せず、分からない項目は書かないでください。電話番号・メールアドレス・LINE IDなどの連絡先そのものは書かず、連絡先取得済みかどうかだけを書いてください。最大700文字。'],
         ['role' => 'user', 'content' => "既存要約:\n" . $existingSummary . "\n\n直近会話ログ:\n" . implode("\n", $transcript) . "\n\n出力形式:\n相談目的 / 希望条件 / 不安・関心 / 家族・生活条件 / 温度感 / 次に確認するとよいこと"],
     ];
-    $result = callOpenAIChat($messages, $apiKey, $model);
+    $result = callOpenAIChat($messages, $apiKey, $model, [
+        'db' => $db,
+        'session_id' => $sessionId,
+        'business_card_id' => function_exists('chatOpenAIGetSessionBusinessCardId') ? chatOpenAIGetSessionBusinessCardId($db, $sessionId) : null,
+        'purpose' => 'summary',
+    ]);
     if (!empty($result['error']) || empty($result['reply'])) {
         if (!empty($result['error'])) error_log('Chat AI summary error: ' . $result['error']);
         return '';

@@ -122,17 +122,169 @@ function getBlogContextForChat($userMessage = '') {
 require_once __DIR__ . '/chat-rag-helper.php';
 require_once __DIR__ . '/chat-intake-helper.php';
 
+function chatOpenAIModelLight() {
+    if (defined('OPENAI_MODEL_LIGHT')) return OPENAI_MODEL_LIGHT;
+    if (defined('OPENAI_CHAT_MODEL')) return OPENAI_CHAT_MODEL;
+    return getenv('OPENAI_MODEL_LIGHT') ?: (getenv('OPENAI_CHAT_MODEL') ?: 'gpt-4o-mini');
+}
+
+function chatOpenAIModelSales() {
+    if (defined('OPENAI_MODEL_SALES')) return OPENAI_MODEL_SALES;
+    return getenv('OPENAI_MODEL_SALES') ?: chatOpenAIModelLight();
+}
+
+function chatOpenAIModelSummary() {
+    if (defined('OPENAI_MODEL_SUMMARY')) return OPENAI_MODEL_SUMMARY;
+    return getenv('OPENAI_MODEL_SUMMARY') ?: chatOpenAIModelLight();
+}
+
+function chatOpenAIModelKeyGroup($model) {
+    $model = strtolower((string)$model);
+    if (strpos($model, 'gpt-5') === 0 || strpos($model, 'gpt5') === 0 || $model === strtolower((string)chatOpenAIModelSales())) return 'sales';
+    return 'light';
+}
+
+function chatOpenAIApiKeyForModel($model) {
+    $group = chatOpenAIModelKeyGroup($model);
+    if ($group === 'sales') {
+        if (defined('OPENAI_API_KEY_SALES') && OPENAI_API_KEY_SALES !== '') return OPENAI_API_KEY_SALES;
+        $key = getenv('OPENAI_API_KEY_SALES');
+        if ($key !== false && $key !== '') return $key;
+    }
+    if ($group === 'summary') {
+        if (defined('OPENAI_API_KEY_SUMMARY') && OPENAI_API_KEY_SUMMARY !== '') return OPENAI_API_KEY_SUMMARY;
+        $key = getenv('OPENAI_API_KEY_SUMMARY');
+        if ($key !== false && $key !== '') return $key;
+    }
+    if (defined('OPENAI_API_KEY_LIGHT') && OPENAI_API_KEY_LIGHT !== '') return OPENAI_API_KEY_LIGHT;
+    $key = getenv('OPENAI_API_KEY_LIGHT');
+    if ($key !== false && $key !== '') return $key;
+    if (defined('OPENAI_API_KEY')) return OPENAI_API_KEY;
+    return getenv('OPENAI_API_KEY') ?: '';
+}
+
+function chatOpenAIValuePresent($value) {
+    if (is_array($value)) return !empty(array_filter($value, 'chatOpenAIValuePresent'));
+    return $value !== null && $value !== '' && $value !== '未定' && $value !== '未回答' && $value !== '不明';
+}
+
+function chatOpenAILeadValue($leadData, $keys) {
+    foreach ($keys as $key) {
+        if (isset($leadData[$key]) && chatOpenAIValuePresent($leadData[$key])) return $leadData[$key];
+    }
+    return null;
+}
+
+function chatOpenAIShouldUseSalesModel($message, $memory = [], $leadData = []) {
+    $intent = $leadData['customer_type'] ?? ($memory['intent'] ?? null);
+    $salesIntents = ['purchase', 'replacement', 'sale', 'loan', 'relocation', 'investment_buy', 'investment_sale'];
+    $isSalesIntent = in_array($intent, $salesIntents, true);
+    if (!$isSalesIntent && preg_match('/購入|買いたい|買う|住み替え|買い替え|売却|売りたい|ローン|内覧|物件|査定/u', (string)$message)) {
+        $isSalesIntent = true;
+    }
+    if (!$isSalesIntent) return false;
+
+    $score = 0;
+    if (chatOpenAILeadValue($leadData, ['budget_min', 'budget_max', 'budget_note']) !== null || !empty($memory['budget'])) $score += 2;
+    if (chatOpenAILeadValue($leadData, ['preferred_area', 'preferred_station_line', 'preferred_station']) !== null || !empty($memory['preferred_area'])) $score += 2;
+    if (($leadData['competitor_viewing_status'] ?? '') === 'yes' || chatOpenAILeadValue($leadData, ['viewed_property_count', 'competitor_status']) !== null) $score += 2;
+    if (chatOpenAILeadValue($leadData, ['loan_status', 'pre_approval_status', 'desired_loan_amount', 'loan_concern']) !== null || !empty($memory['loan_plan']) || preg_match('/ローン|借入|事前審査|返済|金利/u', (string)$message)) $score += 2;
+    if (chatOpenAILeadValue($leadData, ['purchase_timing', 'selling_timing', 'move_completion_timing']) !== null) $score += 1;
+    if (!empty($leadData['contact_consent']) || (($leadData['contact_status'] ?? '') === 'provided')) $score += 2;
+
+    $temperature = $leadData['temperature'] ?? ($memory['temperature'] ?? 'low');
+    $temperatureScore = (int)($leadData['temperature_score'] ?? 0);
+    if ($temperature === 'high' || $temperatureScore >= 60) $score += 3;
+    elseif ($temperature === 'middle' || $temperatureScore >= 30) $score += 2;
+
+    if (preg_match('/比較|迷|不安|相談|提案|おすすめ|条件|予算|エリア|内覧|審査|購入|売却|住み替え/u', (string)$message)) $score += 1;
+
+    return $score >= 4;
+}
+
+function chatOpenAISelectModel($purpose, $message = '', $memory = [], $leadData = []) {
+    if ($purpose === 'summary') return chatOpenAIModelSummary();
+    if ($purpose === 'faq' || $purpose === 'intake' || $purpose === 'classification') return chatOpenAIModelLight();
+    return chatOpenAIShouldUseSalesModel($message, $memory, $leadData) ? chatOpenAIModelSales() : chatOpenAIModelLight();
+}
+
+function chatOpenAIEnsureUsageTable($db) {
+    if (!$db instanceof PDO) return;
+    $db->exec("CREATE TABLE IF NOT EXISTS chat_openai_usage (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        session_id CHAR(36) NULL,
+        business_card_id INT NULL,
+        purpose VARCHAR(60) NOT NULL DEFAULT 'chat',
+        requested_model VARCHAR(120) NOT NULL,
+        response_model VARCHAR(120) NULL,
+        prompt_tokens INT NULL,
+        completion_tokens INT NULL,
+        total_tokens INT NULL,
+        http_status INT NULL,
+        error_message TEXT NULL,
+        duration_ms INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_chat_openai_usage_session (session_id),
+        INDEX idx_chat_openai_usage_card_created (business_card_id, created_at),
+        INDEX idx_chat_openai_usage_model_created (requested_model, created_at),
+        INDEX idx_chat_openai_usage_purpose_created (purpose, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function chatOpenAILogUsage($options, $requestedModel, $responseModel, $usage, $httpCode, $error, $durationMs) {
+    $db = $options['db'] ?? null;
+    if (!$db instanceof PDO) return;
+    try {
+        chatOpenAIEnsureUsageTable($db);
+        $stmt = $db->prepare("INSERT INTO chat_openai_usage
+            (session_id, business_card_id, purpose, requested_model, response_model, prompt_tokens, completion_tokens, total_tokens, http_status, error_message, duration_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $options['session_id'] ?? null,
+            $options['business_card_id'] ?? null,
+            $options['purpose'] ?? 'chat',
+            $requestedModel,
+            $responseModel,
+            isset($usage['prompt_tokens']) ? (int)$usage['prompt_tokens'] : null,
+            isset($usage['completion_tokens']) ? (int)$usage['completion_tokens'] : null,
+            isset($usage['total_tokens']) ? (int)$usage['total_tokens'] : null,
+            $httpCode !== null ? (int)$httpCode : null,
+            $error !== null && $error !== '' ? mb_substr((string)$error, 0, 1000) : null,
+            $durationMs !== null ? (int)$durationMs : null,
+        ]);
+    } catch (Throwable $e) {
+        error_log('Chat OpenAI usage log error: ' . $e->getMessage());
+    }
+}
+
+function chatOpenAIGetSessionBusinessCardId($db, $sessionId, $leadData = []) {
+    if (!empty($leadData['business_card_id'])) return (int)$leadData['business_card_id'];
+    if (!$db instanceof PDO || $sessionId === '') return null;
+    try {
+        $stmt = $db->prepare('SELECT business_card_id FROM chat_sessions WHERE id = ?');
+        $stmt->execute([$sessionId]);
+        $id = $stmt->fetchColumn();
+        return $id !== false ? (int)$id : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
 /**
- * Call OpenAI Chat Completions API (gpt-4o-mini).
+ * Call OpenAI Chat Completions API.
  *
  * @param array $messages [ ['role'=>'system'|'user'|'assistant', 'content'=>'...'], ... ]
  * @param string $apiKey
  * @param string $model
- * @return array [ 'reply' => string, 'error' => string|null ]
+ * @param array $options Optional logging context: db, session_id, business_card_id, purpose.
+ * @return array [ 'reply' => string|null, 'error' => string|null, 'model' => string, 'response_model' => string|null, 'usage' => array|null ]
  */
-function callOpenAIChat($messages, $apiKey, $model = 'gpt-4o-mini') {
+function callOpenAIChat($messages, $apiKey, $model = 'gpt-4o-mini', $options = []) {
+    $started = microtime(true);
     if ($apiKey === '' || $apiKey === 'YOUR_OPENAI_API_KEY_HERE') {
-        return ['reply' => null, 'error' => 'OpenAI API key is not configured.'];
+        $error = 'OpenAI API key is not configured.';
+        chatOpenAILogUsage($options, $model, null, null, null, $error, 0);
+        return ['reply' => null, 'error' => $error, 'model' => $model, 'response_model' => null, 'usage' => null, 'http_code' => null];
     }
     $payload = [
         'model'    => $model,
@@ -154,18 +306,26 @@ function callOpenAIChat($messages, $apiKey, $model = 'gpt-4o-mini') {
         CURLOPT_SSL_VERIFYPEER => true,
     ]);
     $response = curl_exec($ch);
+    $curlError = $response === false ? curl_error($ch) : '';
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    $durationMs = (int)round((microtime(true) - $started) * 1000);
     if ($response === false) {
-        return ['reply' => null, 'error' => 'OpenAI request failed.'];
+        $error = $curlError !== '' ? $curlError : 'OpenAI request failed.';
+        chatOpenAILogUsage($options, $model, null, null, $httpCode, $error, $durationMs);
+        return ['reply' => null, 'error' => $error, 'model' => $model, 'response_model' => null, 'usage' => null, 'http_code' => $httpCode];
     }
     $data = json_decode($response, true);
+    $responseModel = $data['model'] ?? null;
+    $usage = isset($data['usage']) && is_array($data['usage']) ? $data['usage'] : null;
     if ($httpCode !== 200 || !isset($data['choices'][0]['message']['content'])) {
         $err = isset($data['error']['message']) ? $data['error']['message'] : 'Invalid response (HTTP ' . $httpCode . ')';
-        return ['reply' => null, 'error' => $err];
+        chatOpenAILogUsage($options, $model, $responseModel, $usage, $httpCode, $err, $durationMs);
+        return ['reply' => null, 'error' => $err, 'model' => $model, 'response_model' => $responseModel, 'usage' => $usage, 'http_code' => $httpCode];
     }
     $reply = trim($data['choices'][0]['message']['content']);
-    return ['reply' => $reply, 'error' => null];
+    chatOpenAILogUsage($options, $model, $responseModel, $usage, $httpCode, null, $durationMs);
+    return ['reply' => $reply, 'error' => null, 'model' => $model, 'response_model' => $responseModel, 'usage' => $usage, 'http_code' => $httpCode];
 }
 
 function sanitizeChatReferralLanguage($reply, $agentName = '担当者') {
@@ -198,7 +358,7 @@ function sanitizeChatReferralLanguage($reply, $agentName = '担当者') {
 }
 
 /**
- * Get bot reply using GPT-4o-mini with blog context and conversation history.
+ * Get bot reply using the selected OpenAI model with blog context and conversation history.
  *
  * @param string $userMessage
  * @param array $conversationHistory [ ['role'=>'user'|'assistant', 'message'=>'...'], ... ] (oldest first)
@@ -206,9 +366,9 @@ function sanitizeChatReferralLanguage($reply, $agentName = '担当者') {
  * @return array [ 'reply' => string, 'sources' => array, 'error' => string|null ]
  */
 function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentName = '担当者', $db = null, $sessionId = '') {
-    $apiKey = defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: '');
-    $model  = defined('OPENAI_CHAT_MODEL') ? OPENAI_CHAT_MODEL : 'gpt-4o-mini';
     $today  = date('Y-m-d');
+    $leadData = [];
+    $businessCardId = null;
 
     $rag = [
         'context' => '',
@@ -232,11 +392,16 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
         $rag = getChatRagContextForChat($db, $userMessage, 6);
         if ($sessionId !== '') {
             $memory = getChatSessionMemory($db, $sessionId);
+            $leadData = chatLoadLeadDataForMemory($db, $sessionId);
+            if (!empty($leadData)) chatApplyLeadDataToMemory($memory, $leadData);
+            $businessCardId = chatOpenAIGetSessionBusinessCardId($db, $sessionId, $leadData);
         }
     }
 
+    $model = chatOpenAISelectModel('chat', $userMessage, $memory, $leadData);
+    $apiKey = chatOpenAIApiKeyForModel($model);
     $memoryContext = buildChatMemoryContext($memory);
-    $leadContext = ($db instanceof PDO && $sessionId !== '') ? getChatLeadContextForPrompt($db, $sessionId) : '';
+    $leadContext = !empty($leadData) ? buildChatLeadContext($leadData) : (($db instanceof PDO && $sessionId !== '') ? getChatLeadContextForPrompt($db, $sessionId) : '');
     $freshnessInstruction = $rag['requires_fresh']
         ? "この質問は最新確認が必要な可能性があります。ローカルRAG参照情報がある場合はそれを優先し、参照情報が不足している場合は断定せず、最新確認が必要であることを明示してください。"
         : "ローカルRAG参照情報が質問に関係する場合は優先してください。関係しない場合は一般的な不動産実務知識で回答してください。";
@@ -327,10 +492,26 @@ PROMPT;
         $messages[] = ['role' => $role, 'content' => $msg['message']];
     }
     $messages[] = ['role' => 'user', 'content' => $userMessage];
-    $result = callOpenAIChat($messages, $apiKey, $model);
+    $logContext = [
+        'db' => $db,
+        'session_id' => $sessionId,
+        'business_card_id' => $businessCardId,
+        'purpose' => 'chat',
+    ];
+    $result = callOpenAIChat($messages, $apiKey, $model, $logContext);
+    if ($result['error'] !== null && $model === chatOpenAIModelSales()) {
+        $fallbackContext = $logContext;
+        $fallbackContext['purpose'] = 'chat_fallback';
+        $fallbackModel = chatOpenAIModelLight();
+        $fallback = callOpenAIChat($messages, chatOpenAIApiKeyForModel($fallbackModel), $fallbackModel, $fallbackContext);
+        if ($fallback['error'] === null && $fallback['reply'] !== null && $fallback['reply'] !== '') {
+            $fallback['model_fallback_from'] = $model;
+            $result = $fallback;
+        }
+    }
     if ($result['error'] !== null) {
-        return ['reply' => null, 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => $result['error']];
+        return ['reply' => null, 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => $result['error'], 'model' => $result['model'] ?? $model];
     }
     $safeReply = sanitizeChatReferralLanguage($result['reply'], $agentName);
-    return ['reply' => $safeReply, 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => null];
+    return ['reply' => $safeReply, 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => null, 'model' => $result['model'] ?? $model, 'usage' => $result['usage'] ?? null];
 }

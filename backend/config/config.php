@@ -109,8 +109,26 @@ define('NOTIFICATION_EMAIL', 'info@ai-fcard.com');
 if (!defined('OPENAI_API_KEY')) {
     define('OPENAI_API_KEY', getenv('OPENAI_API_KEY') ?: '');
 }
+if (!defined('OPENAI_API_KEY_LIGHT')) {
+    define('OPENAI_API_KEY_LIGHT', getenv('OPENAI_API_KEY_LIGHT') ?: OPENAI_API_KEY);
+}
+if (!defined('OPENAI_API_KEY_SALES')) {
+    define('OPENAI_API_KEY_SALES', getenv('OPENAI_API_KEY_SALES') ?: OPENAI_API_KEY);
+}
+if (!defined('OPENAI_API_KEY_SUMMARY')) {
+    define('OPENAI_API_KEY_SUMMARY', getenv('OPENAI_API_KEY_SUMMARY') ?: OPENAI_API_KEY_LIGHT);
+}
 if (!defined('OPENAI_CHAT_MODEL')) {
     define('OPENAI_CHAT_MODEL', getenv('OPENAI_CHAT_MODEL') ?: 'gpt-4o-mini');
+}
+if (!defined('OPENAI_MODEL_LIGHT')) {
+    define('OPENAI_MODEL_LIGHT', getenv('OPENAI_MODEL_LIGHT') ?: OPENAI_CHAT_MODEL);
+}
+if (!defined('OPENAI_MODEL_SALES')) {
+    define('OPENAI_MODEL_SALES', getenv('OPENAI_MODEL_SALES') ?: OPENAI_CHAT_MODEL);
+}
+if (!defined('OPENAI_MODEL_SUMMARY')) {
+    define('OPENAI_MODEL_SUMMARY', getenv('OPENAI_MODEL_SUMMARY') ?: OPENAI_MODEL_LIGHT);
 }
 if (!defined('CHAT_BLOG_BASE_URL')) {
     define('CHAT_BLOG_BASE_URL', 'https://smile.re-agent.info/blog/');
