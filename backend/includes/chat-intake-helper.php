@@ -753,7 +753,13 @@ function chatIntakeAdvice($field, $value, $data) {
     if ($field === 'station_walk_minutes') return '駅距離の許容範囲は、価格と資産性のバランスに直結します。徒歩分数を少し広げられると、広さや築年数で条件が良くなるケースもあります。';
     if (chatIntakeIsMultiSelectField($field)) return 'ありがとうございます。「' . $displayValue . '」を条件整理に反映しました。複数の希望が分かると、何を優先して提案すべきか見えやすくなります。';
     if ($field === 'family_structure') return 'ご家族構成ありがとうございます。人数や将来の変化によって、必要な広さ・学区・収納・駅距離の優先度が変わってきます。';
-    if ($field === 'purchase_timing' || $field === 'selling_timing') return '時期感が分かると、今すぐ動くべきことと、少し準備してからでよいことを分けやすくなります。特に3か月以内の場合は、ローンや査定も早めに並行した方が安心です。';
+    if ($field === 'purchase_timing') {
+        if (($data['customer_type'] ?? '') === 'investment_buy') {
+            return '時期感が分かると、今すぐ動くべきことと、少し準備してからでよいことを分けやすくなります。特に3か月以内の場合は、融資条件や収支の確認も早めに並行した方が安心です。';
+        }
+        return '時期感が分かると、今すぐ動くべきことと、少し準備してからでよいことを分けやすくなります。特に3か月以内の場合は、資金計画やローン事前審査も早めに並行した方が安心です。';
+    }
+    if ($field === 'selling_timing') return '時期感が分かると、今すぐ動くべきことと、少し準備してからでよいことを分けやすくなります。特に3か月以内の場合は、相場確認や査定も早めに並行した方が安心です。';
     if ($field === 'loan_status' || $field === 'pre_approval_status') return 'ローン状況も大切な判断材料です。事前審査が済んでいると、良い物件が出た時に申込みまで進めやすくなります。これからの場合も、早めに目安を見ておくと安心です。';
     if ($field === 'renovation_preference') return 'リフォームの考え方も分かりました。中古物件は、リフォーム済みを選ぶか、自分好みに直すかで、総額や入居時期が変わります。';
     if ($field === 'current_property_type') return '現在のお住まいの種別が分かると、売却査定や買い替えスケジュールを組み立てやすくなります。';
@@ -861,8 +867,31 @@ function chatIntakeBuildSummary(&$data) {
 }
 
 function chatIntakeNextAction($data) {
-    if (($data['temperature'] ?? 'low') === 'high') return '担当者から早期連絡。面談・査定・内覧・ローン相談を提案。';
-    if (($data['temperature'] ?? 'low') === 'middle') return '条件整理を継続し、相場情報・ローン相談・候補物件提案へつなげる。';
+    $customerType = $data['customer_type'] ?? '';
+    if (($data['temperature'] ?? 'low') === 'high') {
+        $map = [
+            'purchase' => '担当者から早期連絡。希望条件の確認、候補物件提案、内覧調整、資金計画・ローン事前審査を提案。',
+            'replacement' => '担当者から早期連絡。購入条件整理、売却査定、残債確認、買い替えスケジュール相談を提案。',
+            'sale' => '担当者から早期連絡。査定、販売戦略、売却スケジュール相談を提案。',
+            'investment_buy' => '担当者から早期連絡。収支確認、融資相談、候補物件提案へつなげる。',
+            'investment_sale' => '担当者から早期連絡。賃貸状況確認、査定、売却戦略相談を提案。',
+            'loan' => '担当者から早期連絡。借入可能額、返済計画、事前審査の相談を提案。',
+            'market' => '担当者から早期連絡。相場確認、価格レポート、今後の判断材料を提案。',
+            'inheritance' => '担当者から早期連絡。名義・共有状況の確認、相場確認、必要な専門機関確認を提案。',
+        ];
+        return $map[$customerType] ?? '担当者から早期連絡。相談内容に合わせた具体案を提案。';
+    }
+    if (($data['temperature'] ?? 'low') === 'middle') {
+        $map = [
+            'purchase' => '条件整理を継続し、候補物件提案・資金計画・ローン相談へつなげる。',
+            'replacement' => '条件整理を継続し、購入条件・売却見込み・買い替えスケジュール相談へつなげる。',
+            'sale' => '条件整理を継続し、相場情報・査定・販売戦略相談へつなげる。',
+            'investment_buy' => '条件整理を継続し、収支確認・融資相談・候補物件提案へつなげる。',
+            'investment_sale' => '条件整理を継続し、賃貸状況確認・査定・売却戦略相談へつなげる。',
+            'loan' => '条件整理を継続し、借入可能額・返済計画・事前審査相談へつなげる。',
+        ];
+        return $map[$customerType] ?? '条件整理を継続し、相談内容に合う次の案内へつなげる。';
+    }
     return '負担の少ない追加質問で接点維持。希望条件と時期を少しずつ確認。';
 }
 

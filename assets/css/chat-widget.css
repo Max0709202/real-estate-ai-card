@@ -271,6 +271,7 @@
     margin-top: 0.45rem;
     font-size: 0.75rem;
     line-height: 1.35;
+    display: none;
 }
 .chat-msg-sources span {
     color: #667085;
