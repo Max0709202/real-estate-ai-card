@@ -80,7 +80,7 @@ function chatIntakeDefaultData() {
         'customer_line' => null,
         'preferred_contact_method' => null,
         'preferred_contact_value' => null,
-        'contact_status' => 'anonymous',
+        'contact_status' => 'not_requested',
         'contact_consent' => false,
         'move_date' => null,
         'schedule_progress' => null,
@@ -233,9 +233,8 @@ function chatIntakeFieldDefinitions() {
         'ownership_status' => ['question' => '相続の場合、名義や共有者の状況は分かりますか。', 'choices' => [['label' => '単独名義', 'value' => '単独名義'], ['label' => '共有', 'value' => '共有'], ['label' => '相続登記前', 'value' => '相続登記前'], ['label' => '不明', 'value' => '不明']]],
         'simulation_save_consent' => ['question' => 'シミュレーターで試算した借入希望額や毎月返済額を保存してもよろしいですか。', 'choices' => [['label' => '保存する', 'value' => '保存する'], ['label' => '保存しない', 'value' => '保存しない'], ['label' => 'あとで確認', 'value' => 'あとで確認']]],
         'move_date' => ['question' => '引っ越し希望日や決済・引渡希望日はありますか。例: 2026-09-30 のように入力できます。', 'choices' => [['label' => '未定', 'value' => '未定']]],
-        'contact_request' => ['question' => 'ここまでで主な内容は整理できました。担当者から具体的なご案内を希望される場合は、お名前とご希望の連絡方法を自由に入力してください。
-例：山田太郎／メール yamada@example.com、電話 090-xxxx-xxxx、LINE ID xxxx など。
-もちろん、匿名のままチャットを続けることもできます。', 'choices' => [['label' => '今回は匿名のまま', 'value' => 'anonymous']]],
+        'contact_request' => ['question' => 'ここまでで主な内容は整理できました。より具体的なご案内をご希望の場合は、お名前やご希望の連絡方法を自由に入力してください。
+例：山田太郎／メール yamada@example.com、電話 090-xxxx-xxxx、LINE ID xxxx など。', 'choices' => [['label' => 'このままチャットを続ける', 'value' => 'chat_continue']]],
     ];
 }
 
@@ -497,8 +496,13 @@ function chatIntakeNormalizeChoiceValue($field, $message) {
 
 function chatIntakeSetContact(&$data, $value) {
     $value = trim((string)$value);
-    if ($value === '' || $value === 'anonymous' || $value === '今回は匿名のまま' || $value === '匿名') {
-        $data['contact_status'] = 'anonymous';
+    if ($value === '' || $value === 'chat_continue' || $value === 'このままチャットを続ける' || $value === '連絡はまだ不要') {
+        $data['contact_status'] = 'not_requested';
+        $data['contact_consent'] = false;
+        return;
+    }
+    if ($value === 'anonymous') {
+        $data['contact_status'] = 'not_requested';
         $data['contact_consent'] = false;
         return;
     }
@@ -565,7 +569,7 @@ function chatIntakeFieldHasValue($data, $field) {
     if ($field === 'preferred_station_line') return !empty($data['preferred_station_line']) || !empty($data['preferred_station']);
     if ($field === 'current_property_location') return !empty($data['current_property_location']);
     if ($field === 'property_location') return !empty($data['property_location']);
-    if ($field === 'contact_request') return !empty($data['customer_contact_raw']) || (($data['contact_status'] ?? '') === 'anonymous' && in_array('contact_request', $data['_asked_fields'] ?? [], true));
+    if ($field === 'contact_request') return !empty($data['customer_contact_raw']) || (in_array(($data['contact_status'] ?? ''), ['anonymous', 'not_requested'], true) && in_array('contact_request', $data['_asked_fields'] ?? [], true));
     if (!array_key_exists($field, $data)) return false;
     $value = $data[$field];
     if (is_array($value)) return !empty($value);
@@ -775,12 +779,12 @@ function chatIntakeAdvice($field, $value, $data) {
     if ($field === 'rent_income' || $field === 'target_yield') return '収益情報は投資判断の中心です。ただし利回りだけでなく、空室リスクや修繕費、将来売却しやすいかも一緒に見るのが安全です。';
     if ($field === 'loan_simulation_used') return '月々返済額の目安を把握すると、購入予算を現実的に整理しやすくなります。固定金利と変動金利の差も比較しておくと安心です。';
     if ($field === 'move_date' && !empty($data['move_date'])) return '引っ越し希望日が分かると、内覧・ローン審査・契約・決済までの逆算スケジュールを作りやすくなります。「進捗を見せて」と入力すると現在のタスク確認もできます。';
-    if ($field === 'contact_request') return !empty($data['contact_consent']) ? 'ありがとうございます。お名前・ご連絡先を担当者が確認できるように保存しました。いただいた条件とあわせて、次のご案内につなげます。' : '承知しました。匿名のままでも、条件整理や一般的なご相談はこのまま続けられます。';
+    if ($field === 'contact_request') return !empty($data['contact_consent']) ? 'ありがとうございます。ご入力内容を保存しました。いただいた条件とあわせて、次のご案内に活用します。' : '承知しました。このままチャットで相談を続けられます。';
     return 'ありがとうございます。いただいた内容を条件整理に反映しました。';
 }
 
 function chatIntakeNaturalQuestion($field, $data) {
-    if (!$field) return '主要な条件はかなり整理できました。担当者が確認できる形で相談内容を保存しました。追加で気になることがあれば、そのまま自由に入力してください。';
+    if (!$field) return '主要な条件はかなり整理できました。追加で気になることがあれば、そのまま自由に入力してください。';
     $defs = chatIntakeFieldDefinitions();
     $question = $defs[$field]['question'] ?? '';
     $prefixMap = [
@@ -809,7 +813,7 @@ function chatIntakeNaturalQuestion($field, $data) {
         'appraisal_status' => '査定状況が分かると、今の検討段階を把握しやすいです。',
         'appraisal_request' => '必要であれば、査定につなげられる状態まで整理できます。',
         'disclosure_flags' => '売却では、気になる点を早めに整理しておくと後のトラブル予防になります。',
-        'preferred_contact' => '担当者につなぐ場合に備えて、ご希望の連絡方法も確認します。',
+        'preferred_contact' => '具体的なご案内に進む場合に備えて、ご希望の連絡方法も確認します。',
         'income' => 'ローン相談では、まず概算の年収から無理のない借入目安を見ます。',
         'employment_type' => '審査では勤務形態も見られるため、差し支えない範囲で確認します。',
         'years_employed' => '勤続年数も審査傾向を見る材料になります。',
@@ -819,9 +823,10 @@ function chatIntakeNaturalQuestion($field, $data) {
         'loan_concern' => 'ローンで一番気になる点を先に押さえると、説明が的確になります。',
         'loan_simulation_used' => '必要であれば、シミュレーターで月々返済も整理できます。',
         'move_date' => '希望日があると、逆算スケジュールを作りやすくなります。',
-        'contact_request' => 'ここまでの内容を担当者が引き継げるようにする場合だけで大丈夫です。',
+        'contact_request' => '',
     ];
     $prefix = $prefixMap[$field] ?? '続けて、もう少しだけ確認させてください。';
+    if ($field === 'contact_request' && $prefix === '') return $question;
     return $prefix . "\n" . $question;
 }
 
@@ -870,16 +875,16 @@ function chatIntakeNextAction($data) {
     $customerType = $data['customer_type'] ?? '';
     if (($data['temperature'] ?? 'low') === 'high') {
         $map = [
-            'purchase' => '担当者から早期連絡。希望条件の確認、候補物件提案、内覧調整、資金計画・ローン事前審査を提案。',
-            'replacement' => '担当者から早期連絡。購入条件整理、売却査定、残債確認、買い替えスケジュール相談を提案。',
-            'sale' => '担当者から早期連絡。査定、販売戦略、売却スケジュール相談を提案。',
-            'investment_buy' => '担当者から早期連絡。収支確認、融資相談、候補物件提案へつなげる。',
-            'investment_sale' => '担当者から早期連絡。賃貸状況確認、査定、売却戦略相談を提案。',
-            'loan' => '担当者から早期連絡。借入可能額、返済計画、事前審査の相談を提案。',
-            'market' => '担当者から早期連絡。相場確認、価格レポート、今後の判断材料を提案。',
-            'inheritance' => '担当者から早期連絡。名義・共有状況の確認、相場確認、必要な専門機関確認を提案。',
+            'purchase' => '早めの具体案内。希望条件の確認、候補物件提案、内覧調整、資金計画・ローン事前審査を提案。',
+            'replacement' => '早めの具体案内。購入条件整理、売却査定、残債確認、買い替えスケジュール相談を提案。',
+            'sale' => '早めの具体案内。査定、販売戦略、売却スケジュール相談を提案。',
+            'investment_buy' => '早めの具体案内。収支確認、融資相談、候補物件提案へつなげる。',
+            'investment_sale' => '早めの具体案内。賃貸状況確認、査定、売却戦略相談を提案。',
+            'loan' => '早めの具体案内。借入可能額、返済計画、事前審査の相談を提案。',
+            'market' => '早めの具体案内。相場確認、価格レポート、今後の判断材料を提案。',
+            'inheritance' => '早めの具体案内。名義・共有状況の確認、相場確認、必要な専門機関確認を提案。',
         ];
-        return $map[$customerType] ?? '担当者から早期連絡。相談内容に合わせた具体案を提案。';
+        return $map[$customerType] ?? '早めの具体案内。相談内容に合わせた具体案を提案。';
     }
     if (($data['temperature'] ?? 'low') === 'middle') {
         $map = [
@@ -1042,7 +1047,7 @@ function buildChatLeadContext($data) {
         'sublease_cancelable' => 'サブリース解除可否', 'summary_for_sales' => '営業向け要約', 'next_action' => '次アクション',
         'move_date' => '引越/引渡希望日', 'customer_name' => '顧客名', 'customer_phone' => '電話番号',
         'customer_email' => 'メールアドレス', 'customer_line' => 'LINE', 'preferred_contact_method' => '希望連絡方法',
-        'preferred_contact' => '希望連絡方法', 'contact_status' => '連絡先状態', 'station_walk_minutes' => '駅徒歩許容分数',
+        'preferred_contact' => '希望連絡方法', 'contact_status' => '連絡希望状態', 'station_walk_minutes' => '駅徒歩許容分数',
         'renovation_preference' => 'リフォーム意向', 'current_property_location' => '現居所在地', 'reason_for_move' => '買い替え理由',
         'temporary_housing' => '仮住まい可否', 'tax_consideration' => '3,000万円控除検討', 'move_completion_timing' => '買い替え完了希望時期',
         'repair_history' => '修繕履歴', 'appeal_points' => '物件PRポイント', 'building_name' => 'マンション名', 'exclusive_area' => '専有面積',
