@@ -381,6 +381,15 @@ function chatIntakeSaveContact($db, $sessionId, $businessCardId, $data) {
         $data['customer_line'] ?? null,
         $data['customer_contact_raw'] ?? null,
     ]);
+    if (!empty($data['customer_phone'])) {
+        if (!function_exists('chatRegisterVerifiedPhone')) {
+            $phoneHelper = __DIR__ . '/chat-phone-helper.php';
+            if (file_exists($phoneHelper)) require_once $phoneHelper;
+        }
+        if (function_exists('chatRegisterVerifiedPhone')) {
+            chatRegisterVerifiedPhone($db, $businessCardId, $data['customer_phone'], '', $sessionId, $data['customer_name'] ?? null);
+        }
+    }
 }
 
 function chatIntakeSave($db, $sessionId, $businessCardId, $data) {

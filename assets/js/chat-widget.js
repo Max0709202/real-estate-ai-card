@@ -25,7 +25,11 @@
     var toggleAvatarEl = document.getElementById('chat-widget-toggle-avatar');
     var toggleLabelEl = document.getElementById('chat-widget-toggle-label');
     var quickActions = document.getElementById('chat-widget-quick-actions');
-    var defaultPromptText = '不動産の購入・売却について、何でもお気軽にご質問ください。';
+    var defaultPromptText = "不動産の購入・売却について、何でもお気軽にご質問ください。";
+    var entryNoticeText = "こんにちは。\nこのチャットでは、管理者「{agent}」に代わって、AI{agent}が24時間365日、不動産のご相談をサポートします。\n\n※初めてご利用の方は「初めて相談する」からお進みください。\n\n以前、別の端末でご相談いただいたことがある方は「前回の相談を続ける」をご利用ください。前回のご相談内容をもとに、続きからご案内します。";
+    var firstConsultationNoticeText = "ご希望条件の整理や、今後の進め方をサポートするため、必要に応じて少しずつご質問します。答えられる範囲だけで大丈夫です。\n\n次のような軽いご相談も可能です。\n\n・購入と賃貸で迷っている\n・住宅ローンが通るか不安\n・エリアの選び方が分からない\n・売却を何から始めればよいか分からない\n・今の状況を整理したい\n\n会話を通じて、条件整理や物件探しの進め方をサポートします。\n\n小さな疑問や不安でも、お気軽にご相談ください。\n\n※右下のマイクボタンから音声入力もご利用いただけます。\n\n※AIによるサービスのため、回答内容に誤りが含まれる場合があります。\n\n※スムーズなご案内のため、必要最小限の情報を担当者へ共有する場合があります。";
+    var previousConfirmedNoticeText = "ありがとうございます。前回のご相談内容を確認しました。\n前回の内容をもとに、このまま続きからご案内できます。";
+    var registeredPhoneNoticeText = "おかえりなさい、{customer}。\n\n前回のご相談内容をもとに、続きからご案内します。";
     var pwaModalIds = ['pwaIosModal1', 'pwaIosModal2', 'pwaIosModalSafari'];
 
     if (!toggleBtn || !panel || !messagesContainer || !inputEl || !sendBtn) return;
@@ -36,6 +40,11 @@
     var sessionStarting = false;
     var sendingMessage = false;
     var greetingShown = false;
+    var startupData = null;
+    var entryAwaitingChoice = false;
+    var firebaseConfigPromise = null;
+    var firebaseAppReady = false;
+    var firebaseConfirmationResult = null;
     var botTypingTimer = null;
     var reducedMotionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -153,14 +162,13 @@
         toggleBtn.setAttribute('aria-expanded', 'true');
         syncAgentHeader();
         if ((!sessionId || !greetingShown) && !sessionStarting) startSession();
-        if (sessionId && greetingShown && !sendingMessage) setInputEnabled(true);
+        if (sessionId && greetingShown && !sendingMessage && !entryAwaitingChoice) setInputEnabled(true);
         setTimeout(function () { inputEl.focus(); }, 50);
     }
 
     function hidePanel() {
         panel.hidden = true;
         toggleBtn.setAttribute('aria-expanded', 'false');
-        showDefaultQuickPrompt();
     }
 
     function appendVoiceAvailabilityNotice() {
@@ -262,7 +270,7 @@
 
     function clearDynamicQuickActions() {
         if (!quickActions) return;
-        var dynamicItems = quickActions.querySelectorAll('.chat-intake-replies, .chat-widget-default-prompt');
+        var dynamicItems = quickActions.querySelectorAll('.chat-intake-replies, .chat-widget-default-prompt, .chat-widget-entry-actions');
         Array.prototype.forEach.call(dynamicItems, function (item) { item.remove(); });
     }
 
@@ -273,6 +281,239 @@
         prompt.className = 'chat-widget-default-prompt';
         prompt.textContent = defaultPromptText;
         quickActions.insertBefore(prompt, quickActions.firstChild);
+    }
+
+    function personalize(text, data) {
+        var rawCustomer = data && data.customer_name ? String(data.customer_name) : '';
+        var customer = rawCustomer ? rawCustomer + '様' : 'お客様';
+        return String(text || '')
+            .replace(/\{agent\}/g, agentName || '担当者')
+            .replace(/\{customer\}/g, customer);
+    }
+
+    function renderEntryActions(actions) {
+        if (!quickActions) return;
+        clearDynamicQuickActions();
+        var group = document.createElement('div');
+        group.className = 'chat-widget-entry-actions';
+        actions.forEach(function (action) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chat-quick-btn chat-entry-btn';
+            btn.setAttribute('data-entry-action', action.action);
+            btn.textContent = action.label;
+            group.appendChild(btn);
+        });
+        quickActions.insertBefore(group, quickActions.firstChild);
+    }
+
+    function showFirstTimeEntry(data) {
+        entryAwaitingChoice = true;
+        greetingShown = true;
+        startupData = data || startupData;
+        messagesContainer.innerHTML = '';
+        appendBotMessage(personalize(entryNoticeText, startupData));
+        renderEntryActions([
+            { label: '初めて相談する', action: 'first_consultation' },
+            { label: '前回の相談を続ける', action: 'continue_previous_sms' }
+        ]);
+        setInputEnabled(false);
+    }
+
+    function showReturningDeviceEntry(data) {
+        entryAwaitingChoice = true;
+        greetingShown = true;
+        startupData = data || startupData;
+        messagesContainer.innerHTML = '';
+        appendBotMessage(personalize('おかえりなさい、{customer}。\n\n前回のご相談内容をもとに、続きからご案内します。\n\n※{customer}ご本人でない場合は、「別の方として利用する」からお進みください。', startupData));
+        renderEntryActions([
+            { label: '前回の続きから相談する', action: 'continue_saved_session' },
+            { label: '別の方として利用する', action: 'use_as_someone_else' }
+        ]);
+        setInputEnabled(false);
+    }
+
+    function beginFirstConsultation(data) {
+        entryAwaitingChoice = false;
+        startupData = data || startupData || {};
+        renderQuickReplies([]);
+        appendBotMessage(firstConsultationNoticeText);
+        appendVoiceAvailabilityNotice();
+        appendBotMessage('まず、今回のご相談内容に近いものを教えてください。');
+        renderQuickReplies(startupData.quick_replies || []);
+        greetingShown = true;
+        setInputEnabled(true);
+    }
+
+    function continueSavedConsultation(data, alreadyConfirmed) {
+        entryAwaitingChoice = false;
+        startupData = data || startupData || {};
+        renderQuickReplies([]);
+        if (alreadyConfirmed) {
+            appendBotMessage(previousConfirmedNoticeText);
+        }
+        appendBotMessage(startupData.resume_message || '前回の内容を確認しました。続きからご案内します。');
+        renderQuickReplies(startupData.quick_replies || []);
+        greetingShown = true;
+        setInputEnabled(true);
+    }
+
+    function loadScriptOnce(src) {
+        return new Promise(function (resolve, reject) {
+            var existing = document.querySelector('script[src="' + src + '"]');
+            if (existing) {
+                if (existing.getAttribute('data-loaded') === '1') resolve();
+                else existing.addEventListener('load', resolve, { once: true });
+                return;
+            }
+            var script = document.createElement('script');
+            script.src = src;
+            script.async = true;
+            script.onload = function () { script.setAttribute('data-loaded', '1'); resolve(); };
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+
+    function getFirebaseConfig() {
+        if (firebaseConfigPromise) return firebaseConfigPromise;
+        firebaseConfigPromise = fetch(apiBase + '/firebase-config.php')
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (!data.success || !data.data || !data.data.configured) throw new Error('firebase-not-configured');
+                return data.data.config;
+            });
+        return firebaseConfigPromise;
+    }
+
+    function ensureFirebaseReady() {
+        if (firebaseAppReady && window.firebase && window.firebase.auth) return Promise.resolve();
+        return getFirebaseConfig().then(function (config) {
+            return loadScriptOnce('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js')
+                .then(function () { return loadScriptOnce('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js'); })
+                .then(function () {
+                    if (!window.firebase.apps || !window.firebase.apps.length) {
+                        window.firebase.initializeApp(config);
+                    }
+                    firebaseAppReady = true;
+                });
+        });
+    }
+
+    function removeSmsAuthBox() {
+        var existing = messagesContainer.querySelector('.chat-sms-auth-box');
+        if (existing) existing.remove();
+    }
+
+    function showSmsAuth(reason) {
+        entryAwaitingChoice = true;
+        renderQuickReplies([]);
+        removeSmsAuthBox();
+        if (window.chatRecaptchaVerifier && window.chatRecaptchaVerifier.clear) {
+            try { window.chatRecaptchaVerifier.clear(); } catch (e) {}
+            window.chatRecaptchaVerifier = null;
+        }
+        appendBotMessage('前回のご相談を安全に確認するため、SMS認証を行います。電話番号を入力し、届いた認証コードを入力してください。');
+        var box = document.createElement('div');
+        box.className = 'chat-sms-auth-box';
+        box.innerHTML = '<label>電話番号</label><div class="chat-sms-row"><input type="tel" class="chat-sms-phone" placeholder="例：09012345678"><button type="button" class="chat-sms-send">SMS送信</button></div><label>認証コード</label><div class="chat-sms-row"><input type="text" class="chat-sms-code" inputmode="numeric" placeholder="6桁のコード"><button type="button" class="chat-sms-verify" disabled>認証する</button></div><div class="chat-sms-status" aria-live="polite"></div><div id="chat-firebase-recaptcha"></div>';
+        messagesContainer.appendChild(box);
+        scrollMessagesToBottom();
+        setInputEnabled(false);
+
+        var phoneInput = box.querySelector('.chat-sms-phone');
+        var codeInput = box.querySelector('.chat-sms-code');
+        var sendButton = box.querySelector('.chat-sms-send');
+        var verifyButton = box.querySelector('.chat-sms-verify');
+        var status = box.querySelector('.chat-sms-status');
+        var setStatus = function (message) { status.textContent = message || ''; };
+
+        sendButton.addEventListener('click', function () {
+            var phone = normalizePhoneInput(phoneInput.value);
+            if (!phone) {
+                setStatus('電話番号を入力してください。');
+                return;
+            }
+            sendButton.disabled = true;
+            setStatus('SMSを送信しています...');
+            ensureFirebaseReady().then(function () {
+                var auth = window.firebase.auth();
+                if (!window.chatRecaptchaVerifier) {
+                    window.chatRecaptchaVerifier = new window.firebase.auth.RecaptchaVerifier('chat-firebase-recaptcha', { size: 'invisible' });
+                }
+                return auth.signInWithPhoneNumber(phone, window.chatRecaptchaVerifier);
+            }).then(function (confirmationResult) {
+                firebaseConfirmationResult = confirmationResult;
+                verifyButton.disabled = false;
+                setStatus('SMSを送信しました。届いた認証コードを入力してください。');
+            }).catch(function () {
+                sendButton.disabled = false;
+                verifyButton.disabled = true;
+                firebaseConfirmationResult = null;
+                setStatus('SMS送信に失敗しました。電話番号やFirebase設定をご確認ください。');
+                if (window.chatRecaptchaVerifier && window.chatRecaptchaVerifier.clear) {
+                    try { window.chatRecaptchaVerifier.clear(); } catch (e) {}
+                    window.chatRecaptchaVerifier = null;
+                }
+            });
+        });
+
+        verifyButton.addEventListener('click', function () {
+            if (!firebaseConfirmationResult) return;
+            var code = codeInput.value.trim();
+            if (!code) {
+                setStatus('認証コードを入力してください。');
+                return;
+            }
+            verifyButton.disabled = true;
+            setStatus('認証しています...');
+            firebaseConfirmationResult.confirm(code).then(function (result) {
+                return result.user.getIdToken();
+            }).then(function (idToken) {
+                return verifyPhoneOnServer(idToken, reason);
+            }).catch(function () {
+                verifyButton.disabled = false;
+                setStatus('認証に失敗しました。コードをご確認ください。');
+            });
+        });
+    }
+
+    function normalizePhoneInput(value) {
+        var raw = String(value || '').trim().replace(/[－ー―−\s]/g, '-');
+        if (!raw) return '';
+        if (raw.charAt(0) === '+') return raw.replace(/-/g, '');
+        var digits = raw.replace(/\D/g, '');
+        if (!digits) return '';
+        if (digits.indexOf('81') === 0) return '+' + digits;
+        if (digits.charAt(0) === '0') return '+81' + digits.slice(1);
+        return '+' + digits;
+    }
+
+    function verifyPhoneOnServer(idToken, reason) {
+        return fetch(apiBase + '/phone/verify.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_token: idToken, card_slug: cardSlug, visitor_id: visitorId })
+        }).then(function (res) {
+            return res.json().catch(function () { return { success: false, message: 'サーバーから正しい応答を受け取れませんでした。' }; });
+        }).then(function (data) {
+            removeSmsAuthBox();
+            if (!data.success || !data.data) {
+                appendBotMessage(data.message || 'SMS認証を確認できませんでした。');
+                renderEntryActions([{ label: 'もう一度SMS認証する', action: reason === 'other' ? 'use_as_someone_else' : 'continue_previous_sms' }]);
+                return;
+            }
+            sessionId = data.data.session_id;
+            saveSessionId(sessionId);
+            startupData = data.data;
+            if (data.data.matched) {
+                if (reason === 'other') appendBotMessage(personalize(registeredPhoneNoticeText, startupData));
+                continueSavedConsultation(startupData, reason !== 'other');
+            } else {
+                appendBotMessage('この電話番号で登録された前回のご相談は見つかりませんでした。初めてのご相談としてご案内します。');
+                beginFirstConsultation(startupData);
+            }
+        });
     }
 
     function renderQuickReplies(replies) {
@@ -362,19 +603,15 @@
                         agentPhoto = data.data.agent_photo_url;
                     }
                     syncAgentHeader();
+                    startupData = data.data;
                     if (!greetingShown) {
-                        messagesContainer.innerHTML = '';
-                        if (data.data.is_resumed) {
-                            appendBotMessage(data.data.resume_message || ('おかえりなさい。前回の内容を要約して引き継ぎます。' + defaultPromptText));
+                        if (data.data.is_resumed && data.data.has_previous_messages) {
+                            showReturningDeviceEntry(data.data);
                         } else {
-                            appendBotMessage(data.data.initial_message || ('こんにちは。' + agentName + 'です。不動産に関するご質問や、ご希望（購入・売却・リノベなど）がございましたらお気軽にどうぞ。'));
-                            appendVoiceAvailabilityNotice();
+                            showFirstTimeEntry(data.data);
                         }
-                        greetingShown = true;
                     }
-                    renderQuickReplies(data.data.quick_replies || []);
                     if (!canUseLoanSim && quickActions) quickActions.style.display = 'none';
-                    setInputEnabled(true);
                 } else {
                     appendBotMessage(data.message || '申し訳ございません。いまチャットをご利用いただけません。');
                     setInputEnabled(false);
@@ -704,6 +941,19 @@
         quickActions.addEventListener('click', function (e) {
             var btn = e.target.closest('.chat-quick-btn');
             if (!btn) return;
+            var entryAction = btn.getAttribute('data-entry-action');
+            if (entryAction) {
+                if (entryAction === 'first_consultation') {
+                    beginFirstConsultation(startupData || {});
+                } else if (entryAction === 'continue_previous_sms') {
+                    showSmsAuth('continue');
+                } else if (entryAction === 'continue_saved_session') {
+                    continueSavedConsultation(startupData || {}, false);
+                } else if (entryAction === 'use_as_someone_else') {
+                    showSmsAuth('other');
+                }
+                return;
+            }
             var multiGroup = btn.closest('.chat-intake-replies-multi');
             if (btn.getAttribute('data-multi-select') === '1' && multiGroup) {
                 btn.classList.toggle('is-selected');

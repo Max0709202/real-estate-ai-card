@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-rag-helper.php';
 require_once __DIR__ . '/../../includes/chat-intake-helper.php';
+require_once __DIR__ . '/../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -69,6 +70,7 @@ try {
         'lead' => $lead,
         'memory' => $memory,
         'contact' => $contact,
+        'registered_phones' => chatRegisteredPhonesForCard($db, (int)$session['business_card_id'], 100),
     ];
     sendSuccessResponse($data, 'OK');
 } catch (Exception $e) {

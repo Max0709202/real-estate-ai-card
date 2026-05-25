@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-intake-helper.php';
+require_once __DIR__ . '/../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -43,7 +44,17 @@ try {
     $stmt->execute($params);
     $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    sendSuccessResponse(['sessions' => $sessions], 'OK');
+    $registeredPhones = [];
+    if ($cardId > 0) {
+        $registeredPhones = chatRegisteredPhonesForCard($db, $cardId, 100);
+    } else {
+        $stmt = $db->prepare('SELECT id FROM business_cards WHERE user_id = ? ORDER BY id ASC LIMIT 1');
+        $stmt->execute([$userId]);
+        $firstCardId = (int)($stmt->fetchColumn() ?: 0);
+        if ($firstCardId > 0) $registeredPhones = chatRegisteredPhonesForCard($db, $firstCardId, 100);
+    }
+
+    sendSuccessResponse(['sessions' => $sessions, 'registered_phones' => $registeredPhones], 'OK');
 } catch (Exception $e) {
     error_log('Chat sessions list error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);

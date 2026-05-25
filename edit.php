@@ -3156,11 +3156,12 @@ $defaultGreetings = [
                             return;
                         }
                         var sessions = res.data.sessions;
+                        var phoneHtml = renderRegisteredPhones(res.data.registered_phones || []);
                         if (sessions.length === 0) {
-                            listEl.innerHTML = '<p>まだチャットのやり取りはありません。</p>';
+                            listEl.innerHTML = phoneHtml + '<p>まだチャットのやり取りはありません。</p>';
                             return;
                         }
-                        var html = '<ul class="chat-session-list">';
+                        var html = phoneHtml + '<ul class="chat-session-list">';
                         sessions.forEach(function(s) {
                             var date = s.last_seen_at || s.created_at || '';
                             var dateStr = date ? new Date(date).toLocaleString('ja-JP') : '-';
@@ -3192,6 +3193,19 @@ $defaultGreetings = [
                 return d.innerHTML;
             }
 
+            function renderRegisteredPhones(phones) {
+                if (!phones || !phones.length) return '';
+                var html = '<div class="chat-registered-phones"><h4>登録済み電話番号</h4>';
+                phones.slice(0, 20).forEach(function(phone) {
+                    var label = phone.display_phone || phone.phone_e164 || phone.phone_normalized || '';
+                    var name = phone.customer_name ? '（' + phone.customer_name + '）' : '';
+                    var date = phone.last_verified_at ? ' / 最終確認: ' + new Date(phone.last_verified_at).toLocaleString('ja-JP') : '';
+                    html += '<p><strong>' + escapeHtml(label) + '</strong> ' + escapeHtml(name + date) + '</p>';
+                });
+                html += '</div>';
+                return html;
+            }
+
             function showDetail(sessionId) {
                 if (!sessionId) return;
                 detailContent.innerHTML = '<p>読み込み中...</p>';
@@ -3206,6 +3220,7 @@ $defaultGreetings = [
                         }
                         var d = res.data;
                         var html = '';
+                        html += renderRegisteredPhones(d.registered_phones || []);
                         if (d.contact) {
                             html += '<h4>連絡先情報</h4><div class="chat-contact-data">';
                             html += '<p><strong>顧客名:</strong> ' + escapeHtml(d.contact.customer_name || '未入力') + '</p>';

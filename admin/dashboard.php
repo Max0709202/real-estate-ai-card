@@ -5,6 +5,8 @@
 require_once __DIR__ . '/../backend/config/config.php';
 require_once __DIR__ . '/../backend/config/database.php';
 require_once __DIR__ . '/../backend/includes/functions.php';
+require_once __DIR__ . '/../backend/includes/chat-intake-helper.php';
+require_once __DIR__ . '/../backend/includes/chat-phone-helper.php';
 
 startSessionIfNotStarted();
 
@@ -16,6 +18,8 @@ if (empty($_SESSION['admin_id'])) {
 
 $database = new Database();
 $db = $database->getConnection();
+ensureChatLeadContactTable($db);
+ensureChatVerifiedPhonesTable($db);
 
 // 最終パスワード変更情報取得
 $stmt = $db->prepare("
@@ -96,6 +100,16 @@ $sql = "
         bc.is_published as is_open,
         bc.admin_notes,
         bc.payment_status,
+        COALESCE((
+            SELECT GROUP_CONCAT(DISTINCT COALESCE(cvp.display_phone, cvp.phone_e164) ORDER BY cvp.last_verified_at DESC SEPARATOR ', ')
+            FROM chat_verified_phones cvp
+            WHERE cvp.business_card_id = bc.id
+        ), '') as chat_verified_phones,
+        COALESCE((
+            SELECT GROUP_CONCAT(DISTINCT cc.phone ORDER BY cc.updated_at DESC SEPARATOR ', ')
+            FROM chat_lead_contacts cc
+            WHERE cc.business_card_id = bc.id AND cc.phone IS NOT NULL AND cc.phone <> ''
+        ), '') as chat_contact_phones,
         s.next_billing_date,
         s.cancelled_at,
         COALESCE((
@@ -283,6 +297,7 @@ $isAdmin = ($currentAdminRole === 'admin' || (int) $_SESSION['admin_id'] === 1);
                         <th class="sortable" data-sort="url_slug">企業URL</th>
                         <th class="sortable" data-sort="name">名前</th>
                         <th class="sortable" data-sort="mobile_phone">携帯</th>
+                        <th>チャット登録電話</th>
                         <th class="sortable" data-sort="email">メール</th>
                         <th class="sortable" data-sort="monthly_views">表示回数<br>（1か月）</th>
                         <th class="sortable" data-sort="total_views">表示回数<br>（累積）</th>
@@ -468,6 +483,17 @@ $isAdmin = ($currentAdminRole === 'admin' || (int) $_SESSION['admin_id'] === 1);
                             <?php endif; ?>
                         </td>
                         <td data-label="携帯"><?php echo htmlspecialchars($user['mobile_phone'] ?? ''); ?></td>
+                        <td data-label="チャット登録電話">
+                            <?php
+                            $chatPhones = [];
+                            foreach ([$user['chat_verified_phones'] ?? '', $user['chat_contact_phones'] ?? ''] as $phoneGroup) {
+                                foreach (array_filter(array_map('trim', explode(',', (string)$phoneGroup))) as $phone) {
+                                    if (!in_array($phone, $chatPhones, true)) $chatPhones[] = $phone;
+                                }
+                            }
+                            echo htmlspecialchars(implode(', ', array_slice($chatPhones, 0, 5)));
+                            ?>
+                        </td>
                         <td data-label="メール">
                             <a href="mailto:<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>" style="color: #0066cc; text-decoration: none;">
                                 <?php echo htmlspecialchars($user['email']); ?>

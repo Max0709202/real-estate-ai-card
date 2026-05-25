@@ -327,6 +327,77 @@
     background: #dceeff;
 }
 
+.chat-widget-entry-actions {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-bottom: 0.25rem;
+}
+.chat-entry-btn {
+    background: #fff;
+    border-color: #0b4f9f;
+    color: #0b4f9f;
+    font-weight: 700;
+}
+.chat-entry-btn:hover {
+    background: #eef6ff;
+}
+.chat-sms-auth-box {
+    align-self: stretch;
+    margin: 0 0 0.25rem 2.5rem;
+    padding: 0.85rem;
+    border: 1px solid #d9e4f2;
+    border-radius: 10px;
+    background: #f8fbff;
+    display: grid;
+    gap: 0.45rem;
+    max-width: 460px;
+}
+.chat-sms-auth-box label {
+    color: #344054;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+.chat-sms-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.45rem;
+}
+.chat-sms-phone,
+.chat-sms-code {
+    min-width: 0;
+    padding: 0.58rem 0.65rem;
+    border: 1px solid #cfd8e3;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 0.9rem;
+}
+.chat-sms-send,
+.chat-sms-verify {
+    border: 1px solid #0066cc;
+    border-radius: 8px;
+    background: #0066cc;
+    color: #fff;
+    font-weight: 700;
+    padding: 0.5rem 0.7rem;
+    cursor: pointer;
+}
+.chat-sms-send:disabled,
+.chat-sms-verify:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.chat-sms-status {
+    min-height: 1.2em;
+    color: #475467;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+#chat-firebase-recaptcha {
+    min-height: 1px;
+}
+
 .chat-intake-multi-hint {
     flex-basis: 100%;
     font-size: 0.75rem;

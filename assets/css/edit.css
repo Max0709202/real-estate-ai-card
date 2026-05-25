@@ -1336,3 +1336,19 @@ body {
 }
 
 
+
+.chat-registered-phones {
+    margin: 0 0 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid #d9e4f2;
+    border-radius: 8px;
+    background: #f8fbff;
+}
+.chat-registered-phones h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+}
+.chat-registered-phones p {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+}

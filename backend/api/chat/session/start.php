@@ -96,6 +96,17 @@ try {
     }
 
     $agentName = $card['name'] ?? '担当者';
+    $customerName = '';
+    if ($isResumed) {
+        try {
+            ensureChatLeadContactTable($db);
+            $stmt = $db->prepare("SELECT customer_name FROM chat_lead_contacts WHERE session_id = ? AND customer_name IS NOT NULL AND customer_name <> '' LIMIT 1");
+            $stmt->execute([$sessionId]);
+            $customerName = (string)($stmt->fetchColumn() ?: '');
+        } catch (Throwable $e) {
+            $customerName = '';
+        }
+    }
     $intake = chatIntakeInitialPayload($agentName);
     $resumeIntake = $isResumed ? chatIntakeResumePayload($db, $sessionId, $card['id']) : null;
     $resumeMessage = $isResumed ? getChatResumeMessageForSession($db, $sessionId, $agentName, $card['id'], true) : '';
@@ -113,6 +124,7 @@ try {
         'messages' => [],
         'has_previous_messages' => $hasPreviousMessages,
         'agent_name' => $card['name'] ?? '',
+        'customer_name' => $customerName,
         'resume_message' => $resumeMessage,
         'current_field' => $resumeIntake['current_field'] ?? null,
         'current_question' => $resumeIntake['current_question'] ?? '',

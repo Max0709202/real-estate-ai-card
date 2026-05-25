@@ -133,3 +133,17 @@ if (!defined('OPENAI_MODEL_SUMMARY')) {
 if (!defined('CHAT_BLOG_BASE_URL')) {
     define('CHAT_BLOG_BASE_URL', 'https://smile.re-agent.info/blog/');
 }
+
+// チャットボット: Firebase SMS認証（Phone Authentication）
+if (!defined('FIREBASE_API_KEY')) {
+    define('FIREBASE_API_KEY', getenv('FIREBASE_API_KEY') ?: '');
+}
+if (!defined('FIREBASE_AUTH_DOMAIN')) {
+    define('FIREBASE_AUTH_DOMAIN', getenv('FIREBASE_AUTH_DOMAIN') ?: '');
+}
+if (!defined('FIREBASE_PROJECT_ID')) {
+    define('FIREBASE_PROJECT_ID', getenv('FIREBASE_PROJECT_ID') ?: '');
+}
+if (!defined('FIREBASE_APP_ID')) {
+    define('FIREBASE_APP_ID', getenv('FIREBASE_APP_ID') ?: '');
+}
