@@ -35,6 +35,12 @@ $dbrRatio = isset($input['dbr_ratio']) ? (float) $input['dbr_ratio'] : 0.35;
 if ($dbrRatio <= 0 || $dbrRatio > 1) {
     $dbrRatio = 0.35;
 }
+if ($rateYear < 0 || $rateYear > 15 || $termYears < 1 || $termYears > 50) {
+    sendErrorResponse('金利は0〜15%、返済期間は1〜50年で指定してください。', 400);
+}
+if ($annualIncome < 0 || $annualIncome > 999990000 || $desiredMonthly < 0 || $desiredMonthly > 10000000) {
+    sendErrorResponse('年収または希望月額返済を正しく指定してください。', 400);
+}
 
 if ($cardSlug !== '') {
     try {
@@ -83,7 +89,7 @@ if ($desiredMonthly > 0 && $termYears > 0) {
         'max_monthly_payment' => round($maxMonthlyRepayment),
         'rate_year' => $rateYear,
         'term_years' => $termYears,
-        'dbr_ratio' => $dbrRatio,
+        'dbr_ratio' => round($dbrRatio, 4),
         'mode' => 'from_income',
     ], 'OK');
 } else {

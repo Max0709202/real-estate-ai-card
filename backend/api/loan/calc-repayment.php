@@ -55,8 +55,11 @@ if ($cardSlug !== '') {
     }
 }
 
-if ($principal <= 0 || $termYears <= 0) {
-    sendErrorResponse('借入金額と返済年数は正の値で指定してください。', 400);
+if ($loanAmount <= 0 || $loanAmount > 999990000 || $downPayment < 0 || $downPayment >= $loanAmount || $principal <= 0) {
+    sendErrorResponse('借入額と頭金を正しく指定してください。', 400);
+}
+if ($rateYear < 0 || $rateYear > 15 || $termYears < 1 || $termYears > 50) {
+    sendErrorResponse('金利は0〜15%、返済期間は1〜50年で指定してください。', 400);
 }
 
 $termMonths = $termYears * 12;

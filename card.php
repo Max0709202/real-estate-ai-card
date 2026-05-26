@@ -865,11 +865,6 @@ if (!empty($card['profile_photo'])) {
                         </div>
                     </section>
                 <?php endif; ?>
-                <?php if ($chatbotEnabled): ?>
-                <p class="loan-sim-link-wrap" style="margin: 1rem 0; font-size: 0.95rem; display: none;">
-                    <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '')); ?>" style="color: #0066cc; font-weight: bold;">住宅ローンシミュレーター</a>で返済額・借入可能額の試算ができます。
-                </p>
-                <?php endif; ?>
                 <!-- コミュニケーション方法 -->
                 <?php
                 // Helper function to get link URL for message apps
@@ -1197,6 +1192,13 @@ if (!empty($card['profile_photo'])) {
     <?php endif; ?>
 
     <?php if ($chatbotEnabled): ?>
+    <nav class="loan-sim-floating-actions" aria-label="住宅ローンシミュレーター">
+        <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '')); ?>" target="_blank">返済額試算</a>
+        <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '')); ?>" target="_blank">借入可能額</a>
+    </nav>
+    <?php endif; ?>
+
+    <?php if ($chatbotEnabled): ?>
     <!-- Chatbot widget (floating button + panel) -->
     <div id="chat-widget-root" class="chat-widget-root"
          data-card-slug="<?php echo htmlspecialchars($card['url_slug'] ?? ''); ?>"
@@ -1228,10 +1230,7 @@ if (!empty($card['profile_photo'])) {
                 </div>
             </div>
             <div id="chat-widget-messages" class="chat-widget-messages"></div>
-            <div class="chat-widget-quick-actions" id="chat-widget-quick-actions">
-                <button style="display:none;" type="button" class="chat-quick-btn" data-action="loan_repayment">ローン返済額を試算する</button>
-                <button style="display:none;" type="button" class="chat-quick-btn" data-action="loan_borrow">借入可能額を試算する</button>
-            </div>
+            <div class="chat-widget-quick-actions" id="chat-widget-quick-actions"></div>
             <div class="chat-widget-input-wrap">
                 <textarea id="chat-widget-input" class="chat-widget-input" rows="2" placeholder="メッセージを入力..." maxlength="2000"></textarea>
                 <div class="chat-widget-input-actions">
