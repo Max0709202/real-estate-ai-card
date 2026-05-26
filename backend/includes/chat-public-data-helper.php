@@ -304,7 +304,7 @@ function chatMansionDbContext($db, $message) {
     }
 }
 
-function chatPublicDataTrimForPrompt($data, $maxLength = 6000) {
+function chatPublicDataTrimForPrompt($data, $maxLength = 4000) {
     $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
     if (!is_string($json)) return '';
     return mb_strlen($json) > $maxLength ? mb_substr($json, 0, $maxLength) . "\n...（一部省略）" : $json;

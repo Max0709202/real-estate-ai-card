@@ -287,11 +287,16 @@ function callOpenAIChat($messages, $apiKey, $model = 'gpt-4o-mini', $options = [
         chatOpenAILogUsage($options, $model, null, null, null, $error, 0);
         return ['reply' => null, 'error' => $error, 'model' => $model, 'response_model' => null, 'usage' => null, 'http_code' => null];
     }
+    $purpose = $options['purpose'] ?? 'chat';
+    $defaultMaxTokens = $purpose === 'summary' ? 450 : ($purpose === 'chat_fallback' ? 700 : 850);
+    $maxTokens = isset($options['max_tokens']) ? (int)$options['max_tokens'] : $defaultMaxTokens;
+    $maxTokens = max(128, min(1024, $maxTokens));
+    $temperature = isset($options['temperature']) ? (float)$options['temperature'] : ($purpose === 'summary' ? 0.2 : 0.6);
     $payload = [
         'model'    => $model,
         'messages' => $messages,
-        'max_tokens' => 1024,
-        'temperature' => 0.6,
+        'max_tokens' => $maxTokens,
+        'temperature' => $temperature,
     ];
     $json = json_encode($payload);
     $ch = curl_init('https://api.openai.com/v1/chat/completions');
@@ -327,6 +332,28 @@ function callOpenAIChat($messages, $apiKey, $model = 'gpt-4o-mini', $options = [
     $reply = trim($data['choices'][0]['message']['content']);
     chatOpenAILogUsage($options, $model, $responseModel, $usage, $httpCode, null, $durationMs);
     return ['reply' => $reply, 'error' => null, 'model' => $model, 'response_model' => $responseModel, 'usage' => $usage, 'http_code' => $httpCode];
+}
+
+function chatOpenAITrimPromptText($text, $maxChars = 900) {
+    $text = trim((string)$text);
+    if ($text === '') return '';
+    if (mb_strlen($text) <= $maxChars) return $text;
+    return mb_substr($text, 0, $maxChars) . '…';
+}
+
+function chatOpenAICompactHistory($conversationHistory, $maxMessages = 8, $maxCharsPerMessage = 900) {
+    if (!is_array($conversationHistory) || empty($conversationHistory)) return [];
+    $recent = array_slice($conversationHistory, -1 * max(1, (int)$maxMessages));
+    $compact = [];
+    foreach ($recent as $msg) {
+        if (!is_array($msg)) continue;
+        $rawRole = $msg['role'] ?? '';
+        $role = ($rawRole === 'bot' || $rawRole === 'assistant') ? 'assistant' : 'user';
+        $content = chatOpenAITrimPromptText($msg['message'] ?? ($msg['content'] ?? ''), $maxCharsPerMessage);
+        if ($content === '') continue;
+        $compact[] = ['role' => $role, 'content' => $content];
+    }
+    return $compact;
 }
 
 function sanitizeChatReferralLanguage($reply, $agentName = '担当者') {
@@ -395,7 +422,7 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
 
     if ($db instanceof PDO) {
         $liveRefresh = refreshChatKnowledgeForMessage($db, $userMessage, 24);
-        $rag = getChatRagContextForChat($db, $userMessage, 6);
+        $rag = getChatRagContextForChat($db, $userMessage, 4);
         if ($sessionId !== '') {
             $memory = getChatSessionMemory($db, $sessionId);
             $leadData = chatLoadLeadDataForMemory($db, $sessionId);
@@ -505,9 +532,8 @@ PROMPT;
     $messages = [
         ['role' => 'system', 'content' => $systemPrompt],
     ];
-    foreach ($conversationHistory as $msg) {
-        $role = ($msg['role'] === 'bot' || $msg['role'] === 'assistant') ? 'assistant' : 'user';
-        $messages[] = ['role' => $role, 'content' => $msg['message']];
+    foreach (chatOpenAICompactHistory($conversationHistory, 8, 900) as $msg) {
+        $messages[] = $msg;
     }
     $messages[] = ['role' => 'user', 'content' => $userMessage];
     $logContext = [

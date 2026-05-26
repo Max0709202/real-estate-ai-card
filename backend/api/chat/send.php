@@ -71,12 +71,12 @@ try {
     $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'user', ?)");
     $stmt->execute([$sessionId, $message]);
 
-    // Load recent conversation history (last 10 exchanges) for context
+    // Keep only the newest turns in the prompt; older context is carried by chat_session_memory.last_summary.
     $stmt = $db->prepare("
         SELECT role, message FROM chat_messages
         WHERE session_id = ? AND id < (SELECT MAX(id) FROM chat_messages WHERE session_id = ?)
         ORDER BY id DESC
-        LIMIT 20
+        LIMIT 8
     ");
     $stmt->execute([$sessionId, $sessionId]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);

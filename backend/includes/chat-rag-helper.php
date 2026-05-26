@@ -359,8 +359,8 @@ function getChatRagContextForChat($db, $message, $limit = 6) {
         $totalLength = 0;
         foreach ($selected as $idx => $row) {
             $snippet = trim($row['content']);
-            if (mb_strlen($snippet) > 900) {
-                $snippet = mb_substr($snippet, 0, 900) . '…';
+            if (mb_strlen($snippet) > 750) {
+                $snippet = mb_substr($snippet, 0, 750) . '…';
             }
             $label = '[' . ($idx + 1) . '] ' . $row['source_title'];
             $fetched = $row['last_fetched_at'] ? '取得日: ' . $row['last_fetched_at'] : '取得日: 未同期';
@@ -376,7 +376,7 @@ function getChatRagContextForChat($db, $message, $limit = 6) {
                     'last_fetched_at' => $row['last_fetched_at'],
                 ];
             }
-            if ($totalLength > 4800) break;
+            if ($totalLength > 3600) break;
         }
 
         return [
@@ -765,7 +765,7 @@ function chatShouldBuildAISummary($db, $sessionId) {
         $stmt = $db->prepare('SELECT COUNT(*) FROM chat_messages WHERE session_id = ?');
         $stmt->execute([$sessionId]);
         $count = (int)$stmt->fetchColumn();
-        return $count >= 12 && $count % 8 === 0;
+        return $count >= 16 && $count % 12 === 0;
     } catch (Throwable $e) {
         error_log('Chat AI summary count error: ' . $e->getMessage());
         return false;
@@ -779,7 +779,7 @@ function chatBuildAISessionSummary($db, $sessionId, $memory = []) {
     if ($apiKey === '' || $apiKey === 'YOUR_OPENAI_API_KEY_HERE') return '';
 
     try {
-        $stmt = $db->prepare('SELECT role, message FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 30');
+        $stmt = $db->prepare('SELECT role, message FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 20');
         $stmt->execute([$sessionId]);
         $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
     } catch (Throwable $e) {
@@ -791,7 +791,7 @@ function chatBuildAISessionSummary($db, $sessionId, $memory = []) {
     $transcript = [];
     foreach ($rows as $row) {
         $label = ($row['role'] ?? '') === 'user' ? '顧客' : 'AI';
-        $text = chatMemoryTrim($row['message'] ?? '', 500);
+        $text = chatMemoryTrim($row['message'] ?? '', 360);
         if ($text !== '') $transcript[] = $label . ': ' . $text;
     }
     if (empty($transcript)) return '';
@@ -806,6 +806,8 @@ function chatBuildAISessionSummary($db, $sessionId, $memory = []) {
         'session_id' => $sessionId,
         'business_card_id' => function_exists('chatOpenAIGetSessionBusinessCardId') ? chatOpenAIGetSessionBusinessCardId($db, $sessionId) : null,
         'purpose' => 'summary',
+        'max_tokens' => 450,
+        'temperature' => 0.2,
     ]);
     if (!empty($result['error']) || empty($result['reply'])) {
         if (!empty($result['error'])) error_log('Chat AI summary error: ' . $result['error']);
