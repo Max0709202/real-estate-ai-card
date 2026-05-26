@@ -121,6 +121,7 @@ function getBlogContextForChat($userMessage = '') {
 
 require_once __DIR__ . '/chat-rag-helper.php';
 require_once __DIR__ . '/chat-intake-helper.php';
+require_once __DIR__ . '/chat-public-data-helper.php';
 
 function chatOpenAIModelLight() {
     if (defined('OPENAI_MODEL_LIGHT')) return OPENAI_MODEL_LIGHT;
@@ -377,6 +378,11 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
         'has_local_knowledge' => false,
     ];
     $memory = chatMemoryDefault();
+    $publicData = [
+        'context' => '',
+        'sources' => [],
+        'notices' => [],
+    ];
 
     $liveRefresh = [
         'attempted' => false,
@@ -396,6 +402,7 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
             if (!empty($leadData)) chatApplyLeadDataToMemory($memory, $leadData);
             $businessCardId = chatOpenAIGetSessionBusinessCardId($db, $sessionId, $leadData);
         }
+        $publicData = chatBuildPublicDataContext($db, $userMessage);
     }
 
     $model = chatOpenAISelectModel('chat', $userMessage, $memory, $leadData);
@@ -419,6 +426,10 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
             $refreshContext = "\n【最新情報チェック】\nローカル公式RAGソースは直近同期済み、または今回の質問で追加再取得は不要と判定されています。";
         }
     }
+    $publicDataContext = $publicData['context'] !== ''
+        ? "\n\n" . $publicData['context']
+        : '';
+    $publicDataUiSources = chatPublicDataSourcesForUi($publicData['sources']);
 
     $systemPrompt = <<<PROMPT
 あなたは日本の不動産営業現場で使われる「不動産相談AI」です。
@@ -438,6 +449,13 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
 住宅ローン減税、補助金、税制改正、金利、フラット35、自治体制度、法改正、建築基準、省エネ基準、不動産関連の最新制度では、モデルの内部知識だけで断定しない。
 {$freshnessInstruction}
 参照情報の優先順位は、国税庁、国土交通省、住宅金融支援機構/フラット35、自治体、金融機関公式サイト、自社確認済み資料、信頼できる業界メディアの順です。一般ブログや未確認情報だけを根拠に断定してはいけません。
+
+# 公的データ・マンションDB参照
+公的データ参照情報またはマンションDB参照情報がある場合は、その内容を一般ユーザー向けにやさしく要約してください。
+APIキー、内部URL、リクエスト情報、DBの内部構造は回答に出してはいけません。
+e-Statの統計情報を使う場合は、自然な文脈で「政府統計によると、」という前置きを入れてください。
+公的データやマンションDBを根拠にした場合は、回答末尾に出典を明記してください。
+参照情報がない、または取得できない場合は、取得できたかのように装わず、必要に応じて確認中・追加確認が必要と伝えてください。
 
 # 回答スタイル
 原則として次の構造で回答する。
@@ -481,7 +499,7 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
 
 {$leadContext}
 
-{$ragContext}{$refreshContext}
+{$ragContext}{$refreshContext}{$publicDataContext}
 PROMPT;
 
     $messages = [
@@ -510,8 +528,11 @@ PROMPT;
         }
     }
     if ($result['error'] !== null) {
-        return ['reply' => null, 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => $result['error'], 'model' => $result['model'] ?? $model];
+        return ['reply' => null, 'sources' => array_merge($rag['sources'], $publicDataUiSources), 'freshness' => $liveRefresh, 'error' => $result['error'], 'model' => $result['model'] ?? $model];
     }
     $safeReply = sanitizeChatReferralLanguage($result['reply'], $agentName);
-    return ['reply' => $safeReply, 'sources' => $rag['sources'], 'freshness' => $liveRefresh, 'error' => null, 'model' => $result['model'] ?? $model, 'usage' => $result['usage'] ?? null];
+    if (!empty($publicData['sources'])) {
+        $safeReply = chatAppendPublicDataSourcesToReply($safeReply, $publicData['sources']);
+    }
+    return ['reply' => $safeReply, 'sources' => array_merge($rag['sources'], $publicDataUiSources), 'freshness' => $liveRefresh, 'error' => null, 'model' => $result['model'] ?? $model, 'usage' => $result['usage'] ?? null];
 }

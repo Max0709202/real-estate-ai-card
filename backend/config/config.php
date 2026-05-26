@@ -147,3 +147,17 @@ if (!defined('FIREBASE_PROJECT_ID')) {
 if (!defined('FIREBASE_APP_ID')) {
     define('FIREBASE_APP_ID', getenv('FIREBASE_APP_ID') ?: '');
 }
+
+// チャットボット: 公的データAPI（キーはsecrets.phpまたは環境変数で管理）
+if (!defined('REINFOLIB_API_KEY')) {
+    define('REINFOLIB_API_KEY', getenv('REINFOLIB_API_KEY') ?: '');
+}
+if (!defined('MLIT_DPF_API_KEY')) {
+    define('MLIT_DPF_API_KEY', getenv('MLIT_DPF_API_KEY') ?: '');
+}
+if (!defined('MLIT_DPF_BASE_URL')) {
+    define('MLIT_DPF_BASE_URL', getenv('MLIT_DPF_BASE_URL') ?: 'https://data-platform.mlit.go.jp/api/v1');
+}
+if (!defined('ESTAT_APP_ID')) {
+    define('ESTAT_APP_ID', getenv('ESTAT_APP_ID') ?: '');
+}

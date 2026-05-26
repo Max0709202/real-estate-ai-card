@@ -416,7 +416,7 @@
         appendBotMessage('前回のご相談を安全に確認するため、SMS認証を行います。電話番号を入力し、届いた認証コードを入力してください。');
         var box = document.createElement('div');
         box.className = 'chat-sms-auth-box';
-        box.innerHTML = '<label>電話番号</label><div class="chat-sms-row"><input type="tel" class="chat-sms-phone" placeholder="例：09012345678"><button type="button" class="chat-sms-send">SMS送信</button></div><label>認証コード</label><div class="chat-sms-row"><input type="text" class="chat-sms-code" inputmode="numeric" placeholder="6桁のコード"><button type="button" class="chat-sms-verify" disabled>認証する</button></div><div class="chat-sms-status" aria-live="polite"></div><div id="chat-firebase-recaptcha"></div>';
+        box.innerHTML = '<label>電話番号</label><div class="chat-sms-row"><input type="tel" class="chat-sms-phone" placeholder="例：09012345678 / +17024786494"><button type="button" class="chat-sms-send">SMS送信</button></div><label>認証コード</label><div class="chat-sms-row"><input type="text" class="chat-sms-code" inputmode="numeric" placeholder="6桁のコード"><button type="button" class="chat-sms-verify" disabled>認証する</button></div><div class="chat-sms-status" aria-live="polite"></div><div id="chat-firebase-recaptcha"></div>';
         messagesContainer.appendChild(box);
         scrollMessagesToBottom();
         setInputEnabled(false);
@@ -435,7 +435,7 @@
                 return;
             }
             sendButton.disabled = true;
-            setStatus('SMSを送信しています...');
+            setStatus('SMSを送信しています...（送信先: ' + phone + '）');
             ensureFirebaseReady().then(function () {
                 var auth = window.firebase.auth();
                 if (!window.chatRecaptchaVerifier) {
@@ -446,11 +446,12 @@
                 firebaseConfirmationResult = confirmationResult;
                 verifyButton.disabled = false;
                 setStatus('SMSを送信しました。届いた認証コードを入力してください。');
-            }).catch(function () {
+            }).catch(function (error) {
+                if (window.console && console.warn) console.warn('Firebase SMS send failed:', { phone: phone, error: error });
                 sendButton.disabled = false;
                 verifyButton.disabled = true;
                 firebaseConfirmationResult = null;
-                setStatus('SMS送信に失敗しました。電話番号やFirebase設定をご確認ください。');
+                setStatus(firebaseSmsErrorMessage(error, phone));
                 if (window.chatRecaptchaVerifier && window.chatRecaptchaVerifier.clear) {
                     try { window.chatRecaptchaVerifier.clear(); } catch (e) {}
                     window.chatRecaptchaVerifier = null;
@@ -486,7 +487,30 @@
         if (!digits) return '';
         if (digits.indexOf('81') === 0) return '+' + digits;
         if (digits.charAt(0) === '0') return '+81' + digits.slice(1);
+        if (digits.length === 10 && /^[2-9]/.test(digits)) return '+1' + digits;
+        if (digits.length === 11 && digits.charAt(0) === '1') return '+' + digits;
         return '+' + digits;
+    }
+
+    function firebaseSmsErrorMessage(error, normalizedPhone) {
+        var code = error && error.code ? String(error.code) : '';
+        var suffix = code ? '（Firebase: ' + code + ' / 送信先: ' + normalizedPhone + '）' : '（送信先: ' + normalizedPhone + '）';
+        if (code.indexOf('invalid-phone-number') !== -1) {
+            return '電話番号の形式が正しくありません。日本の携帯番号は070/080/090から始まる11桁、または+81から入力してください。' + suffix;
+        }
+        if (code.indexOf('operation-not-allowed') !== -1) {
+            return 'Firebase側でSMS送信が許可されていません。Phone認証の有効化、SMSリージョンで日本（+81）の許可、課金設定をご確認ください。' + suffix;
+        }
+        if (code.indexOf('unauthorized-domain') !== -1) {
+            return 'このドメインがFirebase Authenticationの承認済みドメインに登録されていません。' + suffix;
+        }
+        if (code.indexOf('too-many-requests') !== -1 || code.indexOf('quota-exceeded') !== -1) {
+            return 'SMS送信回数が多すぎる、またはSMS送信枠を超えています。時間をおいて再度お試しください。' + suffix;
+        }
+        if (code.indexOf('captcha-check-failed') !== -1 || code.indexOf('missing-app-credential') !== -1 || code.indexOf('invalid-app-credential') !== -1) {
+            return 'reCAPTCHA認証に失敗しました。ページを再読み込みして、もう一度お試しください。' + suffix;
+        }
+        return 'SMS送信に失敗しました。Firebase設定、SMSリージョン、課金設定、送信制限をご確認ください。' + suffix;
     }
 
     function verifyPhoneOnServer(idToken, reason) {

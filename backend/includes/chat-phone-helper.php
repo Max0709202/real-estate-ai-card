@@ -35,6 +35,9 @@ function chatPhoneLookupKey($phone) {
     if (strpos($digits, '81') === 0 && strlen($digits) >= 11) {
         return '0' . substr($digits, 2);
     }
+    if (strlen($digits) === 11 && strpos($digits, '1') === 0) {
+        return substr($digits, 1);
+    }
     return $digits;
 }
 
@@ -48,6 +51,8 @@ function chatPhoneToE164Japan($phone) {
     if ($digits === '') return '';
     if (strpos($digits, '81') === 0) return '+' . $digits;
     if (strpos($digits, '0') === 0) return '+81' . substr($digits, 1);
+    if (strlen($digits) === 10 && preg_match('/^[2-9]/', $digits)) return '+1' . $digits;
+    if (strlen($digits) === 11 && strpos($digits, '1') === 0) return '+' . $digits;
     return '+' . $digits;
 }
 
