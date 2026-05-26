@@ -1193,8 +1193,8 @@ if (!empty($card['profile_photo'])) {
 
     <?php if ($chatbotEnabled): ?>
     <nav class="loan-sim-floating-actions" aria-label="住宅ローンシミュレーター">
-        <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '')); ?>" target="_blank">返済額試算</a>
-        <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '')); ?>" target="_blank">借入可能額</a>
+        <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '') . '&form=repayment'); ?>" rel="noopener noreferrer">返済額試算</a>
+        <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '') . '&form=borrow-income'); ?>" rel="noopener noreferrer">借入可能額</a>
     </nav>
     <?php endif; ?>
 

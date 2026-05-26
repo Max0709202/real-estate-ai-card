@@ -7,6 +7,10 @@
 require_once __DIR__ . '/backend/config/config.php';
 
 $cardSlug = isset($_GET['slug']) ? trim($_GET['slug']) : '';
+$initialForm = isset($_GET['form']) ? trim($_GET['form']) : '';
+if (!in_array($initialForm, ['repayment', 'borrow-income', 'borrow-monthly'], true)) {
+    $initialForm = '';
+}
 $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
 ?>
 <!DOCTYPE html>
@@ -138,6 +142,7 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
     (function() {
         var apiBase = <?php echo json_encode($apiBase); ?>;
         var cardSlug = <?php echo json_encode($cardSlug); ?>;
+        var initialForm = <?php echo json_encode($initialForm); ?>;
 
         var overlays = Array.prototype.slice.call(document.querySelectorAll('.loan-sim-form-overlay'));
 
@@ -149,6 +154,11 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
                 overlay.setAttribute('hidden', '');
             });
             document.body.classList.remove('loan-sim-modal-open');
+        }
+        function formToOverlayId(form) {
+            if (form === 'borrow-income') return 'overlay-borrow-income';
+            if (form === 'borrow-monthly') return 'overlay-borrow-monthly';
+            return 'overlay-repayment';
         }
         function openOverlay(id) {
             var overlay = getOverlay(id);
@@ -213,10 +223,7 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
         document.querySelectorAll('.loan-sim-btn[data-form]').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 var form = this.getAttribute('data-form');
-                var id = 'overlay-repayment';
-                if (form === 'borrow-income') id = 'overlay-borrow-income';
-                if (form === 'borrow-monthly') id = 'overlay-borrow-monthly';
-                openOverlay(id);
+                openOverlay(formToOverlayId(form));
             });
         });
         document.querySelectorAll('.loan-sim-form-close').forEach(function(btn) {
@@ -232,6 +239,12 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') closeAllOverlays();
         });
+
+        if (initialForm) {
+            window.setTimeout(function() {
+                openOverlay(formToOverlayId(initialForm));
+            }, 0);
+        }
 
         var payload = { card_slug: cardSlug || '' };
         if (!payload.card_slug) delete payload.card_slug;
