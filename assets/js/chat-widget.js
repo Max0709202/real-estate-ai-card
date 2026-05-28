@@ -446,7 +446,7 @@
         if (existing) existing.remove();
     }
 
-    function showSmsAuth(reason) {
+    function showSmsAuth(reason, initialPhone) {
         entryAwaitingChoice = true;
         renderQuickReplies([]);
         removeSmsAuthBox();
@@ -455,9 +455,9 @@
             window.chatRecaptchaVerifier = null;
         }
         var smsIntro = reason === 'register'
-            ? '最後に、携帯電話番号をご入力ください。\n\nご本人確認のため、SMS認証を行います。入力後、SMSで届く6ケタの認証コードをご入力ください。'
+            ? ''
             : '前回のご相談を安全に確認するため、SMS認証を行います。電話番号を入力し、届いた認証コードを入力してください。';
-        appendBotMessage(smsIntro);
+        if (smsIntro) appendBotMessage(smsIntro);
         var box = document.createElement('div');
         box.className = 'chat-sms-auth-box';
         box.innerHTML = '<label>電話番号</label><div class="chat-sms-row"><input type="tel" class="chat-sms-phone" placeholder="例：09012345678"><button type="button" class="chat-sms-send">SMS送信</button></div><label>認証コード</label><div class="chat-sms-row"><input type="text" class="chat-sms-code" inputmode="numeric" placeholder="6桁のコード"><button type="button" class="chat-sms-verify" disabled>認証する</button></div><div class="chat-sms-status" aria-live="polite"></div><div id="chat-firebase-recaptcha"></div>';
@@ -466,6 +466,7 @@
         setInputEnabled(false);
 
         var phoneInput = box.querySelector('.chat-sms-phone');
+        if (phoneInput && initialPhone) phoneInput.value = String(initialPhone);
         var codeInput = box.querySelector('.chat-sms-code');
         var sendButton = box.querySelector('.chat-sms-send');
         var verifyButton = box.querySelector('.chat-sms-verify');
@@ -534,6 +535,12 @@
         if (digits.length === 10 && /^[2-9]/.test(digits)) return '+1' + digits;
         if (digits.length === 11 && digits.charAt(0) === '1') return '+' + digits;
         return '+' + digits;
+    }
+
+    function shouldOpenSmsAuthFromReply(reply, userText) {
+        var replyText = String(reply || '');
+        if (replyText.indexOf('SMS認証フォームを表示します') !== -1) return true;
+        return !!normalizePhoneInput(userText) && replyText.indexOf('最後に、携帯電話番号をご入力ください') !== -1;
     }
 
     function firebaseSmsErrorMessage(error, normalizedPhone) {
@@ -959,6 +966,14 @@
                     setVoiceStatus('');
                     inputEl.focus();
                 };
+                if (data.success && data.data && (data.data.sms_auth_required || shouldOpenSmsAuthFromReply(data.data.reply, text))) {
+                    sendingMessage = false;
+                    updateVoiceButtonState();
+                    setVoiceStatus('');
+                    appendBotMessage(data.data.reply || 'SMS認証フォームを表示します。電話番号を入力して認証を進めてください。');
+                    showSmsAuth('register', data.data.sms_auth_phone || text || '');
+                    return;
+                }
                 if (data.success && data.data && data.data.reply) {
                     appendBotMessage(data.data.reply, false, data.data.sources || [], '', {
                         typewriter: true,
@@ -1072,17 +1087,22 @@
                 }
                 return;
             }
-            var action = btn.getAttribute('data-action');
-            if (action === 'sms_register') {
+            var action = btn.getAttribute('data-action') || '';
+            var replyLabel = btn.getAttribute('data-reply-label') || '';
+            var replyValue = btn.getAttribute('data-reply-value') || btn.getAttribute('data-action-value') || '';
+            var isSmsRegister = action === 'sms_register'
+                || replyValue === 'sms_register'
+                || replyLabel === '携帯電話番号を入力してSMS認証する'
+                || replyLabel === 'もう一度SMS認証する';
+            if (isSmsRegister) {
                 showSmsAuth('register');
                 return;
             }
-            var replyLabel = btn.getAttribute('data-reply-label');
             if (replyLabel) {
                 sendMessage(replyLabel, {
                     buttonSelection: {
                         label: replyLabel,
-                        value: btn.getAttribute('data-reply-value') || replyLabel,
+                        value: replyValue || replyLabel,
                         field: btn.getAttribute('data-reply-field') || '',
                         multi_select: false
                     }

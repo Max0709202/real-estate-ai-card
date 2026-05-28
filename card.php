@@ -1248,7 +1248,7 @@ if (!empty($card['profile_photo'])) {
             <div id="chat-widget-voice-status" class="chat-widget-voice-status" aria-live="polite" hidden></div>
         </div>
     </div>
-    <script src="assets/js/chat-widget.js" defer></script>
+    <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>
     <?php endif; ?>
 
     <!-- iOS: Step 1 – Custom prompt "Would you like to add to home screen?" -->
