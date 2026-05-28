@@ -480,6 +480,36 @@ function chatIntakeUserRequestsDirectAnswer($message) {
     return (bool)preg_match('/(こちら|こっち|先ほど|さっき|前|上|私|自分)?の?質問.*(答え|回答|返答)|質問に(答え|回答|返答)|聞いた(?:こと|内容).*(答え|回答|返答)|ちゃんと.*(会話|答え|回答|返答)|普通に答え|会話.*(成立|成り立|噛み合)|話.*(通じ|噛み合)|同じ.*(質問|こと).*(繰り返|聞か)|無視しない|答えてください|回答してください/u', $message);
 }
 
+function chatIntakeMatchesDefinedChoice($field, $message) {
+    $message = trim((string)$message);
+    if ($message === '') return false;
+    $defs = chatIntakeFieldDefinitions();
+    foreach (($defs[$field]['choices'] ?? []) as $choice) {
+        if ($message === (string)($choice['label'] ?? '') || $message === (string)($choice['value'] ?? '')) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function chatIntakeLooksLikeAccidentalShortInput($message, $field = null) {
+    $message = trim((string)$message);
+    if ($message === '') return false;
+    $plain = preg_replace('/[\s　[:punct:]。、，．・！？?！「」『』（）()【】\[\]{}]+/u', '', $message);
+    if ($plain === '') return true;
+    if ($field !== null && chatIntakeMatchesDefinedChoice($field, $message)) return false;
+    if (preg_match('/[0-9０-９]/u', $plain)) return false;
+    return mb_strlen($plain) <= 1;
+}
+
+function chatIntakeBuildShortInputReply($field, $data) {
+    $question = chatIntakeNaturalQuestion($field, $data);
+    if ($field === 'preferred_area') {
+        return "すみません、入力途中かもしれません。\nエリア名は「杉並区」「中野坂上周辺」のように入力できます。まだ決まっていなければ「未定」で大丈夫です。\n\n" . $question;
+    }
+    return "すみません、入力途中かもしれません。\nもう一度、分かる範囲で入力してください。未定の場合は「未定」でも大丈夫です。\n\n" . $question;
+}
+
 function chatIntakeBuildFreeConversationReply($agentName = '担当者') {
     $agentLabel = trim((string)$agentName) !== '' ? trim((string)$agentName) : '担当者';
     return "承知しました。こちらから条件整理の質問を続けるのはいったん止めます。\n\nこれまで伺った内容は引き継ぎますので、不動産の購入・売却・ローン・相場など、気になることをそのまま自由にご質問ください。必要な時だけ、担当「{$agentLabel}」へ引き継ぎやすい形で整理します。";
@@ -692,6 +722,33 @@ function chatIntakeExtractNaturalFields($message, $data) {
         $extracted['budget'] = $message;
     }
 
+    if (preg_match('/\b([1-5])\s*(?:LDK|SLDK|DK|K|R)\b/iu', $message, $m)) {
+        $extracted['layout'] = strtoupper(mb_convert_kana($m[0], 'a'));
+    } elseif (preg_match('/([1-5])\s*部屋/u', mb_convert_kana($message, 'n'), $m)) {
+        $extracted['layout'] = $m[1] . 'LDK';
+    }
+
+    if (preg_match('/徒歩\s*([0-9０-９]{1,2})\s*分/u', $message, $m)) {
+        $minutes = (int)mb_convert_kana($m[1], 'n');
+        $extracted['station_walk_minutes'] = (string)$minutes;
+    } elseif (preg_match('/バス/u', $message)) {
+        $extracted['station_walk_minutes'] = 'bus';
+    }
+
+    if (preg_match('/事前審査.*(済|通|承認)|審査済/u', $message)) {
+        $extracted['loan_status'] = '事前審査済';
+    } elseif (preg_match('/現金購入|キャッシュ/u', $message)) {
+        $extracted['loan_status'] = '現金購入';
+    } elseif (preg_match('/ローン.*(これから|未定|不安|相談|わからない|分からない)/u', $message)) {
+        $extracted['loan_status'] = 'これから';
+    }
+
+    if (preg_match('/(すぐ|3か月以内|３か月以内|三か月以内|半年以内|1年以内|１年以内|一年以内|未定)/u', $message, $m)) {
+        $timing = strtr($m[1], ['３' => '3', '１' => '1', '三か月以内' => '3か月以内', '一年以内' => '1年以内']);
+        if (($data['customer_type'] ?? '') === 'sale') $extracted['selling_timing'] = $timing;
+        else $extracted['purchase_timing'] = $timing;
+    }
+
     return $extracted;
 }
 
@@ -813,6 +870,19 @@ function chatIntakeNextField($data) {
     return null;
 }
 
+function chatIntakeNextFields($data, $limit = 3) {
+    if (empty($data['customer_type'])) return ['customer_type'];
+    $fields = [];
+    $asked = $data['_asked_fields'] ?? [];
+    foreach (chatIntakeScenarioFieldsForData($data) as $field) {
+        if (in_array($field, $asked, true)) continue;
+        if (chatIntakeFieldHasValue($data, $field)) continue;
+        $fields[] = $field;
+        if (count($fields) >= $limit) break;
+    }
+    return $fields;
+}
+
 function chatIntakeDisplayValue($value) {
     return is_array($value) ? implode('、', $value) : (string)$value;
 }
@@ -885,6 +955,30 @@ function chatIntakeNaturalQuestion($field, $data) {
     if (!$field) return '主要な条件はかなり整理できました。追加で気になることがあれば、そのまま自由に入力してください。';
     $defs = chatIntakeFieldDefinitions();
     $question = $defs[$field]['question'] ?? '';
+    if (in_array($field, ['contact_name', 'contact_email', 'contact_phone', 'contact_request'], true)) {
+        return $question;
+    }
+
+    $batchFields = chatIntakeNextFields($data, 3);
+    if (!in_array($field, $batchFields, true)) {
+        array_unshift($batchFields, $field);
+        $batchFields = array_slice(array_values(array_unique($batchFields)), 0, 3);
+    }
+    $batchFields = array_values(array_filter($batchFields, function ($candidate) {
+        return !in_array($candidate, ['contact_name', 'contact_email', 'contact_phone', 'contact_request'], true);
+    }));
+    if (count($batchFields) >= 2) {
+        $lines = ['次に、分かる範囲で2〜3点だけ教えてください。未定のものは「未定」で大丈夫です。'];
+        $i = 1;
+        foreach ($batchFields as $batchField) {
+            $batchQuestion = $defs[$batchField]['question'] ?? '';
+            if ($batchQuestion === '') continue;
+            $lines[] = $i . '. ' . $batchQuestion;
+            $i++;
+        }
+        return implode("\n", $lines);
+    }
+
     $prefixMap = [
         'preferred_area' => 'まずは物件探しの軸になるエリアから整理したいです。',
         'preferred_station_line' => 'エリアに加えて、駅や沿線の希望があると提案の精度が上がります。',
@@ -927,7 +1021,6 @@ function chatIntakeNaturalQuestion($field, $data) {
         'contact_request' => '',
     ];
     $prefix = $prefixMap[$field] ?? '続けて、もう少しだけ確認させてください。';
-    if (in_array($field, ['contact_name', 'contact_email', 'contact_phone', 'contact_request'], true) && $prefix === '') return $question;
     return $prefix . "\n" . $question;
 }
 
@@ -1090,6 +1183,14 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
     }
 
     $extractedFields = $fromButton ? [] : chatIntakeApplyNaturalFields($data, $message, $field);
+    if (!$fromButton && empty($extractedFields) && chatIntakeLooksLikeAccidentalShortInput($message, $field)) {
+        return [
+            'handled' => true,
+            'reply' => chatIntakeBuildShortInputReply($field, $data),
+            'quick_replies' => chatIntakeQuickRepliesForCurrentField($data),
+            'data' => $data,
+        ];
+    }
     if (!$fromButton && !isset($extractedFields[$field]) && !empty($extractedFields)) {
         chatIntakeEvaluateTemperature($data);
         chatIntakeBuildSummary($data);
