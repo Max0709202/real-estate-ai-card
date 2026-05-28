@@ -454,7 +454,10 @@
             try { window.chatRecaptchaVerifier.clear(); } catch (e) {}
             window.chatRecaptchaVerifier = null;
         }
-        appendBotMessage('前回のご相談を安全に確認するため、SMS認証を行います。電話番号を入力し、届いた認証コードを入力してください。');
+        var smsIntro = reason === 'register'
+            ? '最後に、携帯電話番号をご入力ください。\n\nご本人確認のため、SMS認証を行います。入力後、SMSで届く6ケタの認証コードをご入力ください。'
+            : '前回のご相談を安全に確認するため、SMS認証を行います。電話番号を入力し、届いた認証コードを入力してください。';
+        appendBotMessage(smsIntro);
         var box = document.createElement('div');
         box.className = 'chat-sms-auth-box';
         box.innerHTML = '<label>電話番号</label><div class="chat-sms-row"><input type="tel" class="chat-sms-phone" placeholder="例：09012345678"><button type="button" class="chat-sms-send">SMS送信</button></div><label>認証コード</label><div class="chat-sms-row"><input type="text" class="chat-sms-code" inputmode="numeric" placeholder="6桁のコード"><button type="button" class="chat-sms-verify" disabled>認証する</button></div><div class="chat-sms-status" aria-live="polite"></div><div id="chat-firebase-recaptcha"></div>';
@@ -558,20 +561,30 @@
         return fetch(apiBase + '/phone/verify.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id_token: idToken, card_slug: cardSlug, visitor_id: visitorId })
+            body: JSON.stringify({ id_token: idToken, card_slug: cardSlug, visitor_id: visitorId, reason: reason || '', current_session_id: sessionId || '' })
         }).then(function (res) {
             return res.json().catch(function () { return { success: false, message: 'サーバーから正しい応答を受け取れませんでした。' }; });
         }).then(function (data) {
             removeSmsAuthBox();
             if (!data.success || !data.data) {
                 appendBotMessage(data.message || 'SMS認証を確認できませんでした。');
-                renderEntryActions([{ label: 'もう一度SMS認証する', action: reason === 'other' ? 'use_as_someone_else' : 'continue_previous_sms' }]);
+                if (reason === 'register') {
+                    renderQuickReplies([{ label: 'もう一度SMS認証する', value: 'sms_register', action: 'sms_register' }]);
+                } else {
+                    renderEntryActions([{ label: 'もう一度SMS認証する', action: reason === 'other' ? 'use_as_someone_else' : 'continue_previous_sms' }]);
+                }
                 return;
             }
             sessionId = data.data.session_id;
             saveSessionId(sessionId);
             startupData = data.data;
-            if (data.data.matched) {
+            if (data.data.registration_completed) {
+                entryAwaitingChoice = false;
+                renderQuickReplies([]);
+                appendBotMessage('ご登録ありがとうございました。\n\n次回以降は、\n・スマートフォン\n・タブレット\n・パソコン\nなど別のデバイスから接続した場合でも、SMS認証を行うことで、これまでのご相談内容を引き継いでご利用いただけます。');
+                setInputEnabled(true);
+                inputEl.focus();
+            } else if (data.data.matched) {
                 if (reason === 'other') appendBotMessage(personalize(registeredPhoneNoticeText, startupData));
                 continueSavedConsultation(startupData, reason !== 'other');
             } else {
@@ -602,8 +615,13 @@
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'chat-quick-btn chat-intake-reply';
-            btn.setAttribute('data-reply-label', reply.label || reply.value || '');
-            btn.setAttribute('data-reply-value', reply.value || reply.label || '');
+            if (reply.action) {
+                btn.setAttribute('data-action', reply.action);
+                btn.setAttribute('data-action-value', reply.value || reply.action);
+            } else {
+                btn.setAttribute('data-reply-label', reply.label || reply.value || '');
+                btn.setAttribute('data-reply-value', reply.value || reply.label || '');
+            }
             if (reply.field) btn.setAttribute('data-reply-field', reply.field);
             if (isMulti) btn.setAttribute('data-multi-select', '1');
             btn.textContent = reply.label || reply.value || '';
@@ -1054,6 +1072,11 @@
                 }
                 return;
             }
+            var action = btn.getAttribute('data-action');
+            if (action === 'sms_register') {
+                showSmsAuth('register');
+                return;
+            }
             var replyLabel = btn.getAttribute('data-reply-label');
             if (replyLabel) {
                 sendMessage(replyLabel, {
@@ -1066,7 +1089,6 @@
                 });
                 return;
             }
-            var action = btn.getAttribute('data-action');
             if (action === 'loan_repayment' || action === 'loan_borrow') {
                 var base = window.location.pathname.replace(/\/[^/]*$/, '/');
                 var url = base + 'loan-simulator.php?slug=' + encodeURIComponent(cardSlug);
