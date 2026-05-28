@@ -236,9 +236,9 @@ function chatIntakeFieldDefinitions() {
         'ownership_status' => ['question' => '相続の場合、名義や共有者の状況は分かりますか。', 'choices' => [['label' => '単独名義', 'value' => '単独名義'], ['label' => '共有', 'value' => '共有'], ['label' => '相続登記前', 'value' => '相続登記前'], ['label' => '不明', 'value' => '不明']]],
         'simulation_save_consent' => ['question' => 'シミュレーターで試算した借入希望額や毎月返済額を保存してもよろしいですか。', 'choices' => [['label' => '保存する', 'value' => '保存する'], ['label' => '保存しない', 'value' => '保存しない'], ['label' => 'あとで確認', 'value' => 'あとで確認']]],
         'move_date' => ['question' => '引っ越し希望日や決済・引渡希望日はありますか。例: 2026-09-30 のように入力できます。', 'choices' => [['label' => '未定', 'value' => '未定']]],
-        'contact_name' => ['question' => '前回のご相談内容を引き継ぎ、次回以降も続きからスムーズにご案内できるよう、まずはお名前のご登録をお願いいたします。\n\n【姓】\n【名】\n\n※苗字とお名前は分けてご入力ください。', 'choices' => []],
-        'contact_email' => ['question' => '続いて、メールアドレスをご入力ください。\nご登録いただくことで、\n・ご相談内容の引継ぎ\n・別デバイスからのログイン\n・重要なお知らせのお受け取り\nなどが可能になります。\n\n【メールアドレス】\n「　　　　　@　　　　　　　」', 'choices' => []],
-        'contact_phone' => ['question' => '最後に、携帯電話番号をご入力ください。\n\nご本人確認のため、SMS認証を行います。\n入力後、SMSで届く認証コードをご入力ください。\n\n【携帯電話番号】090-XXXX-XXXX\n【認証コード】6ケタのコード', 'choices' => [['label' => '携帯電話番号を入力してSMS認証する', 'value' => 'sms_register', 'action' => 'sms_register']]],
+        'contact_name' => ['question' => "前回のご相談内容を引き継ぎ、次回以降も続きからスムーズにご案内できるよう、まずはお名前のご登録をお願いいたします。\n\n【姓】\n【名】\n\n※苗字とお名前は分けてご入力ください。", 'choices' => []],
+        'contact_email' => ['question' => "続いて、メールアドレスをご入力ください。\nご登録いただくことで、\n・ご相談内容の引継ぎ\n・別デバイスからのログイン\n・重要なお知らせのお受け取り\nなどが可能になります。\n\n【メールアドレス】\n「　　　　　@　　　　　　　」", 'choices' => []],
+        'contact_phone' => ['question' => "最後に、携帯電話番号をご入力ください。\n\nご本人確認のため、SMS認証を行います。\n入力後、SMSで届く認証コードをご入力ください。\n\n【携帯電話番号】090-XXXX-XXXX\n【認証コード】6ケタのコード", 'choices' => [['label' => '携帯電話番号を入力してSMS認証する', 'value' => 'sms_register', 'action' => 'sms_register']]],
         'contact_request' => ['question' => '前回のご相談内容を引き継ぐため、お名前・メールアドレス・携帯電話番号のご登録をお願いいたします。', 'choices' => []],
     ];
 }
@@ -535,6 +535,34 @@ function chatIntakeNormalizeChoiceValue($field, $message) {
     }
 
     return $mapOne($message);
+}
+
+function chatIntakeIsSmsRegisterRequest($message, $buttonSelection = null) {
+    $message = trim((string)$message);
+    if ($message === 'sms_register' || $message === '携帯電話番号を入力してSMS認証する' || $message === 'もう一度SMS認証する') {
+        return true;
+    }
+    if (!is_array($buttonSelection)) return false;
+    foreach (['action', 'value', 'label'] as $key) {
+        $value = trim((string)($buttonSelection[$key] ?? ''));
+        if ($value === 'sms_register' || $value === '携帯電話番号を入力してSMS認証する' || $value === 'もう一度SMS認証する') {
+            return true;
+        }
+    }
+    return false;
+}
+
+function chatIntakeExtractPhoneCandidate($value) {
+    $value = trim((string)$value);
+    if ($value === '') return null;
+    $normalized = mb_convert_kana($value, 'n');
+    if (preg_match('/(?:\+\d{1,3}[\s\-]?)?(?:0\d{1,4}|[1-9]\d{1,3})[\s\-]?\d{2,4}[\s\-]?\d{3,4}/u', $normalized, $m)) {
+        $digits = preg_replace('/\D+/', '', $m[0]);
+        if (strlen($digits) >= 9 && strlen($digits) <= 15) return trim($m[0]);
+    }
+    $digits = preg_replace('/\D+/', '', $normalized);
+    if (strlen($digits) >= 9 && strlen($digits) <= 15) return $value;
+    return null;
 }
 
 function chatIntakeSetContact(&$data, $value) {
@@ -997,6 +1025,7 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
     $data = chatIntakeLoad($db, $sessionId, $businessCardId);
     $data['last_user_message'] = $message;
     $fromButton = !empty($options['from_button']);
+    $buttonSelection = isset($options['button_selection']) && is_array($options['button_selection']) ? $options['button_selection'] : null;
     $agentName = $options['agent_name'] ?? '担当者';
 
     if (chatIntakeUserWantsFreeConversation($message)) {
@@ -1099,6 +1128,17 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
         return ['handled' => true, 'reply' => 'メールアドレスの形式を確認できませんでした。\n例：yamada@example.com の形式でご入力ください。', 'quick_replies' => [], 'data' => $data];
     }
     if ($field === 'contact_phone') {
+        $phoneCandidate = chatIntakeExtractPhoneCandidate($value);
+        if (($fromButton && chatIntakeIsSmsRegisterRequest($message, $buttonSelection)) || $phoneCandidate !== null) {
+            return [
+                'handled' => true,
+                'reply' => 'SMS認証フォームを表示します。電話番号を入力して認証を進めてください。',
+                'quick_replies' => [],
+                'sms_auth_required' => true,
+                'sms_auth_phone' => $phoneCandidate,
+                'data' => $data,
+            ];
+        }
         $defs = chatIntakeFieldDefinitions();
         return [
             'handled' => true,

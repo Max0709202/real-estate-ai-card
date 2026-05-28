@@ -84,6 +84,7 @@ try {
 
     $intake = processChatIntakeMessage($db, $sessionId, $card['id'], $message, [
         'from_button' => $buttonSelection !== null,
+        'button_selection' => $buttonSelection,
         'agent_name' => $card['name'] ?? '担当者',
     ]);
     $quickReplies = $intake['quick_replies'] ?? [];
@@ -128,6 +129,8 @@ try {
         'sources' => $sources,
         'quick_replies' => $quickReplies,
         'lead_data' => $leadData,
+        'sms_auth_required' => !empty($intake['sms_auth_required']),
+        'sms_auth_phone' => $intake['sms_auth_phone'] ?? '',
     ], 'OK');
 } catch (Exception $e) {
     error_log('Chat send error: ' . $e->getMessage());
