@@ -28,8 +28,13 @@ $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $idToken = trim($input['id_token'] ?? '');
 $cardSlug = trim($input['card_slug'] ?? '');
 $visitorId = trim($input['visitor_id'] ?? '');
+$reason = trim($input['reason'] ?? '');
+$currentSessionId = trim($input['current_session_id'] ?? '');
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
     $visitorId = '';
+}
+if ($currentSessionId !== '' && !preg_match('/^[A-Fa-f0-9-]{36}$/', $currentSessionId)) {
+    $currentSessionId = '';
 }
 if ($idToken === '' || $cardSlug === '') {
     sendErrorResponse('id_token and card_slug are required', 400);
@@ -61,15 +66,31 @@ try {
     $found = chatFindSessionByVerifiedPhone($db, $businessCardId, $phone);
     $sessionId = '';
     $matched = false;
+    $registrationCompleted = false;
     $customerName = $found['customer_name'] ?? null;
 
-    if ($found && !empty($found['session_id'])) {
-        $sessionId = $found['session_id'];
-        $matched = true;
-        $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$visitorId !== '' ? $visitorId : null, $sessionId]);
-    } else {
-        $sessionId = chatCreateSessionForVerifiedPhone($db, $businessCardId, $visitorId);
+    if ($reason === 'register' && $currentSessionId !== '') {
+        $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
+        $stmt->execute([$currentSessionId, $businessCardId]);
+        $sessionId = (string)($stmt->fetchColumn() ?: '');
+        if ($sessionId !== '') {
+            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$visitorId !== '' ? $visitorId : null, $sessionId]);
+            $leadData = chatIntakeApplyVerifiedPhoneRegistration($db, $sessionId, $businessCardId, $phone);
+            $customerName = $leadData['customer_name'] ?? $customerName;
+            $registrationCompleted = true;
+        }
+    }
+
+    if ($sessionId === '') {
+        if ($found && !empty($found['session_id'])) {
+            $sessionId = $found['session_id'];
+            $matched = true;
+            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$visitorId !== '' ? $visitorId : null, $sessionId]);
+        } else {
+            $sessionId = chatCreateSessionForVerifiedPhone($db, $businessCardId, $visitorId);
+        }
     }
 
     chatRegisterVerifiedPhone($db, $businessCardId, $phone, $uid, $sessionId, $customerName);
@@ -86,6 +107,7 @@ try {
 
     sendSuccessResponse([
         'matched' => $matched,
+        'registration_completed' => $registrationCompleted,
         'session_id' => $sessionId,
         'phone' => $phone,
         'customer_name' => $customerName,

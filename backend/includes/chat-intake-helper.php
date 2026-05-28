@@ -74,7 +74,10 @@ function chatIntakeDefaultData() {
         'next_action' => null,
         'missing_fields' => [],
         'customer_name' => null,
+        'customer_last_name' => null,
+        'customer_first_name' => null,
         'customer_phone' => null,
+        'customer_phone_verified' => false,
         'customer_email' => null,
         'customer_contact_raw' => null,
         'customer_line' => null,
@@ -233,22 +236,24 @@ function chatIntakeFieldDefinitions() {
         'ownership_status' => ['question' => '相続の場合、名義や共有者の状況は分かりますか。', 'choices' => [['label' => '単独名義', 'value' => '単独名義'], ['label' => '共有', 'value' => '共有'], ['label' => '相続登記前', 'value' => '相続登記前'], ['label' => '不明', 'value' => '不明']]],
         'simulation_save_consent' => ['question' => 'シミュレーターで試算した借入希望額や毎月返済額を保存してもよろしいですか。', 'choices' => [['label' => '保存する', 'value' => '保存する'], ['label' => '保存しない', 'value' => '保存しない'], ['label' => 'あとで確認', 'value' => 'あとで確認']]],
         'move_date' => ['question' => '引っ越し希望日や決済・引渡希望日はありますか。例: 2026-09-30 のように入力できます。', 'choices' => [['label' => '未定', 'value' => '未定']]],
-        'contact_request' => ['question' => 'ここまでで主な内容は整理できました。より具体的なご案内をご希望の場合は、お名前やご希望の連絡方法を自由に入力してください。
-例：山田太郎／メール yamada@example.com、電話 090-xxxx-xxxx、LINE ID xxxx など。', 'choices' => [['label' => 'このままチャットを続ける', 'value' => 'chat_continue']]],
+        'contact_name' => ['question' => '前回のご相談内容を引き継ぎ、次回以降も続きからスムーズにご案内できるよう、まずはお名前のご登録をお願いいたします。\n\n【姓】\n【名】\n\n※苗字とお名前は分けてご入力ください。', 'choices' => []],
+        'contact_email' => ['question' => '続いて、メールアドレスをご入力ください。\nご登録いただくことで、\n・ご相談内容の引継ぎ\n・別デバイスからのログイン\n・重要なお知らせのお受け取り\nなどが可能になります。\n\n【メールアドレス】\n「　　　　　@　　　　　　　」', 'choices' => []],
+        'contact_phone' => ['question' => '最後に、携帯電話番号をご入力ください。\n\nご本人確認のため、SMS認証を行います。\n入力後、SMSで届く認証コードをご入力ください。\n\n【携帯電話番号】090-XXXX-XXXX\n【認証コード】6ケタのコード', 'choices' => [['label' => '携帯電話番号を入力してSMS認証する', 'value' => 'sms_register', 'action' => 'sms_register']]],
+        'contact_request' => ['question' => '前回のご相談内容を引き継ぐため、お名前・メールアドレス・携帯電話番号のご登録をお願いいたします。', 'choices' => []],
     ];
 }
 
 function chatIntakeScenarioFields($customerType) {
     $map = [
-        'purchase' => ['preferred_area', 'preferred_station_line', 'commute_destination', 'budget', 'competitor_viewing_status', 'viewed_property_count', 'preferred_area_size', 'layout', 'property_type', 'station_walk_minutes', 'priority', 'family_structure', 'purchase_timing', 'loan_status', 'renovation_preference', 'contact_request'],
-        'replacement' => ['current_property_type', 'selling_strategy', 'current_property_location', 'loan_balance', 'minimum_price', 'preferred_area', 'budget', 'reason_for_move', 'temporary_housing', 'tax_consideration', 'competitor_status', 'move_completion_timing', 'contact_request'],
-        'sale' => ['property_location', 'property_type', 'selling_reason', 'selling_timing', 'loan_balance', 'minimum_price', 'appraisal_status', 'appraisal_request', 'disclosure_flags', 'repair_history', 'appeal_points', 'preferred_contact', 'contact_request'],
-        'investment_buy' => ['investment_type', 'owner_change_ok', 'preferred_area', 'budget', 'target_yield', 'age_tolerance', 'finance_plan', 'equity', 'purchase_timing', 'competitor_status', 'contact_request'],
-        'investment_sale' => ['property_location', 'property_type', 'occupancy_status', 'sublease_status', 'sublease_cancelable', 'rent_income', 'gross_yield', 'loan_balance', 'desired_price', 'selling_reason', 'replacement_plan', 'competitor_status', 'contact_request'],
-        'loan' => ['income', 'employment_type', 'years_employed', 'down_payment', 'desired_loan_amount', 'other_debts', 'pre_approval_status', 'loan_concern', 'loan_simulation_used', 'simulation_save_consent', 'contact_request'],
-        'market' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'report_request', 'contact_request'],
-        'inheritance' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'ownership_status', 'report_request', 'contact_request'],
-        'other' => ['property_location', 'property_type', 'preferred_contact', 'contact_request'],
+        'purchase' => ['preferred_area', 'preferred_station_line', 'commute_destination', 'budget', 'competitor_viewing_status', 'viewed_property_count', 'preferred_area_size', 'layout', 'property_type', 'station_walk_minutes', 'priority', 'family_structure', 'purchase_timing', 'loan_status', 'renovation_preference', 'contact_name', 'contact_email', 'contact_phone'],
+        'replacement' => ['current_property_type', 'selling_strategy', 'current_property_location', 'loan_balance', 'minimum_price', 'preferred_area', 'budget', 'reason_for_move', 'temporary_housing', 'tax_consideration', 'competitor_status', 'move_completion_timing', 'contact_name', 'contact_email', 'contact_phone'],
+        'sale' => ['property_location', 'property_type', 'selling_reason', 'selling_timing', 'loan_balance', 'minimum_price', 'appraisal_status', 'appraisal_request', 'disclosure_flags', 'repair_history', 'appeal_points', 'preferred_contact', 'contact_name', 'contact_email', 'contact_phone'],
+        'investment_buy' => ['investment_type', 'owner_change_ok', 'preferred_area', 'budget', 'target_yield', 'age_tolerance', 'finance_plan', 'equity', 'purchase_timing', 'competitor_status', 'contact_name', 'contact_email', 'contact_phone'],
+        'investment_sale' => ['property_location', 'property_type', 'occupancy_status', 'sublease_status', 'sublease_cancelable', 'rent_income', 'gross_yield', 'loan_balance', 'desired_price', 'selling_reason', 'replacement_plan', 'competitor_status', 'contact_name', 'contact_email', 'contact_phone'],
+        'loan' => ['income', 'employment_type', 'years_employed', 'down_payment', 'desired_loan_amount', 'other_debts', 'pre_approval_status', 'loan_concern', 'loan_simulation_used', 'simulation_save_consent', 'contact_name', 'contact_email', 'contact_phone'],
+        'market' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'report_request', 'contact_name', 'contact_email', 'contact_phone'],
+        'inheritance' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'ownership_status', 'report_request', 'contact_name', 'contact_email', 'contact_phone'],
+        'other' => ['property_location', 'property_type', 'preferred_contact', 'contact_name', 'contact_email', 'contact_phone'],
     ];
     return $map[$customerType] ?? [];
 }
@@ -480,6 +485,35 @@ function chatIntakeBuildFreeConversationReply($agentName = '担当者') {
     return "承知しました。こちらから条件整理の質問を続けるのはいったん止めます。\n\nこれまで伺った内容は引き継ぎますので、不動産の購入・売却・ローン・相場など、気になることをそのまま自由にご質問ください。必要な時だけ、担当「{$agentLabel}」へ引き継ぎやすい形で整理します。";
 }
 
+function chatIntakeParseNameParts($value) {
+    $value = trim((string)$value);
+    $value = preg_replace('/【[^】]+】/u', ' ', $value);
+    $last = '';
+    $first = '';
+    if (preg_match('/(?:姓|苗字|名字)\s*[:：]?\s*([^\s　\n]+).*?(?:名|名前)\s*[:：]?\s*([^\s　\n]+)/us', $value, $m)) {
+        $last = trim($m[1]);
+        $first = trim($m[2]);
+    } else {
+        $parts = preg_split('/[\s　\/／,，、]+/u', $value, -1, PREG_SPLIT_NO_EMPTY);
+        if (count($parts) >= 2) {
+            $last = trim($parts[0]);
+            $first = trim($parts[1]);
+        } elseif (count($parts) === 1 && mb_strlen($parts[0]) >= 2) {
+            $name = trim($parts[0]);
+            $last = mb_substr($name, 0, 1);
+            $first = mb_substr($name, 1);
+        }
+    }
+    return [$last, $first];
+}
+
+function chatIntakeExtractEmail($value) {
+    if (preg_match('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/iu', (string)$value, $m)) {
+        return mb_substr($m[0], 0, 255);
+    }
+    return null;
+}
+
 function chatIntakeNormalizeChoiceValue($field, $message) {
     $defs = chatIntakeFieldDefinitions();
     $choices = $defs[$field]['choices'] ?? [];
@@ -578,6 +612,9 @@ function chatIntakeFieldHasValue($data, $field) {
     if ($field === 'preferred_station_line') return !empty($data['preferred_station_line']) || !empty($data['preferred_station']);
     if ($field === 'current_property_location') return !empty($data['current_property_location']);
     if ($field === 'property_location') return !empty($data['property_location']);
+    if ($field === 'contact_name') return !empty($data['customer_last_name']) && !empty($data['customer_first_name']);
+    if ($field === 'contact_email') return !empty($data['customer_email']);
+    if ($field === 'contact_phone') return !empty($data['customer_phone']) && !empty($data['customer_phone_verified']);
     if ($field === 'contact_request') return !empty($data['customer_contact_raw']) || (in_array(($data['contact_status'] ?? ''), ['anonymous', 'not_requested'], true) && in_array('contact_request', $data['_asked_fields'] ?? [], true));
     if (!array_key_exists($field, $data)) return false;
     $value = $data[$field];
@@ -663,6 +700,27 @@ function chatIntakeSetField(&$data, $field, $value) {
     elseif ($field === 'preferred_station_line') {
         $data['preferred_station'] = $value === '未定' ? [] : array_values(array_unique(array_merge($data['preferred_station'] ?? [], [$value])));
         $data['preferred_station_line'] = $data['preferred_station'];
+    }
+    elseif ($field === 'contact_name') {
+        [$lastName, $firstName] = chatIntakeParseNameParts($value);
+        if ($lastName !== '' && $firstName !== '') {
+            $data['customer_last_name'] = $lastName;
+            $data['customer_first_name'] = $firstName;
+            $data['customer_name'] = $lastName . ' ' . $firstName;
+        } else {
+            $data['customer_name'] = $value;
+        }
+    } elseif ($field === 'contact_email') {
+        $email = chatIntakeExtractEmail($value);
+        if ($email !== null) {
+            $data['customer_email'] = $email;
+            $data['preferred_contact_method'] = $data['preferred_contact_method'] ?: 'email';
+            $data['preferred_contact_value'] = $data['preferred_contact_value'] ?: $email;
+        } else {
+            $data['customer_email'] = $value;
+        }
+    } elseif ($field === 'contact_phone') {
+        $data['contact_status'] = 'phone_verification_pending';
     }
     elseif ($field === 'budget') {
         if (preg_match_all('/([0-9０-９,\.]+)\s*(億円|億|万円|万|円|yen|jpy)?/iu', $value, $m, PREG_SET_ORDER) && count($m) >= 1) {
@@ -788,6 +846,9 @@ function chatIntakeAdvice($field, $value, $data) {
     if ($field === 'rent_income' || $field === 'target_yield') return '収益情報は投資判断の中心です。ただし利回りだけでなく、空室リスクや修繕費、将来売却しやすいかも一緒に見るのが安全です。';
     if ($field === 'loan_simulation_used') return '月々返済額の目安を把握すると、購入予算を現実的に整理しやすくなります。固定金利と変動金利の差も比較しておくと安心です。';
     if ($field === 'move_date' && !empty($data['move_date'])) return '引っ越し希望日が分かると、内覧・ローン審査・契約・決済までの逆算スケジュールを作りやすくなります。「進捗を見せて」と入力すると現在のタスク確認もできます。';
+    if ($field === 'contact_name') return !empty($data['customer_name']) ? 'ありがとうございます。お名前を登録しました。' : 'ありがとうございます。';
+    if ($field === 'contact_email') return !empty($data['customer_email']) ? 'ありがとうございます。メールアドレスを登録しました。' : 'ありがとうございます。';
+    if ($field === 'contact_phone') return '下のボタンから携帯電話番号を入力し、SMS認証を行ってください。';
     if ($field === 'contact_request') return !empty($data['contact_consent']) ? 'ありがとうございます。ご入力内容を保存しました。いただいた条件とあわせて、次のご案内に活用します。' : '承知しました。このままチャットで相談を続けられます。';
     return 'ありがとうございます。いただいた内容を条件整理に反映しました。';
 }
@@ -832,10 +893,13 @@ function chatIntakeNaturalQuestion($field, $data) {
         'loan_concern' => 'ローンで一番気になる点を先に押さえると、説明が的確になります。',
         'loan_simulation_used' => '必要であれば、シミュレーターで月々返済も整理できます。',
         'move_date' => '希望日があると、逆算スケジュールを作りやすくなります。',
+        'contact_name' => '',
+        'contact_email' => '',
+        'contact_phone' => '',
         'contact_request' => '',
     ];
     $prefix = $prefixMap[$field] ?? '続けて、もう少しだけ確認させてください。';
-    if ($field === 'contact_request' && $prefix === '') return $question;
+    if (in_array($field, ['contact_name', 'contact_email', 'contact_phone', 'contact_request'], true) && $prefix === '') return $question;
     return $prefix . "\n" . $question;
 }
 
@@ -1025,6 +1089,24 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
             return ['handled' => false, 'quick_replies' => chatIntakeQuickRepliesForField('customer_type', $data), 'data' => $data];
         }
     }
+    if ($field === 'contact_name') {
+        [$lastNameCheck, $firstNameCheck] = chatIntakeParseNameParts($value);
+        if ($lastNameCheck === '' || $firstNameCheck === '') {
+            return ['handled' => true, 'reply' => '恐れ入ります。苗字とお名前を分けてご入力ください。\n\n例：山田 太郎', 'quick_replies' => [], 'data' => $data];
+        }
+    }
+    if ($field === 'contact_email' && chatIntakeExtractEmail($value) === null) {
+        return ['handled' => true, 'reply' => 'メールアドレスの形式を確認できませんでした。\n例：yamada@example.com の形式でご入力ください。', 'quick_replies' => [], 'data' => $data];
+    }
+    if ($field === 'contact_phone') {
+        $defs = chatIntakeFieldDefinitions();
+        return [
+            'handled' => true,
+            'reply' => chatIntakeNaturalQuestion('contact_phone', $data),
+            'quick_replies' => $defs['contact_phone']['choices'] ?? [],
+            'data' => $data,
+        ];
+    }
     chatIntakeSetField($data, $field, $value);
     if ($field === 'customer_type') $data['customer_type'] = $value;
     chatIntakeEvaluateTemperature($data);
@@ -1045,6 +1127,24 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
 }
 
 
+function chatIntakeApplyVerifiedPhoneRegistration($db, $sessionId, $businessCardId, $phone) {
+    $data = chatIntakeLoad($db, $sessionId, $businessCardId);
+    $data['customer_phone'] = trim((string)$phone);
+    $data['customer_phone_verified'] = true;
+    $data['customer_contact_raw'] = trim(implode("\n", array_filter([$data['customer_contact_raw'] ?? '', $phone])));
+    $data['contact_status'] = 'provided';
+    $data['contact_consent'] = true;
+    $data['preferred_contact_method'] = 'phone';
+    $data['preferred_contact_value'] = $data['customer_phone'];
+    chatIntakeMarkAsked($data, 'contact_phone');
+    $nextField = chatIntakeNextField($data);
+    $data['_current_field'] = $nextField;
+    chatIntakeEvaluateTemperature($data);
+    chatIntakeBuildSummary($data);
+    chatIntakeSave($db, $sessionId, $businessCardId, $data);
+    return $data;
+}
+
 function buildChatLeadContext($data) {
     if (!$data || !is_array($data)) return '';
     $labels = [
@@ -1054,8 +1154,8 @@ function buildChatLeadContext($data) {
         'layout' => '間取り', 'property_type' => '物件種別', 'purchase_timing' => '購入時期', 'selling_timing' => '売却時期',
         'loan_status' => 'ローン状況', 'loan_balance' => 'ローン残債', 'sublease_status' => 'サブリース有無',
         'sublease_cancelable' => 'サブリース解除可否', 'summary_for_sales' => '営業向け要約', 'next_action' => '次アクション',
-        'move_date' => '引越/引渡希望日', 'customer_name' => '顧客名', 'customer_phone' => '電話番号',
-        'customer_email' => 'メールアドレス', 'customer_line' => 'LINE', 'preferred_contact_method' => '希望連絡方法',
+        'move_date' => '引越/引渡希望日', 'customer_name' => '顧客名', 'customer_last_name' => '姓', 'customer_first_name' => '名', 'customer_phone' => '電話番号',
+        'customer_phone_verified' => 'SMS認証済み', 'customer_email' => 'メールアドレス', 'customer_line' => 'LINE', 'preferred_contact_method' => '希望連絡方法',
         'preferred_contact' => '希望連絡方法', 'contact_status' => '連絡希望状態', 'station_walk_minutes' => '駅徒歩許容分数',
         'renovation_preference' => 'リフォーム意向', 'current_property_location' => '現居所在地', 'reason_for_move' => '買い替え理由',
         'temporary_housing' => '仮住まい可否', 'tax_consideration' => '3,000万円控除検討', 'move_completion_timing' => '買い替え完了希望時期',
