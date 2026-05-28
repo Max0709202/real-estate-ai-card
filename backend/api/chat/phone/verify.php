@@ -82,6 +82,7 @@ try {
     if ($matched && $resumeIntake && !empty($resumeIntake['can_ask_next'])) {
         $resumeQuickReplies = $resumeIntake['quick_replies'] ?? [];
     }
+    $messages = $matched ? loadRecentChatMessagesForResume($db, $sessionId, 40) : [];
 
     sendSuccessResponse([
         'matched' => $matched,
@@ -89,6 +90,7 @@ try {
         'phone' => $phone,
         'customer_name' => $customerName,
         'resume_message' => $resumeMessage,
+        'messages' => $messages,
         'quick_replies' => $matched ? $resumeQuickReplies : $intake['quick_replies'],
         'initial_message' => $intake['initial_message'],
         'current_field' => $resumeIntake['current_field'] ?? null,

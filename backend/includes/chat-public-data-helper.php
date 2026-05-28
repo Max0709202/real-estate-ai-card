@@ -22,7 +22,7 @@ function ensureChatPublicDataCacheTable($db) {
 }
 
 function chatPublicDataShouldRun($message) {
-    return (bool)preg_match('/(住所|所在地|駅|エリア|地域|周辺|公的|データ|国土交通|政府統計|統計|相場|取引価格|成約|地価|公示|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|用途地域|都市計画|再開発|交通|道路|インフラ|人口|世帯|高齢|子育て|子供|子ども|ファミリー|年収|昼夜|外国人|持ち家|マンション|築年月|築年数|竣工|総戸数|階建|最寄り)/u', (string)$message);
+    return (bool)preg_match('/(住所|所在地|駅|エリア|地域|周辺|公的|データ|国土交通|政府統計|統計|相場|取引価格|成約|地価|公示|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|用途地域|都市計画|再開発|交通|道路|インフラ|人口|世帯|高齢|子育て|子供|子ども|ファミリー|年収|昼夜|外国人|持ち家|マンション|物件|建物|基礎情報|基本情報|概要|詳細|築年月|築年数|竣工|総戸数|階建|最寄り)/u', (string)$message);
 }
 
 function chatPublicDataSourceLabel($provider) {
@@ -259,49 +259,192 @@ function chatEstatContext($db, $message, $area) {
     return ['provider' => 'estat', 'title' => '政府統計の検索結果', 'notice' => '政府統計による地域データを確認します。', 'data' => $result['data']];
 }
 
+function chatNormalizeMansionSearchTerm($term) {
+    $term = trim((string)$term);
+    $term = preg_replace('/^[\s「」『』"\']+|[\s「」『』"\']+$/u', '', $term);
+    $term = preg_replace('/^(?:マンション名|物件名|建物名)\s*(?:は|の|:|：)?\s*/u', '', $term);
+    $term = preg_replace('/(?:について|を)?(?:教えて|知りたい|調べて|検索して|確認して)(?:ください|下さい)?$/u', '', $term);
+    $term = preg_replace('/(?:ですか|でしょうか|ください|下さい|お願いします)$/u', '', $term);
+    $term = preg_replace('/(?:の)?(?:基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|住所|所在地|築年月|築年数|築|竣工|完成|建築年|構造|総戸数|戸数|階建|階数|最寄り駅|最寄駅|アクセス|徒歩)(?:と|や|、|,|，|・|\s*)?.*$/u', '', $term);
+    $term = preg_replace('/[とや、,，・\s]*$/u', '', $term);
+    $term = preg_replace('/の$/u', '', $term);
+    $term = trim(preg_replace('/\s+/u', ' ', $term));
+    return $term;
+}
+
 function chatExtractMansionSearchTerms($message) {
     $message = trim((string)$message);
     $terms = [];
+    $fieldWords = '基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|築|竣工|完成|建築年|構造|総戸数|戸数|階建|階数|最寄り駅|最寄駅|アクセス|徒歩|住所|所在地';
     $patterns = [
         '/「([^」]{2,80})」/u',
-        '/([一-龥ぁ-んァ-ンA-Za-z0-9０-９・ー－\s]{2,80})(?:の)?(?:築年月|築年数|築|竣工|構造|総戸数|階建|最寄り駅|住所)/u',
-        '/(?:マンション|物件)(?:名)?(?:は|の|：|:)?\s*([一-龥ぁ-んァ-ンA-Za-z0-9０-９・ー－\s]{2,80})/u',
+        '/『([^』]{2,80})』/u',
+        '/([一-龥ぁ-んァ-ンA-Za-z0-9０-９・ー－\s]{2,80}?)(?:の)?(?:' . $fieldWords . ')/u',
+        '/(?:マンション|物件|建物)(?:名)?(?:は|の|：|:)?\s*([一-龥ぁ-んァ-ンA-Za-z0-9０-９・ー－\s]{2,80})/u',
     ];
     foreach ($patterns as $pattern) {
-        if (preg_match($pattern, $message, $m)) $terms[] = trim($m[1]);
+        if (preg_match($pattern, $message, $m)) {
+            $term = chatNormalizeMansionSearchTerm($m[1]);
+            if ($term !== '') $terms[] = $term;
+        }
     }
-    if (preg_match('/(マンション|築年月|築年数|竣工|総戸数|階建)/u', $message)) {
-        $clean = preg_replace('/(について|教えて|知りたい|ですか|でしょうか|築年月|築年数|築|竣工|構造|総戸数|階建|最寄り駅|住所|マンション|物件|の|は|を|\?|？)/u', ' ', $message);
-        $clean = trim(preg_replace('/\s+/u', ' ', $clean));
+    if (preg_match('/(マンション|物件|建物|' . $fieldWords . ')/u', $message)) {
+        $clean = preg_replace('/(について|教えて|ください|下さい|知りたい|調べて|検索して|確認して|どこ|ですか|でしょうか|' . $fieldWords . '|マンション名|物件名|建物名|マンション|物件|建物|の|は|を|。|、|\?|？)/u', ' ', $message);
+        $clean = chatNormalizeMansionSearchTerm($clean);
         if (mb_strlen($clean) >= 2 && mb_strlen($clean) <= 80) $terms[] = $clean;
     }
     return array_values(array_unique(array_filter($terms)));
 }
 
+function chatMansionDbSearchRows($db, $terms, $limit = 5) {
+    if (!$db instanceof PDO) return [];
+    $limit = max(1, min(10, (int)$limit));
+    $rows = [];
+    $seen = [];
+    foreach (array_slice((array)$terms, 0, 4) as $term) {
+        $term = chatNormalizeMansionSearchTerm($term);
+        if ($term === '') continue;
+        $like = '%' . $term . '%';
+        $prefixLike = $term . '%';
+        $stmt = $db->prepare("SELECT building_name, postal_code, prefecture, city, town, address_detail, full_address, structure, floors_above, floors_below, built_year_month, total_units, nearest_line, nearest_station, nearest_access_method, nearest_minutes, transports_json
+            FROM mansion_buildings
+            WHERE building_name LIKE ? OR full_address LIKE ? OR search_text LIKE ?
+            ORDER BY CASE WHEN building_name = ? THEN 0 WHEN building_name LIKE ? THEN 1 WHEN search_text LIKE ? THEN 2 ELSE 3 END, id ASC
+            LIMIT {$limit}");
+        $stmt->execute([$like, $like, $like, $term, $prefixLike, $prefixLike]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $key = ($row['building_name'] ?? '') . '|' . ($row['full_address'] ?? '');
+            if ($key === '|' || isset($seen[$key])) continue;
+            $seen[$key] = true;
+            $rows[] = $row;
+            if (count($rows) >= $limit) break 2;
+        }
+    }
+    return $rows;
+}
+
+function chatMansionTermLooksSpecific($terms, $message) {
+    if (preg_match('/(マンション名|物件名|建物名|「|『)/u', (string)$message)) return true;
+    foreach ((array)$terms as $term) {
+        $term = chatNormalizeMansionSearchTerm($term);
+        if ($term === '') continue;
+        if (preg_match('/^[一-龥ぁ-んァ-ン]+(?:都|道|府|県|市|区|町|村)(?:の)?(?:マンション|物件|建物)?$/u', $term) && mb_strlen($term) <= 14) continue;
+        if (mb_strlen($term) >= 3) return true;
+    }
+    return false;
+}
+
+function chatMansionRequestedFields($message) {
+    $message = (string)$message;
+    $fields = [];
+    if (preg_match('/(住所|所在地|場所|どこ)/u', $message)) $fields[] = 'address';
+    if (preg_match('/(築年月|築年数|築|竣工|完成|建築年)/u', $message)) $fields[] = 'built';
+    if (preg_match('/構造/u', $message)) $fields[] = 'structure';
+    if (preg_match('/(総戸数|戸数)/u', $message)) $fields[] = 'units';
+    if (preg_match('/(階建|階数|地下|地上)/u', $message)) $fields[] = 'floors';
+    if (preg_match('/(最寄り駅|最寄駅|アクセス|徒歩|駅)/u', $message)) $fields[] = 'station';
+    if (empty($fields) && preg_match('/(概要|情報|詳細|について|教えて|知りたい)/u', $message)) {
+        $fields = ['address', 'built', 'station', 'structure', 'floors', 'units'];
+    }
+    return array_values(array_unique($fields));
+}
+
+function chatMansionBuiltAgeLabel($builtYearMonth) {
+    $value = trim((string)$builtYearMonth);
+    if ($value === '') return '';
+    $normalized = mb_convert_kana($value, 'n');
+    if (!preg_match('/((?:19|20)\d{2})(?:\D*(\d{1,2}))?/u', $normalized, $m)) return $value;
+    $year = (int)$m[1];
+    $month = isset($m[2]) && $m[2] !== '' ? max(1, min(12, (int)$m[2])) : null;
+    $age = (int)date('Y') - $year;
+    if ($month !== null && (int)date('n') < $month) $age--;
+    $age = max(0, $age);
+    $label = $month !== null ? sprintf('%04d年%d月', $year, $month) : sprintf('%04d年', $year);
+    return $label . '（築' . $age . '年目安）';
+}
+
+function chatMansionFormatFacts($row, $fields) {
+    $facts = [];
+    foreach ((array)$fields as $field) {
+        if ($field === 'address' && !empty($row['full_address'])) {
+            $facts[] = '住所：' . $row['full_address'];
+        } elseif ($field === 'built') {
+            $built = chatMansionBuiltAgeLabel($row['built_year_month'] ?? '');
+            if ($built !== '') $facts[] = '築年月：' . $built;
+        } elseif ($field === 'structure' && !empty($row['structure'])) {
+            $facts[] = '構造：' . $row['structure'];
+        } elseif ($field === 'units' && !empty($row['total_units'])) {
+            $facts[] = '総戸数：' . (int)$row['total_units'] . '戸';
+        } elseif ($field === 'floors') {
+            $floorParts = [];
+            if (!empty($row['floors_above'])) $floorParts[] = '地上' . (int)$row['floors_above'] . '階';
+            if (!empty($row['floors_below'])) $floorParts[] = '地下' . (int)$row['floors_below'] . '階';
+            if (!empty($floorParts)) $facts[] = '階数：' . implode('・', $floorParts);
+        } elseif ($field === 'station') {
+            $stationParts = [];
+            if (!empty($row['nearest_line'])) $stationParts[] = $row['nearest_line'];
+            if (!empty($row['nearest_station'])) {
+                $station = $row['nearest_station'];
+                if (mb_substr($station, -1) !== '駅') $station .= '駅';
+                $stationParts[] = $station;
+            }
+            $access = trim((string)($row['nearest_access_method'] ?? ''));
+            if (!empty($row['nearest_minutes'])) {
+                $access = ($access !== '' ? $access : '徒歩') . (int)$row['nearest_minutes'] . '分';
+            }
+            if ($access !== '') $stationParts[] = $access;
+            if (!empty($stationParts)) $facts[] = '最寄り：' . implode(' ', $stationParts);
+        }
+    }
+    return array_values(array_unique($facts));
+}
+
 function chatMansionDbContext($db, $message) {
     if (!$db instanceof PDO) return null;
-    if (!preg_match('/(マンション|築年月|築年数|竣工|構造|総戸数|階建|最寄り駅|物件名)/u', $message)) return null;
+    if (!preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|物件名|住所|所在地|アクセス)/u', $message)) return null;
     $terms = chatExtractMansionSearchTerms($message);
     if (empty($terms)) return null;
     try {
-        $rows = [];
-        foreach (array_slice($terms, 0, 3) as $term) {
-            $like = '%' . $term . '%';
-            $stmt = $db->prepare("SELECT building_name, full_address, structure, floors_above, floors_below, built_year_month, total_units, nearest_line, nearest_station, nearest_access_method, nearest_minutes, transports_json
-                FROM mansion_buildings
-                WHERE building_name LIKE ? OR full_address LIKE ? OR search_text LIKE ?
-                ORDER BY CASE WHEN building_name = ? THEN 0 WHEN building_name LIKE ? THEN 1 ELSE 2 END, id ASC
-                LIMIT 5");
-            $stmt->execute([$like, $like, $like, $term, $like]);
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) $rows[] = $row;
-            if (!empty($rows)) break;
-        }
+        $rows = chatMansionDbSearchRows($db, $terms, 5);
         if (empty($rows)) return null;
         return ['provider' => 'mansion_db', 'title' => '全国マンションデータベース検索結果', 'notice' => '当社の全国マンションデータベースで物件情報を確認します。', 'data' => array_slice($rows, 0, 5)];
     } catch (Throwable $e) {
         error_log('Mansion DB context error: ' . $e->getMessage());
         return null;
     }
+}
+
+function chatMansionDbDirectAnswer($db, $message) {
+    if (!$db instanceof PDO) return null;
+    if (!preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|築|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|住所|所在地|アクセス)/u', (string)$message)) return null;
+    $terms = chatExtractMansionSearchTerms($message);
+    if (empty($terms) || !chatMansionTermLooksSpecific($terms, $message)) return null;
+    $fields = chatMansionRequestedFields($message);
+    if (empty($fields)) return null;
+
+    try {
+        $rows = chatMansionDbSearchRows($db, $terms, 3);
+        if (empty($rows)) return null;
+        $row = $rows[0];
+        $facts = chatMansionFormatFacts($row, $fields);
+        if (empty($facts)) return null;
+
+        $source = chatPublicDataSourceLabel('mansion_db');
+        $reply = ($row['building_name'] ?? '該当マンション') . 'について、当社データベースでは次の内容を確認できます。' . "\n\n・" . implode("\n・", $facts);
+        if (count($rows) > 1) {
+            $reply .= "\n\n※似た名称の候補が複数あります。必要であれば住所やエリアを添えていただくと、より絞り込めます。";
+        }
+        $reply .= "\n\n出典：" . $source;
+        return [
+            'reply' => $reply,
+            'sources' => chatPublicDataSourcesForUi([$source]),
+            'row' => $row,
+        ];
+    } catch (Throwable $e) {
+        error_log('Mansion DB direct answer error: ' . $e->getMessage());
+    }
+
+    return null;
 }
 
 function chatPublicDataTrimForPrompt($data, $maxLength = 4000) {

@@ -87,6 +87,9 @@ try {
         $stmt = $db->prepare("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?");
         $stmt->execute([$sessionId]);
         $hasPreviousMessages = ((int)$stmt->fetchColumn()) > 0;
+        if ($hasPreviousMessages) {
+            $messages = loadRecentChatMessagesForResume($db, $sessionId, 40);
+        }
     }
 
     $photoUrl = '';
@@ -121,7 +124,7 @@ try {
         'session_id' => $sessionId,
         'visitor_id' => $visitorId,
         'is_resumed' => $isResumed,
-        'messages' => [],
+        'messages' => $messages,
         'has_previous_messages' => $hasPreviousMessages,
         'agent_name' => $card['name'] ?? '',
         'customer_name' => $customerName,

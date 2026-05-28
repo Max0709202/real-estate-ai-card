@@ -59,3 +59,26 @@ function generateChatSessionId() {
     $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
+
+function loadRecentChatMessagesForResume($db, $sessionId, $limit = 40) {
+    if (!$db instanceof PDO || $sessionId === '') return [];
+    $limit = max(1, min(100, (int)$limit));
+    try {
+        $stmt = $db->prepare("
+            SELECT id, role, message, created_at
+            FROM (
+                SELECT id, role, message, created_at
+                FROM chat_messages
+                WHERE session_id = ?
+                ORDER BY id DESC
+                LIMIT {$limit}
+            ) recent_messages
+            ORDER BY id ASC
+        ");
+        $stmt->execute([$sessionId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('Chat resume messages load error: ' . $e->getMessage());
+        return [];
+    }
+}

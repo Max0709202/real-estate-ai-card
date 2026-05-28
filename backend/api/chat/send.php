@@ -93,16 +93,22 @@ try {
         $reply = $intake['reply'];
         $sources = [];
     } else {
-        $agentName = $card['name'] ?? '担当者';
-        $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName, $db, $sessionId);
-
-        if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
-            error_log('Chat OpenAI error: ' . ($result['error'] ?? 'empty reply'));
-            $reply = getBotReplyPlaceholder($message);
-            $sources = [['url' => CHAT_BLOG_BASE_URL, 'title' => '戸建てリノベINFO']];
+        $directMansionAnswer = chatMansionDbDirectAnswer($db, $message);
+        if ($directMansionAnswer !== null) {
+            $reply = $directMansionAnswer['reply'];
+            $sources = $directMansionAnswer['sources'];
         } else {
-            $reply = $result['reply'];
-            $sources = $result['sources'];
+            $agentName = $card['name'] ?? '担当者';
+            $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName, $db, $sessionId);
+
+            if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
+                error_log('Chat OpenAI error: ' . ($result['error'] ?? 'empty reply'));
+                $reply = getBotReplyPlaceholder($message);
+                $sources = [['url' => CHAT_BLOG_BASE_URL, 'title' => '戸建てリノベINFO']];
+            } else {
+                $reply = $result['reply'];
+                $sources = $result['sources'];
+            }
         }
     }
 

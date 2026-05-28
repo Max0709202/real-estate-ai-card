@@ -30,6 +30,7 @@
     var firstConsultationNoticeText = "ご希望条件の整理や、今後の進め方をサポートするため、必要に応じて少しずつご質問します。答えられる範囲だけで大丈夫です。\n\n次のような軽いご相談も可能です。\n\n・購入と賃貸で迷っている\n・住宅ローンが通るか不安\n・エリアの選び方が分からない\n・売却を何から始めればよいか分からない\n・今の状況を整理したい\n\n会話を通じて、条件整理や物件探しの進め方をサポートします。\n\n小さな疑問や不安でも、お気軽にご相談ください。\n\n※右下のマイクボタンから音声入力もご利用いただけます。\n\n※AIによるサービスのため、回答内容に誤りが含まれる場合があります。\n\n※スムーズなご案内のため、必要最小限の情報を担当者へ共有する場合があります。";
     var previousConfirmedNoticeText = "ありがとうございます。前回のご相談内容を確認しました。\n前回の内容をもとに、このまま続きからご案内できます。";
     var registeredPhoneNoticeText = "おかえりなさい、{customer}。\n\n前回のご相談内容をもとに、続きからご案内します。";
+    var reloadNoticeText = "ページを再読み込みしました。チャットを再接続しましたので、前回の相談がある場合は続きから再開できます。";
     var pwaModalIds = ['pwaIosModal1', 'pwaIosModal2', 'pwaIosModalSafari'];
 
     if (!toggleBtn || !panel || !messagesContainer || !inputEl || !sendBtn) return;
@@ -52,6 +53,21 @@
     var isListening = false;
     var finalVoiceTranscript = '';
     var voiceHadError = false;
+    var pageWasReloaded = detectPageReload();
+    var reloadNoticeShown = false;
+
+    function detectPageReload() {
+        try {
+            if (window.performance && typeof window.performance.getEntriesByType === 'function') {
+                var nav = window.performance.getEntriesByType('navigation');
+                if (nav && nav.length) return nav[0].type === 'reload';
+            }
+            if (window.performance && window.performance.navigation) {
+                return window.performance.navigation.type === 1;
+            }
+        } catch (e) {}
+        return false;
+    }
 
     function safeStorageGet(key) {
         try { return window.localStorage ? localStorage.getItem(key) : null; } catch (e) { return null; }
@@ -96,6 +112,12 @@
 
     function clearSavedSessionId() {
         safeStorageRemove(getSessionStorageKey());
+    }
+
+    function resetVisitorIdentity() {
+        clearSavedSessionId();
+        visitorId = createClientId();
+        safeStorageSet('ai_fcard_chat_visitor_id', visitorId);
     }
 
     function setInputEnabled(enabled) {
@@ -291,6 +313,11 @@
             .replace(/\{customer\}/g, customer);
     }
 
+    function customerCasualLabel(data) {
+        var rawCustomer = data && data.customer_name ? String(data.customer_name).trim() : '';
+        return rawCustomer ? rawCustomer + 'さん' : 'お客様';
+    }
+
     function renderEntryActions(actions) {
         if (!quickActions) return;
         clearDynamicQuickActions();
@@ -307,11 +334,18 @@
         quickActions.insertBefore(group, quickActions.firstChild);
     }
 
+    function showReloadNoticeIfNeeded() {
+        if (!pageWasReloaded || reloadNoticeShown) return;
+        appendBotMessage(reloadNoticeText);
+        reloadNoticeShown = true;
+    }
+
     function showFirstTimeEntry(data) {
         entryAwaitingChoice = true;
         greetingShown = true;
         startupData = data || startupData;
         messagesContainer.innerHTML = '';
+        showReloadNoticeIfNeeded();
         appendBotMessage(personalize(entryNoticeText, startupData));
         renderEntryActions([
             { label: '初めて相談する', action: 'first_consultation' },
@@ -325,10 +359,12 @@
         greetingShown = true;
         startupData = data || startupData;
         messagesContainer.innerHTML = '';
-        appendBotMessage(personalize('おかえりなさい、{customer}。\n\n前回のご相談内容をもとに、続きからご案内します。\n\n※{customer}ご本人でない場合は、「別の方として利用する」からお進みください。', startupData));
+        showReloadNoticeIfNeeded();
+        var customerLabel = customerCasualLabel(startupData);
+        appendBotMessage(customerLabel + '、お帰りなさい。\n\nこの端末では前回のご相談を確認できています。' + customerLabel + 'ご本人の場合は、SMS認証なしで続きから再開できます。\n\n' + customerLabel + 'でない場合は、別の方として新しくご相談を始めてください。');
         renderEntryActions([
-            { label: '前回の続きから相談する', action: 'continue_saved_session' },
-            { label: '別の方として利用する', action: 'use_as_someone_else' }
+            { label: customerLabel + 'として続ける', action: 'continue_saved_session' },
+            { label: customerLabel + 'でない場合', action: 'start_as_different_person' }
         ]);
         setInputEnabled(false);
     }
@@ -349,8 +385,13 @@
         entryAwaitingChoice = false;
         startupData = data || startupData || {};
         renderQuickReplies([]);
+        messagesContainer.innerHTML = '';
         if (alreadyConfirmed) {
             appendBotMessage(previousConfirmedNoticeText);
+        }
+        var previousMessages = Array.isArray(startupData.messages) ? startupData.messages : [];
+        if (previousMessages.length) {
+            renderSessionMessages(previousMessages);
         }
         appendBotMessage(startupData.resume_message || '前回の内容を確認しました。続きからご案内します。');
         renderQuickReplies(startupData.quick_replies || []);
@@ -676,7 +717,8 @@
         sourceBox.className = 'chat-msg-sources';
         sourceBox.innerHTML = '<span style="display:none;">参照情報</span>' + sources.slice(0, 3).map(function (source) {
             var title = source.title || source.url || 'Source';
-            var url = source.url || '#';
+            var url = source.url || '';
+            if (!url) return '<span class="chat-msg-source-label">' + escapeHtml(title) + '</span>';
             return '<a href="' + escapeAttribute(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(title) + '</a>';
         }).join('');
         var content = wrap.querySelector('.chat-msg-content');
@@ -973,6 +1015,11 @@
                     showSmsAuth('continue');
                 } else if (entryAction === 'continue_saved_session') {
                     continueSavedConsultation(startupData || {}, false);
+                } else if (entryAction === 'start_as_different_person') {
+                    resetVisitorIdentity();
+                    sessionId = null;
+                    greetingShown = false;
+                    startSession(true);
                 } else if (entryAction === 'use_as_someone_else') {
                     showSmsAuth('other');
                 }
