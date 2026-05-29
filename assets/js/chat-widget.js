@@ -26,8 +26,8 @@
     var toggleLabelEl = document.getElementById('chat-widget-toggle-label');
     var quickActions = document.getElementById('chat-widget-quick-actions');
     var defaultPromptText = "不動産の購入・売却について、何でもお気軽にご質問ください。";
-    var entryNoticeText = "こんにちは。\nこのチャットでは、管理者「{agent}」に代わって、AI{agent}が24時間365日、不動産のご相談をサポートします。\n\n※初めてご利用の方は「初めて相談する」からお進みください。\n\n以前、別の端末でご相談いただいたことがある方は「前回の相談を続ける」をご利用ください。前回のご相談内容をもとに、続きからご案内します。";
-    var firstConsultationNoticeText = "ご希望条件の整理や、今後の進め方をサポートするため、必要に応じて少しずつご質問します。答えられる範囲だけで大丈夫です。\n\n次のような軽いご相談も可能です。\n\n・購入と賃貸で迷っている\n・住宅ローンが通るか不安\n・エリアの選び方が分からない\n・売却を何から始めればよいか分からない\n・今の状況を整理したい\n\n会話を通じて、条件整理や物件探しの進め方をサポートします。\n\n小さな疑問や不安でも、お気軽にご相談ください。\n\n※右下のマイクボタンから音声入力もご利用いただけます。\n\n※AIによるサービスのため、回答内容に誤りが含まれる場合があります。\n\n※スムーズなご案内のため、必要最小限の情報を担当者へ共有する場合があります。";
+    var entryNoticeText = "こんにちは。\nAI{agent}です。\n24時間365日、不動産のご相談を受付しています。\n\n・購入のご相談\n・売却のご相談\n・相場や住宅ローンのご質問\n・エリアや物件探しのご相談\n\nなど、気軽にご利用ください。\n\nまだ具体的に決まっていない段階でも大丈夫です。\n今の状況に合わせてご案内します。\n\n前回のご相談内容やご希望条件を引き継いで、続きからご案内できます。\nスマートフォンの機種変更時や、別の端末からでも同じ内容でご相談いただけます。";
+    var firstConsultationNoticeText = "担当者にスムーズにつなげられるように、必要な条件だけを少しずつ整理します。答えられる範囲だけで大丈夫です。\n\n次のような軽いご相談も可能です。\n\n・購入と賃貸で迷っている\n・住宅ローンが通るか不安\n・エリアの選び方が分からない\n・売却を何から始めればよいか分からない\n・今の状況を整理したい\n\n会話を通じて、条件整理や物件探しの進め方をサポートします。\n\n小さな疑問や不安でも、お気軽にご相談ください。\n\n※右下のマイクボタンから音声入力もご利用いただけます。\n\n※AIによるサービスのため、回答内容に誤りが含まれる場合があります。\n\n※スムーズなご案内のため、必要最小限の情報を担当者へ共有する場合があります。";
     var previousConfirmedNoticeText = "ありがとうございます。前回のご相談内容を確認しました。\n前回の内容をもとに、このまま続きからご案内できます。";
     var registeredPhoneNoticeText = "おかえりなさい、{customer}。\n\n前回のご相談内容をもとに、続きからご案内します。";
     var reloadNoticeText = "ページを再読み込みしました。チャットを再接続しましたので、前回の相談がある場合は続きから再開できます。";
@@ -349,7 +349,7 @@
         appendBotMessage(personalize(entryNoticeText, startupData));
         renderEntryActions([
             { label: '初めて相談する', action: 'first_consultation' },
-            { label: '前回の相談を続ける', action: 'continue_previous_sms' }
+            { label: '前回の続きから相談する', action: 'continue_previous_sms' }
         ]);
         setInputEnabled(false);
     }

@@ -292,7 +292,7 @@ if (!empty($card['profile_photo'])) {
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/pwa.css">
     <?php if ($chatbotEnabled): ?>
-    <link rel="stylesheet" href="assets/css/chat-widget.css">
+    <link rel="stylesheet" href="assets/css/chat-widget.css?v=<?php echo filemtime(__DIR__ . '/assets/css/chat-widget.css'); ?>">
     <?php endif; ?>
     <script src="assets/js/pwa-a2hs.js" defer></script>
     <style>
@@ -850,15 +850,14 @@ if (!empty($card['profile_photo'])) {
                                     </div>
                                     
                                     <!-- Description -->
-                                    <div class="tool-banner-content">
-                                        <div class="tool-description"><?php echo $info['description']; ?></div>
-                                        
+                                    <div class="tool-banner-content">                                        
                                         <!-- Button -->
                                         <a href="<?php echo htmlspecialchars($tool['tool_url']); ?>" 
                                            class="tool-details-button" 
                                            target="_blank">
                                             <?php echo ($tool['tool_type'] === 'alp') ? '詳細はこちら' : '利用はこちら'; ?>
                                         </a>
+                                        <div class="tool-description"><?php echo $info['description']; ?></div>
                                     </div>
                                 </div>
                             <?php endforeach; ?>

@@ -27,6 +27,7 @@ function chatIntakeDefaultData() {
         'purchase_timing' => null,
         'selling_timing' => null,
         'move_completion_timing' => null,
+        'rent_timing' => null,
         'loan_status' => null,
         'loan_balance' => null,
         'desired_sale_price' => null,
@@ -93,6 +94,8 @@ function chatIntakeDefaultData() {
         '_current_field' => 'customer_type',
         '_intake_mode' => 'guided',
         '_asked_fields' => [],
+        '_field_meta' => [],
+        '_invalid_inputs' => [],
         '_button_selection_archive' => [],
         '_updated_at' => date('c'),
     ];
@@ -101,8 +104,10 @@ function chatIntakeDefaultData() {
 function chatIntakeTypeChoices() {
     return [
         ['label' => '家を買いたい', 'value' => 'purchase'],
+        ['label' => '家を借りたい', 'value' => 'rent'],
         ['label' => '住み替えを検討', 'value' => 'replacement'],
         ['label' => '家を売りたい', 'value' => 'sale'],
+        ['label' => '相談だけしたい', 'value' => 'consultation'],
         ['label' => '投資物件を買いたい', 'value' => 'investment_buy'],
         ['label' => '投資物件を売りたい', 'value' => 'investment_sale'],
         ['label' => '相場を知りたい', 'value' => 'market'],
@@ -161,19 +166,19 @@ function chatIntakeQuickRepliesForField($field, $data = null) {
 function chatIntakeFieldDefinitions() {
     return [
         'customer_type' => ['question' => 'まず、今回のご相談内容に近いものを教えてください。', 'choices' => chatIntakeTypeChoices()],
-        'preferred_area' => ['question' => 'ご希望のエリアは決まっていますか。例: 世田谷区、横浜市、中野坂上周辺など、分かる範囲で大丈夫です。', 'choices' => [['label' => 'まだ未定', 'value' => '未定']]],
+        'preferred_area' => ['question' => '担当者に共有する条件として、まず希望エリアを1つだけ確認させてください。駅名・市区町村名・沿線名など、分かる範囲で大丈夫です。', 'choices' => [['label' => '駅名で決めたい', 'value' => '駅名で決めたい'], ['label' => '市区町村で決めたい', 'value' => '市区町村で決めたい'], ['label' => '通勤時間で決めたい', 'value' => '通勤時間で決めたい'], ['label' => 'まだ全く決まっていない', 'value' => 'まだ全く決まっていない']]],
         'preferred_station_line' => ['question' => '最寄り駅や沿線の希望はありますか。複数あればそのまま入力してください。', 'choices' => [['label' => 'まだ未定', 'value' => '未定']]],
         'commute_destination' => ['question' => '通勤・通学で重視したい場所はありますか。勤務先駅、学校、実家などでも大丈夫です。', 'choices' => [['label' => '特になし', 'value' => '特になし']]],
-        'budget' => ['question' => 'ご予算のイメージを教えてください。例: 6,000万〜7,000万円、まだ未定など。', 'choices' => [['label' => 'まだ未定', 'value' => '未定']]],
+        'budget' => ['question' => '次に、予算感だけ教えてください。例: 6,000万〜7,000万円、月々返済10万円台、まだ未定など。', 'choices' => [['label' => 'まだ未定', 'value' => '未定']]],
         'competitor_viewing_status' => ['question' => 'すでに他社で物件の内覧をされていますか。', 'choices' => [['label' => 'はい', 'value' => 'yes'], ['label' => 'いいえ', 'value' => 'no']]],
         'viewed_property_count' => ['question' => 'これまでに内覧した物件数を教えてください。', 'choices' => [['label' => '1〜2件', 'value' => '1-2'], ['label' => '3〜5件', 'value' => '3-5'], ['label' => '6〜10件', 'value' => '6-10'], ['label' => '10件以上', 'value' => '10+']]],
         'preferred_area_size' => ['question' => 'ご希望の広さ（㎡数）の範囲はありますか。', 'choices' => [['label' => '50㎡未満', 'value' => '<50'], ['label' => '50〜70㎡未満', 'value' => '50-70'], ['label' => '70〜90㎡未満', 'value' => '70-90'], ['label' => '90〜120㎡未満', 'value' => '90-120'], ['label' => '120㎡以上', 'value' => '120+'], ['label' => '未定', 'value' => '未定']]],
         'layout' => ['question' => 'ご希望の間取りを教えてください。', 'choices' => [['label' => '1LDK', 'value' => '1LDK'], ['label' => '2LDK', 'value' => '2LDK'], ['label' => '3LDK', 'value' => '3LDK'], ['label' => '4LDK以上', 'value' => '4LDK以上'], ['label' => '未定', 'value' => '未定']]],
         'property_type' => ['question' => '物件種別の希望はありますか。複数選択できます。', 'choices' => [['label' => 'マンション', 'value' => 'マンション'], ['label' => '戸建て', 'value' => '戸建て'], ['label' => '土地', 'value' => '土地'], ['label' => '投資用', 'value' => '投資用']]],
-        'station_walk_minutes' => ['question' => '駅からの距離はどの程度まで許容できますか。', 'choices' => [['label' => '5分以内', 'value' => '5'], ['label' => '10分以内', 'value' => '10'], ['label' => '15分以内', 'value' => '15'], ['label' => 'バス可', 'value' => 'bus'], ['label' => '未定', 'value' => '未定']]],
+        'station_walk_minutes' => ['question' => '駅からの距離はどの程度まで許容できますか。', 'choices' => [['label' => '5分以内', 'value' => '5分'], ['label' => '10分以内', 'value' => '10分'], ['label' => '15分以内', 'value' => '15分'], ['label' => 'バス可', 'value' => 'bus'], ['label' => '未定', 'value' => '未定']]],
         'priority' => ['question' => '住まい選びで最も重視したいことは何ですか。複数選択できます。', 'choices' => [['label' => '利便性', 'value' => '利便性'], ['label' => '広さ', 'value' => '広さ'], ['label' => '学区', 'value' => '学区'], ['label' => '資産価値', 'value' => '資産価値'], ['label' => '静かな環境', 'value' => '静かな環境'], ['label' => '価格', 'value' => '価格'], ['label' => 'その他', 'value' => 'その他']]],
         'family_structure' => ['question' => 'ご家族構成を差し支えない範囲で教えてください。', 'choices' => [['label' => '単身', 'value' => '単身'], ['label' => '夫婦', 'value' => '夫婦'], ['label' => '子どもあり', 'value' => '子どもあり'], ['label' => '親と同居予定', 'value' => '親と同居予定'], ['label' => 'その他', 'value' => 'その他'], ['label' => '回答しない', 'value' => '未回答']]],
-        'purchase_timing' => ['question' => 'いつ頃までにお引越しを希望されていますか。', 'choices' => [['label' => 'すぐ', 'value' => 'すぐ'], ['label' => '3か月以内', 'value' => '3か月以内'], ['label' => '半年以内', 'value' => '半年以内'], ['label' => '1年以内', 'value' => '1年以内'], ['label' => '未定', 'value' => '未定']]],
+        'purchase_timing' => ['question' => '検討時期はいつ頃のイメージですか。', 'choices' => [['label' => 'すぐ', 'value' => 'すぐ'], ['label' => '3か月以内', 'value' => '3か月以内'], ['label' => '半年以内', 'value' => '半年以内'], ['label' => '1年以内', 'value' => '1年以内'], ['label' => '未定', 'value' => '未定']]],
         'loan_status' => ['question' => '住宅ローンの状況を教えてください。', 'choices' => [['label' => '事前審査済', 'value' => '事前審査済'], ['label' => 'これから', 'value' => 'これから'], ['label' => '現金購入', 'value' => '現金購入'], ['label' => 'わからない', 'value' => 'わからない']]],
         'renovation_preference' => ['question' => 'リフォームについての希望はありますか。', 'choices' => [['label' => 'リフォーム済希望', 'value' => 'リフォーム済希望'], ['label' => '自分でリフォームしたい', 'value' => '自分でリフォームしたい'], ['label' => 'どちらでもよい', 'value' => 'どちらでもよい']]],
         'current_property_type' => ['question' => '現在のお住まいはどのような物件ですか。', 'choices' => [['label' => 'マンション', 'value' => 'マンション'], ['label' => '戸建て', 'value' => '戸建て'], ['label' => '土地', 'value' => '土地'], ['label' => 'その他', 'value' => 'その他']]],
@@ -235,6 +240,7 @@ function chatIntakeFieldDefinitions() {
         'equity' => ['question' => '自己資金の目安を教えてください。', 'choices' => [['label' => '未定', 'value' => '未定']]],
         'ownership_status' => ['question' => '相続の場合、名義や共有者の状況は分かりますか。', 'choices' => [['label' => '単独名義', 'value' => '単独名義'], ['label' => '共有', 'value' => '共有'], ['label' => '相続登記前', 'value' => '相続登記前'], ['label' => '不明', 'value' => '不明']]],
         'simulation_save_consent' => ['question' => 'シミュレーターで試算した借入希望額や毎月返済額を保存してもよろしいですか。', 'choices' => [['label' => '保存する', 'value' => '保存する'], ['label' => '保存しない', 'value' => '保存しない'], ['label' => 'あとで確認', 'value' => 'あとで確認']]],
+        'rent_timing' => ['question' => '賃貸のお引越し時期はいつ頃をお考えですか。', 'choices' => [['label' => 'すぐ', 'value' => 'すぐ'], ['label' => '1〜3か月以内', 'value' => '1〜3か月以内'], ['label' => '半年以内', 'value' => '半年以内'], ['label' => '未定', 'value' => '未定']]],
         'move_date' => ['question' => '引っ越し希望日や決済・引渡希望日はありますか。例: 2026-09-30 のように入力できます。', 'choices' => [['label' => '未定', 'value' => '未定']]],
         'contact_name' => ['question' => "前回のご相談内容を引き継ぎ、次回以降も続きからスムーズにご案内できるよう、まずはお名前のご登録をお願いいたします。\n\n【姓】\n【名】\n\n※苗字とお名前は分けてご入力ください。", 'choices' => []],
         'contact_email' => ['question' => "続いて、メールアドレスをご入力ください。\nご登録いただくことで、\n・ご相談内容の引継ぎ\n・別デバイスからのログイン\n・重要なお知らせのお受け取り\nなどが可能になります。\n\n【メールアドレス】\n「　　　　　@　　　　　　　」", 'choices' => []],
@@ -245,10 +251,12 @@ function chatIntakeFieldDefinitions() {
 
 function chatIntakeScenarioFields($customerType) {
     $map = [
-        'purchase' => ['preferred_area', 'preferred_station_line', 'commute_destination', 'budget', 'competitor_viewing_status', 'viewed_property_count', 'preferred_area_size', 'layout', 'property_type', 'station_walk_minutes', 'priority', 'family_structure', 'purchase_timing', 'loan_status', 'renovation_preference', 'contact_name', 'contact_email', 'contact_phone'],
-        'replacement' => ['current_property_type', 'selling_strategy', 'current_property_location', 'loan_balance', 'minimum_price', 'preferred_area', 'budget', 'reason_for_move', 'temporary_housing', 'tax_consideration', 'competitor_status', 'move_completion_timing', 'contact_name', 'contact_email', 'contact_phone'],
-        'sale' => ['property_location', 'property_type', 'selling_reason', 'selling_timing', 'loan_balance', 'minimum_price', 'appraisal_status', 'appraisal_request', 'disclosure_flags', 'repair_history', 'appeal_points', 'preferred_contact', 'contact_name', 'contact_email', 'contact_phone'],
-        'investment_buy' => ['investment_type', 'owner_change_ok', 'preferred_area', 'budget', 'target_yield', 'age_tolerance', 'finance_plan', 'equity', 'purchase_timing', 'competitor_status', 'contact_name', 'contact_email', 'contact_phone'],
+        'purchase' => ['preferred_area', 'budget', 'purchase_timing', 'preferred_area_size', 'layout', 'station_walk_minutes', 'family_structure', 'loan_status', 'property_type', 'preferred_station_line', 'commute_destination', 'priority', 'renovation_preference', 'competitor_viewing_status', 'viewed_property_count', 'contact_name', 'contact_email', 'contact_phone'],
+        'replacement' => ['preferred_area', 'budget', 'move_completion_timing', 'current_property_type', 'selling_strategy', 'current_property_location', 'loan_balance', 'minimum_price', 'reason_for_move', 'temporary_housing', 'tax_consideration', 'competitor_status', 'contact_name', 'contact_email', 'contact_phone'],
+        'sale' => ['property_location', 'selling_timing', 'minimum_price', 'property_type', 'selling_reason', 'loan_balance', 'appraisal_status', 'appraisal_request', 'disclosure_flags', 'repair_history', 'appeal_points', 'preferred_contact', 'contact_name', 'contact_email', 'contact_phone'],
+        'rent' => ['preferred_area', 'budget', 'rent_timing', 'preferred_area_size', 'layout', 'station_walk_minutes', 'family_structure', 'priority', 'contact_name', 'contact_email', 'contact_phone'],
+        'consultation' => ['preferred_area', 'budget', 'purchase_timing', 'loan_status', 'preferred_contact', 'contact_name', 'contact_email', 'contact_phone'],
+        'investment_buy' => ['preferred_area', 'budget', 'purchase_timing', 'investment_type', 'owner_change_ok', 'target_yield', 'age_tolerance', 'finance_plan', 'equity', 'competitor_status', 'contact_name', 'contact_email', 'contact_phone'],
         'investment_sale' => ['property_location', 'property_type', 'occupancy_status', 'sublease_status', 'sublease_cancelable', 'rent_income', 'gross_yield', 'loan_balance', 'desired_price', 'selling_reason', 'replacement_plan', 'competitor_status', 'contact_name', 'contact_email', 'contact_phone'],
         'loan' => ['income', 'employment_type', 'years_employed', 'down_payment', 'desired_loan_amount', 'other_debts', 'pre_approval_status', 'loan_concern', 'loan_simulation_used', 'simulation_save_consent', 'contact_name', 'contact_email', 'contact_phone'],
         'market' => ['property_location', 'property_type', 'consultation_reason', 'selling_timing', 'report_request', 'contact_name', 'contact_email', 'contact_phone'],
@@ -408,6 +416,235 @@ function chatIntakeSave($db, $sessionId, $businessCardId, $data) {
     chatIntakeSaveContact($db, $sessionId, $businessCardId, $data);
 }
 
+function chatIntakeNormalizeInputText($value) {
+    $value = trim((string)$value);
+    $value = mb_convert_kana($value, "asKV");
+    $value = preg_replace("/[\\s　]+/u", " ", $value);
+    return trim($value);
+}
+
+function chatIntakeIsUnknownAnswer($value) {
+    $plain = chatIntakeNormalizeInputText($value);
+    $plain = preg_replace("/[\\s　。、，．・！？?！「」『』（）()【】\\[\\]{}]+/u", "", $plain);
+    if ($plain === "") return true;
+    $unknowns = ["未定", "わからない", "分からない", "判らない", "不明", "まだ", "まだ未定", "まだ決まっていない", "決まっていない", "決めていない", "未確認", "知らない", "特になし", "なし", "回答しない", "未回答"];
+    return in_array($plain, $unknowns, true);
+}
+
+function chatIntakeAreaPlanningChoices() {
+    return ["駅名で決めたい", "市区町村で決めたい", "通勤時間で決めたい", "まだ全く決まっていない"];
+}
+
+function chatIntakeIsAreaPlanningChoice($value) {
+    return in_array(chatIntakeNormalizeInputText($value), chatIntakeAreaPlanningChoices(), true);
+}
+
+function chatIntakeRecordFieldMeta(&$data, $field, $value, $confidence, $status, $raw = "", $source = "typed", $reason = "") {
+    if ($field === null || $field === "") return;
+    if (!isset($data["_field_meta"]) || !is_array($data["_field_meta"])) $data["_field_meta"] = [];
+    $entry = [
+        "field" => $field,
+        "value" => chatIntakeDisplayValue($value),
+        "confidence" => $confidence,
+        "status" => $status,
+        "source" => $source,
+        "raw" => mb_substr(trim((string)$raw), 0, 500),
+        "reason" => $reason,
+        "updated_at" => date("c"),
+    ];
+    $data["_field_meta"][$field] = $entry;
+    if ($status === "invalid") {
+        if (!isset($data["_invalid_inputs"]) || !is_array($data["_invalid_inputs"])) $data["_invalid_inputs"] = [];
+        $data["_invalid_inputs"][] = $entry;
+        $data["_invalid_inputs"] = array_slice($data["_invalid_inputs"], -50);
+    }
+}
+
+function chatIntakeFieldMeta($data, $field) {
+    return is_array($data["_field_meta"] ?? null) && is_array($data["_field_meta"][$field] ?? null) ? $data["_field_meta"][$field] : null;
+}
+
+function chatIntakeIsConfirmedField($data, $field) {
+    $meta = chatIntakeFieldMeta($data, $field);
+    if ($meta === null) return true;
+    return ($meta["status"] ?? "") === "confirmed" && in_array(($meta["confidence"] ?? ""), ["high", "medium"], true);
+}
+
+function chatIntakeValidationResult($confidence, $status, $saveValue, $normalizedValue = null, $reason = "", $markAsked = false) {
+    return [
+        "confidence" => $confidence,
+        "status" => $status,
+        "save_value" => $saveValue,
+        "normalized_value" => $normalizedValue,
+        "reason" => $reason,
+        "mark_asked" => $markAsked,
+    ];
+}
+
+function chatIntakeValidateFieldValue($field, $value, $data, $fromButton = false, $source = "typed") {
+    $display = chatIntakeNormalizeInputText(chatIntakeDisplayValue($value));
+    if ($display === "") return chatIntakeValidationResult("invalid", "invalid", false, null, "empty", false);
+    if ($field !== "customer_type" && chatIntakeLooksLikeAccidentalShortInput($display, $field)) {
+        return chatIntakeValidationResult("invalid", "invalid", false, null, "too_short", false);
+    }
+
+    if ($field === "customer_type") {
+        $valid = array_map(function ($choice) { return $choice["value"]; }, chatIntakeTypeChoices());
+        return in_array((string)$value, $valid, true)
+            ? chatIntakeValidationResult("high", "confirmed", true, $value, "", true)
+            : chatIntakeValidationResult("invalid", "invalid", false, null, "not_a_customer_type", false);
+    }
+
+    if (in_array($field, ["contact_name", "contact_email", "contact_phone", "contact_request"], true)) {
+        return chatIntakeValidationResult("high", "confirmed", true, $value, "", true);
+    }
+
+    if ($field === "preferred_area") {
+        if (chatIntakeIsAreaPlanningChoice($display)) {
+            return chatIntakeValidationResult("low", "unconfirmed", false, $display, "area_planning_choice", true);
+        }
+        if (chatIntakeIsUnknownAnswer($display)) {
+            return chatIntakeValidationResult("low", "needs_confirmation", false, $display, "unknown_area", false);
+        }
+        $area = chatIntakeExtractPreferredArea($display) ?: $display;
+        $compact = preg_replace("/[\\s　]+/u", "", $area);
+        if (mb_strlen($compact) < 2) return chatIntakeValidationResult("invalid", "invalid", false, null, "area_too_short", false);
+        if (!preg_match("/[一-龥ぁ-んァ-ンA-Za-z0-9０-９]/u", $compact)) return chatIntakeValidationResult("invalid", "invalid", false, null, "area_not_readable", false);
+        $confidence = preg_match("/(駅|線|沿線|市|区|町|村|都|道|府|県|周辺|エリア)$/u", $compact) ? "high" : "medium";
+        return chatIntakeValidationResult($confidence, "confirmed", true, $area, "", true);
+    }
+
+    if ($field === "preferred_station_line") {
+        if (chatIntakeIsUnknownAnswer($display)) return chatIntakeValidationResult("low", "unconfirmed", false, $display, "unknown_station", true);
+        $confidence = preg_match("/(駅|線|沿線)$/u", $display) ? "high" : "medium";
+        return chatIntakeValidationResult($confidence, "confirmed", true, $display, "", true);
+    }
+
+    if ($field === "budget") {
+        if (chatIntakeIsUnknownAnswer($display)) return chatIntakeValidationResult("low", "unconfirmed", false, $display, "unknown_budget", true);
+        if (!preg_match("/[0-9０-９]/u", $display) && !preg_match("/月々|返済|予算|価格|万円|億|円/u", $display)) {
+            return chatIntakeValidationResult("low", "needs_confirmation", false, $display, "budget_not_readable", false);
+        }
+        return chatIntakeValidationResult("high", "confirmed", true, $display, "", true);
+    }
+
+    if (in_array($field, ["purchase_timing", "selling_timing", "move_completion_timing", "rent_timing"], true)) {
+        if (chatIntakeIsUnknownAnswer($display)) return chatIntakeValidationResult("low", "unconfirmed", false, $display, "unknown_timing", true);
+        if (!preg_match("/すぐ|今|来月|再来月|[0-9０-９一二三四五六七八九十]+\\s*(?:か月|ヶ月|カ月|年|月|日)|半年|年内|春|夏|秋|冬/u", $display)) {
+            return chatIntakeValidationResult("low", "needs_confirmation", false, $display, "timing_not_readable", false);
+        }
+        return chatIntakeValidationResult("high", "confirmed", true, $display, "", true);
+    }
+
+    if ($field === "layout") {
+        if (chatIntakeIsUnknownAnswer($display)) return chatIntakeValidationResult("low", "unconfirmed", false, $display, "unknown_layout", true);
+        if (!preg_match("/[1-5１-５]\\s*(?:LDK|SLDK|DK|K|R)|ワンルーム|未定/u", $display)) {
+            return chatIntakeValidationResult("low", "needs_confirmation", false, $display, "layout_not_readable", false);
+        }
+        return chatIntakeValidationResult("high", "confirmed", true, $display, "", true);
+    }
+
+    if ($field === "station_walk_minutes") {
+        if (chatIntakeIsUnknownAnswer($display)) return chatIntakeValidationResult("low", "unconfirmed", false, $display, "unknown_station_walk", true);
+        if (!preg_match("/[0-9０-９]+\\s*分|徒歩|バス|bus/u", $display)) {
+            return chatIntakeValidationResult("low", "needs_confirmation", false, $display, "station_walk_not_readable", false);
+        }
+        return chatIntakeValidationResult("high", "confirmed", true, $display, "", true);
+    }
+
+    if ($field === "family_structure") {
+        if (chatIntakeIsUnknownAnswer($display)) return chatIntakeValidationResult("low", "unconfirmed", false, $display, "unknown_family", true);
+        if (!preg_match("/単身|夫婦|子|親|家族|同居|[0-9０-９]+\\s*人/u", $display)) {
+            return chatIntakeValidationResult("low", "needs_confirmation", false, $display, "family_not_readable", false);
+        }
+        return chatIntakeValidationResult("high", "confirmed", true, $display, "", true);
+    }
+
+    if ($field === "property_type") {
+        if (chatIntakeIsUnknownAnswer($display)) return chatIntakeValidationResult("low", "unconfirmed", false, $display, "unknown_property_type", true);
+        if (!preg_match("/マンション|戸建|一戸建て|土地|投資|アパート|ビル|その他/u", $display)) {
+            return chatIntakeValidationResult("low", "needs_confirmation", false, $display, "property_type_not_readable", false);
+        }
+        return chatIntakeValidationResult("high", "confirmed", true, $display, "", true);
+    }
+
+    if (chatIntakeIsUnknownAnswer($display)) {
+        return chatIntakeValidationResult("low", "unconfirmed", false, $display, "unknown", true);
+    }
+
+    $status = $source === "natural" ? "inferred" : "confirmed";
+    $confidence = $source === "natural" ? "medium" : "high";
+    return chatIntakeValidationResult($confidence, $status, true, $value, "", true);
+}
+
+function chatIntakeBuildClarifyingReply($field, $data, $validation = []) {
+    if ($field === "preferred_area") {
+        return "すみません、希望エリアとしては少し判断が難しそうです。駅名・市区町村名・沿線名などで教えていただけますか？\n\nまだはっきり決まっていなくても大丈夫です。近いものを選ぶとしたらどれですか？";
+    }
+    if ($field === "budget") {
+        return "すみません、予算感がうまく読み取れませんでした。\n担当者に共有しやすいように、金額や月々返済の目安で教えていただけますか？";
+    }
+    return "すみません、今の内容だけだと条件として判断が難しそうです。\n" . chatIntakeNaturalQuestion($field, $data);
+}
+
+function chatIntakeBuildUnconfirmedReply($field, $value, $nextField, $data) {
+    $nextQuestion = chatIntakeNaturalQuestion($nextField, $data);
+    if ($field === "preferred_area") {
+        return "まだエリアは固まっていない段階ですね。無理に記録せず、担当者へは「エリア未定」と分かる形で共有します。\n\n" . $nextQuestion;
+    }
+    return "承知しました。ここは未確認情報として扱い、確定条件には入れずに進めます。\n\n" . $nextQuestion;
+}
+
+function chatIntakeFieldLabelMap() {
+    return [
+        "customer_type" => "相談種別", "temperature" => "温度感", "preferred_area" => "希望エリア", "preferred_station" => "希望駅", "preferred_station_line" => "希望駅・沿線",
+        "commute_destination" => "通勤・通学先", "budget" => "予算", "budget_min" => "予算下限", "budget_max" => "予算上限", "budget_note" => "予算メモ",
+        "property_type" => "物件種別", "preferred_area_size" => "希望㎡数", "layout" => "間取り", "station_walk_minutes" => "駅徒歩許容分数", "family_structure" => "家族構成",
+        "purchase_timing" => "購入時期", "selling_timing" => "売却時期", "rent_timing" => "賃貸時期", "move_completion_timing" => "買い替え完了希望時期",
+        "loan_status" => "ローン状況", "loan_balance" => "ローン残債", "loan_concern" => "ローン不安", "priority" => "重視条件",
+        "renovation_preference" => "リフォーム意向", "current_property_location" => "現居所在地", "property_location" => "物件所在地", "selling_reason" => "売却理由",
+        "minimum_price" => "最低希望価格", "desired_price" => "希望価格", "appraisal_status" => "査定状況", "appraisal_request" => "査定希望",
+        "disclosure_flags" => "告知事項", "repair_history" => "修繕履歴", "appeal_points" => "物件PRポイント", "preferred_contact" => "希望連絡方法",
+        "customer_name" => "顧客名", "customer_phone" => "電話番号", "customer_phone_verified" => "SMS認証済み", "customer_email" => "メールアドレス", "preferred_contact_method" => "希望連絡方法",
+        "summary_for_sales" => "営業向け要約", "next_action" => "次アクション", "_intake_mode" => "会話モード",
+    ];
+}
+
+function chatIntakeClassifiedLeadItems($data) {
+    $groups = ["confirmed" => [], "inferred" => [], "needs_confirmation" => [], "invalid" => []];
+    if (!$data || !is_array($data)) return $groups;
+    $labels = chatIntakeFieldLabelMap();
+    foreach ($labels as $key => $label) {
+        if (strpos($key, "_") === 0 || in_array($key, ["temperature", "summary_for_sales", "next_action"], true)) continue;
+        $hasValue = isset($data[$key]) && $data[$key] !== null && $data[$key] !== "" && $data[$key] !== [];
+        $meta = chatIntakeFieldMeta($data, $key);
+        if (!$hasValue && $meta === null) continue;
+        $status = $meta["status"] ?? "confirmed";
+        $confidence = $meta["confidence"] ?? "high";
+        $value = $hasValue ? chatIntakeDisplayValue($data[$key]) : ($meta["value"] ?? "");
+        if ($value === "") continue;
+        $item = ["field" => $key, "label" => $label, "value" => $value, "confidence" => $confidence, "status" => $status, "raw" => $meta["raw"] ?? "", "updated_at" => $meta["updated_at"] ?? ""];
+        if ($status === "invalid") continue;
+        elseif ($status === "needs_confirmation") $groups["needs_confirmation"][] = $item;
+        elseif ($status === "inferred" || $status === "unconfirmed") $groups["inferred"][] = $item;
+        else $groups["confirmed"][] = $item;
+    }
+    foreach (($data["_invalid_inputs"] ?? []) as $invalid) {
+        if (!is_array($invalid)) continue;
+        $field = $invalid["field"] ?? "";
+        $groups["invalid"][] = [
+            "field" => $field,
+            "label" => $labels[$field] ?? $field,
+            "value" => $invalid["value"] ?? ($invalid["raw"] ?? ""),
+            "confidence" => $invalid["confidence"] ?? "invalid",
+            "status" => "invalid",
+            "raw" => $invalid["raw"] ?? "",
+            "updated_at" => $invalid["updated_at"] ?? "",
+        ];
+    }
+    return $groups;
+}
+
 function chatIntakeArchiveButtonSelection($db, $sessionId, $businessCardId, $selection, $message = '') {
     if (!is_array($selection)) return;
 
@@ -452,7 +689,7 @@ function chatIntakeArchiveButtonSelection($db, $sessionId, $businessCardId, $sel
 
 function chatIntakeInitialPayload($agentName) {
     return [
-        'initial_message' => "こんにちは。24時間365日、担当「{$agentName}」に代わって、AI{$agentName}が不動産のご相談を承ります。\n\nご希望条件の整理や今後の進め方をサポートするため、必要に応じて少しずつご質問します。答えられる範囲だけで大丈夫です。\n\nまず、今回のご相談内容に近いものを教えてください。",
+        'initial_message' => "こんにちは。24時間365日、担当「{$agentName}」に代わって、AI{$agentName}が不動産のご相談を承ります。\n\n担当者にスムーズにつなげられるように、必要な条件だけを少しずつ整理します。答えられる範囲だけで大丈夫です。\n\nまず、今回のご相談内容に近いものを教えてください。",
         'quick_replies' => chatIntakeTypeChoices(),
     ];
 }
@@ -478,6 +715,36 @@ function chatIntakeUserRequestsDirectAnswer($message) {
     $message = trim((string)$message);
     if ($message === '') return false;
     return (bool)preg_match('/(こちら|こっち|先ほど|さっき|前|上|私|自分)?の?質問.*(答え|回答|返答)|質問に(答え|回答|返答)|聞いた(?:こと|内容).*(答え|回答|返答)|ちゃんと.*(会話|答え|回答|返答)|普通に答え|会話.*(成立|成り立|噛み合)|話.*(通じ|噛み合)|同じ.*(質問|こと).*(繰り返|聞か)|無視しない|答えてください|回答してください/u', $message);
+}
+
+function chatIntakeMatchesDefinedChoice($field, $message) {
+    $message = trim((string)$message);
+    if ($message === '') return false;
+    $defs = chatIntakeFieldDefinitions();
+    foreach (($defs[$field]['choices'] ?? []) as $choice) {
+        if ($message === (string)($choice['label'] ?? '') || $message === (string)($choice['value'] ?? '')) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function chatIntakeLooksLikeAccidentalShortInput($message, $field = null) {
+    $message = trim((string)$message);
+    if ($message === '') return false;
+    $plain = preg_replace('/[\s　[:punct:]。、，．・！？?！「」『』（）()【】\[\]{}]+/u', '', $message);
+    if ($plain === '') return true;
+    if ($field !== null && chatIntakeMatchesDefinedChoice($field, $message)) return false;
+    if (preg_match('/[0-9０-９]/u', $plain)) return false;
+    return mb_strlen($plain) <= 1;
+}
+
+function chatIntakeBuildShortInputReply($field, $data) {
+    $question = chatIntakeNaturalQuestion($field, $data);
+    if ($field === 'preferred_area') {
+        return "すみません、希望エリアとしては少し判断が難しそうです。\n駅名や地域名でいうと、どのあたりをご希望でしょうか。\n\n" . $question;
+    }
+    return "すみません、入力途中かもしれません。\nもう一度、分かる範囲で入力してください。未定の場合は「未定」でも大丈夫です。\n\n" . $question;
 }
 
 function chatIntakeBuildFreeConversationReply($agentName = '担当者') {
@@ -670,8 +937,11 @@ function chatIntakeExtractNaturalFields($message, $data) {
     if ($message === '') return [];
     $extracted = [];
 
-    if (empty($data['customer_type']) && preg_match('/購入|買いたい|買う|探して|探し|物件を見たい|家を見たい|住まいを探/u', $message)) {
-        $extracted['customer_type'] = 'purchase';
+    if (empty($data["customer_type"])) {
+        if (preg_match("/購入|買いたい|買う|探して|探し|物件を見たい|家を見たい|住まいを探/u", $message)) $extracted["customer_type"] = "purchase";
+        elseif (preg_match("/賃貸|借りたい|家を借り|部屋を借り|賃貸物件/u", $message)) $extracted["customer_type"] = "rent";
+        elseif (preg_match("/売却|売りたい|売る|査定/u", $message)) $extracted["customer_type"] = "sale";
+        elseif (preg_match("/相談だけ|相談のみ|まず相談|まだ相談/u", $message)) $extracted["customer_type"] = "consultation";
     }
 
     $area = chatIntakeExtractPreferredArea($message);
@@ -692,21 +962,64 @@ function chatIntakeExtractNaturalFields($message, $data) {
         $extracted['budget'] = $message;
     }
 
+    if (preg_match('/\b([1-5])\s*(?:LDK|SLDK|DK|K|R)\b/iu', $message, $m)) {
+        $extracted['layout'] = strtoupper(mb_convert_kana($m[0], 'a'));
+    } elseif (preg_match('/([1-5])\s*部屋/u', mb_convert_kana($message, 'n'), $m)) {
+        $extracted['layout'] = $m[1] . 'LDK';
+    }
+
+    if (preg_match('/徒歩\s*([0-9０-９]{1,2})\s*分/u', $message, $m)) {
+        $minutes = (int)mb_convert_kana($m[1], 'n');
+        $extracted['station_walk_minutes'] = (string)$minutes;
+    } elseif (preg_match('/バス/u', $message)) {
+        $extracted['station_walk_minutes'] = 'bus';
+    }
+
+    if (preg_match('/事前審査.*(済|通|承認)|審査済/u', $message)) {
+        $extracted['loan_status'] = '事前審査済';
+    } elseif (preg_match('/現金購入|キャッシュ/u', $message)) {
+        $extracted['loan_status'] = '現金購入';
+    } elseif (preg_match('/ローン.*(これから|未定|不安|相談|わからない|分からない)/u', $message)) {
+        $extracted['loan_status'] = 'これから';
+    }
+
+    if (preg_match('/(すぐ|3か月以内|３か月以内|三か月以内|半年以内|1年以内|１年以内|一年以内|未定)/u', $message, $m)) {
+        $timing = strtr($m[1], ['３' => '3', '１' => '1', '三か月以内' => '3か月以内', '一年以内' => '1年以内']);
+        if (($data['customer_type'] ?? '') === 'sale') $extracted['selling_timing'] = $timing;
+        else $extracted['purchase_timing'] = $timing;
+    }
+
     return $extracted;
 }
 
 function chatIntakeApplyNaturalFields(&$data, $message, $currentField = null) {
     $extracted = chatIntakeExtractNaturalFields($message, $data);
+    $accepted = [];
     foreach ($extracted as $field => $value) {
-        if ($field === 'customer_type' && !empty($data['customer_type'])) continue;
+        if ($field === "customer_type" && !empty($data["customer_type"])) continue;
         if ($field !== $currentField && chatIntakeFieldHasValue($data, $field)) continue;
-        chatIntakeSetField($data, $field, $value);
-        if ($field === 'customer_type') $data['customer_type'] = $value;
+        $source = ($field === $currentField) ? "typed" : "natural";
+        $validation = chatIntakeValidateFieldValue($field, $value, $data, false, $source);
+        $normalized = $validation["normalized_value"] ?? $value;
+        if (!empty($validation["save_value"])) {
+            chatIntakeSetField($data, $field, $normalized, [
+                "confidence" => $validation["confidence"] ?? ($source === "natural" ? "medium" : "high"),
+                "status" => $source === "natural" ? "inferred" : ($validation["status"] ?? "confirmed"),
+                "raw" => $message,
+                "source" => $source,
+                "reason" => $validation["reason"] ?? "",
+            ]);
+            if ($field === "customer_type") $data["customer_type"] = $normalized;
+            $accepted[$field] = $normalized;
+        } else {
+            chatIntakeRecordFieldMeta($data, $field, $normalized, $validation["confidence"] ?? "low", $validation["status"] ?? "needs_confirmation", $message, $source, $validation["reason"] ?? "");
+            if (!empty($validation["mark_asked"]) && $field === $currentField) chatIntakeMarkAsked($data, $field);
+        }
     }
-    return $extracted;
+    return $accepted;
 }
 
-function chatIntakeSetField(&$data, $field, $value) {
+function chatIntakeSetField(&$data, $field, $value, $meta = []) {
     if ($field === '') return;
     if (is_array($value)) {
         $values = array_values(array_unique(array_filter(array_map('trim', array_map('strval', $value)), function ($v) { return $v !== ''; })));
@@ -792,6 +1105,12 @@ function chatIntakeSetField(&$data, $field, $value) {
     } else {
         $data[$field] = $value;
     }
+    $confidence = $meta["confidence"] ?? "high";
+    $status = $meta["status"] ?? "confirmed";
+    $raw = $meta["raw"] ?? chatIntakeDisplayValue($value);
+    $source = $meta["source"] ?? "typed";
+    $reason = $meta["reason"] ?? "";
+    chatIntakeRecordFieldMeta($data, $field, $value, $confidence, $status, $raw, $source, $reason);
     chatIntakeMarkAsked($data, $field);
 }
 
@@ -813,13 +1132,28 @@ function chatIntakeNextField($data) {
     return null;
 }
 
+function chatIntakeNextFields($data, $limit = 3) {
+    if (empty($data['customer_type'])) return ['customer_type'];
+    $fields = [];
+    $asked = $data['_asked_fields'] ?? [];
+    foreach (chatIntakeScenarioFieldsForData($data) as $field) {
+        if (in_array($field, $asked, true)) continue;
+        if (chatIntakeFieldHasValue($data, $field)) continue;
+        $fields[] = $field;
+        if (count($fields) >= $limit) break;
+    }
+    return $fields;
+}
+
 function chatIntakeDisplayValue($value) {
     return is_array($value) ? implode('、', $value) : (string)$value;
 }
 
 function chatIntakeScenarioIntro($customerType) {
     $map = [
-        'purchase' => '購入のご相談ですね。最初は条件を完璧に固めるより、「エリア・予算・広さ・時期」の優先順位を少しずつ整理すると、物件探しが進めやすくなります。',
+        'purchase' => '購入のご相談ですね。最初は条件を完璧に固めるより、「エリア・予算・時期」を少しずつ整理すると、物件探しが進めやすくなります。',
+        'rent' => '賃貸のご相談ですね。まずはエリア・予算・時期を軽く整理すると、担当者も候補を絞りやすくなります。',
+        'consultation' => 'まずは相談だけでも大丈夫です。担当者に共有しやすいように、今分かっていることだけ整理していきます。',
         'replacement' => '住み替えのご相談ですね。買い替えは購入条件だけでなく、今のお住まいの売却価格や残債、売却先行か購入先行かで進め方が大きく変わります。',
         'sale' => '売却のご相談ですね。まずは「どの物件を、いつ頃、どのくらいの価格感で」動かしたいかを整理できると、査定や販売戦略につなげやすくなります。',
         'investment_buy' => '投資物件の購入ですね。利回りだけでなく、空室リスク・修繕リスク・融資条件・出口戦略まで見ると判断しやすくなります。',
@@ -885,11 +1219,15 @@ function chatIntakeNaturalQuestion($field, $data) {
     if (!$field) return '主要な条件はかなり整理できました。追加で気になることがあれば、そのまま自由に入力してください。';
     $defs = chatIntakeFieldDefinitions();
     $question = $defs[$field]['question'] ?? '';
+    if (in_array($field, ['contact_name', 'contact_email', 'contact_phone', 'contact_request'], true)) {
+        return $question;
+    }
+
     $prefixMap = [
-        'preferred_area' => 'まずは物件探しの軸になるエリアから整理したいです。',
+        'preferred_area' => '担当者へスムーズにつなげられるように、まずエリアだけ整理させてください。',
         'preferred_station_line' => 'エリアに加えて、駅や沿線の希望があると提案の精度が上がります。',
         'commute_destination' => '日々の移動も住み心地に大きく関わります。',
-        'budget' => '次に、無理のない範囲を見立てるために予算感を伺います。',
+        'budget' => '担当者が提案の幅を見誤らないように、予算感だけ確認します。',
         'competitor_viewing_status' => '検討の進み具合も把握しておくと、急ぐべきか整理しやすいです。',
         'viewed_property_count' => '見学済みの場合は、比較の進み具合を確認させてください。',
         'preferred_area_size' => '暮らしやすさを考えるうえで、間取りより先に広さの感覚も見ておきたいです。',
@@ -898,7 +1236,8 @@ function chatIntakeNaturalQuestion($field, $data) {
         'station_walk_minutes' => '価格と利便性のバランスを見るため、駅距離の許容範囲も伺います。',
         'priority' => '条件の優先順位が分かると、提案がかなり現実的になります。',
         'family_structure' => '差し支えない範囲で、暮らす人数のイメージも教えてください。',
-        'purchase_timing' => 'スケジュール感によって、今やるべきことが変わります。',
+        'purchase_timing' => 'スケジュール感によって、急ぐ準備と後でよい準備が変わります。',
+        'rent_timing' => '賃貸は時期によって候補の動き方が変わるため、まず時期感を確認します。',
         'loan_status' => '資金計画の進み具合も、早めに軽く確認しておくと安心です。',
         'renovation_preference' => '中古も視野に入る場合は、リフォームの考え方で候補が変わります。',
         'current_property_type' => '住み替えは、今のお住まいの状況から整理すると分かりやすいです。',
@@ -927,13 +1266,24 @@ function chatIntakeNaturalQuestion($field, $data) {
         'contact_request' => '',
     ];
     $prefix = $prefixMap[$field] ?? '続けて、もう少しだけ確認させてください。';
-    if (in_array($field, ['contact_name', 'contact_email', 'contact_phone', 'contact_request'], true) && $prefix === '') return $question;
     return $prefix . "\n" . $question;
 }
 
 function chatIntakeBuildReply($field, $value, $nextField, $data) {
-    return chatIntakeAdvice($field, $value, $data) . "\n\n" . chatIntakeNaturalQuestion($nextField, $data);
+    $advice = chatIntakeAdvice($field, $value, $data);
+    $confirm = "";
+    if (!in_array($field, ["customer_type", "contact_name", "contact_email", "contact_phone", "contact_request"], true)) {
+        $labelMap = chatIntakeFieldLabelMap();
+        $label = $labelMap[$field] ?? "この内容";
+        $display = chatIntakeDisplayValue($value);
+        if ($display !== "") {
+            $confirm = $label . "は「" . $display . "」として、いったん担当者共有用に記録しておきますね。違っていたら後から変更できます。";
+        }
+    }
+    $parts = array_values(array_filter([$advice, $confirm, chatIntakeNaturalQuestion($nextField, $data)], function ($part) { return trim((string)$part) !== ""; }));
+    return implode("\n\n", $parts);
 }
+
 
 function chatIntakeEvaluateTemperature(&$data) {
     $score = 0;
@@ -954,9 +1304,9 @@ function chatIntakeEvaluateTemperature(&$data) {
 
 function chatIntakeBuildSummary(&$data) {
     $parts = [];
-    if (!empty($data['customer_type'])) $parts[] = '種別: ' . $data['customer_type'];
-    if (!empty($data['preferred_area'])) $parts[] = '希望エリア: ' . implode('、', $data['preferred_area']);
-    if (!empty($data['budget_min']) || !empty($data['budget_max'])) $parts[] = '予算: ' . ($data['budget_min'] ?? '') . '〜' . ($data['budget_max'] ?? '') . '万円目安';
+    if (!empty($data['customer_type']) && chatIntakeIsConfirmedField($data, 'customer_type')) $parts[] = '種別: ' . $data['customer_type'];
+    if (!empty($data['preferred_area']) && chatIntakeIsConfirmedField($data, 'preferred_area')) $parts[] = '希望エリア: ' . implode('、', $data['preferred_area']);
+    if ((!empty($data['budget_min']) || !empty($data['budget_max'])) && chatIntakeIsConfirmedField($data, 'budget')) $parts[] = '予算: ' . ($data['budget_min'] ?? '') . '〜' . ($data['budget_max'] ?? '') . '万円目安';
     if (!empty($data['property_type'])) $parts[] = '物件種別: ' . (is_array($data['property_type']) ? implode('、', $data['property_type']) : $data['property_type']);
     if (!empty($data['purchase_timing'])) $parts[] = '購入時期: ' . $data['purchase_timing'];
     if (!empty($data['selling_timing'])) $parts[] = '売却時期: ' . $data['selling_timing'];
@@ -977,6 +1327,8 @@ function chatIntakeNextAction($data) {
     if (($data['temperature'] ?? 'low') === 'high') {
         $map = [
             'purchase' => '早めの具体案内。希望条件の確認、候補物件提案、内覧調整、資金計画・ローン事前審査を提案。',
+            'rent' => '条件整理をもとに、希望エリア・予算・入居時期に合う候補提案へつなげる。',
+            'consultation' => '相談内容を整理し、担当者から次の進め方を案内。',
             'replacement' => '早めの具体案内。購入条件整理、売却査定、残債確認、買い替えスケジュール相談を提案。',
             'sale' => '早めの具体案内。査定、販売戦略、売却スケジュール相談を提案。',
             'investment_buy' => '早めの具体案内。収支確認、融資相談、候補物件提案へつなげる。',
@@ -990,6 +1342,8 @@ function chatIntakeNextAction($data) {
     if (($data['temperature'] ?? 'low') === 'middle') {
         $map = [
             'purchase' => '条件整理を継続し、候補物件提案・資金計画・ローン相談へつなげる。',
+            'rent' => '条件整理を継続し、希望条件に合う賃貸候補の確認へつなげる。',
+            'consultation' => '相談内容を継続整理し、担当者が対応しやすい状態にする。',
             'replacement' => '条件整理を継続し、購入条件・売却見込み・買い替えスケジュール相談へつなげる。',
             'sale' => '条件整理を継続し、相場情報・査定・販売戦略相談へつなげる。',
             'investment_buy' => '条件整理を継続し、収支確認・融資相談・候補物件提案へつなげる。',
@@ -1090,6 +1444,16 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
     }
 
     $extractedFields = $fromButton ? [] : chatIntakeApplyNaturalFields($data, $message, $field);
+    if (!$fromButton && empty($extractedFields) && chatIntakeLooksLikeAccidentalShortInput($message, $field)) {
+        chatIntakeRecordFieldMeta($data, $field, $message, "invalid", "invalid", $message, "typed", "too_short");
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
+        return [
+            'handled' => true,
+            'reply' => chatIntakeBuildShortInputReply($field, $data),
+            'quick_replies' => chatIntakeQuickRepliesForCurrentField($data),
+            'data' => $data,
+        ];
+    }
     if (!$fromButton && !isset($extractedFields[$field]) && !empty($extractedFields)) {
         chatIntakeEvaluateTemperature($data);
         chatIntakeBuildSummary($data);
@@ -1147,16 +1511,43 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
             'data' => $data,
         ];
     }
-    chatIntakeSetField($data, $field, $value);
-    if ($field === 'customer_type') $data['customer_type'] = $value;
+    $validation = chatIntakeValidateFieldValue($field, $value, $data, $fromButton, $fromButton ? "button" : "typed");
+    $normalizedValue = $validation["normalized_value"] ?? $value;
+    if (empty($validation["save_value"])) {
+        chatIntakeRecordFieldMeta($data, $field, $normalizedValue, $validation["confidence"] ?? "low", $validation["status"] ?? "needs_confirmation", $message, $fromButton ? "button" : "typed", $validation["reason"] ?? "");
+        if (!empty($validation["mark_asked"])) chatIntakeMarkAsked($data, $field);
+        chatIntakeEvaluateTemperature($data);
+        chatIntakeBuildSummary($data);
+        $nextField = !empty($validation["mark_asked"]) ? chatIntakeNextField($data) : $field;
+        $data["_current_field"] = $nextField;
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
+        $defs = chatIntakeFieldDefinitions();
+        if (($validation["status"] ?? "") === "unconfirmed" && !empty($validation["mark_asked"])) {
+            $reply = chatIntakeBuildUnconfirmedReply($field, $normalizedValue, $nextField, $data);
+            $quick = $nextField && isset($defs[$nextField]) ? chatIntakeQuickRepliesForField($nextField, $data) : [];
+        } else {
+            $reply = chatIntakeBuildClarifyingReply($field, $data, $validation);
+            $quick = isset($defs[$field]) ? chatIntakeQuickRepliesForField($field, $data) : [];
+        }
+        return ["handled" => true, "reply" => $reply, "quick_replies" => $quick, "data" => $data];
+    }
+
+    chatIntakeSetField($data, $field, $normalizedValue, [
+        "confidence" => $validation["confidence"] ?? "high",
+        "status" => $validation["status"] ?? "confirmed",
+        "raw" => $message,
+        "source" => $fromButton ? "button" : "typed",
+        "reason" => $validation["reason"] ?? "",
+    ]);
+    if ($field === "customer_type") $data["customer_type"] = $normalizedValue;
     chatIntakeEvaluateTemperature($data);
     chatIntakeBuildSummary($data);
     $nextField = chatIntakeNextField($data);
-    $data['_current_field'] = $nextField;
+    $data["_current_field"] = $nextField;
     chatIntakeSave($db, $sessionId, $businessCardId, $data);
 
     $defs = chatIntakeFieldDefinitions();
-    $reply = chatIntakeBuildReply($field, $value, $nextField, $data);
+    $reply = chatIntakeBuildReply($field, $normalizedValue, $nextField, $data);
     $quick = $nextField && isset($defs[$nextField]) ? chatIntakeQuickRepliesForField($nextField, $data) : [];
     return [
         'handled' => true,
@@ -1188,10 +1579,10 @@ function chatIntakeApplyVerifiedPhoneRegistration($db, $sessionId, $businessCard
 function buildChatLeadContext($data) {
     if (!$data || !is_array($data)) return '';
     $labels = [
-        'customer_type' => '相談種別', 'temperature' => '温度感', 'preferred_area' => '希望エリア', 'preferred_station' => '希望駅',
+        'customer_type' => '相談種別', 'temperature' => '温度感', 'preferred_area' => '希望エリア', 'preferred_station' => '希望駅', 'preferred_station_line' => '希望駅・沿線',
         'commute_destination' => '通勤・通学先', 'budget_min' => '予算下限', 'budget_max' => '予算上限',
         'competitor_viewing_status' => '他社内覧有無', 'viewed_property_count' => '内覧件数', 'preferred_area_size' => '希望㎡数',
-        'layout' => '間取り', 'property_type' => '物件種別', 'purchase_timing' => '購入時期', 'selling_timing' => '売却時期',
+        'layout' => '間取り', 'property_type' => '物件種別', 'purchase_timing' => '購入時期', 'selling_timing' => '売却時期', 'rent_timing' => '賃貸時期',
         'loan_status' => 'ローン状況', 'loan_balance' => 'ローン残債', 'sublease_status' => 'サブリース有無',
         'sublease_cancelable' => 'サブリース解除可否', 'summary_for_sales' => '営業向け要約', 'next_action' => '次アクション',
         'move_date' => '引越/引渡希望日', 'customer_name' => '顧客名', 'customer_last_name' => '姓', 'customer_first_name' => '名', 'customer_phone' => '電話番号',
@@ -1210,8 +1601,14 @@ function buildChatLeadContext($data) {
     $lines = [];
     foreach ($labels as $key => $label) {
         if (!isset($data[$key]) || $data[$key] === null || $data[$key] === '' || $data[$key] === []) continue;
-        $value = is_array($data[$key]) ? implode('、', $data[$key]) : $data[$key];
-        $lines[] = $label . ': ' . $value;
+        $value = is_array($data[$key]) ? implode("、", $data[$key]) : $data[$key];
+        $meta = chatIntakeFieldMeta($data, $key);
+        $status = $meta["status"] ?? "confirmed";
+        if ($status === "invalid") continue;
+        $confidence = $meta["confidence"] ?? "high";
+        $suffix = $status === "confirmed" ? "" : "（未確認 status: " . $status . ", confidence: " . $confidence . "）";
+        $lines[] = $label . ": " . $value . $suffix;
+
     }
     if (!empty($data['missing_fields']) && is_array($data['missing_fields'])) {
         $lines[] = '未取得項目: ' . implode('、', array_slice($data['missing_fields'], 0, 8));
