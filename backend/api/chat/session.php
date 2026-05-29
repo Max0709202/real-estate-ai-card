@@ -50,6 +50,9 @@ try {
     $lead = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($lead && !empty($lead['structured_data'])) {
         $lead['structured_data'] = json_decode($lead['structured_data'], true);
+        if (is_array($lead['structured_data'])) {
+            $lead['classified_data'] = chatIntakeClassifiedLeadItems($lead['structured_data']);
+        }
     }
 
     $stmt = $db->prepare("SELECT memory_json, last_summary, updated_at FROM chat_session_memory WHERE session_id = ?");

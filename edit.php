@@ -3206,6 +3206,44 @@ $defaultGreetings = [
                 return html;
             }
 
+
+            function renderClassifiedLeadData(groups) {
+                if (!groups) return "";
+                var sections = [
+                    ["confirmed", "確定情報"],
+                    ["inferred", "未確認情報"],
+                    ["needs_confirmation", "要確認情報"],
+                    ["invalid", "無効入力"]
+                ];
+                var hasAny = sections.some(function(pair) {
+                    return Array.isArray(groups[pair[0]]) && groups[pair[0]].length > 0;
+                });
+                if (!hasAny) return "";
+                var html = "<h4>ヒアリング情報</h4><div class=\"chat-lead-data chat-lead-classified\">";
+                sections.forEach(function(pair) {
+                    var key = pair[0];
+                    var title = pair[1];
+                    var items = Array.isArray(groups[key]) ? groups[key] : [];
+                    html += "<section class=\"chat-lead-group chat-lead-group-" + key + "\">";
+                    html += "<h5>" + escapeHtml(title) + "</h5>";
+                    if (!items.length) {
+                        html += "<p class=\"chat-lead-empty\">該当なし</p>";
+                    } else {
+                        html += "<dl>";
+                        items.forEach(function(item) {
+                            var confidence = item.confidence ? " <span class=\"chat-lead-confidence\">confidence: " + escapeHtml(item.confidence) + "</span>" : "";
+                            var raw = item.raw && item.raw !== item.value ? "<small>入力: " + escapeHtml(item.raw) + "</small>" : "";
+                            html += "<dt>" + escapeHtml(item.label || item.field || "項目") + confidence + "</dt>";
+                            html += "<dd>" + escapeHtml(item.value || "") + raw + "</dd>";
+                        });
+                        html += "</dl>";
+                    }
+                    html += "</section>";
+                });
+                html += "</div>";
+                return html;
+            }
+
             function showDetail(sessionId) {
                 if (!sessionId) return;
                 detailContent.innerHTML = '<p>読み込み中...</p>';
@@ -3230,6 +3268,9 @@ $defaultGreetings = [
                             if (d.contact.email) html += '<p><strong>メール:</strong> ' + escapeHtml(d.contact.email) + '</p>';
                             if (d.contact.line_id) html += '<p><strong>LINE:</strong> ' + escapeHtml(d.contact.line_id) + '</p>';
                             html += '</div>';
+                        }
+                        if (d.lead && d.lead.classified_data) {
+                            html += renderClassifiedLeadData(d.lead.classified_data);
                         }
                         var buttonArchive = d.lead && d.lead.structured_data && Array.isArray(d.lead.structured_data._button_selection_archive) ? d.lead.structured_data._button_selection_archive : [];
                         if (buttonArchive.length) {

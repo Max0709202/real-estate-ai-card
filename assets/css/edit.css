@@ -1334,6 +1334,51 @@ body {
     max-height: 400px;
     overflow-y: auto;
 }
+.chat-lead-classified {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+    max-height: none;
+    overflow: visible;
+}
+.chat-lead-group {
+    border: 1px solid #e1e6ef;
+    border-radius: 8px;
+    background: #fff;
+    padding: 0.75rem;
+}
+.chat-lead-group h5 {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+}
+.chat-lead-group dl {
+    margin: 0;
+}
+.chat-lead-group dt {
+    font-weight: 700;
+    margin-top: 0.5rem;
+}
+.chat-lead-group dd {
+    margin: 0.15rem 0 0;
+}
+.chat-lead-group dd small {
+    display: block;
+    color: #666;
+    margin-top: 0.15rem;
+}
+.chat-lead-confidence, .chat-lead-empty {
+    color: #667085;
+    font-size: 0.78rem;
+    font-weight: 400;
+}
+.chat-lead-group-invalid {
+    border-color: #f1c6c6;
+    background: #fffafa;
+}
+.chat-lead-group-needs_confirmation {
+    border-color: #f0d89a;
+    background: #fffdf6;
+}
 
 
 
