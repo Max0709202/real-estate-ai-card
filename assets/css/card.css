@@ -480,7 +480,7 @@ ease;
 .loan-sim-floating-actions {
     position: fixed;
     right: 12px;
-    top: 40%;
+    top: 56%;
     z-index: 980;
     display: flex;
     flex-direction: column;

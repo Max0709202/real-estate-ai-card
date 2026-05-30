@@ -743,6 +743,89 @@ body {
     background: #0052a3;
 }
 
+/* Pagination */
+.admin-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 1rem 1.25rem;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    flex-wrap: wrap;
+}
+
+.admin-pagination-summary {
+    color: #555;
+    font-size: 0.9rem;
+}
+
+.admin-pagination-links {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.admin-pagination-link {
+    min-width: 38px;
+    min-height: 36px;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid #d9e2ef;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    color: #0066cc;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.admin-pagination-link:hover {
+    background: #f0f7ff;
+    border-color: #0066cc;
+    text-decoration: none;
+}
+
+.admin-pagination-link.is-current {
+    background: #0066cc;
+    border-color: #0066cc;
+    color: #fff;
+    pointer-events: none;
+}
+
+.admin-pagination-link.is-disabled {
+    background: #f4f4f4;
+    border-color: #ddd;
+    color: #999;
+    cursor: not-allowed;
+}
+
+.admin-pagination-ellipsis {
+    min-width: 24px;
+    text-align: center;
+    color: #777;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .admin-pagination {
+        align-items: stretch;
+    }
+
+    .admin-pagination-summary,
+    .admin-pagination-links {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+    }
+}
+
 /* Modal/Popup Styles */
 .modal-overlay {
     display: none;
@@ -1203,6 +1286,42 @@ body {
 
 .dark-theme .btn-export:hover {
     background: #218838;
+}
+
+.dark-theme .admin-pagination {
+    background: var(--bg-secondary);
+    box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+.dark-theme .admin-pagination-summary {
+    color: var(--text-secondary);
+}
+
+.dark-theme .admin-pagination-link {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: #72acf8;
+}
+
+.dark-theme .admin-pagination-link:hover {
+    background: #3a3a3a;
+    border-color: #72acf8;
+}
+
+.dark-theme .admin-pagination-link.is-current {
+    background: #0066cc;
+    border-color: #0066cc;
+    color: #fff;
+}
+
+.dark-theme .admin-pagination-link.is-disabled {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: #777;
+}
+
+.dark-theme .admin-pagination-ellipsis {
+    color: var(--text-secondary);
 }
 
 .dark-theme .users-table td .admin-notes-input {

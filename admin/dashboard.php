@@ -44,9 +44,8 @@ $stmt->execute([$_SESSION['admin_id']]);
 $latestChange = $stmt->fetch();
 
 // ユーザー一覧取得（検索・ソート対応）
-$page = (int)($_GET['page'] ?? 1);
+$page = max(1, (int)($_GET['page'] ?? 1));
 $limit = 50;
-$offset = ($page - 1) * $limit;
 
 $where = [];
 $params = [];
@@ -64,6 +63,20 @@ if (isset($_GET['is_open']) && $_GET['is_open'] !== '') {
 }
 
 $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+$countSql = "
+    SELECT COUNT(DISTINCT bc.id)
+    FROM business_cards bc
+    JOIN users u ON bc.user_id = u.id
+    $whereClause
+";
+$stmt = $db->prepare($countSql);
+Database::bindValues($stmt, $params);
+$stmt->execute();
+$totalUsers = (int)$stmt->fetchColumn();
+$totalPages = max(1, (int)ceil($totalUsers / $limit));
+$page = min($page, $totalPages);
+$offset = ($page - 1) * $limit;
 
 // Map sort fields from request to database fields
 $sortFieldMap = [
@@ -84,6 +97,9 @@ $sortFieldMap = [
 $requestedSort = $_GET['sort'] ?? 'registered_at';
 $sortField = $sortFieldMap[$requestedSort] ?? 'bc.created_at';
 $sortOrder = strtoupper($_GET['order'] ?? 'DESC');
+if (!in_array($sortOrder, ['ASC', 'DESC'], true)) {
+    $sortOrder = 'DESC';
+}
 
 $sql = "
     SELECT
@@ -144,17 +160,30 @@ $sql = "
     LIMIT ? OFFSET ?
 ";
 
-$params[] = $limit;
-$params[] = $offset;
+$queryParams = $params;
+$queryParams[] = $limit;
+$queryParams[] = $offset;
 
 $stmt = $db->prepare($sql);
-$stmt->execute($params);
+Database::bindValues($stmt, $queryParams);
+$stmt->execute();
 $users = $stmt->fetchAll();
 
 $stmt = $db->prepare('SELECT role FROM admins WHERE id = ?');
 $stmt->execute([$_SESSION['admin_id']]);
 $currentAdminRole = $stmt->fetchColumn();
 $isAdmin = ($currentAdminRole === 'admin' || (int) $_SESSION['admin_id'] === 1);
+$buildPaginationUrl = function($pageNumber) {
+    $query = $_GET;
+    $query['page'] = max(1, (int)$pageNumber);
+    return '?' . http_build_query($query);
+};
+$paginationStart = max(1, $page - 2);
+$paginationEnd = min($totalPages, $page + 2);
+if ($paginationEnd - $paginationStart < 4) {
+    $paginationStart = max(1, min($paginationStart, $totalPages - 4));
+    $paginationEnd = min($totalPages, max($paginationEnd, 5));
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -286,6 +315,53 @@ $isAdmin = ($currentAdminRole === 'admin' || (int) $_SESSION['admin_id'] === 1);
                     <?php endif; ?>
                 </form>
             </div>
+            
+            <?php if ($totalPages > 1): ?>
+                <?php
+                    $firstItem = $totalUsers === 0 ? 0 : $offset + 1;
+                    $lastItem = min($offset + $limit, $totalUsers);
+                ?>
+                <nav class="admin-pagination" aria-label="ページ送り" style="margin-bottom : 1rem;" >
+                    <div class="admin-pagination-summary">
+                        <?php echo number_format($totalUsers); ?>件中 <?php echo number_format($firstItem); ?>-<?php echo number_format($lastItem); ?>件を表示
+                    </div>
+                    <div class="admin-pagination-links">
+                        <?php if ($page > 1): ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($page - 1), ENT_QUOTES, "UTF-8"); ?>">前へ</a>
+                        <?php else: ?>
+                            <span class="admin-pagination-link is-disabled" aria-disabled="true">前へ</span>
+                        <?php endif; ?>
+
+                        <?php if ($paginationStart > 1): ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl(1), ENT_QUOTES, "UTF-8"); ?>">1</a>
+                            <?php if ($paginationStart > 2): ?>
+                                <span class="admin-pagination-ellipsis">...</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php for ($pageNumber = $paginationStart; $pageNumber <= $paginationEnd; $pageNumber++): ?>
+                            <?php if ($pageNumber === $page): ?>
+                                <span class="admin-pagination-link is-current" aria-current="page"><?php echo $pageNumber; ?></span>
+                            <?php else: ?>
+                                <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($pageNumber), ENT_QUOTES, "UTF-8"); ?>"><?php echo $pageNumber; ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+
+                        <?php if ($paginationEnd < $totalPages): ?>
+                            <?php if ($paginationEnd < $totalPages - 1): ?>
+                                <span class="admin-pagination-ellipsis">...</span>
+                            <?php endif; ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($totalPages), ENT_QUOTES, "UTF-8"); ?>"><?php echo $totalPages; ?></a>
+                        <?php endif; ?>
+
+                        <?php if ($page < $totalPages): ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($page + 1), ENT_QUOTES, "UTF-8"); ?>">次へ</a>
+                        <?php else: ?>
+                            <span class="admin-pagination-link is-disabled" aria-disabled="true">次へ</span>
+                        <?php endif; ?>
+                    </div>
+                </nav>
+            <?php endif; ?>
 
             <table class="users-table">
                 <thead>
@@ -441,7 +517,7 @@ $isAdmin = ($currentAdminRole === 'admin' || (int) $_SESSION['admin_id'] === 1);
                             $currentSlug = isset($user['company_slug']) && $user['company_slug'] !== '' ? $user['company_slug'] : ($user['url_slug'] ?? '');
                             $baseUrl = $isEraUser ? 'https://era.self-in.com/' : 'https://self-in.com/';
                             ?>
-                            <div style="display: flex; align-items: center; gap: 2px; white-space: nowrap; font-size: 0.8rem;">
+                            <div style="display: flex; align-items: flex-start; gap: 2px; white-space: nowrap; font-size: 0.8rem;">
                                 <?php if ($isEraUser): ?>
                                     <span>https://</span><span style="color: #dc3545; font-weight: bold;">era</span><span>.self-in.com/</span>
                                 <?php else: ?>
@@ -463,8 +539,10 @@ $isAdmin = ($currentAdminRole === 'admin' || (int) $_SESSION['admin_id'] === 1);
                                 <?php elseif ($canEditCorporateUrl): ?>
                                     <span><?php echo htmlspecialchars($currentSlug); ?></span><?php if ($currentSlug !== ''): ?><span>/</span><?php endif; ?>
                                 <?php else: ?>
-                                    <span><?php echo htmlspecialchars($currentSlug); ?></span><?php if ($currentSlug !== ''): ?><span>/</span><?php endif; ?>
-                                    <span style="color: #999; font-size: 0.7rem;">（新規は編集不可）</span>
+                                    <div style="flex-basis: 100%; white-space: normal; display: flex; flex-direction: column; ">
+                                       <span><?php echo htmlspecialchars($currentSlug); ?><?php if ($currentSlug !== ''): ?>/</span><?php endif; ?>
+                                       <span style="color: #999; font-size: 0.7rem;">（新規は編集不可）</span>
+                                    </div>
                                 <?php endif; ?>
                             </div>
                         </td>
@@ -539,6 +617,52 @@ $isAdmin = ($currentAdminRole === 'admin' || (int) $_SESSION['admin_id'] === 1);
                     <?php endforeach; ?>
                 </tbody>
             </table>
+            <?php if ($totalPages > 1): ?>
+                <?php
+                    $firstItem = $totalUsers === 0 ? 0 : $offset + 1;
+                    $lastItem = min($offset + $limit, $totalUsers);
+                ?>
+                <nav class="admin-pagination" aria-label="ページ送り">
+                    <div class="admin-pagination-summary">
+                        <?php echo number_format($totalUsers); ?>件中 <?php echo number_format($firstItem); ?>-<?php echo number_format($lastItem); ?>件を表示
+                    </div>
+                    <div class="admin-pagination-links">
+                        <?php if ($page > 1): ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($page - 1), ENT_QUOTES, "UTF-8"); ?>">前へ</a>
+                        <?php else: ?>
+                            <span class="admin-pagination-link is-disabled" aria-disabled="true">前へ</span>
+                        <?php endif; ?>
+
+                        <?php if ($paginationStart > 1): ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl(1), ENT_QUOTES, "UTF-8"); ?>">1</a>
+                            <?php if ($paginationStart > 2): ?>
+                                <span class="admin-pagination-ellipsis">...</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php for ($pageNumber = $paginationStart; $pageNumber <= $paginationEnd; $pageNumber++): ?>
+                            <?php if ($pageNumber === $page): ?>
+                                <span class="admin-pagination-link is-current" aria-current="page"><?php echo $pageNumber; ?></span>
+                            <?php else: ?>
+                                <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($pageNumber), ENT_QUOTES, "UTF-8"); ?>"><?php echo $pageNumber; ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+
+                        <?php if ($paginationEnd < $totalPages): ?>
+                            <?php if ($paginationEnd < $totalPages - 1): ?>
+                                <span class="admin-pagination-ellipsis">...</span>
+                            <?php endif; ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($totalPages), ENT_QUOTES, "UTF-8"); ?>"><?php echo $totalPages; ?></a>
+                        <?php endif; ?>
+
+                        <?php if ($page < $totalPages): ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($page + 1), ENT_QUOTES, "UTF-8"); ?>">次へ</a>
+                        <?php else: ?>
+                            <span class="admin-pagination-link is-disabled" aria-disabled="true">次へ</span>
+                        <?php endif; ?>
+                    </div>
+                </nav>
+            <?php endif; ?>
         </div>
     </div>
 

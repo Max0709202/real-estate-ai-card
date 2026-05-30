@@ -29,4 +29,22 @@ class Database {
 
         return $this->conn;
     }
+
+    public static function bindValues(PDOStatement $stmt, array $params) {
+        foreach ($params as $key => $value) {
+            $parameter = is_int($key) ? $key + 1 : (strpos($key, ':') === 0 ? $key : ':' . $key);
+
+            if (is_int($value)) {
+                $type = PDO::PARAM_INT;
+            } elseif (is_bool($value)) {
+                $type = PDO::PARAM_BOOL;
+            } elseif ($value === null) {
+                $type = PDO::PARAM_NULL;
+            } else {
+                $type = PDO::PARAM_STR;
+            }
+
+            $stmt->bindValue($parameter, $value, $type);
+        }
+    }
 }

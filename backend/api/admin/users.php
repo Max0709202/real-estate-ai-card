@@ -21,9 +21,9 @@ try {
 
     if ($method === 'GET') {
         // ユーザー一覧取得（検索・ソート・ページネーション対応）
-        $page = (int)($_GET['page'] ?? 1);
+        $page = max(1, (int)($_GET['page'] ?? 1));
         $limit = (int)($_GET['limit'] ?? 50);
-        $offset = ($page - 1) * $limit;
+        $limit = max(1, min($limit, 200));
 
         // 検索条件
         $where = [];
@@ -34,7 +34,7 @@ try {
             $params[] = $_GET['payment_status'];
         }
 
-        if (!empty($_GET['is_open'])) {
+        if (isset($_GET['is_open']) && $_GET['is_open'] !== '') {
             $where[] = "bc.is_published = ?";
             $params[] = (int)$_GET['is_open'];
         }
@@ -70,11 +70,11 @@ try {
             'p.payment_status', 'bc.is_published', 'u.last_login_at'
         ];
         
-        if (!in_array($sortField, $allowedSortFields)) {
+        if (!in_array($sortField, $allowedSortFields, true)) {
             $sortField = 'bc.created_at';
         }
 
-        if (!in_array($sortOrder, ['ASC', 'DESC'])) {
+        if (!in_array($sortOrder, ['ASC', 'DESC'], true)) {
             $sortOrder = 'DESC';
         }
 
@@ -105,13 +105,6 @@ try {
             LIMIT ? OFFSET ?
         ";
 
-        $params[] = $limit;
-        $params[] = $offset;
-
-        $stmt = $db->prepare($sql);
-        $stmt->execute($params);
-        $users = $stmt->fetchAll();
-
         // 総件数取得
         $countSql = "
             SELECT COUNT(DISTINCT bc.id) as total
@@ -121,10 +114,23 @@ try {
             $whereClause
         ";
 
-        $countParams = array_slice($params, 0, -2); // limit, offsetを除外
+        $countParams = $params;
         $stmt = $db->prepare($countSql);
-        $stmt->execute($countParams);
-        $total = $stmt->fetch()['total'];
+        Database::bindValues($stmt, $countParams);
+        $stmt->execute();
+        $total = (int)$stmt->fetch()["total"];
+        $totalPages = max(1, (int)ceil($total / $limit));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $limit;
+
+        $queryParams = $params;
+        $queryParams[] = $limit;
+        $queryParams[] = $offset;
+
+        $stmt = $db->prepare($sql);
+        Database::bindValues($stmt, $queryParams);
+        $stmt->execute();
+        $users = $stmt->fetchAll();
 
         sendSuccessResponse([
             'users' => $users,
@@ -132,7 +138,7 @@ try {
                 'page' => $page,
                 'limit' => $limit,
                 'total' => (int)$total,
-                'total_pages' => ceil($total / $limit)
+                'total_pages' => $totalPages
             ]
         ]);
 

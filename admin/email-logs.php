@@ -18,9 +18,8 @@ $database = new Database();
 $db = $database->getConnection();
 
 // フィルターとページネーション
-$page = (int)($_GET['page'] ?? 1);
+$page = max(1, (int)($_GET['page'] ?? 1));
 $limit = 50;
-$offset = ($page - 1) * $limit;
 
 $where = [];
 $params = [];
@@ -56,31 +55,13 @@ if (!in_array($sortField, $allowedSortFields)) {
     $sortField = 'created_at';
 }
 
-if (!in_array($sortOrder, ['ASC', 'DESC'])) {
+if (!in_array($sortOrder, ['ASC', 'DESC'], true)) {
     $sortOrder = 'DESC';
 }
 
-$sql = "
-    SELECT 
-        id, recipient_email, recipient_type, subject, email_type, status,
-        sent_at, started_at, completed_at, delivery_time_ms, 
-        smtp_response, error_message, user_id, created_at
-    FROM email_logs
-    $whereClause
-    ORDER BY $sortField $sortOrder
-    LIMIT ? OFFSET ?
-";
-
-$params[] = $limit;
-$params[] = $offset;
-
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$emailLogs = $stmt->fetchAll();
-
 // 統計情報取得
 $statsSql = "
-    SELECT 
+    SELECT
         COUNT(*) as total,
         SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent_count,
         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
@@ -90,10 +71,47 @@ $statsSql = "
     FROM email_logs
     $whereClause
 ";
-$statsParams = array_slice($params, 0, -2); // Remove limit and offset
+$statsParams = $params;
 $stmt = $db->prepare($statsSql);
-$stmt->execute($statsParams);
+Database::bindValues($stmt, $statsParams);
+$stmt->execute();
 $stats = $stmt->fetch();
+$totalEmailLogs = (int)($stats["total"] ?? 0);
+$totalPages = max(1, (int)ceil($totalEmailLogs / $limit));
+$page = min($page, $totalPages);
+$offset = ($page - 1) * $limit;
+
+$sql = "
+    SELECT
+        id, recipient_email, recipient_type, subject, email_type, status,
+        sent_at, started_at, completed_at, delivery_time_ms, 
+        smtp_response, error_message, user_id, created_at
+    FROM email_logs
+    $whereClause
+    ORDER BY $sortField $sortOrder
+    LIMIT ? OFFSET ?
+";
+
+$queryParams = $params;
+$queryParams[] = $limit;
+$queryParams[] = $offset;
+
+$stmt = $db->prepare($sql);
+Database::bindValues($stmt, $queryParams);
+$stmt->execute();
+$emailLogs = $stmt->fetchAll();
+
+$buildPaginationUrl = function($pageNumber) {
+    $query = $_GET;
+    $query["page"] = max(1, (int)$pageNumber);
+    return "?" . http_build_query($query);
+};
+$paginationStart = max(1, $page - 2);
+$paginationEnd = min($totalPages, $page + 2);
+if ($paginationEnd - $paginationStart < 4) {
+    $paginationStart = max(1, min($paginationStart, $totalPages - 4));
+    $paginationEnd = min($totalPages, max($paginationEnd, 5));
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -246,6 +264,52 @@ $stats = $stmt->fetch();
                     <?php endforeach; ?>
                 </tbody>
             </table>
+            <?php if ($totalPages > 1): ?>
+                <?php
+                    $firstItem = $totalEmailLogs === 0 ? 0 : $offset + 1;
+                    $lastItem = min($offset + $limit, $totalEmailLogs);
+                ?>
+                <nav class="admin-pagination" aria-label="ページ送り">
+                    <div class="admin-pagination-summary">
+                        <?php echo number_format($totalEmailLogs); ?>件中 <?php echo number_format($firstItem); ?>-<?php echo number_format($lastItem); ?>件を表示
+                    </div>
+                    <div class="admin-pagination-links">
+                        <?php if ($page > 1): ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($page - 1), ENT_QUOTES, "UTF-8"); ?>">前へ</a>
+                        <?php else: ?>
+                            <span class="admin-pagination-link is-disabled" aria-disabled="true">前へ</span>
+                        <?php endif; ?>
+
+                        <?php if ($paginationStart > 1): ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl(1), ENT_QUOTES, "UTF-8"); ?>">1</a>
+                            <?php if ($paginationStart > 2): ?>
+                                <span class="admin-pagination-ellipsis">...</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php for ($pageNumber = $paginationStart; $pageNumber <= $paginationEnd; $pageNumber++): ?>
+                            <?php if ($pageNumber === $page): ?>
+                                <span class="admin-pagination-link is-current" aria-current="page"><?php echo $pageNumber; ?></span>
+                            <?php else: ?>
+                                <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($pageNumber), ENT_QUOTES, "UTF-8"); ?>"><?php echo $pageNumber; ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+
+                        <?php if ($paginationEnd < $totalPages): ?>
+                            <?php if ($paginationEnd < $totalPages - 1): ?>
+                                <span class="admin-pagination-ellipsis">...</span>
+                            <?php endif; ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($totalPages), ENT_QUOTES, "UTF-8"); ?>"><?php echo $totalPages; ?></a>
+                        <?php endif; ?>
+
+                        <?php if ($page < $totalPages): ?>
+                            <a class="admin-pagination-link" href="<?php echo htmlspecialchars($buildPaginationUrl($page + 1), ENT_QUOTES, "UTF-8"); ?>">次へ</a>
+                        <?php else: ?>
+                            <span class="admin-pagination-link is-disabled" aria-disabled="true">次へ</span>
+                        <?php endif; ?>
+                    </div>
+                </nav>
+            <?php endif; ?>
         </div>
     </div>
 
