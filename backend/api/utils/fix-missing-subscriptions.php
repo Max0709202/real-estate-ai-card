@@ -27,11 +27,11 @@ try {
     
     // Find users with completed payment but no subscription
     $stmt = $db->prepare("
-        SELECT DISTINCT bc.user_id, bc.id as business_card_id, bc.payment_status, u.user_type, u.stripe_customer_id
+        SELECT DISTINCT bc.user_id, bc.id as business_card_id, bc.payment_status, u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member, u.stripe_customer_id
         FROM business_cards bc
         JOIN users u ON bc.user_id = u.id
         LEFT JOIN subscriptions s ON bc.user_id = s.user_id AND bc.id = s.business_card_id
-        WHERE bc.payment_status IN ('CR', 'BANK_PAID')
+        WHERE bc.payment_status IN ('CR', 'BANK_PAID', 'ST')
           AND s.id IS NULL
         ORDER BY bc.user_id
     ");
@@ -54,6 +54,9 @@ try {
             } else {
                 $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
             }
+            $hasMonthlyBilling = user_has_monthly_billing($user['user_type'] ?? null, $user['is_era_member'] ?? 0);
+            $monthlyAmount = $hasMonthlyBilling ? (defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500) : 0;
+            $nextBillingSql = $hasMonthlyBilling ? 'DATE_ADD(NOW(), INTERVAL 1 MONTH)' : 'NULL';
             
             // Try to find existing Stripe subscription
             $stripeSubscriptionId = null;
@@ -77,7 +80,7 @@ try {
             // Create subscription record
             $stmt = $db->prepare("
                 INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, stripe_customer_id, status, amount, billing_cycle, next_billing_date)
-                VALUES (?, ?, ?, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH))
+                VALUES (?, ?, ?, ?, 'active', ?, 'monthly', {$nextBillingSql})
             ");
             $stmt->execute([
                 $user['user_id'],

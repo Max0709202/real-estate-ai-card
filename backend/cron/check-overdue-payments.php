@@ -2,7 +2,7 @@
 /**
  * Cron Job: Check for Overdue Monthly Payments
  * 
- * This script checks for users (new and existing) who have failed to pay their monthly fees
+ * This script checks monthly-billing new users who have failed to pay their monthly fees
  * and automatically updates their payment status to 'pending' and sets business cards to unpublished.
  * 
  * Run this script daily via cron:
@@ -48,7 +48,10 @@ try {
     $stmt = $db->prepare("
         SELECT s.id, s.user_id, s.business_card_id, s.next_billing_date, s.amount, s.billing_cycle
         FROM subscriptions s
+        JOIN users u ON s.user_id = u.id
         WHERE s.status = 'active'
+        AND u.user_type = 'new'
+        AND COALESCE(u.is_era_member, 0) = 0
         AND s.next_billing_date IS NOT NULL
         AND s.next_billing_date < CURDATE()
         AND NOT EXISTS (
@@ -57,7 +60,7 @@ try {
             WHERE p.business_card_id = s.business_card_id 
             AND p.payment_status = 'completed'
             AND p.paid_at >= s.next_billing_date
-            AND p.payment_type IN ('new_user', 'existing_user')
+            AND p.payment_type = 'new_user'
         )
     ");
     $stmt->execute();
@@ -78,7 +81,7 @@ try {
                 SET payment_status = 'pending', paid_at = NULL
                 WHERE business_card_id = ? 
                 AND payment_status = 'completed'
-                AND payment_type IN ('new_user', 'existing_user')
+                AND payment_type = 'new_user'
                 ORDER BY paid_at DESC
                 LIMIT 1
             ");
@@ -122,7 +125,8 @@ try {
         FROM business_cards bc
         INNER JOIN users u ON bc.user_id = u.id
         LEFT JOIN payments p ON bc.id = p.business_card_id AND p.payment_status = 'completed'
-        WHERE u.user_type IN ('new', 'existing')
+        WHERE u.user_type = 'new'
+        AND COALESCE(u.is_era_member, 0) = 0
         AND bc.is_published = 1
         AND NOT EXISTS (
             SELECT 1 FROM subscriptions s 
@@ -132,7 +136,7 @@ try {
         AND EXISTS (
             SELECT 1 FROM payments p2 
             WHERE p2.business_card_id = bc.id 
-            AND p2.payment_type IN ('new_user', 'existing_user')
+            AND p2.payment_type = 'new_user'
         )
         GROUP BY bc.id, bc.user_id, u.user_type
         HAVING last_payment_date IS NULL OR last_payment_date < DATE_SUB(NOW(), INTERVAL 30 DAY)
@@ -153,7 +157,7 @@ try {
                 SET payment_status = 'pending', paid_at = NULL
                 WHERE business_card_id = ? 
                 AND payment_status = 'completed'
-                AND payment_type IN ('new_user', 'existing_user')
+                AND payment_type = 'new_user'
                 ORDER BY paid_at DESC
                 LIMIT 1
             ");

@@ -41,7 +41,7 @@ try {
     // Get user's subscription - check for any subscription regardless of status
     // This handles cases where subscription might be in various states
     $stmt = $db->prepare("
-        SELECT s.id, s.stripe_subscription_id, s.business_card_id, s.user_id, s.status, u.email
+        SELECT s.id, s.stripe_subscription_id, s.business_card_id, s.user_id, s.status, u.email, u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member
         FROM subscriptions s
         JOIN users u ON s.user_id = u.id
         WHERE s.user_id = ?
@@ -55,16 +55,20 @@ try {
         // Check if user has a business card with payment completed but no subscription
         // This can happen if payment was completed but subscription creation failed or was skipped
         $stmt = $db->prepare("
-            SELECT bc.id, bc.payment_status, bc.card_status, u.user_type, u.stripe_customer_id
+            SELECT bc.id, bc.payment_status, bc.card_status, u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member, u.stripe_customer_id
             FROM business_cards bc
             JOIN users u ON bc.user_id = u.id
-            WHERE bc.user_id = ? AND bc.payment_status IN ('CR', 'BANK_PAID')
+            WHERE bc.user_id = ? AND bc.payment_status IN ('CR', 'BANK_PAID', 'ST')
             LIMIT 1
         ");
         $stmt->execute([$userId]);
         $businessCard = $stmt->fetch();
 
         if ($businessCard) {
+            if (!user_has_monthly_billing($businessCard['user_type'] ?? null, $businessCard['is_era_member'] ?? 0)) {
+                sendErrorResponse('既存・ERAユーザーは月額契約ではないため、利用停止の対象ではありません。', 403);
+            }
+
             // Automatically create subscription if payment is completed but subscription doesn't exist
             // This handles cases where subscription creation was missed during payment processing
             try {
@@ -73,7 +77,7 @@ try {
                 if ($businessCard['user_type'] === 'new' || $businessCard['user_type'] === null) {
                     $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
                 } elseif ($businessCard['user_type'] === 'existing') {
-                    // Existing users typically don't have monthly fees, but we'll create subscription anyway
+                    // Existing users are one-time initial-fee users, so monthly amount remains 0
                     $monthlyAmount = 0;
                 } else {
                     // Default: treat as new user
@@ -139,7 +143,7 @@ try {
 
                 // Re-fetch subscription
                 $stmt = $db->prepare("
-                    SELECT s.id, s.stripe_subscription_id, s.business_card_id, s.user_id, s.status, u.email
+                    SELECT s.id, s.stripe_subscription_id, s.business_card_id, s.user_id, s.status, u.email, u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member
                     FROM subscriptions s
                     JOIN users u ON s.user_id = u.id
                     WHERE s.user_id = ? AND s.business_card_id = ?
@@ -159,6 +163,9 @@ try {
         } else {
             sendErrorResponse('アクティブなサブスクリプションが見つかりません。支払いが完了していないか、サブスクリプションが存在しません。', 404);
         }
+    }
+    if ($subscription && !user_has_monthly_billing($subscription['user_type'] ?? null, $subscription['is_era_member'] ?? 0)) {
+        sendErrorResponse('既存・ERAユーザーは月額契約ではないため、利用停止の対象ではありません。', 403);
     }
 
     // Check if subscription is already canceled

@@ -39,7 +39,7 @@ try {
     // Get current payment status
     $stmt = $db->prepare("
         SELECT bc.id, bc.payment_status, bc.user_id, bc.url_slug, bc.qr_code_issued,
-               u.email as user_email, u.user_type
+               u.email as user_email, u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member
         FROM business_cards bc
         JOIN users u ON bc.user_id = u.id
         WHERE bc.id = ?
@@ -121,15 +121,18 @@ try {
             ");
             $stmt->execute([$paidAt, $businessCardId]);
 
-            // Calculate next_billing_date from expiration_date
-            // If expiration_date is provided, next_billing_date is expiration_date + 1 day
-            // Otherwise, calculate from paid_at (1 month later)
-            if ($expirationDate) {
-                $nextBillingDate = date('Y-m-d', strtotime($expirationDate . ' +1 day'));
+            // Calculate next_billing_date only for monthly billing users
+            $hasMonthlyBilling = user_has_monthly_billing($businessCard['user_type'] ?? null, $businessCard['is_era_member'] ?? 0);
+            if ($hasMonthlyBilling) {
+                if ($expirationDate) {
+                    $nextBillingDate = date('Y-m-d', strtotime($expirationDate . ' +1 day'));
+                } else {
+                    $paidDateObj = new DateTime($paidAt);
+                    $paidDateObj->modify('+1 month');
+                    $nextBillingDate = $paidDateObj->format('Y-m-d');
+                }
             } else {
-                $paidDateObj = new DateTime($paidAt);
-                $paidDateObj->modify('+1 month');
-                $nextBillingDate = $paidDateObj->format('Y-m-d');
+                $nextBillingDate = null;
             }
             
             // Update or create subscription record
@@ -147,12 +150,13 @@ try {
             if ($businessCard['user_type'] === 'new' || $businessCard['user_type'] === null) {
                 $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
             } elseif ($businessCard['user_type'] === 'existing') {
-                // Existing users typically don't have monthly fees, but we'll create subscription anyway
+                // Existing users are one-time initial-fee users, so monthly amount remains 0
                 $monthlyAmount = 0;
             } else {
                 // Default: treat as new user
                 $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
             }
+            $monthlyAmount = $hasMonthlyBilling ? (defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500) : 0;
             
             if ($subscription) {
                 // Update existing subscription

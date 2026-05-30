@@ -93,6 +93,8 @@ if ($excludeFromSearch) {
 
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 
+    <link rel="preload" href="assets/video/card.mp4" as="video" type="video/mp4" fetchpriority="high">
+
     <!-- CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
     <!-- <link rel="stylesheet" href="assets/css/mobile.css"> -->
@@ -130,6 +132,8 @@ if ($excludeFromSearch) {
                             id="new-lp-sec-1-video"
                             class="new-lp-sec-1-video"
                             src="assets/video/card.mp4"
+                            preload="auto"
+                            fetchpriority="high"
                             playsinline
                             muted
                             loop

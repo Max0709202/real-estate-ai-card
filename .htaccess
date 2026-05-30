@@ -26,6 +26,14 @@ RewriteRule ^card/([a-zA-Z0-9]+)$ frontend/card.php?slug=$1 [L,QSA]
     Header set X-Content-Type-Options "nosniff"
     Header set X-Frame-Options "SAMEORIGIN"
     Header set X-XSS-Protection "1; mode=block"
+    <FilesMatch "\.(mp4|webm)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_mime.c>
+    AddType video/mp4 .mp4
+    AddType video/webm .webm
 </IfModule>
 
 # PHP Settings

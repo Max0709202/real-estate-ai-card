@@ -30,7 +30,7 @@ try {
     $db = (new Database())->getConnection();
 
     $stmt = $db->prepare('
-        SELECT stripe_customer_id, user_type
+        SELECT stripe_customer_id, user_type, COALESCE(is_era_member, 0) AS is_era_member
         FROM users
         WHERE id = ?
     ');
@@ -38,6 +38,10 @@ try {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$user) {
         sendErrorResponse('ユーザーが見つかりません', 404);
+    }
+
+    if (!user_has_monthly_billing($user['user_type'] ?? null, $user['is_era_member'] ?? 0)) {
+        sendErrorResponse('既存・ERAユーザーは月額契約ではないため、カード変更の対象ではありません。', 403);
     }
 
     $stripeCustomerId = $user['stripe_customer_id'] ?? '';

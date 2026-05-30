@@ -71,6 +71,8 @@ $showCancelSubscriptionButton = false;
 $stripeCustomerId = '';
 $showUpdatePaymentMethodButton = false;
 $isEraMember = false;
+$isMonthlyBillingUser = false;
+$subscriptionNextBillingDisplay = "―";
 
 // Determine user type: from session (logged-in user), URL parameter, or guest access
 if ($isGuestAccess) {
@@ -115,15 +117,19 @@ try {
 
     // All following queries require a logged-in user
     if ($userId) {
-    $stmt = $db->prepare("SELECT email, stripe_customer_id FROM users WHERE id = ?");
+    $stmt = $db->prepare("SELECT email, stripe_customer_id, user_type, COALESCE(is_era_member, 0) AS is_era_member FROM users WHERE id = ?");
     $stmt->execute([$userId]);
     $userRowForCard = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     $userEmailForCard = $userRowForCard['email'] ?? '';
     $stripeCustomerId = $userRowForCard['stripe_customer_id'] ?? '';
+    $userType = !empty($userRowForCard['user_type']) ? $userRowForCard['user_type'] : $userType;
+    $isEraMember = ((int)($userRowForCard['is_era_member'] ?? 0)) === 1;
+    $isMonthlyBillingUser = user_has_monthly_billing($userType, $isEraMember);
+    $subscriptionNextBillingDisplay = subscription_next_billing_display($subscriptionInfo ?: null, $userType, $isEraMember);
 
     // Calculate end date (period end date)
     if ($subscriptionInfo) {
-        if ($subscriptionInfo['next_billing_date']) {
+        if ($isMonthlyBillingUser && $subscriptionInfo['next_billing_date']) {
             // End date is the day before next billing date (last day of current period)
             $nextBilling = new DateTime($subscriptionInfo['next_billing_date']);
             $nextBilling->modify('-1 day');
@@ -200,7 +206,7 @@ try {
         }
 
         // Fallback if still no date: current date + 1 month - 1 day (only if payment is completed)
-        if (!$endDate && $bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
+        if (!$endDate && $bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID', 'ST'])) {
             $now = new DateTime();
             $now->modify('+1 month');
             $now->modify('-1 day');
@@ -246,6 +252,8 @@ try {
     $userRowMain = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     $userType = !empty($userRowMain['user_type']) ? $userRowMain['user_type'] : 'new';
     $isEraMember = ((int)($userRowMain['is_era_member'] ?? 0)) === 1;
+    $isMonthlyBillingUser = user_has_monthly_billing($userType, $isEraMember);
+    $subscriptionNextBillingDisplay = subscription_next_billing_display($subscriptionInfo ?: null, $userType, $isEraMember);
 
     // Check if account is canceled
     $isCanceledAccount = false;
@@ -282,7 +290,7 @@ try {
     if ($subscriptionInfo && in_array($subscriptionInfo['status'], ['active', 'trialing'])) {
         if (in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
             // Check if next_billing_date is in the future
-            if ($subscriptionInfo['next_billing_date']) {
+            if ($isMonthlyBillingUser && $subscriptionInfo['next_billing_date']) {
                 $nextBillingDate = new DateTime($subscriptionInfo['next_billing_date']);
                 $now = new DateTime();
                 if ($nextBillingDate > $now) {
@@ -305,7 +313,7 @@ try {
             $needsPayment = true;
         }
         // Check if period has expired (next_billing_date is in the past)
-        if ($subscriptionInfo['next_billing_date']) {
+        if ($isMonthlyBillingUser && $subscriptionInfo['next_billing_date']) {
             $nextBillingDate = new DateTime($subscriptionInfo['next_billing_date']);
             $now = new DateTime();
             if ($nextBillingDate <= $now && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
@@ -314,9 +322,9 @@ try {
         }
     } else {
         // No subscription info - check payment_status directly
-        if (!in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+        if (!in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
             $needsPayment = true;
-        } elseif (in_array($paymentStatus, ['CR', 'BANK_PAID'])) {
+        } elseif (in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'])) {
             // Payment completed but no subscription - could be initial payment before subscription creation
             // For now, consider as needs payment to create subscription
             $needsPayment = false; // Actually, if payment is done, show active
@@ -331,7 +339,7 @@ try {
     }
 
     // 支払いが必要な状態では「利用を停止する」を出さない（延滞・未払いと「お支払いへ進む」の併存を防ぐ）
-    $showCancelSubscriptionButton = $hasActiveSubscription && !$needsPayment;
+    $showCancelSubscriptionButton = $isMonthlyBillingUser && $hasActiveSubscription && !$needsPayment;
 
     // Get payment method and calculate usage period display
     $usagePeriodDisplay = null;
@@ -366,7 +374,7 @@ try {
                     $endDateForRenewal = clone $endDateObj;
                 } elseif ($endDate) {
                     // Fallback: try to parse from Japanese format or use subscription date
-                    if ($subscriptionInfo && $subscriptionInfo['next_billing_date']) {
+                    if ($isMonthlyBillingUser && $subscriptionInfo && $subscriptionInfo['next_billing_date']) {
                         $endDateForRenewal = new DateTime($subscriptionInfo['next_billing_date']);
                         $endDateForRenewal->modify('-1 day');
                     } elseif ($paymentMethodData['paid_at']) {
@@ -417,7 +425,7 @@ try {
                     $canRenew = ($now >= $renewalEligibleDate);
                 } elseif ($endDate) {
                     // Fallback: try to use subscription next_billing_date
-                    if ($subscriptionInfo && $subscriptionInfo['next_billing_date']) {
+                    if ($isMonthlyBillingUser && $subscriptionInfo && $subscriptionInfo['next_billing_date']) {
                         $endDateForRenewal = new DateTime($subscriptionInfo['next_billing_date']);
                         $endDateForRenewal->modify('-1 day');
                         $usagePeriodDisplay = $endDate . '迄';
@@ -438,13 +446,19 @@ try {
         }
     }
 
-    $isRenewalCheckout = $canRenew
+    if (!$isMonthlyBillingUser && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true)) {
+        $usagePeriodDisplay = '初期費用お支払い済み';
+        $canRenew = false;
+    }
+
+    $isRenewalCheckout = $isMonthlyBillingUser && $canRenew
         && ($paymentMethod ?? '') === 'bank_transfer'
         && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true)
         && !$isCanceledAccount;
 
     $showUpdatePaymentMethodButton = (
-        !$isGuestAccess
+        $isMonthlyBillingUser
+        && !$isGuestAccess
         && ($stripeCustomerId !== '' || !empty($subscriptionInfo['stripe_subscription_id']))
         && ($paymentMethod ?? '') === 'credit_card'
         && $subscriptionInfo
@@ -462,6 +476,8 @@ try {
     error_log("Error fetching subscription info: " . $e->getMessage());
     $userType = 'new';
     $isEraMember = false;
+    $isMonthlyBillingUser = false;
+    $subscriptionNextBillingDisplay = "―";
     $isCanceledAccount = false;
     $isActive = false;
     $needsPayment = true;
@@ -1329,7 +1345,7 @@ $defaultGreetings = [
                 </div>
                 <?php if ($subscriptionInfo || (isset($hasCompletedPayment) && $hasCompletedPayment)): ?>
                 <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; font-size: 0.875rem;">
-                    <div style="margin-bottom: 0.5rem;"><strong>サブスクリプション状況</strong></div>
+                    <div style="margin-bottom: 0.5rem;"><strong><?php echo $isMonthlyBillingUser ? 'サブスクリプション状況' : 'お支払い状況'; ?></strong></div>
                     <?php if ($subscriptionInfo): ?>
                     <div>ステータス: <span id="subscription-status"><?php
                         $statusLabels = [
@@ -1343,9 +1359,7 @@ $defaultGreetings = [
                         ];
                         echo htmlspecialchars($statusLabels[$subscriptionInfo['status']] ?? $subscriptionInfo['status']);
                     ?></span></div>
-                    <?php if ($subscriptionInfo['next_billing_date']): ?>
-                    <div>次回請求日: <?php echo htmlspecialchars($subscriptionInfo['next_billing_date']); ?></div>
-                    <?php endif; ?>
+                    <div>次回請求日: <?php echo htmlspecialchars($subscriptionNextBillingDisplay); ?></div>
                     <?php if ($subscriptionInfo['cancelled_at']): ?>
                     <div style="color: #dc3545; margin-top: 0.5rem;">キャンセル予定: <?php echo htmlspecialchars($subscriptionInfo['cancelled_at']); ?></div>
                     <?php endif; ?>

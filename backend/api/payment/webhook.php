@@ -140,7 +140,7 @@ try {
             $stmt->execute([$paymentIntentId]);
             
             $stmt = $db->prepare("
-                        SELECT p.id as payment_id, p.user_id, p.business_card_id, p.payment_type, p.payment_method, u.user_type, u.stripe_customer_id
+                        SELECT p.id as payment_id, p.user_id, p.business_card_id, p.payment_type, p.payment_method, u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member, u.stripe_customer_id
                 FROM payments p
                         JOIN users u ON p.user_id = u.id
                 WHERE p.stripe_payment_intent_id = ? AND p.payment_status = 'completed'
@@ -233,12 +233,15 @@ try {
                                 if ($payment['payment_type'] === 'renewal' || $payment['payment_type'] === 'new_user' || $payment['user_type'] === 'new') {
                                     $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
                                 } elseif ($payment['payment_type'] === 'existing_user' || $payment['user_type'] === 'existing') {
-                                    // Existing users typically don't have monthly fees, but we'll create subscription anyway for consistency
+                                    // Existing users are one-time initial-fee users, so monthly amount remains 0
                                     $monthlyAmount = 0;
                                 } else {
                                     // Default: treat as new user if payment_type is unclear
                                     $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
                                 }
+                                $hasMonthlyBilling = user_has_monthly_billing($payment['user_type'] ?? null, $payment['is_era_member'] ?? 0);
+                                $monthlyAmount = $hasMonthlyBilling ? (defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500) : 0;
+                                $nextBillingSql = $hasMonthlyBilling ? 'DATE_ADD(NOW(), INTERVAL 1 MONTH)' : 'NULL';
 
                                 // Try to find existing Stripe subscription for this customer
                                 $stripeSubscriptionId = null;
@@ -266,7 +269,7 @@ try {
                                 try {
                                     $stmt = $db->prepare("
                                         INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, stripe_customer_id, status, amount, billing_cycle, next_billing_date)
-                                        VALUES (?, ?, ?, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH))
+                                        VALUES (?, ?, ?, ?, 'active', ?, 'monthly', {$nextBillingSql})
                                     ");
                                     $stmt->execute([
                                         $payment['user_id'],
@@ -534,7 +537,7 @@ try {
                 $stmt->execute([$paymentIntentId]);
                 
                 $stmt = $db->prepare("
-                    SELECT p.id as payment_id, p.user_id, p.business_card_id, p.payment_type, p.payment_method, u.user_type, u.stripe_customer_id
+                    SELECT p.id as payment_id, p.user_id, p.business_card_id, p.payment_type, p.payment_method, u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member, u.stripe_customer_id
                     FROM payments p
                     JOIN users u ON p.user_id = u.id
                     WHERE p.stripe_payment_intent_id = ? AND p.payment_status = 'completed'
@@ -634,12 +637,15 @@ try {
                             if ($payment['payment_type'] === 'renewal' || $payment['payment_type'] === 'new_user' || $payment['user_type'] === 'new') {
                                 $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
                             } elseif ($payment['payment_type'] === 'existing_user' || $payment['user_type'] === 'existing') {
-                                // Existing users typically don't have monthly fees, but we'll create subscription anyway for consistency
+                                // Existing users are one-time initial-fee users, so monthly amount remains 0
                                 $monthlyAmount = 0;
                             } else {
                                 // Default: treat as new user if payment_type is unclear
                                 $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
                             }
+                            $hasMonthlyBilling = user_has_monthly_billing($payment['user_type'] ?? null, $payment['is_era_member'] ?? 0);
+                            $monthlyAmount = $hasMonthlyBilling ? (defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500) : 0;
+                            $nextBillingSql = $hasMonthlyBilling ? 'DATE_ADD(NOW(), INTERVAL 1 MONTH)' : 'NULL';
 
                             // Try to find existing Stripe subscription for this customer
                             $stripeSubscriptionId = null;
@@ -667,7 +673,7 @@ try {
                             try {
                                 $stmt = $db->prepare("
                                     INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, stripe_customer_id, status, amount, billing_cycle, next_billing_date)
-                                    VALUES (?, ?, ?, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH))
+                                    VALUES (?, ?, ?, ?, 'active', ?, 'monthly', {$nextBillingSql})
                                 ");
                                 $stmt->execute([
                                     $payment['user_id'],

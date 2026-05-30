@@ -18,6 +18,9 @@ $existingNavAmp     = existing_user_nav_suffix(true);
 $isLoggedIn = !empty($_SESSION['user_id']);
 $showNavLinks = isset($showNavLinks) ? $showNavLinks : true;
 $isEraMember = false;
+$headerUserType = $_SESSION['user_type'] ?? null;
+$headerIsMonthlyBillingUser = false;
+$headerNextBillingDisplay = "―";
 
 // Check if user has completed payment and has QR code
 $showMyCard = false;
@@ -77,12 +80,14 @@ if ($isLoggedIn) {
         $db = $database->getConnection();
 
         // Check email verification status and ERA membership (LIXIL / ERA header badge)
-        $stmt = $db->prepare("SELECT email_verified, COALESCE(is_era_member, 0) AS is_era_member FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT email_verified, user_type, COALESCE(is_era_member, 0) AS is_era_member FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $userData = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($userData && ((int)($userData['is_era_member'] ?? 0)) === 1) {
-            $isEraMember = true;
+        if ($userData) {
+            $headerUserType = !empty($userData['user_type']) ? $userData['user_type'] : $headerUserType;
+            $isEraMember = ((int)($userData['is_era_member'] ?? 0)) === 1;
+            $headerIsMonthlyBillingUser = user_has_monthly_billing($headerUserType, $isEraMember);
         }
 
         if ($userData && $userData['email_verified'] == 1) {
@@ -182,10 +187,16 @@ if ($isLoggedIn) {
                                 $stmt->execute([$_SESSION['user_id']]);
                                 $headerSubscriptionInfo = $stmt->fetch(PDO::FETCH_ASSOC);
 
+                                if ($headerSubscriptionInfo) {
+                                    $headerUserType = !empty($headerSubscriptionInfo['user_type']) ? $headerSubscriptionInfo['user_type'] : $headerUserType;
+                                    $headerIsMonthlyBillingUser = user_has_monthly_billing($headerUserType, $isEraMember);
+                                    $headerNextBillingDisplay = subscription_next_billing_display($headerSubscriptionInfo, $headerUserType, $isEraMember);
+                                }
+
                                 // Calculate end date for header
                                 $headerEndDate = null;
                                 if ($headerSubscriptionInfo) {
-                                    if ($headerSubscriptionInfo['next_billing_date']) {
+                                    if ($headerIsMonthlyBillingUser && $headerSubscriptionInfo['next_billing_date']) {
                             // End date is the day before next billing date (last day of current period)
                                         $nextBilling = new DateTime($headerSubscriptionInfo['next_billing_date']);
                                         $nextBilling->modify('-1 day');
@@ -257,7 +268,7 @@ if ($isLoggedIn) {
                         }
 
                         // Fallback if still no date: current date + 1 month - 1 day (only if payment is completed)
-                        if (!$headerEndDate && isset($bcInfo) && $bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID'])) {
+                        if (!$headerEndDate && isset($bcInfo) && $bcInfo && in_array($bcInfo['payment_status'], ['CR', 'BANK_PAID', 'ST'])) {
                             $now = new DateTime();
                             $now->modify('+1 month');
                             $now->modify('-1 day');
@@ -318,6 +329,9 @@ if ($isLoggedIn) {
                             }
                         }
                     }
+                    if (!$headerIsMonthlyBillingUser && in_array($headerPaymentStatus, ['CR', 'BANK_PAID', 'ST'], true)) {
+                        $headerUsagePeriodDisplay = '初期費用お支払い済み';
+                    }
 
                     // Determine if account is cancelled (利用停止) — don't show "クレジット支払い" for cancelled or unpaid
                     $headerIsCanceled = false;
@@ -332,7 +346,7 @@ if ($isLoggedIn) {
                                     $headerHasActiveSubscription = true;
                                 } elseif (!$headerSubscriptionInfo) {
                                     $stmt = $db->prepare("
-                                        SELECT bc.payment_status, u.user_type
+                                        SELECT bc.payment_status, u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member
                                         FROM business_cards bc
                                         JOIN users u ON bc.user_id = u.id
                                         WHERE bc.user_id = ?
@@ -340,14 +354,14 @@ if ($isLoggedIn) {
                                     ");
                                     $stmt->execute([$_SESSION['user_id']]);
                                     $cardInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-                        if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID', 'ST']) && $cardInfo['user_type'] === 'new') {
+                        if ($cardInfo && in_array($cardInfo['payment_status'], ['CR', 'BANK_PAID', 'ST'], true) && user_has_monthly_billing($cardInfo['user_type'] ?? null, $cardInfo['is_era_member'] ?? 0)) {
                                         $headerHasActiveSubscription = true;
                                     }
                                 }
 
                     $headerPaymentStatusForCancel = $headerPaymentStatus ?? 'UNUSED';
-                    $headerNeedsPayment = user_subscription_needs_payment($headerSubscriptionInfo ?: null, $headerPaymentStatusForCancel);
-                    $headerShowCancelSubscription = $headerHasActiveSubscription && !$headerNeedsPayment;
+                    $headerNeedsPayment = user_subscription_needs_payment($headerSubscriptionInfo ?: null, $headerPaymentStatusForCancel, $headerIsMonthlyBillingUser);
+                    $headerShowCancelSubscription = $headerIsMonthlyBillingUser && $headerHasActiveSubscription && !$headerNeedsPayment;
                             } catch (Exception $e) {
                                 error_log("Header subscription check error: " . $e->getMessage());
                             }
@@ -421,11 +435,9 @@ if ($isLoggedIn) {
                                     ?>
                                 </span>
                             </div>
-                            <?php if ($headerSubscriptionInfo['next_billing_date']): ?>
                             <div class="subscription-next-billing">
-                                次回請求日: <?php echo htmlspecialchars($headerSubscriptionInfo['next_billing_date']); ?>
+                                次回請求日: <?php echo htmlspecialchars($headerNextBillingDisplay); ?>
                             </div>
-                            <?php endif; ?>
                         </div>
                         <?php endif; ?>
                         <?php if (!empty($headerShowCancelSubscription)): ?>

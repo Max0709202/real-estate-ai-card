@@ -251,13 +251,39 @@ function phone_href_tel($phone) {
 }
 
 /**
+ * 月額課金対象かどうか。
+ * 既存・ERAユーザーは初期費用のみのため、次回請求日は持たせない。
+ *
+ * @param string|null $userType users.user_type
+ * @param bool|int|string $isEraMember users.is_era_member
+ */
+function user_has_monthly_billing($userType, $isEraMember = false) {
+    $era = ($isEraMember === true || $isEraMember === 1 || $isEraMember === "1");
+    return (string) $userType === "new" && !$era;
+}
+
+/**
+ * 画面表示用の次回請求日。
+ * 月額対象外、または日付未設定の場合は「―」を返す。
+ */
+function subscription_next_billing_display($subscriptionInfo, $userType, $isEraMember = false) {
+    if (!user_has_monthly_billing($userType, $isEraMember)) {
+        return "―";
+    }
+    if (!is_array($subscriptionInfo) || empty($subscriptionInfo["next_billing_date"])) {
+        return "―";
+    }
+    return (string) $subscriptionInfo["next_billing_date"];
+}
+
+/**
  * マイページ（edit.php）と同じ基準で「支払い・更新が必要」か。
  * 真のときは「お支払いへ進む」と「利用を停止する」を併記しない（延滞・未払いなど）。
  *
  * @param array|null $subscriptionInfo subscriptions 行（status, next_billing_date など）
  * @param string|null $paymentStatus    business_cards.payment_status 相当
  */
-function user_subscription_needs_payment($subscriptionInfo, $paymentStatus) {
+function user_subscription_needs_payment($subscriptionInfo, $paymentStatus, $hasMonthlyBilling = true) {
     $paymentStatus = ($paymentStatus !== null && $paymentStatus !== '') ? (string) $paymentStatus : 'UNUSED';
     if (in_array($paymentStatus, ['UNUSED', 'BANK_PENDING'], true)) {
         return true;
@@ -270,7 +296,7 @@ function user_subscription_needs_payment($subscriptionInfo, $paymentStatus) {
         if (!in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true)) {
             return true;
         }
-        if (!empty($subscriptionInfo['next_billing_date'])) {
+        if ($hasMonthlyBilling && !empty($subscriptionInfo['next_billing_date'])) {
             try {
                 $nb = new DateTime($subscriptionInfo['next_billing_date']);
                 if ($nb <= new DateTime()) {
