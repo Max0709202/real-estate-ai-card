@@ -141,8 +141,9 @@
 .loan-sim-radio-group {
     display: flex;
     flex-wrap: wrap;
+    flex-direction: column;
     gap: 12px;
-    margin-top: 6px;
+    margin-block: 0.5rem;
 }
 .loan-sim-radio-group label {
     display: inline-flex;

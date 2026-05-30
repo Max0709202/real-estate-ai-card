@@ -979,9 +979,20 @@ if (!empty($card['profile_photo'])) {
         <hr>
         <!-- QRコード -->
         <?php if (!empty($card['qr_code']) && $card['qr_code_issued']): ?>
+            <?php
+                $qrCodePath = trim((string) $card['qr_code']);
+                $qrCodeSrc = $qrCodePath;
+                if (!preg_match('~^https?://~i', $qrCodePath)) {
+                    $qrCodePath = ltrim($qrCodePath, '/');
+                    if (strpos($qrCodePath, 'backend/') !== 0) {
+                        $qrCodePath = 'backend/' . $qrCodePath;
+                    }
+                    $qrCodeSrc = rtrim(BASE_URL, '/') . '/' . $qrCodePath;
+                }
+            ?>
             <div class="qr-code-section">
                 <div class="qr-code-container">
-                    <img src="<?php echo htmlspecialchars(BASE_URL . '/backend/' . $card['qr_code']); ?>" alt="QRコード"
+                    <img src="<?php echo htmlspecialchars($qrCodeSrc); ?>" alt="QRコード"
                     class="qr-code-image" onerror="this.style.display='none'">
                     <div class="qr-code-content">
                         <h3>不動産AI名刺のQRコード</h3>

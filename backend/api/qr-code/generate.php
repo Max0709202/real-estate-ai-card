@@ -36,8 +36,8 @@ try {
     }
 
     // 決済確認（新規・既存ユーザーの場合）
-    // QR code can only be generated if payment_status is CR or BANK_PAID
-    if (!in_array($businessCard['payment_status'], ['CR', 'BANK_PAID'])) {
+    // QR code can only be generated if payment_status is CR, BANK_PAID, or ST
+    if (!in_array($businessCard['payment_status'], ['CR', 'BANK_PAID', 'ST'])) {
         sendErrorResponse('決済が完了していません。QRコードは入金確認済みの場合のみ発行できます。', 400);
     }
 

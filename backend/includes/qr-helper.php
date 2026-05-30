@@ -8,19 +8,23 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/../config/config.php';
 
-use BaconQrCode\Renderer\ImageRenderer;
-use BaconQrCode\Renderer\Image\ImagickImageBackEnd;
-use BaconQrCode\Renderer\RendererStyle\RendererStyle;
-use BaconQrCode\Writer;
+use Endroid\QrCode\Color\Color;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel\ErrorCorrectionLevelLow;
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\RoundBlockSizeMode\RoundBlockSizeModeMargin;
+use Endroid\QrCode\Writer\PngWriter;
+use Endroid\QrCode\Writer\SvgWriter;
 
 /**
  * Generate QR code for a business card
  * 
  * @param int $businessCardId Business card ID
  * @param PDO $db Database connection
+ * @param bool $sendEmails Whether to send QR issued emails
  * @return array Result with success status and QR code info
  */
-function generateBusinessCardQRCode($businessCardId, $db) {
+function generateBusinessCardQRCode($businessCardId, $db, $sendEmails = true) {
     try {
         // Get business card info
         $stmt = $db->prepare("
@@ -40,11 +44,11 @@ function generateBusinessCardQRCode($businessCardId, $db) {
             ];
         }
 
-        // QR code can only be generated if payment_status is CR or BANK_PAID
-        if (!in_array($card['payment_status'], ['CR', 'BANK_PAID'])) {
+        // QR code can only be generated if payment_status is CR, BANK_PAID, or ST
+        if (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST'])) {
             return [
                 'success' => false,
-                'message' => 'Payment not confirmed. QR code can only be generated for CR or BANK_PAID status.'
+                'message' => 'Payment not confirmed. QR code can only be generated for CR, BANK_PAID, or ST status.'
             ];
         }
         
@@ -62,49 +66,57 @@ function generateBusinessCardQRCode($businessCardId, $db) {
         $qrCodePath = QR_CODE_DIR . $qrCodeFileName;
         $qrCodeRelativePath = 'uploads/qr_codes/' . $qrCodeFileName;
         
-        // Generate QR code using BaconQrCode
+        // Generate QR code using GD-backed PNG writer. SVG is a final fallback.
         try {
-            if (!class_exists('\BaconQrCode\Writer') || !class_exists('\BaconQrCode\Renderer\RendererStyle\RendererStyle')) {
+            if (!class_exists(QrCode::class) || !class_exists(PngWriter::class)) {
                 return [
-                    'success' => false,
-                    'message' => 'QR code library (BaconQrCode) is not installed'
+                    "success" => false,
+                    "message" => "QR code library (Endroid QR Code) is not installed"
                 ];
             }
-            $renderer = new ImageRenderer(
-                new RendererStyle(400, 2), // Size 400x400, margin 2
-                new ImagickImageBackEnd()
-            );
-            $writer = new Writer($renderer);
-            $writer->writeFile($qrUrl, $qrCodePath);
+
+            $qrCode = QrCode::create($qrUrl)
+                ->setEncoding(new Encoding("UTF-8"))
+                ->setErrorCorrectionLevel(new ErrorCorrectionLevelLow())
+                ->setSize(400)
+                ->setMargin(16)
+                ->setRoundBlockSizeMode(new RoundBlockSizeModeMargin())
+                ->setForegroundColor(new Color(0, 0, 0))
+                ->setBackgroundColor(new Color(255, 255, 255));
+
+            $writer = new PngWriter();
+            $writer->write($qrCode)->saveToFile($qrCodePath);
         } catch (Throwable $e) {
-            // Fallback: Try with GD backend if Imagick is not available
-            error_log("Imagick not available, trying GD backend: " . $e->getMessage());
+            error_log("PNG QR code generation failed, trying SVG fallback: " . $e->getMessage());
             try {
-                if (!class_exists('\BaconQrCode\Renderer\Image\SvgImageBackEnd')) {
+                if (!class_exists(SvgWriter::class)) {
                     return [
-                        'success' => false,
-                        'message' => 'QR fallback backend (SvgImageBackEnd) is not available'
+                        "success" => false,
+                        "message" => "QR fallback backend (SvgWriter) is not available"
                     ];
                 }
-                $renderer = new ImageRenderer(
-                    new RendererStyle(400, 2),
-                    new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
-                );
-                $writer = new Writer($renderer);
-                
-                // Generate SVG first, then convert to PNG if needed
-                $svgContent = $writer->writeString($qrUrl);
-                
-                // Save as SVG for now (can be converted to PNG later if needed)
-                $qrCodeFileName = 'qr_' . $card['url_slug'] . '_' . time() . '.svg';
+
+                if (!isset($qrCode)) {
+                    $qrCode = QrCode::create($qrUrl)
+                        ->setEncoding(new Encoding("UTF-8"))
+                        ->setErrorCorrectionLevel(new ErrorCorrectionLevelLow())
+                        ->setSize(400)
+                        ->setMargin(16)
+                        ->setRoundBlockSizeMode(new RoundBlockSizeModeMargin())
+                        ->setForegroundColor(new Color(0, 0, 0))
+                        ->setBackgroundColor(new Color(255, 255, 255));
+                }
+
+                $qrCodeFileName = "qr_" . $card["url_slug"] . "_" . time() . ".svg";
                 $qrCodePath = QR_CODE_DIR . $qrCodeFileName;
-                $qrCodeRelativePath = 'uploads/qr_codes/' . $qrCodeFileName;
-                file_put_contents($qrCodePath, $svgContent);
+                $qrCodeRelativePath = "uploads/qr_codes/" . $qrCodeFileName;
+                $writer = new SvgWriter();
+                $writer->write($qrCode)->saveToFile($qrCodePath);
             } catch (Throwable $e2) {
                 error_log("QR Code generation failed: " . $e2->getMessage());
                 return [
-                    'success' => false,
-                    'message' => 'Failed to generate QR code: ' . $e2->getMessage()
+                    "success" => false,
+                    "message" => "Failed to generate QR code: " . $e2->getMessage()
                 ];
             }
         }
@@ -122,103 +134,104 @@ function generateBusinessCardQRCode($businessCardId, $db) {
         
         error_log("QR code generated successfully for business_card_id: {$businessCardId}, path: {$qrCodeRelativePath}");
         
-        // Send email notifications
-        try {
-            // Get user name for email
-            $userName = $card['email'] ?? 'お客様';
-            if (!empty($card['phone_number'])) {
-                // Try to get full name from database
-                $stmt = $db->prepare("SELECT name FROM business_cards WHERE id = ?");
+        if ($sendEmails) {
+            // Send email notifications
+            try {
+                // Get user name for email
+                $userName = $card["email"] ?? "お客様";
+                if (!empty($card["phone_number"])) {
+                    // Try to get full name from database
+                    $stmt = $db->prepare("SELECT name FROM business_cards WHERE id = ?");
+                    $stmt->execute([$businessCardId]);
+                    $bcData = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($bcData && !empty($bcData["name"])) {
+                        $userName = $bcData["name"];
+                    }
+                }
+                
+                $qrCodeFullUrl = rtrim(BASE_URL, "/") . "/backend/" . $qrCodeRelativePath;
+                $paymentAmount = !empty($card["total_amount"]) ? $card["total_amount"] : null;
+                
+                // Get user info for emails first
+                $userId = null;
+                $companyName = null;
+                $name = null;
+                $nameRomaji = null;
+                $phoneNumber = $card["phone_number"] ?? null;
+                $userType = "new";
+                $isEraMember = 0;
+                $paymentType = $card["payment_status"] ?? null;
+                
+                $stmt = $db->prepare("
+                    SELECT bc.user_id, bc.company_name, bc.name, bc.name_romaji, bc.payment_status,
+                           u.user_type, u.is_era_member
+                    FROM business_cards bc
+                    JOIN users u ON bc.user_id = u.id
+                    WHERE bc.id = ?
+                ");
                 $stmt->execute([$businessCardId]);
                 $bcData = $stmt->fetch(PDO::FETCH_ASSOC);
-                if ($bcData && !empty($bcData['name'])) {
-                    $userName = $bcData['name'];
+                if ($bcData) {
+                    $userId = $bcData["user_id"];
+                    $companyName = $bcData["company_name"] ?? null;
+                    $name = $bcData["name"] ?? null;
+                    $nameRomaji = $bcData["name_romaji"] ?? null;
+                    $userType = $bcData["user_type"] ?? "new";
+                    $isEraMember = $bcData["is_era_member"] ?? 0;
+                    $paymentType = $bcData["payment_status"] ?? $paymentType;
                 }
-            }
-            
-            $qrCodeFullUrl = BASE_URL . '/' . $qrCodeRelativePath;
-            $paymentAmount = !empty($card['total_amount']) ? $card['total_amount'] : null;
-            
-            // Get user info for emails first
-            $userId = null;
-            $companyName = null;
-            $name = null;
-            $nameRomaji = null;
-            $phoneNumber = $card['phone_number'] ?? null;
-            $userType = 'new';
-            $isEraMember = 0;
-            $paymentType = $card['payment_status'] ?? null;
-            
-            $stmt = $db->prepare("
-                SELECT bc.user_id, bc.company_name, bc.name, bc.name_romaji, bc.payment_status,
-                       u.user_type, u.is_era_member
-                FROM business_cards bc
-                JOIN users u ON bc.user_id = u.id
-                WHERE bc.id = ?
-            ");
-            $stmt->execute([$businessCardId]);
-            $bcData = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($bcData) {
-                $userId = $bcData['user_id'];
-                $companyName = $bcData['company_name'] ?? null;
-                $name = $bcData['name'] ?? null;
-                $nameRomaji = $bcData['name_romaji'] ?? null;
-                $userType = $bcData['user_type'] ?? 'new';
-                $isEraMember = $bcData['is_era_member'] ?? 0;
-                $paymentType = $bcData['payment_status'] ?? $paymentType;
-            }
-            
-            // Send email to user
-            if (!empty($card['email'])) {
-                $userEmailSent = sendQRCodeIssuedEmailToUser(
-                    $card['email'],
+                
+                // Send email to user
+                if (!empty($card["email"])) {
+                    $userEmailSent = sendQRCodeIssuedEmailToUser(
+                        $card["email"],
+                        $userName,
+                        $qrUrl,
+                        $qrCodeFullUrl,
+                        $card["url_slug"],
+                        $paymentAmount,
+                        $userType,
+                        $isEraMember,
+                        $paymentType
+                    );
+                    
+                    if ($userEmailSent) {
+                        error_log("QR code email sent to user: " . $card["email"]);
+                    } else {
+                        error_log("Failed to send QR code email to user: " . $card["email"]);
+                    }
+                }
+                
+                // Send admin email (user info already fetched above)
+                $adminEmailSent = sendQRCodeIssuedEmailToAdmin(
+                    $card["email"] ?? "Unknown",
                     $userName,
-                    $qrUrl,
-                    $qrCodeFullUrl,
-                    $card['url_slug'],
+                    $userId ?? 0,
+                    $card["url_slug"],
                     $paymentAmount,
+                    $companyName,
+                    $name,
+                    $nameRomaji,
+                    $phoneNumber,
                     $userType,
                     $isEraMember,
                     $paymentType
                 );
                 
-                if ($userEmailSent) {
-                    error_log("QR code email sent to user: {$card['email']}");
+                if ($adminEmailSent) {
+                    error_log("QR code admin notification sent");
                 } else {
-                    error_log("Failed to send QR code email to user: {$card['email']}");
+                    error_log("Failed to send QR code admin notification");
                 }
+            } catch (Exception $emailException) {
+                // Do not fail the whole operation if email fails
+                error_log("Error sending QR code emails: " . $emailException->getMessage());
             }
-            
-            // Send admin email (user info already fetched above)
-            $adminEmailSent = sendQRCodeIssuedEmailToAdmin(
-                $card['email'] ?? 'Unknown',
-                $userName,
-                $userId ?? 0,
-                $card['url_slug'],
-                $paymentAmount,
-                $companyName,
-                $name,
-                $nameRomaji,
-                $phoneNumber,
-                $userType,
-                $isEraMember,
-                $paymentType
-            );
-            
-            if ($adminEmailSent) {
-                error_log("QR code admin notification sent");
-            } else {
-                error_log("Failed to send QR code admin notification");
-            }
-            
-        } catch (Exception $emailException) {
-            // Don't fail the whole operation if email fails
-            error_log("Error sending QR code emails: " . $emailException->getMessage());
         }
         
         return [
             'success' => true,
-            'qr_code_url' => BASE_URL . '/' . $qrCodeRelativePath,
+            'qr_code_url' => rtrim(BASE_URL, '/') . '/backend/' . $qrCodeRelativePath,
             'qr_code_path' => $qrCodeRelativePath,
             'business_card_url' => $qrUrl,
             'url_slug' => $card['url_slug']
@@ -244,6 +257,6 @@ function qrCodeExists($qrCodePath) {
         return false;
     }
     
-    $fullPath = __DIR__ . '/../../' . $qrCodePath;
+    $fullPath = __DIR__ . '/../' . $qrCodePath;
     return file_exists($fullPath);
 }

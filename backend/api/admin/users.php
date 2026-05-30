@@ -179,6 +179,16 @@ try {
                     $stmt->execute([$bcData['user_id'], $bcId]);
                 }
             }
+            // QR生成前に名刺側の入金状態も確定させる
+            $stmt = $db->prepare("
+                UPDATE business_cards
+                SET payment_status = 'BANK_PAID',
+                    card_status = 'active',
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->execute([$bcId]);
+
 
             // QRコード発行処理（qr-helper.phpの関数を使用）
             require_once __DIR__ . '/../../includes/qr-helper.php';
@@ -284,8 +294,8 @@ try {
             $userInfo = $stmt->fetch();
             $userEmail = $userInfo['email'] ?? 'Unknown';
             
-            // Backend validation: OPEN can only be enabled if payment_status is CR or BANK_PAID
-            $canOpen = in_array($paymentStatus, ['CR', 'BANK_PAID']);
+            // Backend validation: OPEN can only be enabled if payment_status is CR, BANK_PAID, or ST
+            $canOpen = in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST']);
             
             if ($isPublished == 1 && !$canOpen) {
                 // Block attempt to open without valid payment
@@ -298,7 +308,7 @@ try {
                 logAdminChange($db, $adminId, $adminEmail, 'published_change_blocked', 'business_card', $bcId, 
                     "OPEN変更ブロック: 未入金のためOPEN不可（現在の入金状況: {$statusLabel}）- ユーザー {$userEmail} (URL: {$bcInfo['url_slug']})");
                 
-                sendErrorResponse('未入金のためOPENできません（CR/振込済のみ）', 403);
+                sendErrorResponse('未入金のためOPENできません（CR/振込済/STのみ）', 403);
             }
             
             // 公開状態を更新

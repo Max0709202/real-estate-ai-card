@@ -62,13 +62,32 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
                     <label>頭金（万円）任意</label>
                     <input type="number" id="repayment-down-payment" min="0" max="99999" step="100" value="0" placeholder="0">
                 </div>
-                <div class="loan-sim-field">
-                    <label>返済方式</label>
+                <label>返済方式</label>
+
                     <div class="loan-sim-radio-group">
-                        <label><input type="radio" name="repayment-type" value="equal_installment" checked> 元利均等</label>
-                        <label><input type="radio" name="repayment-type" value="equal_principal"> 元金均等</label>
+
+                        <div class="input-group">
+                            <input
+                                type="radio"
+                                id="equal-installment"
+                                name="repayment-type"
+                                value="equal_installment"
+                                checked
+                            />
+                            <label for="equal-installment">元利均等</label>
+                        </div>
+
+                        <div class="input-group">
+                            <input
+                                type="radio"
+                                id="equal-principal"
+                                name="repayment-type"
+                                value="equal_principal"
+                            />
+                            <label for="equal-principal">元金均等</label>
+                        </div>
+
                     </div>
-                </div>
                 <div class="loan-sim-field">
                     <label>金利（%）</label>
                     <input type="number" id="repayment-rate" min="0" max="15" step="0.01" value="2.5" placeholder="2.5">

@@ -83,14 +83,6 @@ try {
                 ");
                 $stmt->execute([$payment['id']]);
                 $payment['payment_status'] = 'completed';
-                
-                // Generate QR code for business card after payment completion
-                if (!empty($payment['business_card_id'])) {
-                    $qrResult = generateBusinessCardQRCode($payment['business_card_id'], $db);
-                    if (!$qrResult['success']) {
-                        error_log("Failed to generate QR code after payment: " . ($qrResult['message'] ?? 'Unknown error'));
-                    }
-                }
             } elseif ($stripeStatus === 'requires_payment_method' || 
                       $stripeStatus === 'canceled' || 
                       $stripeStatus === 'requires_capture') {
@@ -108,6 +100,29 @@ try {
         } catch (\Exception $e) {
             error_log("Payment verification error: " . $e->getMessage());
             // Continue with database status if Stripe check fails
+        }
+    }
+    if ($payment['payment_status'] === 'completed' && !empty($payment['business_card_id'])) {
+        $newPaymentStatus = ($payment['payment_method'] ?? '') === 'credit_card' ? 'CR' : 'BANK_PAID';
+        $stmt = $db->prepare("
+            UPDATE business_cards
+            SET payment_status = ?,
+                card_status = 'active',
+                is_published = 1,
+                updated_at = NOW()
+            WHERE id = ? AND user_id = ?
+        ");
+        $stmt->execute([$newPaymentStatus, $payment['business_card_id'], $payment['user_id']]);
+
+        $stmt = $db->prepare("SELECT qr_code_issued FROM business_cards WHERE id = ?");
+        $stmt->execute([$payment['business_card_id']]);
+        $bc = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($bc && !$bc['qr_code_issued']) {
+            $qrResult = generateBusinessCardQRCode($payment['business_card_id'], $db);
+            if (!$qrResult['success']) {
+                error_log("Failed to generate QR code after payment: " . ($qrResult['message'] ?? 'Unknown error'));
+            }
         }
     }
 

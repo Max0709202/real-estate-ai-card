@@ -57,20 +57,6 @@ if ($paymentId) {
                         ");
                         $stmt->execute([$paymentId]);
                         $paymentInfo['payment_status'] = 'completed';
-                        
-                        // Generate QR code if not already generated
-                        if (!empty($paymentInfo['business_card_id'])) {
-                            $stmt = $db->prepare("SELECT qr_code_issued FROM business_cards WHERE id = ?");
-                            $stmt->execute([$paymentInfo['business_card_id']]);
-                            $bc = $stmt->fetch(PDO::FETCH_ASSOC);
-                            
-                            if ($bc && !$bc['qr_code_issued']) {
-                                $qrResult = generateBusinessCardQRCode($paymentInfo['business_card_id'], $db);
-                                if (!$qrResult['success']) {
-                                    error_log("Failed to generate QR code on payment success page: " . ($qrResult['message'] ?? 'Unknown error'));
-                                }
-                            }
-                        }
                         // Make card viewable immediately (no wait for webhook): update business_cards
                         if (!empty($paymentInfo['business_card_id']) && !empty($paymentInfo['user_id'])) {
                             $newPaymentStatus = ($paymentInfo['payment_method'] === 'credit_card') ? 'CR' : 'BANK_PAID';
@@ -123,6 +109,20 @@ if ($paymentId) {
                 $stmt->execute([$newPaymentStatus, $paymentInfo['business_card_id'], $paymentInfo['user_id']]);
                 if (function_exists('enforceOpenPaymentStatusRule')) {
                     enforceOpenPaymentStatusRule($db, $paymentInfo['business_card_id'], $newPaymentStatus);
+                }
+            }
+        }
+
+        // Generate QR code after business_cards.payment_status is normalized.
+        if (!empty($paymentInfo['business_card_id'])) {
+            $stmt = $db->prepare("SELECT qr_code_issued FROM business_cards WHERE id = ?");
+            $stmt->execute([$paymentInfo['business_card_id']]);
+            $bc = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($bc && !$bc['qr_code_issued']) {
+                $qrResult = generateBusinessCardQRCode($paymentInfo['business_card_id'], $db);
+                if (!$qrResult['success']) {
+                    error_log("Failed to generate QR code on payment success page: " . ($qrResult['message'] ?? 'Unknown error'));
                 }
             }
         }
