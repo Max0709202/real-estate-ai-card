@@ -375,7 +375,7 @@
         renderQuickReplies([]);
         appendBotMessage(firstConsultationNoticeText);
         appendVoiceAvailabilityNotice();
-        appendBotMessage('まず、今回のご相談内容に近いものを教えてください。');
+        appendBotMessage('まず、今回のご相談内容に近いものを選べます。選びにくい場合は「自由に質問する」を押すか、そのまま文章でご相談ください。');
         renderQuickReplies(startupData.quick_replies || []);
         greetingShown = true;
         setInputEnabled(true);

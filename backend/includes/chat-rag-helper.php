@@ -546,6 +546,36 @@ function chatMemoryValue($value) {
     return (string)$value;
 }
 
+function chatMemoryValueLooksUsable($value, $field = '') {
+    $text = chatMemoryValue($value);
+    if ($text === null) return false;
+    $plain = trim(preg_replace('/[\s　[:punct:]。、，．・！？?！「」『』（）()【】\[\]{}]+/u', '', $text));
+    if ($plain === '') return false;
+    if (mb_strlen($plain) <= 1 && !preg_match('/[0-9０-９]/u', $plain)) return false;
+    if (preg_match('/^(.)\\1{2,}$/u', $plain)) return false;
+    if (preg_match('/^(?:test|asdf|qwerty|dummy|sample|abc|xxx|aaa|ok)$/iu', $plain)) return false;
+    if (preg_match('/(?:意味不明|意味わから|意味がわから|分からん|わからん|何でもいい|なんでもいい|適当|テスト|ダミー|サンプル|よろしく|お願いします|お願い|こんにちは|ありがとう)$/u', $plain)) return false;
+
+    if (in_array((string)$field, ['preferred_area', 'property_location', 'current_property_location'], true)) {
+        if (preg_match('/^[A-Za-z]{2,}$/u', $plain)) return false;
+        if (!preg_match('/(?:駅|線|沿線|市|区|町|村|都|道|府|県|丁目|番地|号|マンション|周辺|エリア|[一-龥ぁ-んァ-ン]{2,})/u', $plain)) return false;
+    }
+
+    return true;
+}
+
+function chatMemoryLeadFieldIsReliable($leadData, $field) {
+    if (!is_array($leadData) || !isset($leadData[$field]) || $leadData[$field] === null || $leadData[$field] === '' || $leadData[$field] === []) return false;
+    $meta = is_array($leadData['_field_meta'] ?? null) && is_array($leadData['_field_meta'][$field] ?? null) ? $leadData['_field_meta'][$field] : null;
+    if ($meta !== null) {
+        $status = $meta['status'] ?? 'confirmed';
+        $confidence = $meta['confidence'] ?? 'high';
+        if (!in_array($status, ['confirmed', 'inferred'], true)) return false;
+        if (!in_array($confidence, ['high', 'medium'], true)) return false;
+    }
+    return chatMemoryValueLooksUsable($leadData[$field], $field);
+}
+
 function chatMemoryTrim($text, $max = 240) {
     $text = trim(preg_replace('/\s+/u', ' ', (string)$text));
     if ($text === '') return '';
@@ -616,8 +646,9 @@ function chatLoadLeadDataForMemory($db, $sessionId) {
 function chatApplyLeadDataToMemory(&$memory, $leadData) {
     if (!$leadData || !is_array($leadData)) return;
 
-    if (!empty($leadData['customer_type'])) $memory['intent'] = chatMemoryMapCustomerType($leadData['customer_type']);
+    if (chatMemoryLeadFieldIsReliable($leadData, 'customer_type')) $memory['intent'] = chatMemoryMapCustomerType($leadData['customer_type']);
     foreach (['property_type', 'preferred_area', 'family_structure'] as $key) {
+        if (!chatMemoryLeadFieldIsReliable($leadData, $key)) continue;
         $value = chatMemoryValue($leadData[$key] ?? null);
         if ($value !== null) {
             if ($key === 'family_structure') $memory['family'] = $value;
@@ -626,31 +657,34 @@ function chatApplyLeadDataToMemory(&$memory, $leadData) {
     }
 
     $budgetParts = [];
-    if (!empty($leadData['budget_min'])) $budgetParts[] = '下限 ' . $leadData['budget_min'];
-    if (!empty($leadData['budget_max'])) $budgetParts[] = '上限 ' . $leadData['budget_max'];
+    $budgetReliable = chatMemoryLeadFieldIsReliable($leadData, 'budget') || !empty($leadData['budget_min']) || !empty($leadData['budget_max']);
+    if ($budgetReliable && !empty($leadData['budget_min'])) $budgetParts[] = '下限 ' . $leadData['budget_min'];
+    if ($budgetReliable && !empty($leadData['budget_max'])) $budgetParts[] = '上限 ' . $leadData['budget_max'];
     if (!empty($budgetParts)) $memory['budget'] = implode(' / ', $budgetParts);
 
-    $income = chatMemoryValue($leadData['income'] ?? null);
+    $income = chatMemoryLeadFieldIsReliable($leadData, 'income') ? chatMemoryValue($leadData['income'] ?? null) : null;
     if ($income !== null) $memory['income_range'] = $income;
 
     $loanBits = [];
     foreach (['loan_status', 'pre_approval_status', 'desired_loan_amount', 'loan_simulation_used', 'simulation_monthly_payment', 'simulation_interest_type'] as $key) {
+        if (!chatMemoryLeadFieldIsReliable($leadData, $key)) continue;
         $value = chatMemoryValue($leadData[$key] ?? null);
         if ($value !== null) $loanBits[] = $value;
     }
     if (!empty($loanBits)) $memory['loan_plan'] = implode(' / ', array_unique($loanBits));
 
     if (!empty($leadData['temperature'])) $memory['temperature'] = $leadData['temperature'];
-    if (!empty($leadData['summary_for_sales'])) $memory['lead_summary'] = chatMemoryTrim($leadData['summary_for_sales'], 360);
-    if (!empty($leadData['next_action'])) $memory['next_action'] = chatMemoryTrim($leadData['next_action'], 220);
+    if (!empty($leadData['summary_for_sales']) && chatMemoryValueLooksUsable($leadData['summary_for_sales'])) $memory['lead_summary'] = chatMemoryTrim($leadData['summary_for_sales'], 360);
+    if (!empty($leadData['next_action']) && chatMemoryValueLooksUsable($leadData['next_action'])) $memory['next_action'] = chatMemoryTrim($leadData['next_action'], 220);
 
     $topicFields = ['priority', 'loan_concern', 'other_debts', 'disclosure_flags'];
     foreach ($topicFields as $field) {
+        if (!chatMemoryLeadFieldIsReliable($leadData, $field)) continue;
         $value = chatMemoryValue($leadData[$field] ?? null);
         if ($value !== null) chatAddTopic($memory, $value);
     }
 
-    if (!empty($leadData['family_structure']) && preg_match('/子ども|子供|こども/u', chatMemoryValue($leadData['family_structure']))) {
+    if (chatMemoryLeadFieldIsReliable($leadData, 'family_structure') && preg_match('/子ども|子供|こども/u', chatMemoryValue($leadData['family_structure']))) {
         $memory['child_rearing_household'] = true;
     }
 
@@ -722,8 +756,11 @@ function chatBuildRecentConversationNote($db, $sessionId) {
         $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
         $parts = [];
         foreach ($rows as $row) {
-            $label = ($row['role'] ?? '') === 'user' ? '顧客' : 'AI';
-            $snippet = chatMemoryTrim($row['message'] ?? '', 90);
+            $role = $row['role'] ?? '';
+            $message = $row['message'] ?? '';
+            if ($role === 'user' && !chatMemoryValueLooksUsable($message)) continue;
+            $label = $role === 'user' ? '顧客' : 'AI';
+            $snippet = chatMemoryTrim($message, 90);
             if ($snippet !== '') $parts[] = $label . ': ' . $snippet;
         }
         return empty($parts) ? null : chatMemoryTrim(implode(' / ', $parts), 700);

@@ -155,7 +155,9 @@ function chatIntakeQuickRepliesForField($field, $data = null) {
             ]);
         }
     }
-    if (!chatIntakeIsMultiSelectField($field)) return $choices;
+    if (!chatIntakeIsMultiSelectField($field)) {
+        return array_merge($choices, chatIntakeConversationControlChoices($field));
+    }
     return array_map(function ($choice) use ($field) {
         $choice['multi_select'] = true;
         $choice['field'] = $field;
@@ -163,9 +165,19 @@ function chatIntakeQuickRepliesForField($field, $data = null) {
     }, $choices);
 }
 
+function chatIntakeConversationControlChoices($field) {
+    if (in_array($field, ['contact_name', 'contact_email', 'contact_phone', 'contact_request'], true)) return [];
+    $choices = [];
+    if ($field !== 'customer_type') {
+        $choices[] = ['label' => 'あとで答える', 'value' => 'あとで答える'];
+    }
+    $choices[] = ['label' => '自由に質問する', 'value' => '自由に質問する'];
+    return $choices;
+}
+
 function chatIntakeFieldDefinitions() {
     return [
-        'customer_type' => ['question' => 'まず、今回のご相談内容に近いものを教えてください。', 'choices' => chatIntakeTypeChoices()],
+        'customer_type' => ['question' => 'まず、今回のご相談内容に近いものを選べます。選びにくい場合は「自由に質問する」を押すか、そのまま文章でご相談ください。', 'choices' => chatIntakeTypeChoices()],
         'preferred_area' => ['question' => '担当者に共有する条件として、まず希望エリアを1つだけ確認させてください。駅名・市区町村名・沿線名など、分かる範囲で大丈夫です。', 'choices' => [['label' => '駅名で決めたい', 'value' => '駅名で決めたい'], ['label' => '市区町村で決めたい', 'value' => '市区町村で決めたい'], ['label' => '通勤時間で決めたい', 'value' => '通勤時間で決めたい'], ['label' => 'まだ全く決まっていない', 'value' => 'まだ全く決まっていない']]],
         'preferred_station_line' => ['question' => '最寄り駅や沿線の希望はありますか。複数あればそのまま入力してください。', 'choices' => [['label' => 'まだ未定', 'value' => '未定']]],
         'commute_destination' => ['question' => '通勤・通学で重視したい場所はありますか。勤務先駅、学校、実家などでも大丈夫です。', 'choices' => [['label' => '特になし', 'value' => '特になし']]],
@@ -406,7 +418,27 @@ function chatIntakeSaveContact($db, $sessionId, $businessCardId, $data) {
 
 function chatIntakeSave($db, $sessionId, $businessCardId, $data) {
     $data['_updated_at'] = date('c');
-    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $storedData = $data;
+    unset($storedData['last_user_message'], $storedData['_invalid_inputs']);
+    if (isset($storedData['_field_meta']) && is_array($storedData['_field_meta'])) {
+        foreach ($storedData['_field_meta'] as $metaField => $meta) {
+            if (is_array($meta) && ($meta['status'] ?? '') === 'invalid') unset($storedData['_field_meta'][$metaField]);
+        }
+    }
+    foreach ($storedData as $field => $storedValue) {
+        if ($field === '' || strpos((string)$field, '_') === 0) continue;
+        if (is_array($storedValue)) {
+            $filtered = [];
+            foreach ($storedValue as $item) {
+                if ($item === null || $item === '' || chatIntakeLooksLikeLowInformationInput($item, $field)) continue;
+                $filtered[] = $item;
+            }
+            $storedData[$field] = array_values(array_unique($filtered));
+        } elseif (chatIntakeLooksLikeLowInformationInput($storedValue, $field)) {
+            $storedData[$field] = null;
+        }
+    }
+    $json = json_encode($storedData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $consent = !empty($data['contact_consent']) ? 1 : 0;
     $stmt = $db->prepare("INSERT INTO chat_leads (session_id, business_card_id, structured_data, consent_given)
                           VALUES (?, ?, ?, ?)
@@ -424,10 +456,33 @@ function chatIntakeNormalizeInputText($value) {
 
 function chatIntakeIsUnknownAnswer($value) {
     $plain = chatIntakeNormalizeInputText($value);
-    $plain = preg_replace("/[\\s　。、，．・！？?！「」『』（）()【】\\[\\]{}]+/u", "", $plain);
+    $plain = preg_replace("/[\s　。、，．・！？?！「」『』（）()【】\[\]{}]+/u", "", $plain);
     if ($plain === "") return true;
-    $unknowns = ["未定", "わからない", "分からない", "判らない", "不明", "まだ", "まだ未定", "まだ決まっていない", "決まっていない", "決めていない", "未確認", "知らない", "特になし", "なし", "回答しない", "未回答"];
+    $unknowns = ["未定", "わからない", "分からない", "判らない", "不明", "まだ", "まだ未定", "まだ決まっていない", "決まっていない", "決めていない", "未確認", "知らない", "特になし", "なし", "回答しない", "未回答", "あとで", "後で", "あとで答える", "後で答える", "スキップ", "飛ばす"];
     return in_array($plain, $unknowns, true);
+}
+
+function chatIntakeLooksLikeLowInformationInput($value, $field = null) {
+    $display = chatIntakeNormalizeInputText(chatIntakeDisplayValue($value));
+    if ($display === "") return true;
+    if ($field !== null && chatIntakeMatchesDefinedChoice($field, $display)) return false;
+    if (chatIntakeIsUnknownAnswer($display)) return false;
+
+    $plain = preg_replace("/[\s　[:punct:]。、，．・！？?！「」『』（）()【】\[\]{}]+/u", "", $display);
+    if ($plain === "") return true;
+    if (mb_strlen($plain) <= 1 && !preg_match("/[0-9０-９]/u", $plain)) return true;
+    if (preg_match("/^(.)\\1{2,}$/u", $plain)) return true;
+    if (preg_match("/^(?:test|asdf|qwerty|dummy|sample|abc|xxx|aaa|ok)$/iu", $plain)) return true;
+    if (preg_match("/(?:意味不明|意味わから|意味がわから|分からん|わからん|何でもいい|なんでもいい|適当|テスト|ダミー|サンプル|よろしく|お願いします|お願い|こんにちは|ありがとう)$/u", $plain)) return true;
+
+    $placeFields = ["preferred_area", "preferred_station_line", "property_location", "current_property_location"];
+    if (in_array((string)$field, $placeFields, true)) {
+        if (preg_match("/^[A-Za-z]{2,}$/u", $plain)) return true;
+        if (!preg_match("/[一-龥ぁ-んァ-ンA-Za-z0-9０-９]/u", $plain)) return true;
+        if (!preg_match("/(?:駅|線|沿線|市|区|町|村|都|道|府|県|丁目|番地|号|マンション|周辺|エリア|[一-龥ぁ-んァ-ン]{2,})/u", $plain)) return true;
+    }
+
+    return false;
 }
 
 function chatIntakeAreaPlanningChoices() {
@@ -486,6 +541,9 @@ function chatIntakeValidateFieldValue($field, $value, $data, $fromButton = false
     if ($field !== "customer_type" && chatIntakeLooksLikeAccidentalShortInput($display, $field)) {
         return chatIntakeValidationResult("invalid", "invalid", false, null, "too_short", false);
     }
+    if ($field !== "customer_type" && chatIntakeLooksLikeLowInformationInput($display, $field)) {
+        return chatIntakeValidationResult("invalid", "invalid", false, null, "low_information", false);
+    }
 
     if ($field === "customer_type") {
         $valid = array_map(function ($choice) { return $choice["value"]; }, chatIntakeTypeChoices());
@@ -503,7 +561,7 @@ function chatIntakeValidateFieldValue($field, $value, $data, $fromButton = false
             return chatIntakeValidationResult("low", "unconfirmed", false, $display, "area_planning_choice", true);
         }
         if (chatIntakeIsUnknownAnswer($display)) {
-            return chatIntakeValidationResult("low", "needs_confirmation", false, $display, "unknown_area", false);
+            return chatIntakeValidationResult("low", "unconfirmed", false, $display, "unknown_area", true);
         }
         $area = chatIntakeExtractPreferredArea($display) ?: $display;
         $compact = preg_replace("/[\\s　]+/u", "", $area);
@@ -577,13 +635,18 @@ function chatIntakeValidateFieldValue($field, $value, $data, $fromButton = false
 }
 
 function chatIntakeBuildClarifyingReply($field, $data, $validation = []) {
+    $reason = $validation["reason"] ?? "";
+    $note = in_array($reason, ["low_information", "too_short", "area_too_short", "area_not_readable"], true)
+        ? "今の内容は条件として読み取れなかったため、担当者共有用の情報には入れません。"
+        : "今の内容だけだと、条件として少し判断が難しそうです。";
+
     if ($field === "preferred_area") {
-        return "すみません、希望エリアとしては少し判断が難しそうです。駅名・市区町村名・沿線名などで教えていただけますか？\n\nまだはっきり決まっていなくても大丈夫です。近いものを選ぶとしたらどれですか？";
+        return $note . "\n無理に決めなくて大丈夫です。駅名・市区町村名・沿線名など、分かる範囲で教えてください。";
     }
     if ($field === "budget") {
-        return "すみません、予算感がうまく読み取れませんでした。\n担当者に共有しやすいように、金額や月々返済の目安で教えていただけますか？";
+        return $note . "\n金額が未定なら『未定』で大丈夫です。分かる場合だけ、総額や月々返済の目安を教えてください。";
     }
-    return "すみません、今の内容だけだと条件として判断が難しそうです。\n" . chatIntakeNaturalQuestion($field, $data);
+    return $note . "\n答えにくければ『あとで答える』でも大丈夫です。\n" . chatIntakeNaturalQuestion($field, $data);
 }
 
 function chatIntakeBuildUnconfirmedReply($field, $value, $nextField, $data) {
@@ -616,30 +679,18 @@ function chatIntakeClassifiedLeadItems($data) {
     foreach ($labels as $key => $label) {
         if (strpos($key, "_") === 0 || in_array($key, ["temperature", "summary_for_sales", "next_action"], true)) continue;
         $hasValue = isset($data[$key]) && $data[$key] !== null && $data[$key] !== "" && $data[$key] !== [];
+        if (!$hasValue) continue;
         $meta = chatIntakeFieldMeta($data, $key);
-        if (!$hasValue && $meta === null) continue;
         $status = $meta["status"] ?? "confirmed";
-        $confidence = $meta["confidence"] ?? "high";
-        $value = $hasValue ? chatIntakeDisplayValue($data[$key]) : ($meta["value"] ?? "");
-        if ($value === "") continue;
-        $item = ["field" => $key, "label" => $label, "value" => $value, "confidence" => $confidence, "status" => $status, "raw" => $meta["raw"] ?? "", "updated_at" => $meta["updated_at"] ?? ""];
         if ($status === "invalid") continue;
-        elseif ($status === "needs_confirmation") $groups["needs_confirmation"][] = $item;
+        $confidence = $meta["confidence"] ?? "high";
+        $value = chatIntakeDisplayValue($data[$key]);
+        if ($value === "") continue;
+        if (chatIntakeLooksLikeLowInformationInput($value, $key)) continue;
+        $item = ["field" => $key, "label" => $label, "value" => $value, "confidence" => $confidence, "status" => $status, "raw" => $meta["raw"] ?? "", "updated_at" => $meta["updated_at"] ?? ""];
+        if ($status === "needs_confirmation") $groups["needs_confirmation"][] = $item;
         elseif ($status === "inferred" || $status === "unconfirmed") $groups["inferred"][] = $item;
         else $groups["confirmed"][] = $item;
-    }
-    foreach (($data["_invalid_inputs"] ?? []) as $invalid) {
-        if (!is_array($invalid)) continue;
-        $field = $invalid["field"] ?? "";
-        $groups["invalid"][] = [
-            "field" => $field,
-            "label" => $labels[$field] ?? $field,
-            "value" => $invalid["value"] ?? ($invalid["raw"] ?? ""),
-            "confidence" => $invalid["confidence"] ?? "invalid",
-            "status" => "invalid",
-            "raw" => $invalid["raw"] ?? "",
-            "updated_at" => $invalid["updated_at"] ?? "",
-        ];
     }
     return $groups;
 }
@@ -688,13 +739,13 @@ function chatIntakeArchiveButtonSelection($db, $sessionId, $businessCardId, $sel
 
 function chatIntakeInitialPayload($agentName) {
     return [
-        'initial_message' => "こんにちは。24時間365日、担当「{$agentName}」に代わって、AI{$agentName}が不動産のご相談を承ります。\n\n担当者にスムーズにつなげられるように、必要な条件だけを少しずつ整理します。答えられる範囲だけで大丈夫です。\n\nまず、今回のご相談内容に近いものを教えてください。",
-        'quick_replies' => chatIntakeTypeChoices(),
+        'initial_message' => "こんにちは。24時間365日、担当「{$agentName}」に代わって、AI{$agentName}が不動産のご相談を承ります。\n\n担当者にスムーズにつなげられるように、必要な条件だけを少しずつ整理します。答えられる範囲だけで大丈夫です。\n\nまず、今回のご相談内容に近いものを選べます。選びにくい場合は「自由に質問する」を押すか、そのまま文章でご相談ください。",
+        'quick_replies' => chatIntakeQuickRepliesForField('customer_type'),
     ];
 }
 
 function chatIntakeUserWantsFreeConversation($message) {
-    return (bool)preg_match('/(質問|ヒアリング|聞き取り).*(やめ|止め|停止|しない|不要)|勝手な質問|任意の質問|自由に質問|質問ばかり|stop\s+asking|don[’\'`]?t\s+ask|no\s+more\s+questions/iu', (string)$message);
+    return (bool)preg_match('/(質問|ヒアリング|聞き取り).*?(やめ|止め|停止|しない|不要)|勝手な質問|任意の質問|自由に質問|自由に相談|普通に質問|普通に相談|このまま質問|このまま相談|質問ばかり|尋問|詰問|意味不明|わかりにくい|分かりにくい|噛み合わない|スキップして相談|stop\s+asking|don[’\'`]?t\s+ask|no\s+more\s+questions/iu', (string)$message);
 }
 
 function chatIntakeUserWantsGuidedConversation($message) {
@@ -1276,7 +1327,7 @@ function chatIntakeBuildReply($field, $value, $nextField, $data) {
         $label = $labelMap[$field] ?? "この内容";
         $display = chatIntakeDisplayValue($value);
         if ($display !== "") {
-            $confirm = $label . "は「" . $display . "」として、いったん担当者共有用に記録しておきますね。違っていたら後から変更できます。";
+            $confirm = $label . "は「" . $display . "」として条件整理に反映しました。違っていたらいつでも修正できます。";
         }
     }
     $parts = array_values(array_filter([$advice, $confirm, chatIntakeNaturalQuestion($nextField, $data)], function ($part) { return trim((string)$part) !== ""; }));

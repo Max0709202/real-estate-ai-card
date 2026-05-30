@@ -3226,8 +3226,7 @@ $defaultGreetings = [
                 var sections = [
                     ["confirmed", "確定情報"],
                     ["inferred", "未確認情報"],
-                    ["needs_confirmation", "要確認情報"],
-                    ["invalid", "無効入力"]
+                    ["needs_confirmation", "要確認情報"]
                 ];
                 var hasAny = sections.some(function(pair) {
                     return Array.isArray(groups[pair[0]]) && groups[pair[0]].length > 0;
@@ -3238,12 +3237,10 @@ $defaultGreetings = [
                     var key = pair[0];
                     var title = pair[1];
                     var items = Array.isArray(groups[key]) ? groups[key] : [];
+                    if (!items.length) return;
                     html += "<section class=\"chat-lead-group chat-lead-group-" + key + "\">";
                     html += "<h5>" + escapeHtml(title) + "</h5>";
-                    if (!items.length) {
-                        html += "<p class=\"chat-lead-empty\">該当なし</p>";
-                    } else {
-                        html += "<dl>";
+                    html += "<dl>";
                         items.forEach(function(item) {
                             var confidence = item.confidence ? " <span class=\"chat-lead-confidence\">confidence: " + escapeHtml(item.confidence) + "</span>" : "";
                             var raw = item.raw && item.raw !== item.value ? "<small>入力: " + escapeHtml(item.raw) + "</small>" : "";
@@ -3251,7 +3248,6 @@ $defaultGreetings = [
                             html += "<dd>" + escapeHtml(item.value || "") + raw + "</dd>";
                         });
                         html += "</dl>";
-                    }
                     html += "</section>";
                 });
                 html += "</div>";
