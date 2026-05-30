@@ -858,6 +858,12 @@ if (!empty($card['profile_photo'])) {
                                             <?php echo ($tool['tool_type'] === 'alp') ? '詳細はこちら' : '利用はこちら'; ?>
                                         </a>
                                         <div class="tool-description"><?php echo $info['description']; ?></div>
+                                        <!-- Button -->
+                                        <a href="<?php echo htmlspecialchars($tool['tool_url']); ?>"
+                                           class="tool-details-button tool-details-button-mobile-only"
+                                           target="_blank">
+                                            <?php echo ($tool['tool_type'] === 'alp') ? '詳細はこちら' : '利用はこちら'; ?>
+                                        </a>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
