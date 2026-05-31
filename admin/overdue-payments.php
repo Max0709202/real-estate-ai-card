@@ -24,64 +24,130 @@ $currentAdminRole = $stmt->fetchColumn();
 $isAdmin = ($currentAdminRole === 'admin' || $_SESSION['admin_id'] == 1);
 
 // 未払いユーザーを取得
-$stmt = $db->prepare("
-    SELECT 
+// business_cards.payment_status を現在の入金状態の正とし、月額対象（新規・非ERA）のみ next_billing_date を延滞判定に使う。
+$stmt = $db->prepare(<<<SQL
+    SELECT
         bc.id as business_card_id,
         bc.user_id,
         u.email,
         u.user_type,
+        COALESCE(u.is_era_member, 0) as is_era_member,
         bc.company_name,
         bc.name,
         bc.mobile_phone,
         bc.url_slug,
         bc.is_published,
-        MAX(p.paid_at) as last_payment_date,
+        COALESCE(bc.payment_status, 'UNUSED') as payment_status,
+        ps.last_payment_date,
+        ps.pending_payment_created_at,
         s.next_billing_date,
         s.status as subscription_status,
-        CASE 
-            WHEN s.next_billing_date IS NOT NULL AND s.next_billing_date < CURDATE() THEN 'subscription_overdue'
-            WHEN MAX(p.paid_at) IS NULL THEN 'no_payment'
-            WHEN MAX(p.paid_at) < DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 'monthly_overdue'
+        s.billing_cycle,
+        CASE
+            WHEN COALESCE(bc.payment_status, 'UNUSED') = 'BANK_PENDING' THEN 'bank_pending'
+            WHEN COALESCE(bc.payment_status, 'UNUSED') = 'UNUSED' THEN 'no_payment'
+            WHEN u.user_type = 'new'
+                 AND COALESCE(u.is_era_member, 0) = 0
+                 AND s.status IN ('past_due', 'unpaid', 'incomplete', 'incomplete_expired', 'expired') THEN 'subscription_overdue'
+            WHEN u.user_type = 'new'
+                 AND COALESCE(u.is_era_member, 0) = 0
+                 AND s.status IN ('active', 'trialing')
+                 AND s.next_billing_date IS NOT NULL
+                 AND s.next_billing_date <= CURDATE()
+                 AND COALESCE(bc.payment_status, 'UNUSED') IN ('CR', 'BANK_PAID', 'ST')
+                 AND NOT EXISTS (
+                     SELECT 1
+                     FROM payments p2
+                     WHERE p2.business_card_id = bc.id
+                       AND p2.payment_status = 'completed'
+                       AND p2.paid_at >= s.next_billing_date
+                       AND p2.payment_type IN ('new_user', 'renewal')
+                 ) THEN 'subscription_overdue'
             ELSE 'other'
         END as overdue_reason,
-        DATEDIFF(NOW(), COALESCE(s.next_billing_date, MAX(p.paid_at), bc.created_at)) as days_overdue
+        CASE
+            WHEN COALESCE(bc.payment_status, 'UNUSED') = 'BANK_PENDING' THEN DATE(COALESCE(ps.pending_payment_created_at, bc.updated_at, bc.created_at))
+            WHEN COALESCE(bc.payment_status, 'UNUSED') = 'UNUSED' THEN DATE(bc.created_at)
+            WHEN s.next_billing_date IS NOT NULL THEN DATE(s.next_billing_date)
+            ELSE DATE(COALESCE(s.updated_at, bc.updated_at, bc.created_at))
+        END as due_reference_date,
+        COALESCE(GREATEST(0, DATEDIFF(CURDATE(), CASE
+            WHEN COALESCE(bc.payment_status, 'UNUSED') = 'BANK_PENDING' THEN DATE(COALESCE(ps.pending_payment_created_at, bc.updated_at, bc.created_at))
+            WHEN COALESCE(bc.payment_status, 'UNUSED') = 'UNUSED' THEN DATE(bc.created_at)
+            WHEN s.next_billing_date IS NOT NULL THEN DATE(s.next_billing_date)
+            ELSE DATE(COALESCE(s.updated_at, bc.updated_at, bc.created_at))
+        END)), 0) as days_overdue
     FROM business_cards bc
     INNER JOIN users u ON bc.user_id = u.id
-    LEFT JOIN payments p ON bc.id = p.business_card_id AND p.payment_status = 'completed'
-    LEFT JOIN subscriptions s ON bc.id = s.business_card_id AND s.status = 'active'
-    WHERE u.user_type IN ('new', 'existing')
-    AND (
-        (s.next_billing_date IS NOT NULL AND s.next_billing_date < CURDATE() 
-         AND NOT EXISTS (
-             SELECT 1 FROM payments p2 
-             WHERE p2.business_card_id = bc.id 
-             AND p2.payment_status = 'completed'
-             AND p2.paid_at >= s.next_billing_date
-         ))
-        OR
-        (s.status IS NULL OR s.status != 'active')
-        AND EXISTS (
-            SELECT 1 FROM payments p3 
-            WHERE p3.business_card_id = bc.id 
-            AND p3.payment_type IN ('new_user', 'existing_user')
+    LEFT JOIN (
+        SELECT
+            business_card_id,
+            MAX(CASE WHEN payment_status = 'completed' THEN paid_at END) as last_payment_date,
+            MAX(CASE WHEN payment_status = 'pending' THEN created_at END) as pending_payment_created_at
+        FROM payments
+        GROUP BY business_card_id
+    ) ps ON ps.business_card_id = bc.id
+    LEFT JOIN subscriptions s ON s.id = (
+        SELECT s2.id
+        FROM subscriptions s2
+        WHERE s2.business_card_id = bc.id
+        ORDER BY s2.created_at DESC, s2.id DESC
+        LIMIT 1
+    )
+    WHERE COALESCE(bc.card_status, 'active') <> 'canceled'
+      AND (
+        COALESCE(bc.payment_status, 'UNUSED') IN ('UNUSED', 'BANK_PENDING')
+        OR (
+            u.user_type = 'new'
+            AND COALESCE(u.is_era_member, 0) = 0
+            AND (
+                s.status IN ('past_due', 'unpaid', 'incomplete', 'incomplete_expired', 'expired')
+                OR (
+                    s.status IN ('active', 'trialing')
+                    AND s.next_billing_date IS NOT NULL
+                    AND s.next_billing_date <= CURDATE()
+                    AND COALESCE(bc.payment_status, 'UNUSED') IN ('CR', 'BANK_PAID', 'ST')
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM payments p3
+                        WHERE p3.business_card_id = bc.id
+                          AND p3.payment_status = 'completed'
+                          AND p3.paid_at >= s.next_billing_date
+                          AND p3.payment_type IN ('new_user', 'renewal')
+                    )
+                )
+            )
         )
-    )
-    GROUP BY bc.id, bc.user_id, u.email, u.user_type, bc.company_name, bc.name, 
-             bc.mobile_phone, bc.url_slug, bc.is_published, s.next_billing_date, s.status, bc.created_at
-    HAVING (
-        (last_payment_date IS NULL OR last_payment_date < DATE_SUB(NOW(), INTERVAL 30 DAY))
-        OR (s.next_billing_date IS NOT NULL AND s.next_billing_date < CURDATE())
-    )
+      )
     ORDER BY days_overdue DESC, bc.created_at DESC
-");
+SQL);
+
 $stmt->execute();
 $overdueUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 統計情報
 $totalOverdue = count($overdueUsers);
 $subscriptionOverdue = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] === 'subscription_overdue'));
-$monthlyOverdue = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] === 'monthly_overdue'));
+$bankPending = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] === 'bank_pending'));
 $noPayment = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] === 'no_payment'));
+$classificationLabels = ['new' => '新規', 'existing' => '既存', 'era' => 'ＥＲＡ'];
+$paymentStatusLabels = [
+    'CR' => 'CR',
+    'BANK_PENDING' => '振込予定',
+    'BANK_PAID' => '振込済',
+    'ST' => 'ST送金',
+    'UNUSED' => '未利用'
+];
+$reasonLabels = [
+    'subscription_overdue' => '月額期限切れ',
+    'bank_pending' => '振込予定',
+    'no_payment' => '未利用/未入金'
+];
+$reasonBadgeClasses = [
+    'subscription_overdue' => 'badge-danger',
+    'bank_pending' => 'badge-warning',
+    'no_payment' => 'badge-info'
+];
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -152,7 +218,7 @@ $noPayment = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] ==
         }
 
         .stat-card.success {
-            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            background: linear-gradient(135deg, #494949 0%, #38f9d7 100%);
         }
 
         .stat-label {
@@ -283,6 +349,11 @@ $noPayment = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] ==
             color: #7b1fa2;
         }
 
+        .user-type-era {
+            background: #fff3cd;
+            color: #dc3545;
+        }
+
         .days-overdue {
             font-weight: 700;
             color: #d32f2f;
@@ -330,7 +401,7 @@ $noPayment = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] ==
             }
 
             .overdue-table {
-                min-width: 800px;
+                min-width: 900px;
             }
 
             .overdue-table th,
@@ -385,16 +456,16 @@ $noPayment = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] ==
                     <div class="stat-value"><?php echo number_format($totalOverdue); ?></div>
                 </div>
                 <div class="stat-card warning">
-                    <div class="stat-label">サブスクリプション延滞</div>
+                    <div class="stat-label">月額期限切れ</div>
                     <div class="stat-value"><?php echo number_format($subscriptionOverdue); ?></div>
                 </div>
                 <div class="stat-card info">
-                    <div class="stat-label">月額未払い</div>
-                    <div class="stat-value"><?php echo number_format($monthlyOverdue); ?></div>
+                    <div class="stat-label">振込予定</div>
+                    <div class="stat-value"><?php echo number_format($bankPending); ?></div>
                 </div>
                 <div class="stat-card success">
-                    <div class="stat-label">未払いなし</div>
-                    <div class="stat-value"><?php echo $totalOverdue === 0 ? '✓' : '0'; ?></div>
+                    <div class="stat-label">未利用/未入金</div>
+                    <div class="stat-value"><?php echo number_format($noPayment); ?></div>
                 </div>
             </div>
 
@@ -413,6 +484,7 @@ $noPayment = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] ==
                                 <th>会社名</th>
                                 <th>名前</th>
                                 <th>メール</th>
+                                <th>入金状況</th>
                                 <th>延滞理由</th>
                                 <th>延滞日数</th>
                                 <th>最終支払い日</th>
@@ -424,26 +496,26 @@ $noPayment = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] ==
                             <?php foreach ($overdueUsers as $user): ?>
                                 <tr>
                                     <td>
-                                        <span class="user-type-badge user-type-<?php echo htmlspecialchars($user['user_type']); ?>">
-                                            <?php 
-                                            $userTypeLabels = ['new' => '新規', 'existing' => '既存'];
-                                            echo htmlspecialchars($userTypeLabels[$user['user_type']] ?? $user['user_type']); 
-                                            ?>
+                                        <?php
+                                        $classification = !empty($user['is_era_member']) ? 'era' : ($user['user_type'] ?? 'new');
+                                        ?>
+                                        <span class="user-type-badge user-type-<?php echo htmlspecialchars($classification); ?>">
+                                            <?php echo htmlspecialchars($classificationLabels[$classification] ?? $classification); ?>
                                         </span>
                                     </td>
                                     <td><?php echo htmlspecialchars($user['company_name'] ?? '-'); ?></td>
                                     <td><?php echo htmlspecialchars($user['name'] ?? '-'); ?></td>
                                     <td><?php echo htmlspecialchars($user['email']); ?></td>
                                     <td>
+                                        <?php $paymentStatus = $user['payment_status'] ?? 'UNUSED'; ?>
+                                        <span class="badge badge-info">
+                                            <?php echo htmlspecialchars($paymentStatusLabels[$paymentStatus] ?? $paymentStatus); ?>
+                                        </span>
+                                    </td>
+                                    <td>
                                         <?php
-                                        $reasonLabels = [
-                                            'subscription_overdue' => 'サブスクリプション延滞',
-                                            'monthly_overdue' => '月額未払い',
-                                            'no_payment' => '未払い'
-                                        ];
                                         $reason = $user['overdue_reason'];
-                                        $badgeClass = $reason === 'subscription_overdue' ? 'badge-danger' : 
-                                                     ($reason === 'monthly_overdue' ? 'badge-warning' : 'badge-info');
+                                        $badgeClass = $reasonBadgeClasses[$reason] ?? 'badge-info';
                                         ?>
                                         <span class="badge <?php echo $badgeClass; ?>">
                                             <?php echo htmlspecialchars($reasonLabels[$reason] ?? $reason); ?>
@@ -490,7 +562,7 @@ $noPayment = count(array_filter($overdueUsers, fn($u) => $u['overdue_reason'] ==
             const checkOverdueBtn = document.getElementById('btn-check-overdue');
             if (checkOverdueBtn && window.isAdmin !== false) {
                 checkOverdueBtn.addEventListener('click', async function() {
-                    const message = '未払い月額料金をチェックして、該当するユーザーの支払いステータスを「未入金」に更新しますか？';
+                    const message = '月額期限切れをチェックして、該当するカードの入金状況を「未利用」に更新しますか？';
                     if (typeof showConfirm === 'function') {
                         showConfirm(message, async () => {
                             checkOverdueBtn.disabled = true;

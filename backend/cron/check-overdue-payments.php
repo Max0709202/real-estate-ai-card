@@ -3,7 +3,7 @@
  * Cron Job: Check for Overdue Monthly Payments
  * 
  * This script checks monthly-billing new users who have failed to pay their monthly fees
- * and automatically updates their payment status to 'pending' and sets business cards to unpublished.
+ * and automatically updates business_cards.payment_status to 'UNUSED' and sets business cards to unpublished.
  * 
  * Run this script daily via cron:
  * 0 0 * * * /usr/bin/php /path/to/backend/cron/check-overdue-payments.php
@@ -42,144 +42,68 @@ try {
     $updatedCount = 0;
     $errors = [];
     
-    // 1. Check subscriptions with overdue billing dates
-    // Find active subscriptions where next_billing_date has passed
-    // and there's no completed payment after the billing date
-    $stmt = $db->prepare("
-        SELECT s.id, s.user_id, s.business_card_id, s.next_billing_date, s.amount, s.billing_cycle
+    // 1. Check monthly-billing cards whose paid status has passed the next billing date.
+    $stmt = $db->prepare(<<<SQL
+        SELECT
+            s.id,
+            s.user_id,
+            s.business_card_id,
+            s.next_billing_date,
+            s.amount,
+            s.billing_cycle,
+            COALESCE(bc.payment_status, 'UNUSED') AS payment_status
         FROM subscriptions s
         JOIN users u ON s.user_id = u.id
-        WHERE s.status = 'active'
-        AND u.user_type = 'new'
-        AND COALESCE(u.is_era_member, 0) = 0
-        AND s.next_billing_date IS NOT NULL
-        AND s.next_billing_date < CURDATE()
-        AND NOT EXISTS (
-            SELECT 1 
-            FROM payments p 
-            WHERE p.business_card_id = s.business_card_id 
-            AND p.payment_status = 'completed'
-            AND p.paid_at >= s.next_billing_date
-            AND p.payment_type = 'new_user'
-        )
-    ");
+        JOIN business_cards bc ON s.business_card_id = bc.id
+        WHERE u.user_type = 'new'
+          AND COALESCE(u.is_era_member, 0) = 0
+          AND COALESCE(bc.card_status, 'active') <> 'canceled'
+          AND COALESCE(bc.payment_status, 'UNUSED') IN ('CR', 'BANK_PAID', 'ST')
+          AND s.status IN ('active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'incomplete_expired')
+          AND s.next_billing_date IS NOT NULL
+          AND s.next_billing_date <= CURDATE()
+          AND NOT EXISTS (
+              SELECT 1
+              FROM payments p
+              WHERE p.business_card_id = s.business_card_id
+                AND p.payment_status = 'completed'
+                AND p.paid_at >= s.next_billing_date
+                AND p.payment_type IN ('new_user', 'renewal')
+          )
+SQL);
     $stmt->execute();
     $overdueSubscriptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    logMessage("Found " . count($overdueSubscriptions) . " overdue subscriptions");
-    
+
+    logMessage("Found " . count($overdueSubscriptions) . " monthly-billing cards with expired billing dates");
+
     foreach ($overdueSubscriptions as $subscription) {
         try {
-            $businessCardId = $subscription['business_card_id'];
-            $userId = $subscription['user_id'];
+            $businessCardId = (int) $subscription['business_card_id'];
+            $userId = (int) $subscription['user_id'];
             $nextBillingDate = $subscription['next_billing_date'];
-            
-            // Update payment status to pending for any completed payments
-            // This marks them as needing payment again
-            $updateStmt = $db->prepare("
-                UPDATE payments 
-                SET payment_status = 'pending', paid_at = NULL
-                WHERE business_card_id = ? 
-                AND payment_status = 'completed'
-                AND payment_type = 'new_user'
-                ORDER BY paid_at DESC
-                LIMIT 1
-            ");
-            $updateStmt->execute([$businessCardId]);
-            
-            // Set business card to unpublished
-            $updateBcStmt = $db->prepare("
-                UPDATE business_cards 
-                SET is_published = 0 
+
+            $updateBcStmt = $db->prepare(<<<SQL
+                UPDATE business_cards
+                SET payment_status = 'UNUSED',
+                    is_published = 0,
+                    updated_at = NOW()
                 WHERE id = ?
-            ");
+                  AND COALESCE(payment_status, 'UNUSED') IN ('CR', 'BANK_PAID', 'ST')
+SQL);
             $updateBcStmt->execute([$businessCardId]);
-            
-            // Update subscription status to expired if billing date is more than 30 days past
-            $daysOverdue = (strtotime('now') - strtotime($nextBillingDate)) / 86400;
-            if ($daysOverdue > 30) {
-                $updateSubStmt = $db->prepare("
-                    UPDATE subscriptions 
-                    SET status = 'expired' 
-                    WHERE id = ?
-                ");
-                $updateSubStmt->execute([$subscription['id']]);
+
+            if ($updateBcStmt->rowCount() < 1) {
+                continue;
             }
-            
+
             $updatedCount++;
-            logMessage("Updated business_card_id {$businessCardId} (user_id: {$userId}) - billing date: {$nextBillingDate}");
-            
+            logMessage("Updated business_card_id {$businessCardId} (user_id: {$userId}) - payment_status {$subscription['payment_status']} -> UNUSED, billing date: {$nextBillingDate}");
         } catch (Exception $e) {
             $errors[] = "Error processing subscription {$subscription['id']}: " . $e->getMessage();
             logMessage("ERROR: Subscription {$subscription['id']} - " . $e->getMessage());
         }
     }
-    
-    // 2. Check new users who haven't paid monthly fees
-    // New users should pay monthly fees. If they haven't paid within 30 days of their last payment,
-    // mark them as pending
-    $stmt = $db->prepare("
-        SELECT bc.id as business_card_id, bc.user_id, 
-               MAX(p.paid_at) as last_payment_date,
-               u.user_type
-        FROM business_cards bc
-        INNER JOIN users u ON bc.user_id = u.id
-        LEFT JOIN payments p ON bc.id = p.business_card_id AND p.payment_status = 'completed'
-        WHERE u.user_type = 'new'
-        AND COALESCE(u.is_era_member, 0) = 0
-        AND bc.is_published = 1
-        AND NOT EXISTS (
-            SELECT 1 FROM subscriptions s 
-            WHERE s.business_card_id = bc.id 
-            AND s.status = 'active'
-        )
-        AND EXISTS (
-            SELECT 1 FROM payments p2 
-            WHERE p2.business_card_id = bc.id 
-            AND p2.payment_type = 'new_user'
-        )
-        GROUP BY bc.id, bc.user_id, u.user_type
-        HAVING last_payment_date IS NULL OR last_payment_date < DATE_SUB(NOW(), INTERVAL 30 DAY)
-    ");
-    $stmt->execute();
-    $overdueUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    logMessage("Found " . count($overdueUsers) . " users with overdue monthly payments");
-    
-    foreach ($overdueUsers as $user) {
-        try {
-            $businessCardId = $user['business_card_id'];
-            $userId = $user['user_id'];
-            
-            // Update the most recent completed payment to pending
-            $updateStmt = $db->prepare("
-                UPDATE payments 
-                SET payment_status = 'pending', paid_at = NULL
-                WHERE business_card_id = ? 
-                AND payment_status = 'completed'
-                AND payment_type = 'new_user'
-                ORDER BY paid_at DESC
-                LIMIT 1
-            ");
-            $updateStmt->execute([$businessCardId]);
-            
-            // Set business card to unpublished
-            $updateBcStmt = $db->prepare("
-                UPDATE business_cards 
-                SET is_published = 0 
-                WHERE id = ?
-            ");
-            $updateBcStmt->execute([$businessCardId]);
-            
-            $updatedCount++;
-            logMessage("Updated business_card_id {$businessCardId} (user_id: {$userId}, user_type: {$user['user_type']}) - last payment: {$user['last_payment_date']}");
-            
-        } catch (Exception $e) {
-            $errors[] = "Error processing user {$userId}: " . $e->getMessage();
-            logMessage("ERROR: User {$userId} - " . $e->getMessage());
-        }
-    }
-    
+
     // Commit transaction
     $db->commit();
     
