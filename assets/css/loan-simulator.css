@@ -19,6 +19,80 @@
 @media (max-width: 768px) {
     .loan-sim-grid { grid-template-columns: 1fr; }
 }
+.loan-sim-last-result {
+    margin-top: 24px;
+    border: 1px solid #d6e3f5;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.loan-sim-last-result[hidden] {
+    display: none !important;
+}
+.loan-sim-last-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #f5f9ff;
+    border-bottom: 1px solid #d6e3f5;
+}
+.loan-sim-last-header h2 {
+    margin: 0;
+    color: #0066cc;
+    font-size: 1rem;
+}
+.loan-sim-last-clear {
+    border: 1px solid #c9d4e1;
+    border-radius: 6px;
+    background: #fff;
+    color: #555;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 6px 10px;
+}
+.loan-sim-last-clear:hover {
+    background: #eef5ff;
+}
+.loan-sim-last-details {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+}
+.loan-sim-last-line {
+    min-width: 0;
+    padding: 14px 16px;
+    border-right: 1px solid #e5edf7;
+    border-bottom: 1px solid #e5edf7;
+}
+.loan-sim-last-line:nth-child(4n) {
+    border-right: none;
+}
+.loan-sim-last-line dt {
+    margin: 0 0 6px 0;
+    color: #667085;
+    font-size: 0.78rem;
+}
+.loan-sim-last-line dd {
+    margin: 0;
+    color: #222;
+    font-size: 0.98rem;
+    font-weight: bold;
+    overflow-wrap: anywhere;
+}
+@media (max-width: 768px) {
+    .loan-sim-last-details { grid-template-columns: 1fr 1fr; }
+    .loan-sim-last-line:nth-child(4n) { border-right: 1px solid #e5edf7; }
+    .loan-sim-last-line:nth-child(2n) { border-right: none; }
+}
+@media (max-width: 480px) {
+    .loan-sim-last-header { align-items: flex-start; flex-direction: column; }
+    .loan-sim-last-details { grid-template-columns: 1fr; }
+    .loan-sim-last-line,
+    .loan-sim-last-line:nth-child(4n) { border-right: none; }
+}
 .loan-sim-card {
     border: 1px solid #e0e0e0;
     border-radius: 8px;

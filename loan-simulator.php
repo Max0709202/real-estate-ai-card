@@ -48,6 +48,14 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
         </div>
     </div>
 
+    <section id="loan-sim-last-result" class="loan-sim-last-result" aria-labelledby="loan-sim-last-title" hidden>
+        <div class="loan-sim-last-header">
+            <h2 id="loan-sim-last-title">最後のシミュレーション</h2>
+            <button type="button" id="loan-sim-last-clear" class="loan-sim-last-clear">消去</button>
+        </div>
+        <dl id="loan-sim-last-details" class="loan-sim-last-details"></dl>
+    </section>
+
     <!-- Form overlay: 返済額の試算 -->
     <div id="overlay-repayment" class="loan-sim-form-overlay" hidden>
         <div class="loan-sim-form-box" role="dialog" aria-modal="true" aria-labelledby="title-repayment" tabindex="-1">
@@ -63,9 +71,7 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
                     <input type="number" id="repayment-down-payment" min="0" max="99999" step="100" value="0" placeholder="0">
                 </div>
                 <label>返済方式</label>
-
                     <div class="loan-sim-radio-group">
-
                         <div class="input-group">
                             <input
                                 type="radio"
@@ -162,8 +168,12 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
         var apiBase = <?php echo json_encode($apiBase); ?>;
         var cardSlug = <?php echo json_encode($cardSlug); ?>;
         var initialForm = <?php echo json_encode($initialForm); ?>;
+        var lastResultKey = 'loanSimulatorLastResult:' + (cardSlug || 'standalone');
 
         var overlays = Array.prototype.slice.call(document.querySelectorAll('.loan-sim-form-overlay'));
+        var lastResultBox = document.getElementById('loan-sim-last-result');
+        var lastResultDetails = document.getElementById('loan-sim-last-details');
+        var lastResultClear = document.getElementById('loan-sim-last-clear');
 
         function getOverlay(id) {
             return document.getElementById(id);
@@ -196,6 +206,64 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
             }
         }
         function formatYen(n) { return Number(n).toLocaleString() + '円'; }
+        function toStoredNumber(value) {
+            var number = Number(value);
+            return Number.isFinite(number) ? number : null;
+        }
+        function formatSavedYen(value) {
+            return value === null || value === undefined ? '未入力' : formatYen(value);
+        }
+        function appendLastResultLine(label, value) {
+            var row = document.createElement('div');
+            row.className = 'loan-sim-last-line';
+
+            var term = document.createElement('dt');
+            term.textContent = label;
+
+            var desc = document.createElement('dd');
+            desc.textContent = value;
+
+            row.appendChild(term);
+            row.appendChild(desc);
+            lastResultDetails.appendChild(row);
+        }
+        function renderLastSimulation(record) {
+            if (!lastResultBox || !lastResultDetails) return;
+            lastResultDetails.innerHTML = '';
+
+            if (!record) {
+                lastResultBox.setAttribute('hidden', '');
+                return;
+            }
+
+            appendLastResultLine('借入希望額', formatSavedYen(record.desired_loan_amount));
+            appendLastResultLine('頭金', formatSavedYen(record.down_payment));
+            appendLastResultLine('月額返済額', formatSavedYen(record.monthly_payment));
+            appendLastResultLine('年収', formatSavedYen(record.annual_income));
+            lastResultBox.removeAttribute('hidden');
+        }
+        function readLastSimulation() {
+            try {
+                var saved = window.localStorage.getItem(lastResultKey);
+                return saved ? JSON.parse(saved) : null;
+            } catch (e) {
+                return null;
+            }
+        }
+        function saveLastSimulation(record) {
+            var normalized = {
+                desired_loan_amount: toStoredNumber(record.desired_loan_amount),
+                down_payment: toStoredNumber(record.down_payment),
+                monthly_payment: toStoredNumber(record.monthly_payment),
+                annual_income: toStoredNumber(record.annual_income)
+            };
+
+            try {
+                window.localStorage.setItem(lastResultKey, JSON.stringify(normalized));
+            } catch (e) {}
+
+            renderLastSimulation(normalized);
+        }
         function showError(el, message) {
             el.textContent = message || '入力内容をご確認ください。';
             el.removeAttribute('hidden');
@@ -238,6 +306,16 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
         }
 
         closeAllOverlays();
+        renderLastSimulation(readLastSimulation());
+
+        if (lastResultClear) {
+            lastResultClear.addEventListener('click', function() {
+                try {
+                    window.localStorage.removeItem(lastResultKey);
+                } catch (e) {}
+                renderLastSimulation(null);
+            });
+        }
 
         document.querySelectorAll('.loan-sim-btn[data-form]').forEach(function(btn) {
             btn.addEventListener('click', function() {
@@ -304,6 +382,12 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
                         '<div class="loan-sim-result-line">総利息: ' + formatYen(d.total_interest) + '</div>' +
                         '<div class="loan-sim-result-line">返済期間: ' + d.term_years + '年</div>';
                     resultEl.removeAttribute('hidden');
+                    saveLastSimulation({
+                        desired_loan_amount: d.loan_amount,
+                        down_payment: d.down_payment,
+                        monthly_payment: d.monthly_payment,
+                        annual_income: null
+                    });
                 } else {
                     showError(errEl, data.message || 'エラーが発生しました。');
                 }
@@ -341,6 +425,12 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
                         '<div class="loan-sim-result-line">年収: ' + formatYen(d.annual_income) + '</div>' +
                         '<div class="loan-sim-result-line">返済期間: ' + d.term_years + '年</div>';
                     resultEl.removeAttribute('hidden');
+                    saveLastSimulation({
+                        desired_loan_amount: d.max_borrowable,
+                        down_payment: null,
+                        monthly_payment: d.max_monthly_payment,
+                        annual_income: d.annual_income
+                    });
                 } else {
                     showError(errEl, data.message || 'エラーが発生しました。');
                 }
@@ -376,6 +466,12 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
                         '<div class="loan-sim-result-line">希望月額返済: ' + formatYen(d.desired_monthly_payment) + '</div>' +
                         '<div class="loan-sim-result-line">返済期間: ' + d.term_years + '年</div>';
                     resultEl.removeAttribute('hidden');
+                    saveLastSimulation({
+                        desired_loan_amount: d.max_borrowable,
+                        down_payment: null,
+                        monthly_payment: d.desired_monthly_payment || d.max_monthly_payment,
+                        annual_income: null
+                    });
                 } else {
                     showError(errEl, data.message || 'エラーが発生しました。');
                 }

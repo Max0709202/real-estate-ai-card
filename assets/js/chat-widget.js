@@ -55,6 +55,9 @@
     var voiceHadError = false;
     var pageWasReloaded = detectPageReload();
     var reloadNoticeShown = false;
+    var quickActionsAwaitingBottomScroll = false;
+    var quickActionsUserScrollIntent = false;
+    var quickActionsScrollFrame = null;
 
     function detectPageReload() {
         try {
@@ -185,6 +188,7 @@
         syncAgentHeader();
         if ((!sessionId || !greetingShown) && !sessionStarting) startSession();
         if (sessionId && greetingShown && !sendingMessage && !entryAwaitingChoice) setInputEnabled(true);
+        syncQuickActionsAfterRender();
         setTimeout(function () { inputEl.focus(); }, 50);
     }
 
@@ -290,6 +294,73 @@
         scheduleUpdate();
     }
 
+    function runOnNextFrame(callback) {
+        if (window.requestAnimationFrame) {
+            window.requestAnimationFrame(callback);
+        } else {
+            setTimeout(callback, 16);
+        }
+    }
+
+    function getLatestBotBubble() {
+        var bubbles = messagesContainer.querySelectorAll(".chat-msg.bot:not(.chat-msg-loading) .chat-msg-bubble");
+        return bubbles.length ? bubbles[bubbles.length - 1] : null;
+    }
+
+    function isMessagesScrolledToBottom() {
+        var remaining = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight;
+        return remaining <= 2;
+    }
+
+    function isLatestBotBubbleFullyVisible() {
+        var bubble = getLatestBotBubble();
+        if (!bubble || panel.hidden || messagesContainer.clientHeight <= 0) return true;
+        var containerRect = messagesContainer.getBoundingClientRect();
+        var bubbleRect = bubble.getBoundingClientRect();
+        return bubbleRect.top >= containerRect.top - 1 && bubbleRect.bottom <= containerRect.bottom + 1;
+    }
+
+    function shouldDelayQuickActionsUntilBottom() {
+        if (!quickActions || panel.hidden || messagesContainer.clientHeight <= 0) return false;
+        return !isLatestBotBubbleFullyVisible();
+    }
+
+    function setQuickActionsWaitingForBottom(waiting) {
+        if (!quickActions) return;
+        quickActionsAwaitingBottomScroll = !!waiting;
+        if (waiting) quickActionsUserScrollIntent = false;
+        quickActions.classList.toggle("is-hidden-until-bottom", quickActionsAwaitingBottomScroll);
+        quickActions.setAttribute("aria-hidden", quickActionsAwaitingBottomScroll ? "true" : "false");
+    }
+
+    function syncQuickActionsAfterRender() {
+        if (!quickActions) return;
+        setQuickActionsWaitingForBottom(false);
+        runOnNextFrame(function () {
+            if (shouldDelayQuickActionsUntilBottom()) {
+                setQuickActionsWaitingForBottom(true);
+            } else {
+                scrollMessagesToBottom();
+            }
+        });
+    }
+
+    function scheduleQuickActionsRevealCheck() {
+        if (!quickActions || quickActionsScrollFrame) return;
+        quickActionsScrollFrame = true;
+        runOnNextFrame(function () {
+            quickActionsScrollFrame = null;
+            if (!quickActionsAwaitingBottomScroll || !quickActionsUserScrollIntent || !isMessagesScrolledToBottom()) return;
+            setQuickActionsWaitingForBottom(false);
+            scrollMessagesToBottom();
+        });
+    }
+
+    function noteQuickActionsScrollIntent(checkImmediately) {
+        quickActionsUserScrollIntent = true;
+        if (checkImmediately) scheduleQuickActionsRevealCheck();
+    }
+
     function clearDynamicQuickActions() {
         if (!quickActions) return;
         var dynamicItems = quickActions.querySelectorAll('.chat-intake-replies, .chat-widget-default-prompt, .chat-widget-entry-actions');
@@ -303,6 +374,7 @@
         prompt.className = 'chat-widget-default-prompt';
         prompt.textContent = defaultPromptText;
         quickActions.insertBefore(prompt, quickActions.firstChild);
+        syncQuickActionsAfterRender();
     }
 
     function personalize(text, data) {
@@ -332,6 +404,7 @@
             group.appendChild(btn);
         });
         quickActions.insertBefore(group, quickActions.firstChild);
+        syncQuickActionsAfterRender();
     }
 
     function showReloadNoticeIfNeeded() {
@@ -355,18 +428,18 @@
     }
 
     function showReturningDeviceEntry(data) {
-        entryAwaitingChoice = true;
+        entryAwaitingChoice = false;
         greetingShown = true;
         startupData = data || startupData;
         messagesContainer.innerHTML = '';
         showReloadNoticeIfNeeded();
         var customerLabel = customerCasualLabel(startupData);
-        appendBotMessage(customerLabel + '、お帰りなさい。\n\nこの端末では前回のご相談を確認できています。' + customerLabel + 'ご本人の場合は、SMS認証なしで続きから再開できます。\n\n' + customerLabel + 'でない場合は、別の方として新しくご相談を始めてください。');
+        appendBotMessage(customerLabel + '、お帰りなさい。\n\n前回ご相談いただいた内容を引き継いでおりますので、改めて同じ内容をご説明いただく必要はありません。\n\nこの端末からご利用の場合は、そのまま続きからご相談いただけます。' + customerLabel + '以外の方がご利用される場合は、「新しく相談を始める」をお選びください。\n\n');
         renderEntryActions([
-            { label: customerLabel + 'として続ける', action: 'continue_saved_session' },
-            { label: customerLabel + 'でない場合', action: 'start_as_different_person' }
+            { label: '新しく相談を始める', action: 'start_as_different_person' }
         ]);
-        setInputEnabled(false);
+        setInputEnabled(true);
+        inputEl.focus();
     }
 
     function beginFirstConsultation(data) {
@@ -644,6 +717,7 @@
             group.appendChild(submit);
         }
         quickActions.insertBefore(group, quickActions.firstChild);
+        syncQuickActionsAfterRender();
     }
 
     function startSession(reset) {
@@ -1008,6 +1082,13 @@
 
     watchPwaModals();
     watchInstallBanner();
+
+    messagesContainer.addEventListener("scroll", scheduleQuickActionsRevealCheck);
+    messagesContainer.addEventListener("wheel", function () { noteQuickActionsScrollIntent(true); }, { passive: true });
+    messagesContainer.addEventListener("touchmove", function () { noteQuickActionsScrollIntent(true); }, { passive: true });
+    messagesContainer.addEventListener("pointerdown", function () { noteQuickActionsScrollIntent(false); }, { passive: true });
+    window.addEventListener("resize", syncQuickActionsAfterRender);
+    window.addEventListener("orientationchange", syncQuickActionsAfterRender);
 
     toggleBtn.setAttribute('aria-expanded', 'false');
     toggleBtn.addEventListener('click', function () {

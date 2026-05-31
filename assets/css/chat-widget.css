@@ -293,6 +293,9 @@
     gap: 0.5rem;
     border-top: 1px solid #eef2f7;
 }
+.chat-widget-quick-actions.is-hidden-until-bottom {
+    display: none !important;
+}
 .chat-widget-default-prompt {
     flex-basis: 100%;
     color: #5f6b7a;
