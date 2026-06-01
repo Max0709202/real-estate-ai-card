@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-rag-helper.php';
 require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../includes/chat-phone-helper.php';
+require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -67,12 +68,23 @@ try {
     $stmt->execute([$sessionId]);
     $contact = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
+    $loanSimulation = loanSimulationFetchForSession($db, $sessionId, (int)$session["business_card_id"]);
+    $loanSimulationData = null;
+    if ($loanSimulation && loanSimulationHasDisplayValues($loanSimulation)) {
+        $loanSimulationData = [
+            "updated_at" => $loanSimulation["updated_at"] ?? null,
+            "summary" => loanSimulationDisplaySummary($loanSimulation, 8),
+            "groups" => loanSimulationDisplayGroups($loanSimulation),
+        ];
+    }
+
     $data = [
         'session' => $session,
         'messages' => $messages,
         'lead' => $lead,
         'memory' => $memory,
         'contact' => $contact,
+        'loan_simulation' => $loanSimulationData,
         'registered_phones' => chatRegisteredPhonesForCard($db, (int)$session['business_card_id'], 100),
     ];
     sendSuccessResponse($data, 'OK');

@@ -56,6 +56,84 @@ function chatPhoneToE164Japan($phone) {
     return '+' . $digits;
 }
 
+function chatCleanCustomerNameValue($name) {
+    $name = trim((string)$name);
+    if ($name === '') return '';
+    return mb_strlen($name) <= 255 ? $name : mb_substr($name, 0, 255);
+}
+
+function chatCustomerNameFromStructuredData($structuredData) {
+    if (is_string($structuredData)) {
+        $decoded = json_decode($structuredData, true);
+        $structuredData = is_array($decoded) ? $decoded : [];
+    }
+    if (!is_array($structuredData)) return '';
+
+    $name = chatCleanCustomerNameValue($structuredData['customer_name'] ?? ($structuredData['customerName'] ?? ''));
+    if ($name !== '') return $name;
+
+    $lastName = chatCleanCustomerNameValue($structuredData['customer_last_name'] ?? '');
+    $firstName = chatCleanCustomerNameValue($structuredData['customer_first_name'] ?? '');
+    return chatCleanCustomerNameValue(trim($lastName . ' ' . $firstName));
+}
+
+function chatResolveCustomerNameForSession($db, $sessionId, $businessCardId = null) {
+    $sessionId = trim((string)$sessionId);
+    if ($sessionId === '') return '';
+    $businessCardId = $businessCardId !== null ? (int)$businessCardId : null;
+
+    if (function_exists('ensureChatLeadContactTable')) {
+        try {
+            ensureChatLeadContactTable($db);
+            $sql = "SELECT customer_name FROM chat_lead_contacts WHERE session_id = ? AND customer_name IS NOT NULL AND customer_name <> ''";
+            $params = [$sessionId];
+            if ($businessCardId) {
+                $sql .= " AND business_card_id = ?";
+                $params[] = $businessCardId;
+            }
+            $sql .= " ORDER BY updated_at DESC LIMIT 1";
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+            $name = chatCleanCustomerNameValue($stmt->fetchColumn() ?: '');
+            if ($name !== '') return $name;
+        } catch (Throwable $e) {
+        }
+    }
+
+    try {
+        $sql = "SELECT structured_data FROM chat_leads WHERE session_id = ?";
+        $params = [$sessionId];
+        if ($businessCardId) {
+            $sql .= " AND business_card_id = ?";
+            $params[] = $businessCardId;
+        }
+        $sql .= " LIMIT 1";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $name = chatCustomerNameFromStructuredData($stmt->fetchColumn() ?: '');
+        if ($name !== '') return $name;
+    } catch (Throwable $e) {
+    }
+
+    try {
+        ensureChatVerifiedPhonesTable($db);
+        $sql = "SELECT customer_name FROM chat_verified_phones WHERE last_session_id = ? AND customer_name IS NOT NULL AND customer_name <> ''";
+        $params = [$sessionId];
+        if ($businessCardId) {
+            $sql .= " AND business_card_id = ?";
+            $params[] = $businessCardId;
+        }
+        $sql .= " ORDER BY last_verified_at DESC LIMIT 1";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $name = chatCleanCustomerNameValue($stmt->fetchColumn() ?: '');
+        if ($name !== '') return $name;
+    } catch (Throwable $e) {
+    }
+
+    return '';
+}
+
 function chatFirebaseConfigPayload() {
     return [
         'apiKey' => defined('FIREBASE_API_KEY') ? FIREBASE_API_KEY : '',
@@ -114,7 +192,11 @@ function chatFindSessionByVerifiedPhone($db, $businessCardId, $phone) {
         LIMIT 1");
     $stmt->execute([$businessCardId, $lookup]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($row && !empty($row['session_id'])) return $row;
+    if ($row && !empty($row['session_id'])) {
+        $resolvedName = chatResolveCustomerNameForSession($db, $row['session_id'], $businessCardId);
+        if ($resolvedName !== '') $row['customer_name'] = $resolvedName;
+        return $row;
+    }
 
     $stmt = $db->prepare("SELECT cc.session_id, cc.customer_name, cs.last_seen_at, cs.created_at
         FROM chat_lead_contacts cc
@@ -124,6 +206,10 @@ function chatFindSessionByVerifiedPhone($db, $businessCardId, $phone) {
         LIMIT 1");
     $stmt->execute([$businessCardId, $lookup]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
+        $resolvedName = chatResolveCustomerNameForSession($db, $row['session_id'], $businessCardId);
+        if ($resolvedName !== '') $row['customer_name'] = $resolvedName;
+    }
     return $row ?: null;
 }
 

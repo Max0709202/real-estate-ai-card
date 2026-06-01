@@ -15,3 +15,5 @@ Thumbs.db
 *.log
 
 assets/video/card.mp4
+
+sess_*

@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../../includes/chat-rag-helper.php';
 require_once __DIR__ . '/../../../includes/openai-chat-helper.php';
+require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -101,14 +102,7 @@ try {
     $agentName = $card['name'] ?? '担当者';
     $customerName = '';
     if ($isResumed) {
-        try {
-            ensureChatLeadContactTable($db);
-            $stmt = $db->prepare("SELECT customer_name FROM chat_lead_contacts WHERE session_id = ? AND customer_name IS NOT NULL AND customer_name <> '' LIMIT 1");
-            $stmt->execute([$sessionId]);
-            $customerName = (string)($stmt->fetchColumn() ?: '');
-        } catch (Throwable $e) {
-            $customerName = '';
-        }
+        $customerName = chatResolveCustomerNameForSession($db, $sessionId, (int)$card['id']);
     }
     $intake = chatIntakeInitialPayload($agentName);
     $resumeIntake = $isResumed ? chatIntakeResumePayload($db, $sessionId, $card['id']) : null;

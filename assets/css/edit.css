@@ -1315,6 +1315,41 @@ body {
     padding: 0.2rem 0.5rem;
     border-radius: 4px;
 }
+.chat-loan-badge {
+    background: #0f8b5f;
+}
+.chat-loan-data {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.chat-loan-updated {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: #667085;
+    font-size: 0.82rem;
+}
+.chat-loan-group {
+    border: 1px solid #cfe7dc;
+    border-radius: 8px;
+    background: #f8fffb;
+    padding: 0.75rem;
+}
+.chat-loan-group h5 {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+}
+.chat-loan-group dl {
+    margin: 0;
+}
+.chat-loan-group dt {
+    font-weight: 700;
+    margin-top: 0.5rem;
+}
+.chat-loan-group dd {
+    margin: 0.15rem 0 0;
+}
 .chat-session-meta {
     margin-left: auto;
     color: #666;

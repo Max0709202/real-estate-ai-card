@@ -666,7 +666,7 @@ function chatApplyLeadDataToMemory(&$memory, $leadData) {
     if ($income !== null) $memory['income_range'] = $income;
 
     $loanBits = [];
-    foreach (['loan_status', 'pre_approval_status', 'desired_loan_amount', 'loan_simulation_used', 'simulation_monthly_payment', 'simulation_interest_type'] as $key) {
+    foreach (['loan_status', 'pre_approval_status', 'income', 'down_payment', 'desired_loan_amount', 'desired_monthly_payment', 'loan_simulation_used', 'simulation_monthly_payment', 'simulation_interest_type'] as $key) {
         if (!chatMemoryLeadFieldIsReliable($leadData, $key)) continue;
         $value = chatMemoryValue($leadData[$key] ?? null);
         if ($value !== null) $loanBits[] = $value;

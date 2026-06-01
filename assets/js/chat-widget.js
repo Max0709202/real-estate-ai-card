@@ -377,17 +377,55 @@
         syncQuickActionsAfterRender();
     }
 
+    function cleanCustomerName(value) {
+        return value ? String(value).trim() : '';
+    }
+
+    function customerNameFromData(data) {
+        if (!data) return '';
+
+        var leadData = data.lead && data.lead.structured_data ? data.lead.structured_data : null;
+        if (typeof leadData === 'string') {
+            try {
+                leadData = JSON.parse(leadData);
+            } catch (e) {
+                leadData = null;
+            }
+        }
+        var candidates = [
+            data.customer_name,
+            data.customerName,
+            data.contact && data.contact.customer_name,
+            typeof data.customer === 'string' ? data.customer : (data.customer && (data.customer.customer_name || data.customer.name)),
+            data.lead && data.lead.customer_name,
+            leadData && (leadData.customer_name || leadData.customerName)
+        ];
+
+        for (var i = 0; i < candidates.length; i++) {
+            var name = cleanCustomerName(candidates[i]);
+            if (name) return name;
+        }
+
+        var lastName = cleanCustomerName(data.customer_last_name || (leadData && leadData.customer_last_name));
+        var firstName = cleanCustomerName(data.customer_first_name || (leadData && leadData.customer_first_name));
+        return cleanCustomerName((lastName + ' ' + firstName).trim());
+    }
+
+    function customerLabelWithSuffix(data, suffix) {
+        var rawCustomer = customerNameFromData(data);
+        if (!rawCustomer) return 'お客様';
+        return /(様|さん)$/.test(rawCustomer) ? rawCustomer : rawCustomer + suffix;
+    }
+
     function personalize(text, data) {
-        var rawCustomer = data && data.customer_name ? String(data.customer_name) : '';
-        var customer = rawCustomer ? rawCustomer + '様' : 'お客様';
+        var customer = customerLabelWithSuffix(data, '様');
         return String(text || '')
             .replace(/\{agent\}/g, agentName || '担当者')
             .replace(/\{customer\}/g, customer);
     }
 
     function customerCasualLabel(data) {
-        var rawCustomer = data && data.customer_name ? String(data.customer_name).trim() : '';
-        return rawCustomer ? rawCustomer + 'さん' : 'お客様';
+        return customerLabelWithSuffix(data, 'さん');
     }
 
     function renderEntryActions(actions) {
@@ -434,7 +472,8 @@
         messagesContainer.innerHTML = '';
         showReloadNoticeIfNeeded();
         var customerLabel = customerCasualLabel(startupData);
-        appendBotMessage(customerLabel + '、お帰りなさい。\n\n前回ご相談いただいた内容を引き継いでおりますので、改めて同じ内容をご説明いただく必要はありません。\n\nこの端末からご利用の場合は、そのまま続きからご相談いただけます。' + customerLabel + '以外の方がご利用される場合は、「新しく相談を始める」をお選びください。\n\n');
+        var differentPersonLabel = customerLabel === 'お客様' ? '別の方' : customerLabel + '以外の方';
+        appendBotMessage(customerLabel + '、お帰りなさい。\n\n前回ご相談いただいた内容を引き継いでおりますので、改めて同じ内容をご説明いただく必要はありません。\n\nこの端末からご利用の場合は、そのまま続きからご相談いただけます。\n\n' + differentPersonLabel + 'がご利用される場合は、「新しく相談を始める」をお選びください。\n\n');
         renderEntryActions([
             { label: '新しく相談を始める', action: 'start_as_different_person' }
         ]);

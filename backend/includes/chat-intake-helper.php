@@ -3,6 +3,7 @@
  * Scenario-based intake/hearing engine for real estate chat.
  * Saves structured data into chat_leads.structured_data while keeping normal chat logs.
  */
+require_once __DIR__ . "/loan-simulation-helper.php";
 
 function chatIntakeDefaultData() {
     return [
@@ -38,6 +39,7 @@ function chatIntakeDefaultData() {
         'loan_simulation_used' => null,
         'simulation_loan_amount' => null,
         'simulation_monthly_payment' => null,
+        'desired_monthly_payment' => null,
         'simulation_interest_type' => null,
         'competitor_status' => null,
         'current_property_location' => null,
@@ -349,6 +351,10 @@ function chatIntakeLoad($db, $sessionId, $businessCardId) {
     if ($row && !empty($row['structured_data'])) {
         $decoded = json_decode($row['structured_data'], true);
         if (is_array($decoded)) $data = array_merge($data, $decoded);
+    }
+    if (function_exists("loanSimulationFetchForSession")) {
+        $loanSimulation = loanSimulationFetchForSession($db, $sessionId, $businessCardId);
+        if ($loanSimulation) loanSimulationApplyToLeadData($data, $loanSimulation);
     }
     return $data;
 }
@@ -663,7 +669,7 @@ function chatIntakeFieldLabelMap() {
         "commute_destination" => "通勤・通学先", "budget" => "予算", "budget_min" => "予算下限", "budget_max" => "予算上限", "budget_note" => "予算メモ",
         "property_type" => "物件種別", "preferred_area_size" => "希望㎡数", "layout" => "間取り", "station_walk_minutes" => "駅徒歩許容分数", "family_structure" => "家族構成",
         "purchase_timing" => "購入時期", "selling_timing" => "売却時期", "rent_timing" => "賃貸時期", "move_completion_timing" => "買い替え完了希望時期",
-        "loan_status" => "ローン状況", "loan_balance" => "ローン残債", "loan_concern" => "ローン不安", "priority" => "重視条件",
+        "loan_status" => "ローン状況", "loan_balance" => "ローン残債", "income" => "年収", "down_payment" => "頭金", "desired_loan_amount" => "借入希望額", "desired_monthly_payment" => "希望月額返済額", "pre_approval_status" => "事前審査状況", "loan_concern" => "ローン不安", "priority" => "重視条件",
         "renovation_preference" => "リフォーム意向", "current_property_location" => "現居所在地", "property_location" => "物件所在地", "selling_reason" => "売却理由",
         "minimum_price" => "最低希望価格", "desired_price" => "希望価格", "appraisal_status" => "査定状況", "appraisal_request" => "査定希望",
         "disclosure_flags" => "告知事項", "repair_history" => "修繕履歴", "appeal_points" => "物件PRポイント", "preferred_contact" => "希望連絡方法",
@@ -1633,7 +1639,9 @@ function buildChatLeadContext($data) {
         'commute_destination' => '通勤・通学先', 'budget_min' => '予算下限', 'budget_max' => '予算上限',
         'competitor_viewing_status' => '他社内覧有無', 'viewed_property_count' => '内覧件数', 'preferred_area_size' => '希望㎡数',
         'layout' => '間取り', 'property_type' => '物件種別', 'purchase_timing' => '購入時期', 'selling_timing' => '売却時期', 'rent_timing' => '賃貸時期',
-        'loan_status' => 'ローン状況', 'loan_balance' => 'ローン残債', 'sublease_status' => 'サブリース有無',
+        'loan_status' => 'ローン状況', 'loan_balance' => 'ローン残債', 'income' => '年収', 'down_payment' => '頭金',
+        'desired_loan_amount' => '借入希望額', 'desired_monthly_payment' => '希望月額返済額', 'pre_approval_status' => '事前審査状況',
+        'simulation_monthly_payment' => 'シミュレーション月額返済額', 'sublease_status' => 'サブリース有無',
         'sublease_cancelable' => 'サブリース解除可否', 'summary_for_sales' => '営業向け要約', 'next_action' => '次アクション',
         'move_date' => '引越/引渡希望日', 'customer_name' => '顧客名', 'customer_last_name' => '姓', 'customer_first_name' => '名', 'customer_phone' => '電話番号',
         'customer_phone_verified' => 'SMS認証済み', 'customer_email' => 'メールアドレス', 'customer_line' => 'LINE', 'preferred_contact_method' => '希望連絡方法',

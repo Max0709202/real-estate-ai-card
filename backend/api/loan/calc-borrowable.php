@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-helpers.php';
+require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -25,7 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
-$cardSlug = trim($input['card_slug'] ?? '');
+$cardSlug = trim($input["card_slug"] ?? "");
+$visitorId = loanSimulationNormalizeVisitorId($input["visitor_id"] ?? "");
+$sessionId = loanSimulationNormalizeSessionId($input["session_id"] ?? "");
 $annualIncome = isset($input['annual_income']) ? (float) $input['annual_income'] : 0;
 $desiredMonthly = isset($input['desired_monthly_payment']) ? (float) $input['desired_monthly_payment'] : 0;
 $rateYear = isset($input['rate_year']) ? (float) $input['rate_year'] : 2.5;
@@ -42,7 +45,9 @@ if ($annualIncome < 0 || $annualIncome > 999990000 || $desiredMonthly < 0 || $de
     sendErrorResponse('年収または希望月額返済を正しく指定してください。', 400);
 }
 
-if ($cardSlug !== '') {
+$card = null;
+$db = null;
+if ($cardSlug !== "") {
     try {
         $database = new Database();
         $db = $database->getConnection();
@@ -68,6 +73,11 @@ if ($desiredMonthly > 0 && $termYears > 0) {
     } else {
         $maxBorrowable = $desiredMonthly * (pow(1 + $rateMonth, $termMonths) - 1) / ($rateMonth * pow(1 + $rateMonth, $termMonths));
     }
+    if ($cardSlug !== "" && $db instanceof PDO && is_array($card)) {
+        saveLoanSimulationInput($db, (int)$card["id"], $sessionId, $visitorId, "borrow_monthly", [
+            "desired_monthly_payment" => $desiredMonthly,
+        ]);
+    }
     sendSuccessResponse([
         'max_borrowable' => round($maxBorrowable),
         'desired_monthly_payment' => $desiredMonthly,
@@ -82,6 +92,11 @@ if ($desiredMonthly > 0 && $termYears > 0) {
         $maxBorrowable = $maxMonthlyRepayment * $termMonths;
     } else {
         $maxBorrowable = $maxMonthlyRepayment * (pow(1 + $rateMonth, $termMonths) - 1) / ($rateMonth * pow(1 + $rateMonth, $termMonths));
+    }
+    if ($cardSlug !== "" && $db instanceof PDO && is_array($card)) {
+        saveLoanSimulationInput($db, (int)$card["id"], $sessionId, $visitorId, "borrow_income", [
+            "annual_income" => $annualIncome,
+        ]);
     }
     sendSuccessResponse([
         'max_borrowable' => round($maxBorrowable),

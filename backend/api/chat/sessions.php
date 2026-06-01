@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../includes/chat-phone-helper.php';
+require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -43,6 +44,13 @@ try {
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($sessions as &$sessionRow) {
+        $loanSimulation = loanSimulationFetchForSession($db, $sessionRow["id"] ?? "", (int)($sessionRow["business_card_id"] ?? 0));
+        $sessionRow["has_loan_simulation"] = $loanSimulation && loanSimulationHasDisplayValues($loanSimulation) ? 1 : 0;
+        $sessionRow["loan_simulation_summary"] = $loanSimulation ? loanSimulationDisplaySummary($loanSimulation, 3) : "";
+        $sessionRow["loan_simulation_updated_at"] = $loanSimulation["updated_at"] ?? null;
+    }
+    unset($sessionRow);
 
     $registeredPhones = [];
     if ($cardId > 0) {

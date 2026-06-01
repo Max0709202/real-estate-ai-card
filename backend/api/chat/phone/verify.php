@@ -93,6 +93,11 @@ try {
         }
     }
 
+    if ($sessionId !== '') {
+        $resolvedCustomerName = chatResolveCustomerNameForSession($db, $sessionId, $businessCardId);
+        if ($resolvedCustomerName !== '') $customerName = $resolvedCustomerName;
+    }
+
     chatRegisterVerifiedPhone($db, $businessCardId, $phone, $uid, $sessionId, $customerName);
 
     $agentName = $card['name'] ?? '担当者';

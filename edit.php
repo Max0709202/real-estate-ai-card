@@ -3181,9 +3181,10 @@ $defaultGreetings = [
                             var dateStr = date ? new Date(date).toLocaleString('ja-JP') : '-';
                             var leadBadge = s.has_lead ? ' <span class="chat-lead-badge">ヒアリングあり</span>' : '';
                             var contactBadge = s.has_contact ? ' <span class="chat-lead-badge">連絡先あり</span>' : '';
+                            var loanBadge = s.has_loan_simulation ? ' <span class="chat-lead-badge chat-loan-badge">ローン入力あり</span>' : '';
                             var customerName = s.customer_name ? ' <span class="chat-session-customer">' + escapeHtml(s.customer_name) + '</span>' : '';
                             html += '<li class="chat-session-item" data-session-id="' + (s.id || '') + '">';
-                            html += '<span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + customerName + leadBadge + contactBadge;
+                            html += '<span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + customerName + leadBadge + contactBadge + loanBadge;
                             html += '<span class="chat-session-meta">' + (s.message_count || 0) + '件</span>';
                             html += '</li>';
                         });
@@ -3220,6 +3221,21 @@ $defaultGreetings = [
                 return html;
             }
 
+
+            function renderLoanSimulation(data) {
+                if (!data || !Array.isArray(data.groups) || !data.groups.length) return "";
+                var updated = data.updated_at ? '<p class="chat-loan-updated">最終入力: ' + escapeHtml(new Date(data.updated_at).toLocaleString("ja-JP")) + '</p>' : "";
+                var html = '<h4>住宅ローンシミュレーター入力</h4><div class="chat-loan-data">' + updated;
+                data.groups.forEach(function(group) {
+                    html += '<section class="chat-loan-group"><h5>' + escapeHtml(group.title || "入力内容") + '</h5><dl>';
+                    (group.items || []).forEach(function(item) {
+                        html += "<dt>" + escapeHtml(item.label || "項目") + "</dt><dd>" + escapeHtml(item.value || "") + "</dd>";
+                    });
+                    html += "</dl></section>";
+                });
+                html += "</div>";
+                return html;
+            }
 
             function renderClassifiedLeadData(groups) {
                 if (!groups) return "";
@@ -3279,6 +3295,7 @@ $defaultGreetings = [
                             if (d.contact.line_id) html += '<p><strong>LINE:</strong> ' + escapeHtml(d.contact.line_id) + '</p>';
                             html += '</div>';
                         }
+                        html += renderLoanSimulation(d.loan_simulation);
                         if (d.lead && d.lead.classified_data) {
                             html += renderClassifiedLeadData(d.lead.classified_data);
                         }

@@ -50,7 +50,7 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
 
     <section id="loan-sim-last-result" class="loan-sim-last-result" aria-labelledby="loan-sim-last-title" hidden>
         <div class="loan-sim-last-header">
-            <h2 id="loan-sim-last-title">最後のシミュレーション</h2>
+            <h2 id="loan-sim-last-title">直近のシミュレーション</h2>
             <button type="button" id="loan-sim-last-clear" class="loan-sim-last-clear">消去</button>
         </div>
         <dl id="loan-sim-last-details" class="loan-sim-last-details"></dl>
@@ -168,12 +168,41 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
         var apiBase = <?php echo json_encode($apiBase); ?>;
         var cardSlug = <?php echo json_encode($cardSlug); ?>;
         var initialForm = <?php echo json_encode($initialForm); ?>;
-        var lastResultKey = 'loanSimulatorLastResult:' + (cardSlug || 'standalone');
+        var lastResultKey = "loanSimulatorLastResult:" + (cardSlug || "standalone");
+        var visitorId = getOrCreateVisitorId();
+        var sessionId = getSavedSessionId();
 
         var overlays = Array.prototype.slice.call(document.querySelectorAll('.loan-sim-form-overlay'));
         var lastResultBox = document.getElementById('loan-sim-last-result');
         var lastResultDetails = document.getElementById('loan-sim-last-details');
         var lastResultClear = document.getElementById('loan-sim-last-clear');
+
+        function safeStorageGet(key) {
+            try { return window.localStorage ? localStorage.getItem(key) : null; } catch (e) { return null; }
+        }
+        function safeStorageSet(key, value) {
+            try { if (window.localStorage) localStorage.setItem(key, value); } catch (e) {}
+        }
+        function createClientId() {
+            if (window.crypto && typeof window.crypto.randomUUID === "function") {
+                return window.crypto.randomUUID();
+            }
+            return "v-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+        }
+        function getOrCreateVisitorId() {
+            var key = "ai_fcard_chat_visitor_id";
+            var existing = safeStorageGet(key);
+            if (existing) return existing;
+            var id = createClientId();
+            safeStorageSet(key, id);
+            return id;
+        }
+        function getSavedSessionId() {
+            if (!cardSlug || !visitorId) return "";
+            var key = "ai_fcard_chat_session_id:" + cardSlug + ":" + visitorId;
+            var saved = safeStorageGet(key) || "";
+            return new RegExp("^[A-Fa-f0-9-]{36}$").test(saved) ? saved : "";
+        }
 
         function getOverlay(id) {
             return document.getElementById(id);
@@ -292,6 +321,10 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
         }
         function postJson(path, body, submitBtn) {
             setSubmitting(submitBtn, true);
+            if (cardSlug) {
+                var latestSessionId = getSavedSessionId();
+                if (latestSessionId) body.session_id = latestSessionId;
+            }
             return fetch(apiBase + path, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -343,8 +376,10 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
             }, 0);
         }
 
-        var payload = { card_slug: cardSlug || '' };
+        var payload = { card_slug: cardSlug || "", visitor_id: visitorId || "", session_id: sessionId || "" };
         if (!payload.card_slug) delete payload.card_slug;
+        if (!payload.visitor_id) delete payload.visitor_id;
+        if (!payload.session_id) delete payload.session_id;
 
         // 返済額の試算
         document.getElementById('submit-repayment').addEventListener('click', function() {

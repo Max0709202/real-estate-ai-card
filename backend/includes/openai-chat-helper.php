@@ -122,6 +122,7 @@ function getBlogContextForChat($userMessage = '') {
 require_once __DIR__ . '/chat-rag-helper.php';
 require_once __DIR__ . '/chat-intake-helper.php';
 require_once __DIR__ . '/chat-public-data-helper.php';
+require_once __DIR__ . '/loan-simulation-helper.php';
 
 function chatOpenAIModelLight() {
     if (defined('OPENAI_MODEL_LIGHT')) return OPENAI_MODEL_LIGHT;
@@ -189,7 +190,7 @@ function chatOpenAIShouldUseSalesModel($message, $memory = [], $leadData = []) {
     if (chatOpenAILeadValue($leadData, ['budget_min', 'budget_max', 'budget_note']) !== null || !empty($memory['budget'])) $score += 2;
     if (chatOpenAILeadValue($leadData, ['preferred_area', 'preferred_station_line', 'preferred_station']) !== null || !empty($memory['preferred_area'])) $score += 2;
     if (($leadData['competitor_viewing_status'] ?? '') === 'yes' || chatOpenAILeadValue($leadData, ['viewed_property_count', 'competitor_status']) !== null) $score += 2;
-    if (chatOpenAILeadValue($leadData, ['loan_status', 'pre_approval_status', 'desired_loan_amount', 'loan_concern']) !== null || !empty($memory['loan_plan']) || preg_match('/ローン|借入|事前審査|返済|金利/u', (string)$message)) $score += 2;
+    if (chatOpenAILeadValue($leadData, ['loan_status', 'pre_approval_status', 'income', 'down_payment', 'desired_loan_amount', 'desired_monthly_payment', 'loan_concern']) !== null || !empty($memory['loan_plan']) || preg_match('/ローン|借入|事前審査|返済|金利/u', (string)$message)) $score += 2;
     if (chatOpenAILeadValue($leadData, ['purchase_timing', 'selling_timing', 'move_completion_timing']) !== null) $score += 1;
     if (!empty($leadData['contact_consent']) || (($leadData['contact_status'] ?? '') === 'provided')) $score += 2;
 
@@ -446,6 +447,7 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
     $apiKey = chatOpenAIApiKeyForModel($model);
     $memoryContext = buildChatMemoryContext($memory);
     $leadContext = !empty($leadData) ? buildChatLeadContext($leadData) : (($db instanceof PDO && $sessionId !== '') ? getChatLeadContextForPrompt($db, $sessionId) : '');
+    $loanSimulationContext = ($db instanceof PDO && $sessionId !== "") ? loanSimulationPromptContextForSession($db, $sessionId) : "";
     $freshnessInstruction = $rag['requires_fresh']
         ? "この質問は最新確認が必要な可能性があります。ローカルRAG参照情報がある場合はそれを優先し、参照情報が不足している場合は断定せず、最新確認が必要であることを明示してください。"
         : "ローカルRAG参照情報が質問に関係する場合は優先してください。関係しない場合は一般的な不動産実務知識で回答してください。";
@@ -537,6 +539,8 @@ e-Statの統計情報を使う場合は、自然な文脈で「政府統計に�
 {$memoryContext}
 
 {$leadContext}
+
+{$loanSimulationContext}
 
 {$ragContext}{$refreshContext}{$publicDataContext}
 PROMPT;

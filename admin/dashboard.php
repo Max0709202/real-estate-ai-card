@@ -7,6 +7,7 @@ require_once __DIR__ . '/../backend/config/database.php';
 require_once __DIR__ . '/../backend/includes/functions.php';
 require_once __DIR__ . '/../backend/includes/chat-intake-helper.php';
 require_once __DIR__ . '/../backend/includes/chat-phone-helper.php';
+require_once __DIR__ . '/../backend/includes/loan-simulation-helper.php';
 
 startSessionIfNotStarted();
 
@@ -20,6 +21,7 @@ $database = new Database();
 $db = $database->getConnection();
 ensureChatLeadContactTable($db);
 ensureChatVerifiedPhonesTable($db);
+ensureLoanSimulationInputsTable($db);
 
 // 最終パスワード変更情報取得
 $stmt = $db->prepare("
@@ -183,6 +185,26 @@ $paginationEnd = min($totalPages, $page + 2);
 if ($paginationEnd - $paginationStart < 4) {
     $paginationStart = max(1, min($paginationStart, $totalPages - 4));
     $paginationEnd = min($totalPages, max($paginationEnd, 5));
+}
+function renderAdminLoanSimulationRows($db, $businessCardId) {
+    $rows = loanSimulationFetchCustomersForBusinessCard($db, (int)$businessCardId, 3);
+    if (empty($rows)) return '<span style="color:#999;">-</span>';
+    $html = '';
+    foreach ($rows as $loanRow) {
+        $summary = loanSimulationDisplaySummary($loanRow, 5);
+        if ($summary === '') continue;
+        $customerLabel = trim((string)($loanRow['customer_name'] ?? ''));
+        if ($customerLabel === '') $customerLabel = trim((string)($loanRow['phone'] ?? ''));
+        if ($customerLabel === '') $customerLabel = '未登録顧客';
+        $html .= '<div style="min-width:220px; margin-bottom:0.45rem; line-height:1.4;">';
+        $html .= '<strong style="display:block; font-size:0.78rem; color:#0f5132;">' . htmlspecialchars($customerLabel, ENT_QUOTES, 'UTF-8') . '</strong>';
+        $html .= '<div style="font-size:0.78rem; color:#333;">' . htmlspecialchars($summary, ENT_QUOTES, 'UTF-8') . '</div>';
+        if (!empty($loanRow['updated_at'])) {
+            $html .= '<small style="color:#777;">' . htmlspecialchars($loanRow['updated_at'], ENT_QUOTES, 'UTF-8') . '</small>';
+        }
+        $html .= '</div>';
+    }
+    return $html !== '' ? $html : '<span style="color:#999;">-</span>';
 }
 ?>
 <!DOCTYPE html>
@@ -374,6 +396,7 @@ if ($paginationEnd - $paginationStart < 4) {
                         <th class="sortable" data-sort="name">名前</th>
                         <th class="sortable" data-sort="mobile_phone">携帯</th>
                         <th>チャット登録電話</th>
+                        <th>ローン入力</th>
                         <th class="sortable" data-sort="email">メール</th>
                         <th class="sortable" data-sort="monthly_views">表示回数<br>（1か月）</th>
                         <th class="sortable" data-sort="total_views">表示回数<br>（累積）</th>
@@ -571,6 +594,9 @@ if ($paginationEnd - $paginationStart < 4) {
                             }
                             echo htmlspecialchars(implode(', ', array_slice($chatPhones, 0, 5)));
                             ?>
+                        </td>
+                        <td data-label="ローン入力">
+                            <?php echo renderAdminLoanSimulationRows($db, (int)$user['id']); ?>
                         </td>
                         <td data-label="メール">
                             <a href="mailto:<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>" style="color: #0066cc; text-decoration: none;">

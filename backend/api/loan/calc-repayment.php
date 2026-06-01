@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-helpers.php';
+require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -24,7 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
-$cardSlug = trim($input['card_slug'] ?? '');
+$cardSlug = trim($input["card_slug"] ?? "");
+$visitorId = loanSimulationNormalizeVisitorId($input["visitor_id"] ?? "");
+$sessionId = loanSimulationNormalizeSessionId($input["session_id"] ?? "");
 $loanAmount = isset($input['loan_amount']) ? (float) $input['loan_amount'] : (isset($input['principal']) ? (float) $input['principal'] : 0);
 $downPayment = isset($input['down_payment']) ? (float) $input['down_payment'] : 0;
 $principal = $loanAmount - $downPayment;
@@ -38,7 +41,9 @@ if (!in_array($repaymentType, ['equal_installment', 'equal_principal'], true)) {
     $repaymentType = 'equal_installment';
 }
 
-if ($cardSlug !== '') {
+$card = null;
+$db = null;
+if ($cardSlug !== "") {
     try {
         $database = new Database();
         $db = $database->getConnection();
@@ -86,6 +91,16 @@ if ($repaymentType === 'equal_principal') {
     }
     $totalRepayment = $monthly * $termMonths;
     $totalInterest = $totalRepayment - $principal;
+}
+
+if ($cardSlug !== "" && $db instanceof PDO && is_array($card)) {
+    saveLoanSimulationInput($db, (int)$card["id"], $sessionId, $visitorId, "repayment", [
+        "desired_loan_amount" => $loanAmount,
+        "down_payment" => $downPayment,
+        "repayment_type" => $repaymentType,
+        "rate_year" => $rateYear,
+        "term_years" => $termYears,
+    ]);
 }
 
 sendSuccessResponse([
