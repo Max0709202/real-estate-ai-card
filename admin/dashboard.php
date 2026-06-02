@@ -321,6 +321,7 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                     }
                     ?>
                     <a href="<?php echo htmlspecialchars($csvUrl); ?>" class="btn-export">CSV出力</a>
+                    <a href="../backend/api/admin/export-chat-questions.php" class="btn-export">チャット質問CSV</a>
                     <?php if ($isAdmin): ?>
                     <button type="button" class="btn-check-overdue" id="btn-check-overdue" title="未払い月額料金をチェックして自動更新">
                         未払いチェック

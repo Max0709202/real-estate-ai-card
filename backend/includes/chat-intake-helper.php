@@ -1196,11 +1196,17 @@ function chatIntakeParseDate($value) {
     return null;
 }
 
+function chatIntakeShouldSkipField($field, $data) {
+    if ($field === 'viewed_property_count' && ($data['competitor_viewing_status'] ?? null) !== 'yes') return true;
+    return false;
+}
+
 function chatIntakeNextField($data) {
     if (empty($data['customer_type'])) return 'customer_type';
     $asked = $data['_asked_fields'] ?? [];
     foreach (chatIntakeScenarioFieldsForData($data) as $field) {
         if (in_array($field, $asked, true)) continue;
+        if (chatIntakeShouldSkipField($field, $data)) continue;
         if (chatIntakeFieldHasValue($data, $field)) continue;
         return $field;
     }
@@ -1213,6 +1219,7 @@ function chatIntakeNextFields($data, $limit = 3) {
     $asked = $data['_asked_fields'] ?? [];
     foreach (chatIntakeScenarioFieldsForData($data) as $field) {
         if (in_array($field, $asked, true)) continue;
+        if (chatIntakeShouldSkipField($field, $data)) continue;
         if (chatIntakeFieldHasValue($data, $field)) continue;
         $fields[] = $field;
         if (count($fields) >= $limit) break;
@@ -1351,6 +1358,10 @@ function chatIntakeBuildReply($field, $value, $nextField, $data) {
         $labelMap = chatIntakeFieldLabelMap();
         $label = $labelMap[$field] ?? "この内容";
         $display = chatIntakeDisplayValue($value);
+        if ($field === "competitor_viewing_status") {
+            if ($display === "yes") $display = "他社で内覧済み";
+            elseif ($display === "no") $display = "まだ内覧していない";
+        }
         if ($display !== "") {
             $confirm = $label . "は「" . $display . "」として条件整理に反映しました。違っていたらいつでも修正できます。";
         }
@@ -1501,6 +1512,11 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
     }
 
     $field = $data['_current_field'] ?? 'customer_type';
+    if (chatIntakeShouldSkipField($field, $data)) {
+        $field = chatIntakeNextField($data);
+        $data['_current_field'] = $field;
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
+    }
     if ($field === null || $field === '') {
         return ['handled' => false, 'data' => $data];
     }
@@ -1641,6 +1657,19 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
         "reason" => $validation["reason"] ?? "",
     ]);
     if ($field === "customer_type") $data["customer_type"] = $normalizedValue;
+    if ($field === "competitor_viewing_status" && $normalizedValue === "no") {
+        $data["_intake_mode"] = "free";
+        $data["_current_field"] = null;
+        chatIntakeEvaluateTemperature($data);
+        chatIntakeBuildSummary($data);
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
+        return [
+            "handled" => true,
+            "reply" => chatIntakeAdvice($field, $normalizedValue, $data) . "\n\n内覧件数は、実際に見学を始めてからで大丈夫です。まずは気になる物件やエリア、迷っている条件などをそのまま教えてください。",
+            "quick_replies" => [],
+            "data" => $data,
+        ];
+    }
     chatIntakeEvaluateTemperature($data);
     chatIntakeBuildSummary($data);
     $nextField = chatIntakeNextField($data);
