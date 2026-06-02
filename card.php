@@ -61,10 +61,11 @@ function linkifyUrlsInText($text) {
 $slug = $_GET['slug'] ?? '';
 $preview = isset($_GET['preview']) && $_GET['preview'] === '1';
 $previewFromPC = isset($_GET['preview_from_pc']) && $_GET['preview_from_pc'] === '1';
+$chatOnly = isset($_GET['chat']) && $_GET['chat'] === '1';
 // Show install banner only on mobile (not in preview and not on desktop)
 $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $isMobile = (bool) preg_match('/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i', $ua);
-$showInstallBanner = !$preview && $isMobile;
+$showInstallBanner = !$preview && !$chatOnly && $isMobile;
 
 if (empty($slug)) {
     header('HTTP/1.0 404 Not Found');
@@ -264,6 +265,14 @@ $communicationMethods = array_merge($messageApps, $snsApps);
 
 // Chatbot: show only for standard plan (or when plan_type not set, default to enabled)
 $chatbotEnabled = (!isset($card['plan_type']) || (string)$card['plan_type'] === 'standard');
+$shareUrl = rtrim(BASE_URL, '/') . '/card.php?slug=' . urlencode($card['url_slug'] ?? '');
+if ($chatOnly) {
+    $shareUrl .= '&chat=1';
+}
+$pageTitle = ($card['name'] ?? '担当者') . ($chatOnly ? ' - AIチャット' : ' - デジタル名刺');
+$pageDescription = $chatOnly
+    ? (($card['name'] ?? '担当者') . 'のAIチャットです。不動産の購入・売却などを相談できます。')
+    : (($card['name'] ?? '担当者') . 'のデジタル名刺です。');
 $agentPhotoUrlForChat = '';
 if (!empty($card['profile_photo'])) {
     $p = trim($card['profile_photo']);
@@ -281,7 +290,13 @@ if (!empty($card['profile_photo'])) {
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
-    <title><?php echo htmlspecialchars($card['name']); ?> - デジタル名刺</title>
+    <title><?php echo htmlspecialchars($pageTitle); ?></title>
+    <meta name="description" content="<?php echo htmlspecialchars($pageDescription); ?>">
+    <meta property="og:title" content="<?php echo htmlspecialchars($pageTitle); ?>">
+    <meta property="og:description" content="<?php echo htmlspecialchars($pageDescription); ?>">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="<?php echo htmlspecialchars($shareUrl); ?>">
+    <meta property="og:image" content="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/assets/images/ogp.jpg'); ?>">
     <link rel="icon" type="image/png" sizes="32x32" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=32&v=2">
     <link rel="icon" type="image/png" sizes="16x16" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=16&v=2">
     <!-- PWA (dynamic manifest: start_url = this card, name = card holder) -->
@@ -294,7 +309,9 @@ if (!empty($card['profile_photo'])) {
     <?php if ($chatbotEnabled): ?>
     <link rel="stylesheet" href="assets/css/chat-widget.css?v=<?php echo filemtime(__DIR__ . '/assets/css/chat-widget.css'); ?>">
     <?php endif; ?>
+    <?php if (!$chatOnly): ?>
     <script src="assets/js/pwa-a2hs.js" defer></script>
+    <?php endif; ?>
     <style>
         /* View toggle button */
         .view-toggle-container {
@@ -358,6 +375,48 @@ if (!empty($card['profile_photo'])) {
             text-decoration: underline;
             text-underline-offset: 2px;
         }
+
+        body.chat-only-mode {
+            margin: 0;
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow: hidden;
+            background: #f6f9fd;
+        }
+
+        .chat-only-unavailable {
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem;
+            background: #f6f9fd;
+            color: #1a1a1a;
+            font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+            text-align: center;
+        }
+
+        .chat-only-unavailable-box {
+            width: min(100%, 420px);
+            border: 1px solid #d9e4f2;
+            border-radius: 12px;
+            background: #fff;
+            padding: 1.25rem;
+            box-shadow: 0 8px 28px rgba(16, 24, 40, 0.08);
+        }
+
+        .chat-only-unavailable-box h1 {
+            margin: 0 0 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .chat-only-unavailable-box p {
+            margin: 0;
+            color: #475467;
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
     </style>
 </head>
 
@@ -369,8 +428,12 @@ if (!empty($card['profile_photo'])) {
             $bodyClasses[] = 'preview-from-pc';
         }
     }
+    if ($chatOnly) {
+        $bodyClasses[] = 'chat-only-mode';
+    }
     echo !empty($bodyClasses) ? ' class="' . implode(' ', $bodyClasses) . '"' : '';
 ?>>
+    <?php if (!$chatOnly): ?>
     <?php if ($preview): ?>
     <!-- View Toggle Button (only shown when displayed in modal) -->
     <div class="view-toggle-container" id="view-toggle-container">
@@ -853,7 +916,7 @@ if (!empty($card['profile_photo'])) {
                                     <div class="tool-banner-content">                                        
                                         <!-- Button -->
                                         <a href="<?php echo htmlspecialchars($tool['tool_url']); ?>" 
-                                           class="tool-details-button" 
+                                           class="tool-details-button tool-details-button-pc-only" 
                                            target="_blank">
                                             <?php echo ($tool['tool_type'] === 'alp') ? '詳細はこちら' : '利用はこちら'; ?>
                                         </a>
@@ -1184,6 +1247,7 @@ if (!empty($card['profile_photo'])) {
             }
         })();
     </script>
+    <?php endif; ?>
 
     <?php if ($showInstallBanner): ?>
     <!-- Add-to-Home-Screen + Save to address book (first time only; controlled by assets/js/pwa-a2hs.js). Hidden in preview modal and on PC/desktop. -->
@@ -1207,7 +1271,7 @@ if (!empty($card['profile_photo'])) {
     </div>
     <?php endif; ?>
 
-    <?php if ($chatbotEnabled): ?>
+    <?php if ($chatbotEnabled && !$chatOnly): ?>
     <nav class="loan-sim-floating-actions" aria-label="住宅ローンシミュレーター">
         <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '') . '&form=repayment'); ?>" rel="noopener noreferrer">返済額試算</a>
         <a href="<?php echo htmlspecialchars('loan-simulator.php?slug=' . urlencode($card['url_slug'] ?? '') . '&form=borrow-income'); ?>" rel="noopener noreferrer">借入可能額</a>
@@ -1216,11 +1280,12 @@ if (!empty($card['profile_photo'])) {
 
     <?php if ($chatbotEnabled): ?>
     <!-- Chatbot widget (floating button + panel) -->
-    <div id="chat-widget-root" class="chat-widget-root"
+    <div id="chat-widget-root" class="chat-widget-root<?php echo $chatOnly ? ' chat-widget-chat-only' : ''; ?>"
          data-card-slug="<?php echo htmlspecialchars($card['url_slug'] ?? ''); ?>"
          data-agent-name="<?php echo htmlspecialchars($card['name'] ?? ''); ?>"
          data-agent-photo="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>"
-         data-api-base="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/backend/api/chat'); ?>">
+         data-api-base="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/backend/api/chat'); ?>"
+         data-chat-only="<?php echo $chatOnly ? '1' : '0'; ?>">
         <button type="button" id="chat-widget-toggle" class="chat-widget-toggle" aria-label="チャットを開く">
             <?php if (!empty($agentPhotoUrlForChat)): ?>
                 <img id="chat-widget-toggle-avatar" class="chat-widget-toggle-avatar" src="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>" alt="" width="46" height="46">
@@ -1265,8 +1330,16 @@ if (!empty($card['profile_photo'])) {
         </div>
     </div>
     <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>
+    <?php elseif ($chatOnly): ?>
+    <div class="chat-only-unavailable">
+        <div class="chat-only-unavailable-box">
+            <h1>AIチャットをご利用いただけません</h1>
+            <p>この名刺では現在、AIチャット機能が有効ではありません。</p>
+        </div>
+    </div>
     <?php endif; ?>
 
+    <?php if (!$chatOnly): ?>
     <!-- iOS: Step 1 – Custom prompt "Would you like to add to home screen?" -->
     <div id="pwaIosModal1" class="pwa-ios-modal" role="dialog" aria-label="ホーム画面に追加" aria-modal="true" hidden>
         <div class="pwa-ios-modal-backdrop"></div>
@@ -1312,6 +1385,7 @@ if (!empty($card['profile_photo'])) {
             </div>
         </div>
     </div>
+    <?php endif; ?>
 </body>
 
 </html>

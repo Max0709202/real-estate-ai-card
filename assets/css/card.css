@@ -989,6 +989,10 @@ ease;
         display: inline-block;
     }
 
+    .tool-details-button-pc-only {
+        display: none;
+    }
+    
     /* Edit Link - Mobile */
     .edit-link {
         padding: 1rem;

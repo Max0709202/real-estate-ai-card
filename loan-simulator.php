@@ -20,6 +20,8 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>住宅ローンシミュレーター | 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/loan-simulator.css">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=32&v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=16&v=2">
 </head>
 <body class="loan-sim-page">
     <a href="<?php echo $cardSlug ? htmlspecialchars('card.php?slug=' . urlencode($cardSlug)) : 'index.php'; ?>" class="loan-sim-back-link">← 戻る</a>

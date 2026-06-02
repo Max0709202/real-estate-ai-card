@@ -10,6 +10,7 @@
     var agentName = root.getAttribute('data-agent-name') || '担当者';
     var agentPhoto = root.getAttribute('data-agent-photo') || '';
     var apiBase = root.getAttribute('data-api-base') || (window.location.origin + '/backend/api/chat');
+    var chatOnly = root.getAttribute('data-chat-only') === '1' || document.body.classList.contains('chat-only-mode');
 
     var toggleBtn = document.getElementById('chat-widget-toggle');
     var panel = document.getElementById('chat-widget-panel');
@@ -193,6 +194,11 @@
     }
 
     function hidePanel() {
+        if (chatOnly) {
+            panel.hidden = false;
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            return;
+        }
         panel.hidden = true;
         toggleBtn.setAttribute('aria-expanded', 'false');
     }
@@ -1119,8 +1125,10 @@
         voiceBtn.classList.add('is-unsupported');
     }
 
-    watchPwaModals();
-    watchInstallBanner();
+    if (!chatOnly) {
+        watchPwaModals();
+        watchInstallBanner();
+    }
 
     messagesContainer.addEventListener("scroll", scheduleQuickActionsRevealCheck);
     messagesContainer.addEventListener("wheel", function () { noteQuickActionsScrollIntent(true); }, { passive: true });
@@ -1129,7 +1137,7 @@
     window.addEventListener("resize", syncQuickActionsAfterRender);
     window.addEventListener("orientationchange", syncQuickActionsAfterRender);
 
-    toggleBtn.setAttribute('aria-expanded', 'false');
+    toggleBtn.setAttribute('aria-expanded', chatOnly ? 'true' : 'false');
     toggleBtn.addEventListener('click', function () {
         if (panel.hidden) showPanel();
         else hidePanel();
@@ -1235,5 +1243,8 @@
                 window.location.href = url;
             }
         });
+    }
+    if (chatOnly) {
+        showPanel();
     }
 })();
