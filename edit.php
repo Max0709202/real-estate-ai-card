@@ -1311,7 +1311,10 @@ $defaultGreetings = [
                     <div id="chat-history-detail" class="chat-history-detail" style="display: none;">
                         <h3>顧客詳細</h3>
                         <div id="chat-history-detail-content"></div>
-                        <button type="button" class="btn-secondary" id="chat-history-detail-back">一覧に戻る</button>
+                        <div class="chat-history-detail-actions">
+                            <button type="button" class="btn-secondary" id="chat-history-detail-back">一覧に戻る</button>
+                            <button type="button" class="btn-danger" id="chat-history-detail-delete">この履歴を削除</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3157,8 +3160,10 @@ $defaultGreetings = [
             var detailEl = document.getElementById('chat-history-detail');
             var detailContent = document.getElementById('chat-history-detail-content');
             var backBtn = document.getElementById('chat-history-detail-back');
+            var detailDeleteBtn = document.getElementById('chat-history-detail-delete');
             if (!listEl || !detailEl) return;
             var apiBase = window.location.origin + '/backend/api/chat';
+            var currentDetailSessionId = '';
 
             function loadSessions() {
                 listEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
@@ -3183,9 +3188,10 @@ $defaultGreetings = [
                             var contactBadge = s.has_contact ? ' <span class="chat-lead-badge">連絡先あり</span>' : '';
                             var loanBadge = s.has_loan_simulation ? ' <span class="chat-lead-badge chat-loan-badge">ローン入力あり</span>' : '';
                             var customerName = s.customer_name ? ' <span class="chat-session-customer">' + escapeHtml(s.customer_name) + '</span>' : '';
-                            html += '<li class="chat-session-item" data-session-id="' + (s.id || '') + '">';
-                            html += '<span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + customerName + leadBadge + contactBadge + loanBadge;
+                            html += '<li class="chat-session-item" data-session-id="' + escapeHtml(s.id || '') + '">';
+                            html += '<div class="chat-session-main"><span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + customerName + leadBadge + contactBadge + loanBadge + '</div>';
                             html += '<span class="chat-session-meta">' + (s.message_count || 0) + '件</span>';
+                            html += '<button type="button" class="chat-session-delete" data-session-id="' + escapeHtml(s.id || '') + '">削除</button>';
                             html += '</li>';
                         });
                         html += '</ul>';
@@ -3193,6 +3199,12 @@ $defaultGreetings = [
                         listEl.querySelectorAll('.chat-session-item').forEach(function(el) {
                             el.addEventListener('click', function() {
                                 showDetail(el.getAttribute('data-session-id'));
+                            });
+                        });
+                        listEl.querySelectorAll('.chat-session-delete').forEach(function(btn) {
+                            btn.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                                deleteSession(btn.getAttribute('data-session-id'));
                             });
                         });
                     })
@@ -3272,6 +3284,7 @@ $defaultGreetings = [
 
             function showDetail(sessionId) {
                 if (!sessionId) return;
+                currentDetailSessionId = sessionId;
                 detailContent.innerHTML = '<p>読み込み中...</p>';
                 detailEl.style.display = 'block';
                 listEl.style.display = 'none';
@@ -3325,9 +3338,43 @@ $defaultGreetings = [
                     });
             }
 
+            function deleteSession(sessionId) {
+                if (!sessionId) return;
+                if (!confirm('このチャット履歴を削除します。よろしいですか？')) return;
+                fetch(apiBase + '/session-delete.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ id: sessionId })
+                })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (!res.success) {
+                            alert(res.message || '削除に失敗しました');
+                            return;
+                        }
+                        if (currentDetailSessionId === sessionId) {
+                            currentDetailSessionId = '';
+                            detailEl.style.display = 'none';
+                            listEl.style.display = '';
+                        }
+                        loadSessions();
+                    })
+                    .catch(function() {
+                        alert('削除に失敗しました');
+                    });
+            }
+
+            if (detailDeleteBtn) {
+                detailDeleteBtn.addEventListener('click', function() {
+                    deleteSession(currentDetailSessionId);
+                });
+            }
+
             if (backBtn) {
                 backBtn.addEventListener('click', function() {
                     detailEl.style.display = 'none';
+                    currentDetailSessionId = '';
                     listEl.style.display = '';
                     loadSessions();
                 });

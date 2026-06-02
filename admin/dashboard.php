@@ -536,8 +536,7 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                         <td data-label="企業URL">
                             <?php
                             $isEraUser = $user['is_era_member'] ?? 0;
-                            $userTypeForUrl = $user['user_type'] ?? 'new';
-                            $canEditCorporateUrl = ($userTypeForUrl === 'existing' || $isEraUser);
+                            $canEditCorporateUrl = true;
                             $currentSlug = isset($user['company_slug']) && $user['company_slug'] !== '' ? $user['company_slug'] : ($user['url_slug'] ?? '');
                             $baseUrl = $isEraUser ? 'https://era.self-in.com/' : 'https://self-in.com/';
                             ?>
@@ -562,11 +561,6 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                                     </button>
                                 <?php elseif ($canEditCorporateUrl): ?>
                                     <span><?php echo htmlspecialchars($currentSlug); ?></span><?php if ($currentSlug !== ''): ?><span>/</span><?php endif; ?>
-                                <?php else: ?>
-                                    <div style="flex-basis: 100%; white-space: normal; display: flex; flex-direction: column; ">
-                                       <span><?php echo htmlspecialchars($currentSlug); ?><?php if ($currentSlug !== ''): ?>/</span><?php endif; ?>
-                                       <span style="color: #999; font-size: 0.7rem;">（新規は編集不可）</span>
-                                    </div>
                                 <?php endif; ?>
                             </div>
                         </td>

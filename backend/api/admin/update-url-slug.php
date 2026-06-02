@@ -51,13 +51,6 @@ try {
     if (!$bcInfo) {
         sendErrorResponse('ビジネスカードが見つかりません', 404);
     }
-
-    $userType = $bcInfo['user_type'] ?? 'new';
-    $isEraMember = !empty($bcInfo['is_era_member']);
-    if ($userType === 'new' && !$isEraMember) {
-        sendErrorResponse('新規ユーザーの企業URLは編集できません。既存・ERA会員のみ編集可能です。', 403);
-    }
-
     $oldCompanySlug = $bcInfo['company_slug'] ?? '';
 
     $stmt = $db->prepare("UPDATE business_cards SET company_slug = ? WHERE id = ?");
