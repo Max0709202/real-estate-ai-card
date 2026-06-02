@@ -13,7 +13,7 @@
 }
 
 .chat-widget-root.is-install-banner-visible {
-    --chat-widget-root-bottom: 9.25rem;
+    --chat-widget-root-bottom: 11.25rem;
 }
 
 .chat-widget-root.is-pwa-modal-visible {

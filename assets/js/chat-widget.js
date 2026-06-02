@@ -28,7 +28,7 @@
     var quickActions = document.getElementById('chat-widget-quick-actions');
     var defaultPromptText = "不動産の購入・売却について、何でもお気軽にご質問ください。";
     var entryNoticeText = "こんにちは。\nAI{agent}です。\n24時間365日、不動産のご相談を受付しています。\n\n・購入のご相談\n・売却のご相談\n・相場や住宅ローンのご質問\n・エリアや物件探しのご相談\n\nなど、気軽にご利用ください。\n\nまだ具体的に決まっていない段階でも大丈夫です。\n今の状況に合わせてご案内します。\n\n前回のご相談内容やご希望条件を引き継いで、続きからご案内できます。\nスマートフォンの機種変更時や、別の端末からでも同じ内容でご相談いただけます。";
-    var firstConsultationNoticeText = "担当者にスムーズにつなげられるように、必要な条件だけを少しずつ整理します。答えられる範囲だけで大丈夫です。\n\n次のような軽いご相談も可能です。\n\n・購入と賃貸で迷っている\n・住宅ローンが通るか不安\n・エリアの選び方が分からない\n・売却を何から始めればよいか分からない\n・今の状況を整理したい\n\n会話を通じて、条件整理や物件探しの進め方をサポートします。\n\n小さな疑問や不安でも、お気軽にご相談ください。\n\n※右下のマイクボタンから音声入力もご利用いただけます。\n\n※AIによるサービスのため、回答内容に誤りが含まれる場合があります。\n\n※スムーズなご案内のため、必要最小限の情報を担当者へ共有する場合があります。";
+    var firstConsultationNoticeText = "気になることを、そのまま文章で送ってください。\n\nまだ具体的に決まっていなくても大丈夫です。会話の流れの中で、必要なことだけ少しずつ確認します。\n\n※右下のマイクボタンから音声入力もご利用いただけます。\n\n※AIによるサービスのため、回答内容に誤りが含まれる場合があります。";
     var previousConfirmedNoticeText = "ありがとうございます。前回のご相談内容を確認しました。\n前回の内容をもとに、このまま続きからご案内できます。";
     var registeredPhoneNoticeText = "おかえりなさい、{customer}。\n\n前回のご相談内容をもとに、続きからご案内します。";
     var reloadNoticeText = "ページを再読み込みしました。チャットを再接続しましたので、前回の相談がある場合は続きから再開できます。";
@@ -493,7 +493,7 @@
         renderQuickReplies([]);
         appendBotMessage(firstConsultationNoticeText);
         appendVoiceAvailabilityNotice();
-        appendBotMessage('まず、今回のご相談内容に近いものを選べます。選びにくい場合は「自由に質問する」を押すか、そのまま文章でご相談ください。');
+        appendBotMessage('近いテーマがあれば選べます。選ばずに、そのまま相談内容を書いていただいても大丈夫です。');
         renderQuickReplies(startupData.quick_replies || []);
         greetingShown = true;
         setInputEnabled(true);

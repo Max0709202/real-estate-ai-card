@@ -745,7 +745,7 @@ function chatIntakeArchiveButtonSelection($db, $sessionId, $businessCardId, $sel
 
 function chatIntakeInitialPayload($agentName) {
     return [
-        'initial_message' => "こんにちは。24時間365日、担当「{$agentName}」に代わって、AI{$agentName}が不動産のご相談を承ります。\n\n担当者にスムーズにつなげられるように、必要な条件だけを少しずつ整理します。答えられる範囲だけで大丈夫です。\n\nまず、今回のご相談内容に近いものを選べます。選びにくい場合は「自由に質問する」を押すか、そのまま文章でご相談ください。",
+        'initial_message' => "こんにちは。24時間365日、担当「{$agentName}」に代わって、AI{$agentName}が不動産のご相談を承ります。\n\n気になることを、そのまま文章で送ってください。まだ具体的に決まっていなくても大丈夫です。会話の流れの中で、必要なことだけ少しずつ確認します。",
         'quick_replies' => chatIntakeQuickRepliesForField('customer_type'),
     ];
 }
@@ -806,6 +806,25 @@ function chatIntakeBuildShortInputReply($field, $data) {
 function chatIntakeBuildFreeConversationReply($agentName = '担当者') {
     $agentLabel = trim((string)$agentName) !== '' ? trim((string)$agentName) : '担当者';
     return "承知しました。こちらから条件整理の質問を続けるのはいったん止めます。\n\nこれまで伺った内容は引き継ぎますので、不動産の購入・売却・ローン・相場など、気になることをそのまま自由にご質問ください。必要な時だけ、担当「{$agentLabel}」へ引き継ぎやすい形で整理します。";
+}
+
+function chatIntakeBuildCustomerTypeOpeningReply($customerType, $agentName = '担当者') {
+    $agentLabel = trim((string)$agentName) !== '' ? trim((string)$agentName) : '担当者';
+    $map = [
+        'purchase' => '購入のご相談ですね。まずは気になっている物件やエリア、予算の不安など、今いちばん聞きたいことからで大丈夫です。',
+        'rent' => '賃貸のご相談ですね。希望条件が固まっていなくても大丈夫です。引っ越し時期やエリア感など、話しやすいところから伺います。',
+        'replacement' => '住み替えのご相談ですね。購入と売却の順番で迷いやすいところなので、今の状況に合わせて一緒に整理します。',
+        'sale' => '売却のご相談ですね。すぐ売る前提でなくても大丈夫です。相場感、時期、進め方など気になるところから確認できます。',
+        'consultation' => 'まずは相談だけでも大丈夫です。無理に条件を埋めるより、気になっていることから整理していきましょう。',
+        'investment_buy' => '投資物件購入のご相談ですね。利回りだけでなく、融資や出口も含めて整理すると判断しやすくなります。',
+        'investment_sale' => '投資物件売却のご相談ですね。賃貸状況や利回り、売却時期によって進め方が変わるため、分かる範囲から整理します。',
+        'market' => '相場確認のご相談ですね。売却予定がまだなくても、今の価格感を知るだけでも判断材料になります。',
+        'loan' => '住宅ローンのご相談ですね。借入可能額、月々返済、審査の不安など、気になる点から確認できます。',
+        'inheritance' => '相続関連のご相談ですね。名義や売却時期が未定でも大丈夫です。分かっている範囲から整理します。',
+        'other' => '承知しました。内容がまとまっていなくても大丈夫です。気になっていることをそのまま送ってください。',
+    ];
+    $opening = $map[$customerType] ?? '承知しました。気になっていることをそのまま送ってください。';
+    return $opening . "\n\n必要なことは会話の中で少しずつ確認し、担当「{$agentLabel}」へ引き継ぎやすい形に整理します。";
 }
 
 function chatIntakeParseNameParts($value) {
@@ -1474,6 +1493,10 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
     }
 
     if (($data['_intake_mode'] ?? 'guided') === 'free') {
+        chatIntakeApplyNaturalFields($data, $message, null);
+        chatIntakeEvaluateTemperature($data);
+        chatIntakeBuildSummary($data);
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
         return ['handled' => false, 'quick_replies' => [], 'data' => $data];
     }
 
@@ -1586,6 +1609,28 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
             $quick = isset($defs[$field]) ? chatIntakeQuickRepliesForField($field, $data) : [];
         }
         return ["handled" => true, "reply" => $reply, "quick_replies" => $quick, "data" => $data];
+    }
+
+    if ($field === "customer_type") {
+        chatIntakeSetField($data, $field, $normalizedValue, [
+            "confidence" => $validation["confidence"] ?? "high",
+            "status" => $validation["status"] ?? "confirmed",
+            "raw" => $message,
+            "source" => $fromButton ? "button" : "typed",
+            "reason" => $validation["reason"] ?? "",
+        ]);
+        $data["customer_type"] = $normalizedValue;
+        $data["_intake_mode"] = "free";
+        $data["_current_field"] = null;
+        chatIntakeEvaluateTemperature($data);
+        chatIntakeBuildSummary($data);
+        chatIntakeSave($db, $sessionId, $businessCardId, $data);
+        return [
+            "handled" => true,
+            "reply" => chatIntakeBuildCustomerTypeOpeningReply($normalizedValue, $agentName),
+            "quick_replies" => [],
+            "data" => $data,
+        ];
     }
 
     chatIntakeSetField($data, $field, $normalizedValue, [
