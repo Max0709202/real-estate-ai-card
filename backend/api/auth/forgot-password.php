@@ -66,155 +66,48 @@ try {
     
     // メール本文の作成
     $emailSubject = '【不動産AI名刺】パスワードリセットのお願い';
+    $logoUrl = rtrim(BASE_URL, '/') . '/assets/images/logo.png';
+    $escapedResetLink = htmlspecialchars($resetLink, ENT_QUOTES, 'UTF-8');
     $emailBody = "
-            <!DOCTYPE html>
-            <html>
-            <head>
+        <html>
+        <head>
             <meta charset='UTF-8'>
-            </head>
-            <body style='margin:0; padding:0; background-color:#f0f0f0;'>
-
+            <title>パスワードリセットのお願い</title>
+        </head>
+        <body style='margin:0; padding:0; background-color:#f0f0f0;'>
             <table width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f0f0f0;'>
-            <tr>
-                <td align='center'>
-
-                <!-- Container -->
-                <table width='600' cellpadding='0' cellspacing='0' border='0'
-                        style='background-color:#ffffff; border:3px solid #a3a3a3; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333; margin:20px auto;'>
-
-                    <!-- Header -->
-                    <tr>
-                    <td align='center' style='padding:30px 20px;'>
-                        <table cellpadding='0' cellspacing='0' border='0'>
-                        <tr>
-                            <td style='background:#ffffff; padding:15px;'>
-                            <img src='<?php echo BASE_URL; ?>/assets/images/logo.png'
-                                alt='不動産AI名刺'
-                                style='display:block; max-width:100px; height:auto;'>
-                            </td>
-                        </tr>
+                <tr>
+                    <td align='center' style='padding:24px 12px;'>
+                        <table width='600' cellpadding='0' cellspacing='0' border='0' style='max-width:600px; width:100%; background-color:#ffffff; border:3px solid #a3a3a3; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;'>
+                            <tr>
+                                <td align='center' style='padding:30px 20px 10px;'>
+                                    <img src='{$logoUrl}' alt='不動産AI名刺' style='max-width:120px; height:auto; display:block;'>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style='background-color:#f9f9f9; padding:30px;'>
+                                    <p style='margin:0 0 16px 0; line-height:1.8;'>パスワードリセットのリクエストを受け付けました。</p>
+                                    <p style='margin:0 0 16px 0; line-height:1.8;'>以下のボタンをクリックして、パスワードを再設定してください。<br>このリンクは1時間有効です。</p>
+                                    <div style='text-align:center; margin:28px 0;'>
+                                        <a href='{$escapedResetLink}' target='_blank' rel='noopener noreferrer' style='display:inline-block; background:#0066cc; color:#ffffff; text-decoration:none; font-weight:bold; padding:12px 24px; border-radius:6px;'>パスワードをリセットする</a>
+                                    </div>
+                                    <p style='margin:0 0 10px 0; line-height:1.8;'>ボタンが開けない場合は、以下のURLをブラウザにコピーしてご利用ください。</p>
+                                    <p style='margin:0 0 16px 0; word-break:break-all;'><a href='{$escapedResetLink}' target='_blank' rel='noopener noreferrer' style='color:#0066cc;'>{$escapedResetLink}</a></p>
+                                    <p style='margin:0; line-height:1.8;'>このメールに心当たりがない場合は、このメールを無視してください。パスワードは変更されません。</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style='padding:20px 30px; border-top:1px solid #ddd; font-size:12px; color:#666;'>
+                                    <p style='margin:0 0 5px 0;'>このメールは自動送信されています。返信はできません。</p>
+                                    <p style='margin:0;'>© " . date('Y') . " 不動産AI名刺 All rights reserved.</p>
+                                </td>
+                            </tr>
                         </table>
                     </td>
-                    </tr>
-
-                    <!-- Content -->
-                    <tr>
-                    <td style='background:#f9f9f9; padding:30px;'>
-
-                        <p style='margin:0 0 15px 0;'>
-                        サブスクリプションがキャンセルされました。（<?php echo $initiatedBy; ?>による操作）
-                        </p>
-
-                        <!-- Info Table -->
-                        <table width='100%' cellpadding='0' cellspacing='0' border='0'
-                            style='border-collapse:collapse; background:#ffffff; margin:20px 0;'>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold; width:30%;'>
-                            ユーザーID
-                            </td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'>
-                            <?php echo $userId; ?>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                            メールアドレス
-                            </td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'>
-                            <?php echo $userEmail; ?>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                            サブスクリプションID
-                            </td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'>
-                            <?php echo $subscriptionId; ?>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                            ビジネスカードID
-                            </td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'>
-                            <?php echo $businessCardId; ?>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                            URLスラッグ
-                            </td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'>
-                            <span style='background:#fff3cd; padding:2px 6px; border-radius:3px;'>
-                                <?php echo $urlSlug; ?>
-                            </span>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                            キャンセル種別
-                            </td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'>
-                            <?php echo $cancellationType; ?>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                            操作者
-                            </td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'>
-                            <?php echo $initiatedBy; ?>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                            キャンセル日時
-                            </td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'>
-                            <?php echo $cancellationDate; ?>
-                            </td>
-                        </tr>
-
-                        <?php if (!empty($cardFullUrl)): ?>
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>
-                            名刺URL
-                            </td>
-                            <td style='padding:12px; border:1px solid #dee2e6; word-break:break-all;'>
-                            <a href='<?php echo $cardFullUrl; ?>' target='_blank' style='color:#0066cc;'>
-                                <?php echo $cardFullUrl; ?>
-                            </a>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
-
-                        </table>
-
-                        <!-- Footer -->
-                        <p style='margin-top:30px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;'>
-                        このメールは自動送信されています。返信はできません。<br>
-                        © <?php echo date('Y'); ?> 不動産AI名刺 All rights reserved.
-                        </p>
-
-                    </td>
-                    </tr>
-
-                </table>
-
-                </td>
-            </tr>
+                </tr>
             </table>
-
-            </body>
-            </html>
+        </body>
+        </html>
     ";
     
     // プレーンテキスト版
@@ -246,4 +139,3 @@ try {
     error_log("Forgot Password Error: " . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
 }
-

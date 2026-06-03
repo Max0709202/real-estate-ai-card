@@ -125,7 +125,7 @@ startSessionIfNotStarted();
     <div class="forgot-password-container">
         <div class="forgot-password-box">
             <h1>パスワードリセット</h1>
-            <p>登録時に使用したメールアドレスを入力してください。<br>パスワードリセット用のリンクを送信します。</p>
+            <p>不動産AI名刺に表示されている現在の登録メールアドレスを入力してください。<br>パスワードリセット用のリンクを送信します。</p>
             
             <div id="message-container"></div>
             

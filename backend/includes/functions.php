@@ -1374,116 +1374,97 @@ function sendAdminCancellationEmail($userEmail, $userId, $subscriptionId, $busin
     $cardFullUrl = defined('QR_CODE_BASE_URL') ? rtrim(QR_CODE_BASE_URL, '/') . '/card.php?slug=' . $urlSlug : '';
 
     $emailSubject = '【不動産AI名刺】サブスクリプションキャンセル通知（' . $cancellationType . '）';
+    $baseUrl = defined('BASE_URL') ? rtrim((string) BASE_URL, '/') : '';
+    $logoUrl = htmlspecialchars($baseUrl . '/assets/images/logo.png', ENT_QUOTES, 'UTF-8');
+    $userEmailHtml = htmlspecialchars((string)$userEmail, ENT_QUOTES, 'UTF-8');
+    $userIdHtml = htmlspecialchars((string)$userId, ENT_QUOTES, 'UTF-8');
+    $subscriptionIdHtml = htmlspecialchars((string)$subscriptionId, ENT_QUOTES, 'UTF-8');
+    $businessCardIdHtml = htmlspecialchars((string)$businessCardId, ENT_QUOTES, 'UTF-8');
+    $urlSlugHtml = htmlspecialchars((string)$urlSlug, ENT_QUOTES, 'UTF-8');
+    $cancellationTypeHtml = htmlspecialchars($cancellationType, ENT_QUOTES, 'UTF-8');
+    $initiatedByHtml = htmlspecialchars($initiatedBy, ENT_QUOTES, 'UTF-8');
+    $cancellationDateHtml = htmlspecialchars($cancellationDate, ENT_QUOTES, 'UTF-8');
+    $cardUrlRow = '';
+    if ($cardFullUrl !== '') {
+        $cardFullUrlHtml = htmlspecialchars($cardFullUrl, ENT_QUOTES, 'UTF-8');
+        $cardUrlRow = <<<HTML
+                            <tr>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">名刺URL</td>
+                                <td style="padding:12px; border:1px solid #dee2e6;">
+                                    <a href="{$cardFullUrlHtml}" target="_blank" style="color:#4461a5; word-break:break-all;">{$cardFullUrlHtml}</a>
+                                </td>
+                            </tr>
+HTML;
+    }
+    $yearHtml = htmlspecialchars(date('Y'), ENT_QUOTES, 'UTF-8');
 
-    $emailBody = "
+    $emailBody = <<<HTML
             <html>
             <head>
-            <meta charset='UTF-8'>
+            <meta charset="UTF-8">
             <title>サブスクリプションキャンセル</title>
             </head>
-
-            <body style='margin:0; padding:0; background-color:#f0f0f0; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;'>
-
-            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f0f0f0;'>
+            <body style="margin:0; padding:0; background-color:#f0f0f0; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f0f0;">
             <tr>
-            <td align='center'>
-
-            <!-- Container -->
-            <table width='600' cellpadding='0' cellspacing='0' border='0' style='background:#ffffff; border:3px solid #a3a3a3;'>
-
-                <!-- Header -->
+            <td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border:3px solid #a3a3a3;">
                 <tr>
-                    <td align='center' style='padding:30px 20px;'>
-                        <div style='background:#ffffff; padding:15px; display:inline-block;'>
-                            <img src='<?php echo BASE_URL; ?>/assets/images/logo.png' alt='不動産AI名刺' style='max-width:100px; height:auto; display:block;'>
-                        </div>
+                    <td align="center" style="padding:30px 20px;">
+                        <img src="{$logoUrl}" alt="不動産AI名刺" style="max-width:100px; height:auto; display:block;">
                     </td>
                 </tr>
-
-                <!-- Content -->
                 <tr>
-                    <td style='background:#f9f9f9; padding:30px;'>
-
-                        <p style='margin:0 0 20px 0;'>
-                            サブスクリプションがキャンセルされました。（<?php echo $initiatedBy; ?>による操作）
-                        </p>
-
-                        <!-- Info Table -->
-                        <table width='100%' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse; background:#ffffff; margin:20px 0;'>
-
+                    <td style="background:#f9f9f9; padding:30px;">
+                        <p style="margin:0 0 20px 0;">サブスクリプションがキャンセルされました。（{$initiatedByHtml}による操作）</p>
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; background:#ffffff; margin:20px 0;">
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold; width:30%;'>ユーザーID</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $userId; ?></td>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold; width:30%;">ユーザーID</td>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$userIdHtml}</td>
                             </tr>
-
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>メールアドレス</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $userEmail; ?></td>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">メールアドレス</td>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$userEmailHtml}</td>
                             </tr>
-
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>サブスクリプションID</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $subscriptionId; ?></td>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">サブスクリプションID</td>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$subscriptionIdHtml}</td>
                             </tr>
-
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>ビジネスカードID</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $businessCardId; ?></td>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">ビジネスカードID</td>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$businessCardIdHtml}</td>
                             </tr>
-
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>URLスラッグ</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    <span style='background:#fff3cd; padding:2px 6px;'><?php echo $urlSlug; ?></span>
-                                </td>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">URLスラッグ</td>
+                                <td style="padding:12px; border:1px solid #dee2e6;"><span style="background:#fff3cd; padding:2px 6px;">{$urlSlugHtml}</span></td>
                             </tr>
-
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>キャンセル種別</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $cancellationType; ?></td>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">キャンセル種別</td>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$cancellationTypeHtml}</td>
                             </tr>
-
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>操作者</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $initiatedBy; ?></td>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">操作者</td>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$initiatedByHtml}</td>
                             </tr>
-
                             <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>キャンセル日時</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $cancellationDate; ?></td>
+                                <td style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;">キャンセル日時</td>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$cancellationDateHtml}</td>
                             </tr>
-
-                            <?php if ($cardFullUrl): ?>
-                            <tr>
-                                <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>名刺URL</td>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    <a href='<?php echo $cardFullUrl; ?>' target='_blank' style='color:#4461a5; word-break:break-all;'>
-                                        <?php echo $cardFullUrl; ?>
-                                    </a>
-                                </td>
-                            </tr>
-                            <?php endif; ?>
-
+{$cardUrlRow}
                         </table>
-
-                        <!-- Footer -->
-                        <div style='margin-top:30px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;'>
-                            <p style='margin:0;'>このメールは自動送信されています。返信はできません。</p>
-                            <p style='margin:5px 0 0 0;'>© <?php echo date('Y'); ?> 不動産AI名刺 All rights reserved.</p>
+                        <div style="margin-top:30px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;">
+                            <p style="margin:0;">このメールは自動送信されています。返信はできません。</p>
+                            <p style="margin:5px 0 0 0;">© {$yearHtml} 不動産AI名刺 All rights reserved.</p>
                         </div>
-
                     </td>
                 </tr>
-
             </table>
-
             </td>
             </tr>
             </table>
-
             </body>
             </html>
-    ";
+HTML;
 
     $emailBodyText =
         "サブスクリプションがキャンセルされました。（{$initiatedBy}による操作）\n\n" .
@@ -1780,118 +1761,94 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
     // メール件名
     $emailSubject = '【不動産AI名刺】デジタル名刺のQRコード発行完了';
 
+    $baseUrl = defined('BASE_URL') ? rtrim((string) BASE_URL, '/') : '';
+    $logoUrl = htmlspecialchars($baseUrl . '/assets/images/logo.png', ENT_QUOTES, 'UTF-8');
+    $editUrl = htmlspecialchars($baseUrl . '/edit.php', ENT_QUOTES, 'UTF-8');
+    $userNameHtml = htmlspecialchars((string)$userName, ENT_QUOTES, 'UTF-8');
+    $cardFullUrlHtml = htmlspecialchars($cardFullUrl, ENT_QUOTES, 'UTF-8');
+    $issuedDateHtml = htmlspecialchars($issuedDate, ENT_QUOTES, 'UTF-8');
+    $paymentTypeTextHtml = htmlspecialchars($paymentTypeText, ENT_QUOTES, 'UTF-8');
+    $yearHtml = htmlspecialchars(date('Y'), ENT_QUOTES, 'UTF-8');
+
+    $pendingUrlNoticeHtml = '';
+    if ($showPendingUrlNotice) {
+        $pendingUrlNoticeHtml = <<<HTML
+                        <div style="background:#fff8e1; border:1px solid #ffe0a3; padding:14px 16px; margin:20px 0; border-radius:6px;">
+                            <p style="margin:0 0 8px 0; font-weight:bold; color:#8a5a00;">企業URLについてのお知らせ</p>
+                            <p style="margin:0; line-height:1.8;">現在、お客様の企業URLは管理者による設定待ちの状態です。設定が完了次第、正式なURLでご利用いただけるようになります。</p>
+                        </div>
+HTML;
+    }
+
+    $cardUrlHtml = '';
+    if (!$isExistingOrEra) {
+        $cardUrlHtml = <<<HTML
+                        <div style="background:#ffffff; border:1px solid #dee2e6; padding:16px; margin:20px 0; border-radius:6px;">
+                            <h3 style="margin:0 0 10px 0; font-size:16px;">あなたのデジタル名刺</h3>
+                            <p style="margin:0; word-break:break-all;"><a href="{$cardFullUrlHtml}" target="_blank" style="color:#0066cc;">{$cardFullUrlHtml}</a></p>
+                        </div>
+HTML;
+    }
+
+    $paymentHtml = '';
+    if ($paymentAmount) {
+        $paymentAmountHtml = htmlspecialchars('¥' . number_format($paymentAmount), ENT_QUOTES, 'UTF-8');
+        $paymentMethodHtml = $paymentTypeTextHtml !== '' ? "<br>お支払い方法: {$paymentTypeTextHtml}" : '';
+        $paymentHtml = <<<HTML
+                        <p style="margin:0 0 16px 0; line-height:1.8;">お支払い金額: {$paymentAmountHtml}{$paymentMethodHtml}</p>
+HTML;
+    }
+
     // HTML本文
-    $emailBody = "
+    $emailBody = <<<HTML
             <html>
             <head>
-            <meta charset='UTF-8'>
+            <meta charset="UTF-8">
+            <title>デジタル名刺のQRコード発行完了</title>
             </head>
-            <body style='margin:0; padding:0; background-color:#f0f0f0;'>
-
-            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f0f0f0;'>
+            <body style="margin:0; padding:0; background-color:#f0f0f0;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f0f0;">
             <tr>
-                <td align='center'>
-
-                <!-- Container -->
-                <table width='600' cellpadding='0' cellspacing='0' border='0' style='background:#ffffff; border:3px solid #a3a3a3; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333; margin:20px auto;'>
-
-                    <!-- Header -->
+                <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border:3px solid #a3a3a3; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333; margin:20px auto;">
                     <tr>
-                    <td align='center' style='padding:30px 20px;'>
-                        <div style='background:#ffffff; padding:15px; display:inline-block;'>
-                        <img src='<?php echo BASE_URL; ?>/assets/images/logo.png' alt='不動産AI名刺' style='max-width:100px; height:auto;'>
+                    <td align="center" style="padding:30px 20px;">
+                        <img src="{$logoUrl}" alt="不動産AI名刺" style="max-width:100px; height:auto; display:block;">
+                    </td>
+                    </tr>
+                    <tr>
+                    <td style="background:#f9f9f9; padding:30px;">
+                        <p style="margin:0 0 16px 0; line-height:1.8;">{$userNameHtml} 様</p>
+                        <p style="margin:0 0 16px 0; line-height:1.8;">お支払いいただき、ありがとうございます。デジタル名刺のQRコードが正常に発行されました。</p>
+{$pendingUrlNoticeHtml}
+{$cardUrlHtml}
+                        <div style="background:#ffffff; border:1px solid #dee2e6; padding:16px; margin:20px 0; border-radius:6px;">
+                            <h3 style="margin:0 0 10px 0; font-size:16px;">QRコードについて</h3>
+                            <p style="margin:0; line-height:1.8;">QRコードは名刺ページに表示されています。QRコードをスキャンすると、名刺URLに直接アクセスできます。</p>
                         </div>
-                    </td>
-                    </tr>
-
-                    <!-- Content -->
-                    <tr>
-                    <td style='background:#f9f9f9; padding:30px;'>
-
-                        <p style='margin:0 0 20px 0;'>
-                        サブスクリプションがキャンセルされました。（<?php echo $initiatedBy; ?>による操作）
-                        </p>
-
-                        <!-- Info Table -->
-                        <table width='100%' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse; background:#ffffff; margin:20px 0;'>
-
+                        <p style="margin:0 0 16px 0; line-height:1.8;">名刺の内容確認・編集はマイページから行えます。</p>
+                        <div style="text-align:center; margin:28px 0;">
+                            <a href="{$editUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block; background:#0066cc; color:#ffffff; text-decoration:none; font-weight:bold; padding:12px 24px; border-radius:6px;">マイページを開く</a>
+                        </div>
+{$paymentHtml}
+                        <p style="margin:0; color:#666; font-size:13px;">発行日時: {$issuedDateHtml}</p>
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
                         <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold; width:30%;'>ユーザーID</td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $userId; ?></td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>メールアドレス</td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $userEmail; ?></td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>サブスクリプションID</td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $subscriptionId; ?></td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>ビジネスカードID</td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $businessCardId; ?></td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>URLスラッグ</td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'>
-                            <span style='background:#fff3cd; padding:2px 6px;'><?php echo $urlSlug; ?></span>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>キャンセル種別</td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $cancellationType; ?></td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>操作者</td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $initiatedBy; ?></td>
-                        </tr>
-
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>キャンセル日時</td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $cancellationDate; ?></td>
-                        </tr>
-
-                        <?php if ($cardFullUrl): ?>
-                        <tr>
-                            <td style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; font-weight:bold;'>名刺URL</td>
-                            <td style='padding:12px; border:1px solid #dee2e6;'>
-                            <a href='<?php echo $cardFullUrl; ?>' target='_blank' style='color:#667eea;'>
-                                <?php echo $cardFullUrl; ?>
-                            </a>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
-
-                        </table>
-
-                        <!-- Footer -->
-                        <table width='100%' cellpadding='0' cellspacing='0' border='0'>
-                        <tr>
-                            <td style='padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;'>
-                            <p style='margin:0 0 10px 0;'>このメールは自動送信されています。返信はできません。</p>
-                            <p style='margin:0;'>© <?php echo date('Y'); ?> 不動産AI名刺 All rights reserved.</p>
+                            <td style="padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;">
+                            <p style="margin:0 0 10px 0;">このメールは自動送信されています。返信はできません。</p>
+                            <p style="margin:0;">© {$yearHtml} 不動産AI名刺 All rights reserved.</p>
                             </td>
                         </tr>
                         </table>
-
                     </td>
                     </tr>
-
                 </table>
-
                 </td>
             </tr>
             </table>
-
             </body>
             </html>
-    ";
+HTML;
 
     // プレーンテキスト版
     $pendingUrlNoticeText = '';
@@ -1926,15 +1883,6 @@ function sendQRCodeIssuedEmailToUser($userEmail, $userName, $cardUrl, $qrCodeUrl
         "マイページ: " . BASE_URL . "/edit.php\n\n" .
         ($paymentAmount ? "【お支払い情報】\nお支払い金額: ¥" . number_format($paymentAmount) . ($paymentTypeText ? "\nお支払い方法: {$paymentTypeText}" : "") . "\n発行日時: {$issuedDate}\n\n" : "") .
         "発行日時: {$issuedDate}\n";
-
-    // 既存/ERA会員向けメールからは、HTML本文の名刺URLセクションも削除する
-    if ($isExistingOrEra) {
-        $emailBody = preg_replace(
-            "/<div class='info-box'>\\s*<h3>📱 あなたのデジタル名刺<\\/h3>[\\s\\S]*?<\\/div>/u",
-            '',
-            $emailBody
-        );
-    }
 
     return sendEmail($userEmail, $emailSubject, $emailBody, $emailBodyText, 'qr_code_issued', null, null);
 }
@@ -2036,131 +1984,105 @@ function sendQRCodeIssuedEmailToAdmin($userEmail, $userName, $userId, $urlSlug, 
         $emailSubject = $subjectPrefix . '不動産AI名刺】QRコード発行通知';
     }
 
+    $baseUrl = defined('BASE_URL') ? rtrim((string) BASE_URL, '/') : '';
+    $logoUrl = htmlspecialchars($baseUrl . '/assets/images/logo.png', ENT_QUOTES, 'UTF-8');
+    $userIdHtml = htmlspecialchars((string)$userId, ENT_QUOTES, 'UTF-8');
+    $userTypeLabelHtml = htmlspecialchars($userTypeLabel, ENT_QUOTES, 'UTF-8');
+    $userNameHtml = htmlspecialchars((string)$userName, ENT_QUOTES, 'UTF-8');
+    $companyNameHtml = htmlspecialchars((string)$companyName, ENT_QUOTES, 'UTF-8');
+    $nameHtml = htmlspecialchars((string)$name, ENT_QUOTES, 'UTF-8');
+    $nameRomajiHtml = htmlspecialchars((string)$nameRomaji, ENT_QUOTES, 'UTF-8');
+    $userEmailHtml = htmlspecialchars((string)$userEmail, ENT_QUOTES, 'UTF-8');
+    $paymentTypeTextHtml = htmlspecialchars($paymentTypeText, ENT_QUOTES, 'UTF-8');
+    $phoneNumberHtml = htmlspecialchars((string)$phoneNumber, ENT_QUOTES, 'UTF-8');
+    $urlSlugHtml = htmlspecialchars((string)$urlSlug, ENT_QUOTES, 'UTF-8');
+    $cardFullUrlHtml = htmlspecialchars($cardFullUrl, ENT_QUOTES, 'UTF-8');
+    $issuedDateHtml = htmlspecialchars($issuedDate, ENT_QUOTES, 'UTF-8');
+    $yearHtml = htmlspecialchars(date('Y'), ENT_QUOTES, 'UTF-8');
+
+    $optionalRows = '';
+    if ($companyName) {
+        $optionalRows .= "<tr><th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>会社名</th><td style='padding:12px; border:1px solid #dee2e6;'>{$companyNameHtml}</td></tr>";
+    }
+    if ($name) {
+        $optionalRows .= "<tr><th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>名前</th><td style='padding:12px; border:1px solid #dee2e6;'>{$nameHtml}</td></tr>";
+    }
+    if ($nameRomaji) {
+        $optionalRows .= "<tr><th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>ローマ字表記</th><td style='padding:12px; border:1px solid #dee2e6;'>{$nameRomajiHtml}</td></tr>";
+    }
+    if ($paymentTypeText) {
+        $optionalRows .= "<tr><th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>支払い方法</th><td style='padding:12px; border:1px solid #dee2e6;'>{$paymentTypeTextHtml}</td></tr>";
+    }
+    if ($phoneNumber) {
+        $optionalRows .= "<tr><th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>電話番号</th><td style='padding:12px; border:1px solid #dee2e6;'>{$phoneNumberHtml}</td></tr>";
+    }
+    if (!$isExistingOrEra) {
+        $optionalRows .= "<tr><th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>URLスラッグ</th><td style='padding:12px; border:1px solid #dee2e6;'><span style='background:#fff3cd; padding:2px 6px;'>{$urlSlugHtml}</span></td></tr>";
+        $optionalRows .= "<tr><th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>名刺URL</th><td style='padding:12px; border:1px solid #dee2e6; word-break:break-all;'><a href='{$cardFullUrlHtml}' target='_blank' style='color:#4461a5;'>{$cardFullUrlHtml}</a></td></tr>";
+    }
+    if ($paymentAmount) {
+        $paymentAmountHtml = htmlspecialchars('¥' . number_format($paymentAmount), ENT_QUOTES, 'UTF-8');
+        $optionalRows .= "<tr><th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>支払い金額</th><td style='padding:12px; border:1px solid #dee2e6;'>{$paymentAmountHtml}</td></tr>";
+    }
+
     // HTML本文（ERA=オレンジ / 既存=赤）
-    $emailBody = "
+    $emailBody = <<<HTML
             <!DOCTYPE html>
             <html>
             <head>
-            <meta charset='UTF-8'>
+            <meta charset="UTF-8">
+            <title>QRコード発行通知</title>
             </head>
-            <body style='margin:0; padding:0; background-color:#f0f0f0; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;'>
-
-            <table width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f0f0f0;'>
+            <body style="margin:0; padding:0; background-color:#f0f0f0; font-family:Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, sans-serif; color:#333;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f0f0;">
             <tr>
-            <td align='center'>
-
-            <!-- Container -->
-            <table width='600' cellpadding='0' cellspacing='0' border='0' style='background-color:#ffffff; border:3px solid #a3a3a3; margin:20px auto;'>
-
-                <!-- Header -->
+            <td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff; border:3px solid #a3a3a3; margin:20px auto;">
                 <tr>
-                    <td align='center' style='padding:30px 20px;'>
-                        <img src='<?php echo BASE_URL; ?>/assets/images/logo.png' 
-                            alt='不動産AI名刺' 
-                            style='max-width:100px; height:auto; display:block;'>
+                    <td align="center" style="padding:30px 20px;">
+                        <img src="{$logoUrl}" alt="不動産AI名刺" style="max-width:100px; height:auto; display:block;">
                     </td>
                 </tr>
-
-                <!-- Content -->
                 <tr>
-                    <td style='background-color:#f9f9f9; padding:30px;'>
-
-                        <p style='margin:0 0 20px 0;'>
-                            サブスクリプションがキャンセルされました。（<?php echo $initiatedBy; ?>による操作）
-                        </p>
-
-                        <!-- Table -->
-                        <table width='100%' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse; background:#ffffff;'>
-
+                    <td style="background-color:#f9f9f9; padding:30px;">
+                        {$urgentNotice}
+                        <p style="margin:0 0 20px 0;">{$headerPrefix}新しいQRコードが発行されました。</p>
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; background:#ffffff;">
                             <tr>
-                                <th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6; width:30%;'>ユーザーID</th>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $userId; ?></td>
+                                <th align="left" style="background:#e9ecef; padding:12px; border:1px solid #dee2e6; width:30%;">ユーザーID</th>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$userIdHtml}</td>
                             </tr>
-
                             <tr>
-                                <th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>メールアドレス</th>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $userEmail; ?></td>
+                                <th align="left" style="background:#e9ecef; padding:12px; border:1px solid #dee2e6;">ユーザータイプ</th>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$userTypeLabelHtml}</td>
                             </tr>
-
                             <tr>
-                                <th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>サブスクリプションID</th>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $subscriptionId; ?></td>
+                                <th align="left" style="background:#e9ecef; padding:12px; border:1px solid #dee2e6;">ユーザー名</th>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$userNameHtml}</td>
                             </tr>
-
+{$optionalRows}
                             <tr>
-                                <th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>ビジネスカードID</th>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $businessCardId; ?></td>
+                                <th align="left" style="background:#e9ecef; padding:12px; border:1px solid #dee2e6;">メールアドレス</th>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$userEmailHtml}</td>
                             </tr>
-
                             <tr>
-                                <th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>URLスラッグ</th>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    <span style='background:#fff3cd; padding:2px 6px;'><?php echo $urlSlug; ?></span>
-                                </td>
+                                <th align="left" style="background:#e9ecef; padding:12px; border:1px solid #dee2e6;">発行日時</th>
+                                <td style="padding:12px; border:1px solid #dee2e6;">{$issuedDateHtml}</td>
                             </tr>
-
-                            <tr>
-                                <th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>キャンセル種別</th>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $cancellationType; ?></td>
-                            </tr>
-
-                            <tr>
-                                <th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>操作者</th>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $initiatedBy; ?></td>
-                            </tr>
-
-                            <tr>
-                                <th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>キャンセル日時</th>
-                                <td style='padding:12px; border:1px solid #dee2e6;'><?php echo $cancellationDate; ?></td>
-                            </tr>
-
-                            <?php if ($cardFullUrl): ?>
-                            <tr>
-                                <th align='left' style='background:#e9ecef; padding:12px; border:1px solid #dee2e6;'>名刺URL</th>
-                                <td style='padding:12px; border:1px solid #dee2e6;'>
-                                    <a href='<?php echo $cardFullUrl; ?>' target='_blank' style='color:#4461a5;'>
-                                        <?php echo $cardFullUrl; ?>
-                                    </a>
-                                </td>
-                            </tr>
-                            <?php endif; ?>
-
                         </table>
-
-                        <!-- Footer -->
-                        <div style='margin-top:30px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;'>
-                            <p style='margin:0;'>このメールは自動送信されています。返信はできません。</p>
-                            <p style='margin:5px 0 0 0;'>© <?php echo date('Y'); ?> 不動産AI名刺 All rights reserved.</p>
+                        <div style="margin-top:30px; padding-top:20px; border-top:1px solid #ddd; font-size:12px; color:#666;">
+                            <p style="margin:0;">このメールは自動送信されています。返信はできません。</p>
+                            <p style="margin:5px 0 0 0;">© {$yearHtml} 不動産AI名刺 All rights reserved.</p>
                         </div>
-
                     </td>
                 </tr>
-
             </table>
-
             </td>
             </tr>
             </table>
-
             </body>
             </html>
-    ";
-
-    // 既存/ERA会員の場合、HTML本文からURLスラッグおよび名刺URLの行を削除（ダッシュボード側でのみ管理）
-    if ($isExistingOrEra) {
-        // URLスラッグ行
-        $emailBody = preg_replace(
-            "/<tr>\\s*<th>URLスラッグ<\\/th>[\\s\\S]*?<\\/tr>/u",
-            '',
-            $emailBody
-        );
-        // 名刺URL行
-        $emailBody = preg_replace(
-            "/<tr>\\s*<th>名刺URL<\\/th>[\\s\\S]*?<\\/tr>/u",
-            '',
-            $emailBody
-        );
-    }
+HTML;
 
     // プレーンテキスト版
     $urgentNoticeText = '';
