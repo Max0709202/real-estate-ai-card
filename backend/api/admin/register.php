@@ -46,16 +46,17 @@ try {
         }
     }
 
-    if (empty($input['role']) || !in_array($input['role'], ['admin', 'client'])) {
-        $errors['role'] = '有効なロールを選択してください';
-    }
-
-    // If no current admin session, default to 'client' role
+    // If no current admin session, default to 'client' role.
+    // The public registration form does not expose a role selector.
     if ($currentAdminId === null) {
         $input['role'] = 'client';
     } else {
+        if (empty($input['role']) || !in_array($input['role'], ['admin', 'client'])) {
+            $errors['role'] = '有効なロールを選択してください';
+        }
+
         // Only admins can create other admins
-        if ($input['role'] === 'admin' && $currentAdminRole !== 'admin') {
+        if (($input['role'] ?? '') === 'admin' && $currentAdminRole !== 'admin') {
             $errors['role'] = '管理者ロールを付与する権限がありません';
         }
     }

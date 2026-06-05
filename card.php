@@ -986,14 +986,13 @@ if (!empty($card['profile_photo'])) {
                 ?>
                     <hr>
                     <div class="communication-section">
-                        <h3>コミュニケーション方法</h3>
-                        
-                        <!-- Combined Message Apps and SNS Section -->
+                        <?php if (!empty($validMessageApps)): ?>
+                        <div class="communication-group">
+                            <h3>メッセージはこちらから</h3>
                             <div class="communication-grid">
-                            <!-- Message Apps (displayed first) -->
-                            <?php foreach ($validMessageApps as $method): ?>
-                                <?php $linkUrl = getMessageAppLinkUrl($method); ?>
-                                <?php if (!empty($linkUrl)): ?>
+                                <?php foreach ($validMessageApps as $method): ?>
+                                    <?php $linkUrl = getMessageAppLinkUrl($method); ?>
+                                    <?php if (!empty($linkUrl)): ?>
                                         <div class="comm-card">
                                             <!-- Message App Logo -->
                                             <div class="comm-logo">
@@ -1014,11 +1013,17 @@ if (!empty($card['profile_photo'])) {
                                         </div>
                                     <?php endif; ?>
                                 <?php endforeach; ?>
-                        
-                            <!-- SNS Apps (displayed second) -->
-                            <?php foreach ($validSnsApps as $method): ?>
-                                <?php $linkUrl = getSnsAppLinkUrl($method); ?>
-                                <?php if (!empty($linkUrl)): ?>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($validSnsApps)): ?>
+                        <div class="communication-group">
+                            <h3>SNSもご覧ください</h3>
+                            <div class="communication-grid">
+                                <?php foreach ($validSnsApps as $method): ?>
+                                    <?php $linkUrl = getSnsAppLinkUrl($method); ?>
+                                    <?php if (!empty($linkUrl)): ?>
                                         <div class="comm-card">
                                             <!-- SNS Logo -->
                                             <div class="comm-logo">
@@ -1040,6 +1045,8 @@ if (!empty($card['profile_photo'])) {
                                     <?php endif; ?>
                                 <?php endforeach; ?>
                             </div>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
             </div>

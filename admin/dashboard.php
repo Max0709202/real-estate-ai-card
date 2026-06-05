@@ -52,6 +52,25 @@ $limit = 50;
 $where = [];
 $params = [];
 
+$emailSearch = trim((string)($_GET['email'] ?? ''));
+$nameSearch = trim((string)($_GET['name'] ?? ''));
+$companyNameSearch = trim((string)($_GET['company_name'] ?? ''));
+
+if ($emailSearch !== '') {
+    $where[] = "u.email LIKE ?";
+    $params[] = '%' . $emailSearch . '%';
+}
+
+if ($nameSearch !== '') {
+    $where[] = "bc.name LIKE ?";
+    $params[] = '%' . $nameSearch . '%';
+}
+
+if ($companyNameSearch !== '') {
+    $where[] = "bc.company_name LIKE ?";
+    $params[] = '%' . $companyNameSearch . '%';
+}
+
 // 入金状況の検索条件
 if (!empty($_GET['payment_status']) && in_array($_GET['payment_status'], ['CR', 'BANK_PENDING', 'BANK_PAID', 'ST', 'UNUSED'])) {
     $where[] = "bc.payment_status = ?";
@@ -292,6 +311,21 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
         <div class="admin-content">
             <div class="filters">
                 <form method="GET" class="filter-form">
+                    <input type="text"
+                           name="email"
+                           value="<?php echo htmlspecialchars($emailSearch, ENT_QUOTES, 'UTF-8'); ?>"
+                           placeholder="メールで検索"
+                           class="filter-input">
+                    <input type="text"
+                           name="name"
+                           value="<?php echo htmlspecialchars($nameSearch, ENT_QUOTES, 'UTF-8'); ?>"
+                           placeholder="名前で検索"
+                           class="filter-input">
+                    <input type="text"
+                           name="company_name"
+                           value="<?php echo htmlspecialchars($companyNameSearch, ENT_QUOTES, 'UTF-8'); ?>"
+                           placeholder="社名で検索"
+                           class="filter-input">
                     <select name="payment_status">
                         <option value="">入金状況</option>
                         <option value="CR" <?php echo ($_GET['payment_status'] ?? '') === 'CR' ? 'selected' : ''; ?>>CR</option>
@@ -314,6 +348,15 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                     }
                     if (isset($_GET['is_open']) && $_GET['is_open'] !== '') {
                         $csvParams['is_open'] = $_GET['is_open'];
+                    }
+                    if ($emailSearch !== '') {
+                        $csvParams['email'] = $emailSearch;
+                    }
+                    if ($nameSearch !== '') {
+                        $csvParams['name'] = $nameSearch;
+                    }
+                    if ($companyNameSearch !== '') {
+                        $csvParams['company_name'] = $companyNameSearch;
                     }
                     $csvUrl = '../backend/api/admin/export-csv.php';
                     if (!empty($csvParams)) {
@@ -1000,4 +1043,3 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
     <script src="../assets/js/admin.js"></script>
 </body>
 </html>
-

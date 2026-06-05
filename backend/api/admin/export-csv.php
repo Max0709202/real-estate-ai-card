@@ -17,8 +17,27 @@ try {
     $where = [];
     $params = [];
 
+    $emailSearch = trim((string)($_GET['email'] ?? ''));
+    $nameSearch = trim((string)($_GET['name'] ?? ''));
+    $companyNameSearch = trim((string)($_GET['company_name'] ?? ''));
+
+    if ($emailSearch !== '') {
+        $where[] = "u.email LIKE ?";
+        $params[] = '%' . $emailSearch . '%';
+    }
+
+    if ($nameSearch !== '') {
+        $where[] = "bc.name LIKE ?";
+        $params[] = '%' . $nameSearch . '%';
+    }
+
+    if ($companyNameSearch !== '') {
+        $where[] = "bc.company_name LIKE ?";
+        $params[] = '%' . $companyNameSearch . '%';
+    }
+
     // 入金状況の検索条件
-    if (!empty($_GET['payment_status']) && in_array($_GET['payment_status'], ['CR', 'BANK_PENDING', 'BANK_PAID', 'UNUSED'])) {
+    if (!empty($_GET['payment_status']) && in_array($_GET['payment_status'], ['CR', 'BANK_PENDING', 'BANK_PAID', 'ST', 'UNUSED'])) {
         $where[] = "bc.payment_status = ?";
         $params[] = $_GET['payment_status'];
     }
@@ -58,6 +77,7 @@ try {
                 WHEN bc.payment_status = 'CR' THEN 'CR'
                 WHEN bc.payment_status = 'BANK_PENDING' THEN '振込予定'
                 WHEN bc.payment_status = 'BANK_PAID' THEN '振込済'
+                WHEN bc.payment_status = 'ST' THEN 'ST送金'
                 WHEN bc.payment_status = 'UNUSED' THEN '未利用'
                 ELSE '未利用'
             END as payment_status_label,
