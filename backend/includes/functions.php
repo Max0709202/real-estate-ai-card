@@ -1029,7 +1029,12 @@ function sanitizeInput($data) {
  * Detect email type (business vs personal)
  */
 function detectEmailType($email) {
-    $domain = strtolower(substr(strrchr($email, "@"), 1));
+    $domainPart = strrchr($email, "@");
+    if ($domainPart === false) {
+        return 'unknown';
+    }
+
+    $domain = strtolower(substr($domainPart, 1));
 
     // Common personal email providers
     $personalDomains = [
