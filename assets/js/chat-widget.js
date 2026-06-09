@@ -862,8 +862,16 @@
         sourceBox.innerHTML = '<span style="display:none;">参照情報</span>' + sources.slice(0, 3).map(function (source) {
             var title = source.title || source.url || 'Source';
             var url = source.url || '';
-            if (!url) return '<span class="chat-msg-source-label">' + escapeHtml(title) + '</span>';
-            return '<a href="' + escapeAttribute(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(title) + '</a>';
+            var meta = '';
+            if (source.from_api) {
+                var bits = [];
+                if (typeof source.record_count === 'number') bits.push(source.record_count + '件');
+                if (source.fetched_at) bits.push(String(source.fetched_at).slice(0, 16) + '取得');
+                if (source.cached) bits.push('キャッシュ');
+                if (bits.length) meta = ' <span class="chat-msg-source-meta">(' + escapeHtml(bits.join('・')) + ')</span>';
+            }
+            if (!url) return '<span class="chat-msg-source-label">' + escapeHtml(title) + '</span>' + meta;
+            return '<a href="' + escapeAttribute(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(title) + '</a>' + meta;
         }).join('');
         var content = wrap.querySelector('.chat-msg-content');
         if (content) content.appendChild(sourceBox);

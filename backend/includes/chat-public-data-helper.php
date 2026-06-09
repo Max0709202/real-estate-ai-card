@@ -91,7 +91,7 @@ function chatPublicDataCachedPostJson($db, $provider, $url, $payload, $headers =
     $key = hash('sha256', $provider . '|POST|' . $url . '|' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     if ($db instanceof PDO) {
         ensureChatPublicDataCacheTable($db);
-        $stmt = $db->prepare('SELECT response_json, http_status, error_message FROM chat_public_data_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1');
+        $stmt = $db->prepare('SELECT response_json, http_status, error_message, updated_at FROM chat_public_data_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1');
         $stmt->execute([$key]);
         $cached = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($cached) {
@@ -102,10 +102,13 @@ function chatPublicDataCachedPostJson($db, $provider, $url, $payload, $headers =
                 'error' => $cached['error_message'] ?? '',
                 'data' => json_decode($cached['response_json'] ?? 'null', true),
                 'cached' => true,
+                'fetched_at' => $cached['updated_at'] ?? null,
             ];
         }
     }
     $result = chatPublicDataHttpPostJson($url, $payload, $headers);
+    $result['cached'] = false;
+    $result['fetched_at'] = date('Y-m-d H:i:s');
     if ($db instanceof PDO) {
         $stmt = $db->prepare("INSERT INTO chat_public_data_cache (cache_key, provider, request_url, response_json, http_status, error_message, expires_at)
             VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))
@@ -127,7 +130,7 @@ function chatPublicDataCachedGet($db, $provider, $url, $headers = [], $ttlSecond
     $key = hash('sha256', $provider . '|' . $url);
     if ($db instanceof PDO) {
         ensureChatPublicDataCacheTable($db);
-        $stmt = $db->prepare('SELECT response_json, http_status, error_message FROM chat_public_data_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1');
+        $stmt = $db->prepare('SELECT response_json, http_status, error_message, updated_at FROM chat_public_data_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1');
         $stmt->execute([$key]);
         $cached = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($cached) {
@@ -138,10 +141,13 @@ function chatPublicDataCachedGet($db, $provider, $url, $headers = [], $ttlSecond
                 'error' => $cached['error_message'] ?? '',
                 'data' => json_decode($cached['response_json'] ?? 'null', true),
                 'cached' => true,
+                'fetched_at' => $cached['updated_at'] ?? null,
             ];
         }
     }
     $result = chatPublicDataHttpGet($url, $headers, $timeout);
+    $result['cached'] = false;
+    $result['fetched_at'] = date('Y-m-d H:i:s');
     if ($db instanceof PDO) {
         $stmt = $db->prepare("INSERT INTO chat_public_data_cache (cache_key, provider, request_url, response_json, http_status, error_message, expires_at)
             VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))
@@ -217,13 +223,22 @@ function chatReinfoContext($db, $message, $area) {
     ]);
     $result = chatPublicDataCachedGet($db, 'reinfolib', $url, ['Ocp-Apim-Subscription-Key' => REINFOLIB_API_KEY], 86400);
     if (!$result['ok'] || !is_array($result['data'])) return null;
-    $rows = array_slice(chatPublicDataRows($result['data']), 0, 8);
+    $allRows = chatPublicDataRows($result['data']);
+    $totalCount = count($allRows);
+    $rows = array_slice($allRows, 0, 8);
     if (empty($rows)) return null;
+    $scope = $year . '年・' . trim(($area['prefecture_name'] ?? '') . ($area['city_name'] ?? '')) . 'の不動産取引価格情報';
     return [
         'provider' => 'reinfolib',
         'title' => '不動産価格・取引価格の参考データ',
         'notice' => 'このエリアの価格・取引事例を公的データで確認します。',
         'data' => $rows,
+        'record_count' => count($rows),
+        'total_count' => $totalCount,
+        'scope_note' => $scope,
+        'count_note' => 'このAPIレスポンスには上記対象（' . $scope . '）の取引が合計 ' . $totalCount . ' 件含まれています。プロンプトには先頭 ' . count($rows) . ' 件のみ添付しています。「取引件数」を聞かれた場合は合計 ' . $totalCount . ' 件と回答できます。',
+        'fetched_at' => $result['fetched_at'] ?? null,
+        'cached' => !empty($result['cached']),
     ];
 }
 
@@ -237,12 +252,27 @@ function chatMlitDpfContext($db, $message, $area) {
     $graphql = 'query { search(first: 0, size: 10, term: ' . $term . ', phraseMatch: true) { totalNumber searchResults { id title lat lon year dataset_id catalog_id } } }';
     $result = chatPublicDataCachedPostJson($db, 'mlit_dpf', $base, ['query' => $graphql], ['apikey' => MLIT_DPF_API_KEY], 86400);
     if (!$result['ok'] || empty($result['data'])) return null;
+    $search = $result['data']['data']['search'] ?? null;
+    $searchResults = is_array($search['searchResults'] ?? null) ? $search['searchResults'] : [];
+    $totalNumber = isset($search['totalNumber']) ? (int)$search['totalNumber'] : null;
+    if ($totalNumber === 0 || (empty($searchResults) && $totalNumber === null)) return null;
     $notice = 'この住所周辺で関連する国交省データを探します。';
     if (preg_match('/(災害|防災)/u', $message)) $notice = 'このエリアの災害リスクを公的データで確認します。';
     elseif (preg_match('/(都市計画|再開発)/u', $message)) $notice = '再開発・都市計画の参考情報を確認します。';
     elseif (preg_match('/(交通|道路|インフラ)/u', $message)) $notice = '周辺インフラや交通環境を確認します。';
     elseif (preg_match('/(河川|浸水|水害|洪水)/u', $message)) $notice = 'ハザード関連の注意点を整理します。';
-    return ['provider' => 'mlit_dpf', 'title' => '国土交通データプラットフォーム検索結果', 'notice' => $notice, 'data' => $result['data']];
+    return [
+        'provider' => 'mlit_dpf',
+        'title' => '国土交通データプラットフォーム検索結果',
+        'notice' => $notice,
+        'data' => ['totalNumber' => $totalNumber, 'searchResults' => array_slice($searchResults, 0, 10)],
+        'record_count' => count($searchResults),
+        'total_count' => $totalNumber,
+        // The DPF search API returns a catalog of matching datasets (title/座標/年度), not measured values.
+        'caveat' => 'これは該当する「データセットの一覧（カタログ）」であり、浸水深・対象河川などの具体的な数値は含まれていません。具体的な数値は断定せず、該当データセットが存在することと一般的な確認方法のみ伝えてください。洪水・浸水の具体的な想定は、ハザードマップポータル等で別途確認が必要です。',
+        'fetched_at' => $result['fetched_at'] ?? null,
+        'cached' => !empty($result['cached']),
+    ];
 }
 
 function chatEstatContext($db, $message, $area) {
@@ -256,7 +286,21 @@ function chatEstatContext($db, $message, $area) {
     ]);
     $result = chatPublicDataCachedGet($db, 'estat', $url, [], 86400, 5);
     if (!$result['ok'] || empty($result['data'])) return null;
-    return ['provider' => 'estat', 'title' => '政府統計の検索結果', 'notice' => '政府統計による地域データを確認します。', 'data' => $result['data']];
+    $tables = $result['data']['GET_STATS_LIST']['DATALIST_INF']['TABLE_INF'] ?? null;
+    $totalNumber = $result['data']['GET_STATS_LIST']['DATALIST_INF']['NUMBER'] ?? null;
+    $recordCount = is_array($tables) ? (isset($tables[0]) ? count($tables) : 1) : 0;
+    if ($recordCount === 0 && $totalNumber === null) return null;
+    return [
+        'provider' => 'estat',
+        'title' => '政府統計の検索結果',
+        'notice' => '政府統計による地域データを確認します。',
+        'data' => $result['data'],
+        'record_count' => $recordCount,
+        'total_count' => $totalNumber !== null ? (int)$totalNumber : null,
+        'caveat' => 'これは該当する統計表の一覧であり、具体的な集計値そのものではありません。具体的な数値は断定せず、参照できる統計があることを伝えてください。',
+        'fetched_at' => $result['fetched_at'] ?? null,
+        'cached' => !empty($result['cached']),
+    ];
 }
 
 function chatNormalizeMansionSearchTerm($term) {
@@ -407,7 +451,17 @@ function chatMansionDbContext($db, $message) {
     try {
         $rows = chatMansionDbSearchRows($db, $terms, 5);
         if (empty($rows)) return null;
-        return ['provider' => 'mansion_db', 'title' => '全国マンションデータベース検索結果', 'notice' => '当社の全国マンションデータベースで物件情報を確認します。', 'data' => array_slice($rows, 0, 5)];
+        $rows = array_slice($rows, 0, 5);
+        return [
+            'provider' => 'mansion_db',
+            'title' => '全国マンションデータベース検索結果',
+            'notice' => '当社の全国マンションデータベースで物件情報を確認します。',
+            'data' => $rows,
+            'record_count' => count($rows),
+            'total_count' => count($rows),
+            'fetched_at' => date('Y-m-d H:i:s'),
+            'cached' => false,
+        ];
     } catch (Throwable $e) {
         error_log('Mansion DB context error: ' . $e->getMessage());
         return null;
@@ -430,15 +484,27 @@ function chatMansionDbDirectAnswer($db, $message) {
         if (empty($facts)) return null;
 
         $source = chatPublicDataSourceLabel('mansion_db');
+        $fetchedAt = date('Y-m-d H:i:s');
         $reply = ($row['building_name'] ?? '該当マンション') . 'について、当社データベースでは次の内容を確認できます。' . "\n\n・" . implode("\n・", $facts);
         if (count($rows) > 1) {
             $reply .= "\n\n※似た名称の候補が複数あります。必要であれば住所やエリアを添えていただくと、より絞り込めます。";
         }
         $reply .= "\n\n出典：" . $source;
+        $meta = [[
+            'provider' => 'mansion_db',
+            'label' => $source,
+            'record_count' => count($rows),
+            'total_count' => count($rows),
+            'fetched_at' => $fetchedAt,
+            'cached' => false,
+        ]];
+        $footer = chatPublicDataTransparencyFooter($meta);
+        if ($footer !== '') $reply .= "\n\n" . $footer;
         return [
             'reply' => $reply,
-            'sources' => chatPublicDataSourcesForUi([$source]),
+            'sources' => chatPublicDataSourcesForUi([$source], $meta),
             'row' => $row,
+            'meta' => $meta,
         ];
     } catch (Throwable $e) {
         error_log('Mansion DB direct answer error: ' . $e->getMessage());
@@ -454,7 +520,7 @@ function chatPublicDataTrimForPrompt($data, $maxLength = 4000) {
 }
 
 function chatBuildPublicDataContext($db, $message) {
-    if (!chatPublicDataShouldRun($message)) return ['context' => '', 'sources' => [], 'notices' => [], 'attempted' => false];
+    if (!chatPublicDataShouldRun($message)) return ['context' => '', 'sources' => [], 'notices' => [], 'meta' => [], 'attempted' => false];
     $area = chatPublicExtractArea($message);
     $items = [];
     foreach ([
@@ -468,40 +534,151 @@ function chatBuildPublicDataContext($db, $message) {
     if (empty($items)) {
         $context = "【公的・独自データ参照情報】
 この質問は公的データ・独自データによる補強対象として判定されましたが、今回のサーバー側取得では回答に使える有効なデータを取得できませんでした。APIキーや内部情報は回答に出さないでください。取得できた事実がないため、出典つきの断定は避け、必要に応じて『公的データの取得結果を確認できませんでした』と自然に伝えてください。";
-        return ['context' => $context, 'sources' => [], 'notices' => ['公的データの取得結果を確認できませんでした。'], 'attempted' => true];
+        return ['context' => $context, 'sources' => [], 'notices' => ['公的データの取得結果を確認できませんでした。'], 'meta' => [], 'attempted' => true];
     }
-    $parts = ["【公的・独自データ参照情報】\n以下はサーバー側で取得した補強データです。APIキーや内部情報は回答に出さないでください。該当データが質問と関係する場合だけ、一般ユーザー向けにやさしく要約してください。"];
+    $parts = ["【公的・独自データ参照情報】\n以下はサーバー側で実際に取得した補強データです。APIキーや内部情報は回答に出さないでください。該当データが質問と関係する場合だけ、一般ユーザー向けにやさしく要約してください。取得件数・取得日時の数値は、ここに記載された値をそのまま使ってください（推測で件数を作らないでください）。"];
     $sources = [];
     $notices = [];
+    $meta = [];
     foreach ($items as $item) {
         $label = chatPublicDataSourceLabel($item['provider']);
         $sources[] = $label;
         if (!empty($item['notice'])) $notices[] = $item['notice'];
+
+        $meta[] = [
+            'provider' => $item['provider'],
+            'label' => $label,
+            'record_count' => isset($item['record_count']) ? (int)$item['record_count'] : null,
+            'total_count' => array_key_exists('total_count', $item) && $item['total_count'] !== null ? (int)$item['total_count'] : null,
+            'fetched_at' => $item['fetched_at'] ?? null,
+            'cached' => !empty($item['cached']),
+        ];
+
         $extra = '';
-        if ($item['provider'] === 'estat') $extra = "\n回答でこのデータを参照する場合は、該当箇所に『政府統計によると、』という前置きを入れてください。";
+        if ($item['provider'] === 'estat') $extra .= "\n回答でこのデータを参照する場合は、該当箇所に『政府統計によると、』という前置きを入れてください。";
+        $metaLine = '取得件数: ' . (isset($item['record_count']) ? (int)$item['record_count'] . '件' : '不明');
+        if (array_key_exists('total_count', $item) && $item['total_count'] !== null) $metaLine .= ' / 該当総件数: ' . (int)$item['total_count'] . '件';
+        if (!empty($item['fetched_at'])) $metaLine .= ' / 取得日時: ' . $item['fetched_at'] . ($item['cached'] ? '（キャッシュ）' : '（最新取得）');
+        $extra .= "\n" . $metaLine;
+        if (!empty($item['count_note'])) $extra .= "\n" . $item['count_note'];
+        if (!empty($item['caveat'])) $extra .= "\n注意: " . $item['caveat'];
         $parts[] = "\n【{$item['title']}】\n出典: {$label}{$extra}\n" . chatPublicDataTrimForPrompt($item['data']);
     }
     $sources = array_values(array_unique($sources));
-    $parts[] = "\n回答末尾に、参照したものだけ『出典：" . implode('／', $sources) . "』を明記してください。";
-    return ['context' => implode("\n", $parts), 'sources' => $sources, 'notices' => array_values(array_unique($notices)), 'attempted' => true];
+    $parts[] = "\n回答末尾の出典表記は、本文で実際にこの取得データを使った場合だけ付けてください。取得データを使わず一般知識のみで答えた場合は出典を付けないでください。";
+    return ['context' => implode("\n", $parts), 'sources' => $sources, 'notices' => array_values(array_unique($notices)), 'meta' => $meta, 'attempted' => true];
+}
+
+/**
+ * Build a short, user-facing transparency footer describing what was actually
+ * retrieved from APIs/DB for this answer: source, record count, fetch time.
+ * Returns '' when no data was retrieved.
+ */
+function chatPublicDataTransparencyFooter($meta) {
+    if (empty($meta) || !is_array($meta)) return '';
+    $lines = [];
+    foreach ($meta as $m) {
+        if (!is_array($m)) continue;
+        $label = $m['label'] ?? '';
+        if ($label === '') continue;
+        $count = isset($m['record_count']) ? (int)$m['record_count'] : null;
+        $total = array_key_exists('total_count', $m) && $m['total_count'] !== null ? (int)$m['total_count'] : null;
+        $line = '・' . $label;
+        if ($total !== null && $count !== null && $total > $count) {
+            $line .= '：該当 ' . $total . ' 件（うち ' . $count . ' 件を参照）';
+        } elseif ($total !== null) {
+            $line .= '：' . $total . ' 件';
+        } elseif ($count !== null) {
+            $line .= '：' . $count . ' 件';
+        }
+        if (!empty($m['fetched_at'])) {
+            $line .= '／取得 ' . mb_substr((string)$m['fetched_at'], 0, 16) . ($m['cached'] ? '（キャッシュ）' : '');
+        }
+        $lines[] = $line;
+    }
+    if (empty($lines)) return '';
+    return "----\n📊 データ取得情報（実データ）\n" . implode("\n", $lines);
 }
 
 
-function chatPublicDataSourcesForUi($sources) {
+function chatPublicDataSourcesForUi($sources, $meta = []) {
     $map = [
         '国土交通省 不動産情報ライブラリ' => 'https://www.reinfolib.mlit.go.jp/',
         '国土交通データプラットフォーム' => 'https://data-platform.mlit.go.jp/',
         '政府統計の総合窓口 e-Stat' => 'https://www.e-stat.go.jp/',
         '当社 全国マンションデータベース' => '',
     ];
+    $metaByLabel = [];
+    foreach ((array)$meta as $m) {
+        if (is_array($m) && !empty($m['label'])) $metaByLabel[$m['label']] = $m;
+    }
     $items = [];
     foreach (array_values(array_unique(array_filter((array)$sources))) as $source) {
         $label = is_array($source) ? ($source['title'] ?? '') : (string)$source;
         if ($label === '') continue;
         $url = $map[$label] ?? '';
-        $items[] = ['title' => $label, 'url' => $url];
+        $item = ['title' => $label, 'url' => $url];
+        if (isset($metaByLabel[$label])) {
+            $m = $metaByLabel[$label];
+            $item['from_api'] = true;
+            if (array_key_exists('total_count', $m) && $m['total_count'] !== null) $item['record_count'] = (int)$m['total_count'];
+            elseif (isset($m['record_count'])) $item['record_count'] = (int)$m['record_count'];
+            if (!empty($m['fetched_at'])) $item['fetched_at'] = (string)$m['fetched_at'];
+            $item['cached'] = !empty($m['cached']);
+        }
+        $items[] = $item;
     }
     return $items;
+}
+
+function ensureChatPublicDataAccessLogTable($db) {
+    if (!$db instanceof PDO) return;
+    $db->exec("CREATE TABLE IF NOT EXISTS chat_public_data_access_log (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        session_id CHAR(36) NULL,
+        business_card_id INT NULL,
+        user_message TEXT NULL,
+        provider VARCHAR(60) NOT NULL,
+        record_count INT NULL,
+        total_count INT NULL,
+        cached TINYINT(1) NOT NULL DEFAULT 0,
+        fetched_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_chat_pda_log_session (session_id),
+        INDEX idx_chat_pda_log_card_created (business_card_id, created_at),
+        INDEX idx_chat_pda_log_provider_created (provider, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+/**
+ * Record, per user message, which public-data providers were actually invoked
+ * and how many records they returned. This is the audit trail that answers
+ * "which questions used the API vs a normal answer" and "how many records".
+ */
+function chatLogPublicDataAccess($db, $sessionId, $businessCardId, $message, $meta) {
+    if (!$db instanceof PDO || empty($meta) || !is_array($meta)) return;
+    try {
+        ensureChatPublicDataAccessLogTable($db);
+        $stmt = $db->prepare("INSERT INTO chat_public_data_access_log
+            (session_id, business_card_id, user_message, provider, record_count, total_count, cached, fetched_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $shortMessage = mb_substr((string)$message, 0, 500);
+        foreach ($meta as $m) {
+            if (!is_array($m) || empty($m['provider'])) continue;
+            $stmt->execute([
+                $sessionId !== '' ? $sessionId : null,
+                $businessCardId !== null ? (int)$businessCardId : null,
+                $shortMessage,
+                $m['provider'],
+                isset($m['record_count']) ? (int)$m['record_count'] : null,
+                array_key_exists('total_count', $m) && $m['total_count'] !== null ? (int)$m['total_count'] : null,
+                !empty($m['cached']) ? 1 : 0,
+                !empty($m['fetched_at']) ? $m['fetched_at'] : null,
+            ]);
+        }
+    } catch (Throwable $e) {
+        error_log('Chat public data access log error: ' . $e->getMessage());
+    }
 }
 
 function chatAppendPublicDataSourcesToReply($reply, $sources) {

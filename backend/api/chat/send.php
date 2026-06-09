@@ -98,6 +98,9 @@ try {
         if ($directMansionAnswer !== null) {
             $reply = $directMansionAnswer['reply'];
             $sources = $directMansionAnswer['sources'];
+            if (!empty($directMansionAnswer['meta'])) {
+                chatLogPublicDataAccess($db, $sessionId, (int)$card['id'], $message, $directMansionAnswer['meta']);
+            }
         } else {
             $agentName = $card['name'] ?? '担当者';
             $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName, $db, $sessionId);

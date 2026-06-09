@@ -295,6 +295,9 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                     <a href="email-logs.php" class="admin-dropdown-item">
                         <span>メール送信ログ</span>
                     </a>
+                    <a href="chat-api-logs.php" class="admin-dropdown-item">
+                        <span>チャットAPI利用ログ</span>
+                    </a>
                     <a href="send-email.php" class="admin-dropdown-item">
                         <span>メール招待</span>
                     </a>

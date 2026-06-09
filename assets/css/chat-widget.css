@@ -282,6 +282,10 @@
     text-decoration: underline;
     overflow-wrap: anywhere;
 }
+.chat-msg-sources .chat-msg-source-meta {
+    color: #98a2b3;
+    font-weight: 400;
+}
 
 .chat-widget-quick-actions {
     flex: 0 0 auto;

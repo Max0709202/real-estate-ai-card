@@ -420,6 +420,7 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
         'context' => '',
         'sources' => [],
         'notices' => [],
+        'meta' => [],
     ];
 
     $liveRefresh = [
@@ -468,7 +469,11 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
     $publicDataContext = $publicData['context'] !== ''
         ? "\n\n" . $publicData['context']
         : '';
-    $publicDataUiSources = chatPublicDataSourcesForUi($publicData['sources']);
+    $publicDataMeta = $publicData['meta'] ?? [];
+    $publicDataUiSources = chatPublicDataSourcesForUi($publicData['sources'], $publicDataMeta);
+    if (!empty($publicDataMeta) && $db instanceof PDO) {
+        chatLogPublicDataAccess($db, $sessionId, $businessCardId, $userMessage, $publicDataMeta);
+    }
 
     $systemPrompt = <<<PROMPT
 あなたは不動産の専門家ではなく、日本の不動産営業現場で使われる顧客を担当している不動産エージェントです。 
@@ -622,6 +627,14 @@ PROMPT;
     $safeReply = sanitizeChatReferralLanguage($result['reply'], $agentName);
     if (!empty($publicData['sources'])) {
         $safeReply = chatAppendPublicDataSourcesToReply($safeReply, $publicData['sources']);
+    }
+    // Make it explicit to the user when the answer is backed by real retrieved data:
+    // append a small footer with source / record count / fetch time.
+    if (!empty($publicDataMeta)) {
+        $transparencyFooter = chatPublicDataTransparencyFooter($publicDataMeta);
+        if ($transparencyFooter !== '' && mb_strpos($safeReply, '📊 データ取得情報') === false) {
+            $safeReply = rtrim($safeReply) . "\n\n" . $transparencyFooter;
+        }
     }
     return ['reply' => $safeReply, 'sources' => array_merge($rag['sources'], $publicDataUiSources), 'freshness' => $liveRefresh, 'error' => null, 'model' => $result['model'] ?? $model, 'usage' => $result['usage'] ?? null];
 }
