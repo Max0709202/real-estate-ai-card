@@ -773,6 +773,19 @@ function chatIntakeUserRequestsDirectAnswer($message) {
     return (bool)preg_match('/(こちら|こっち|先ほど|さっき|前|上|私|自分)?の?質問.*(答え|回答|返答)|質問に(答え|回答|返答)|聞いた(?:こと|内容).*(答え|回答|返答)|ちゃんと.*(会話|答え|回答|返答)|普通に答え|会話.*(成立|成り立|噛み合)|話.*(通じ|噛み合)|同じ.*(質問|こと).*(繰り返|聞か)|無視しない|答えてください|回答してください/u', $message);
 }
 
+/**
+ * ユーザーが「これまでの相談内容をまとめて」等、会話全体の要約・整理・振り返りを求めているか判定する。
+ * このような発話はヒアリング項目への回答として機械的に処理せず、GPTに会話全体を解析させる。
+ */
+function chatIsRecapRequest($message) {
+    $message = trim((string)$message);
+    if ($message === '') return false;
+    if (preg_match('/(これまで|今まで|ここまで|過去|先ほど|さっき|相談|会話|話した|聞いた|やり取り|やりとり).{0,12}(まとめ|要約|整理|振り返|おさらい|総括)/u', $message)) return true;
+    if (preg_match('/(まとめ|要約)(て|を|と|ます|ください|下さい|てほしい|て欲しい|てくれ|てもらえ|ていただけ)/u', $message)) return true;
+    if (preg_match('/(振り返|おさらい|総括)(って|り|ます|ください|下さい|てほしい)/u', $message)) return true;
+    return false;
+}
+
 function chatIntakeMatchesDefinedChoice($field, $message) {
     $message = trim((string)$message);
     if ($message === '') return false;
@@ -1467,6 +1480,12 @@ function processChatIntakeMessage($db, $sessionId, $businessCardId, $message, $o
     $fromButton = !empty($options['from_button']);
     $buttonSelection = isset($options['button_selection']) && is_array($options['button_selection']) ? $options['button_selection'] : null;
     $agentName = $options['agent_name'] ?? '担当者';
+
+    // 「これまでの相談内容をまとめて」等の要約依頼は、ヒアリング項目への回答として
+    // 機械的に処理せず、会話全体をGPTに解析・要約させる（handled=false で send.php 側のLLM応答へ委譲）。
+    if (!$fromButton && chatIsRecapRequest($message)) {
+        return ['handled' => false, 'quick_replies' => chatIntakeQuickRepliesForCurrentField($data), 'data' => $data];
+    }
 
     if (chatIntakeUserWantsFreeConversation($message)) {
         $data['_intake_mode'] = 'free';

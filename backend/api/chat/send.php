@@ -71,12 +71,16 @@ try {
     $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'user', ?)");
     $stmt->execute([$sessionId, $message]);
 
-    // Keep only the newest turns in the prompt; older context is carried by chat_session_memory.last_summary.
+    // Give the model the actual conversation so it analyzes the user's own sentences rather than a
+    // mechanical keyword digest. For recap/summary requests, load the whole conversation so "まとめて"
+    // produces a real summary; otherwise use a generous recent window for continuity.
+    $isRecapRequest = function_exists('chatIsRecapRequest') && chatIsRecapRequest($message);
+    $historyLimit = $isRecapRequest ? 200 : 20;
     $stmt = $db->prepare("
         SELECT role, message FROM chat_messages
         WHERE session_id = ? AND id < (SELECT MAX(id) FROM chat_messages WHERE session_id = ?)
         ORDER BY id DESC
-        LIMIT 8
+        LIMIT " . (int)$historyLimit . "
     ");
     $stmt->execute([$sessionId, $sessionId]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);

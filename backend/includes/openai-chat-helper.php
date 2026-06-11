@@ -600,7 +600,11 @@ PROMPT;
     $messages = [
         ['role' => 'system', 'content' => $systemPrompt],
     ];
-    foreach (chatOpenAICompactHistory($conversationHistory, 8, 900) as $msg) {
+    // Pass enough real conversation for the model to analyze the user's own sentences.
+    // Recap/summary requests get the full conversation so "まとめて" is answered from the whole history.
+    $isRecapRequest = function_exists('chatIsRecapRequest') && chatIsRecapRequest($userMessage);
+    $historyWindow = $isRecapRequest ? 200 : 20;
+    foreach (chatOpenAICompactHistory($conversationHistory, $historyWindow, 900) as $msg) {
         $messages[] = $msg;
     }
     $messages[] = ['role' => 'user', 'content' => $userMessage];

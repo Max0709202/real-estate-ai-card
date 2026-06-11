@@ -598,15 +598,23 @@
                 return;
             }
             sendButton.disabled = true;
+            verifyButton.disabled = true;
+            firebaseConfirmationResult = null;
             setStatus('SMSを送信しています...（送信先: ' + phone + '）');
             ensureFirebaseReady().then(function () {
                 var auth = window.firebase.auth();
-                if (!window.chatRecaptchaVerifier) {
-                    window.chatRecaptchaVerifier = new window.firebase.auth.RecaptchaVerifier('chat-firebase-recaptcha', { size: 'invisible' });
+                // invisible reCAPTCHA は使い回せないため、送信のたびに作り直す（再送信を可能にする）。
+                if (window.chatRecaptchaVerifier && window.chatRecaptchaVerifier.clear) {
+                    try { window.chatRecaptchaVerifier.clear(); } catch (e) {}
+                    window.chatRecaptchaVerifier = null;
                 }
+                window.chatRecaptchaVerifier = new window.firebase.auth.RecaptchaVerifier('chat-firebase-recaptcha', { size: 'invisible' });
                 return auth.signInWithPhoneNumber(phone, window.chatRecaptchaVerifier);
             }).then(function (confirmationResult) {
                 firebaseConfirmationResult = confirmationResult;
+                // 送信後も「SMS再送信」を押せるようにし、コード期限切れ・未着でも取り直せるようにする。
+                sendButton.disabled = false;
+                sendButton.textContent = 'SMS再送信';
                 verifyButton.disabled = false;
                 setStatus('SMSを送信しました。届いた認証コードを入力してください。');
             }).catch(function (error) {
@@ -636,8 +644,10 @@
             }).then(function (idToken) {
                 return verifyPhoneOnServer(idToken, reason);
             }).catch(function () {
+                // 認証失敗時は再入力に加えて、新しいコードの取り直し（SMS再送信）も可能にする。
                 verifyButton.disabled = false;
-                setStatus('認証に失敗しました。コードをご確認ください。');
+                sendButton.disabled = false;
+                setStatus('認証に失敗しました。コードをご確認のうえ、もう一度「認証する」を押すか、「SMS再送信」で新しいコードを取得してください。');
             });
         });
     }
