@@ -26,6 +26,7 @@
     var toggleAvatarEl = document.getElementById('chat-widget-toggle-avatar');
     var toggleLabelEl = document.getElementById('chat-widget-toggle-label');
     var quickActions = document.getElementById('chat-widget-quick-actions');
+    var tabBar = document.querySelector('.chat-widget-tabbar');
     var defaultPromptText = "不動産の購入・売却について、何でもお気軽にご質問ください。";
     var entryNoticeText = "こんにちは。\nAI{agent}です。\n24時間365日、不動産のご相談を受付しています。\n\n・購入のご相談\n・売却のご相談\n・相場や住宅ローンのご質問\n・エリアや物件探しのご相談\n\nなど、気軽にご利用ください。\n\nまだ具体的に決まっていない段階でも大丈夫です。\n今の状況に合わせてご案内します。\n\n前回のご相談内容やご希望条件を引き継いで、続きからご案内できます。\nスマートフォンの機種変更時や、別の端末からでも同じ内容でご相談いただけます。";
     var firstConsultationNoticeText = "気になることを、そのまま文章で送ってください。\n\nまだ具体的に決まっていなくても大丈夫です。会話の流れの中で、必要なことだけ少しずつ確認します。\n\n※右下のマイクボタンから音声入力もご利用いただけます。\n\n※AIによるサービスのため、回答内容に誤りが含まれる場合があります。";
@@ -1149,6 +1150,21 @@
             });
     }
 
+    function setActiveChatTab(tab) {
+        if (!tabBar) return;
+        Array.prototype.forEach.call(tabBar.querySelectorAll('.chat-widget-tab'), function (btn) {
+            var active = btn.getAttribute('data-chat-tab') === tab;
+            btn.classList.toggle('is-active', active);
+            if (active) btn.setAttribute('aria-current', 'page');
+            else btn.removeAttribute('aria-current');
+        });
+    }
+
+    function showConstructionNotice(tabLabel) {
+        setActiveChatTab('ai');
+        appendBotMessage('「' + tabLabel + '」は現在工事中です。\nいまはAI担当チャットをご利用ください。');
+    }
+
     updateVoiceButtonState();
     if (!SpeechRecognition && voiceBtn) {
         voiceBtn.classList.add('is-unsupported');
@@ -1192,6 +1208,20 @@
             sendMessage(inputEl.value.trim());
         }
     });
+
+    if (tabBar) {
+        tabBar.addEventListener('click', function (e) {
+            var btn = e.target.closest('.chat-widget-tab');
+            if (!btn) return;
+            var tab = btn.getAttribute('data-chat-tab') || 'ai';
+            if (tab === 'ai') {
+                setActiveChatTab('ai');
+                if (!panel.hidden) inputEl.focus();
+                return;
+            }
+            showConstructionNotice((btn.textContent || 'この機能').trim());
+        });
+    }
 
     if (quickActions) {
         quickActions.addEventListener('click', function (e) {

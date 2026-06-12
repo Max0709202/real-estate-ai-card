@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find . -type f \\\\\\( -iname \"*.png\" -o -iname \"*.jpg\" -o -iname \"*.jpeg\" -o -iname \"*.webp\" \\\\\\) -newermt \"2026-06-01\" 2>/dev/null | head -40; echo \"=== recent files anywhere ===\"; ls -lt /tmp/*.png /tmp/*.jpg 2>/dev/null | head; echo \"=== Downloads ===\"; ls -lt ~/Downloads/ 2>/dev/null | head)",
+      "Read(//tmp/**)",
+      "Read(//home/xs013436/**)",
+      "Bash(convert \"AIチャット正式版1.1.png\" -crop 866x140+0+1675 +repage /tmp/bottom_strip.png)",
+      "Bash(identify /tmp/bottom_strip.png)",
+      "Bash(convert \"AIチャット正式版1.1.png\" -crop 866x110+0+1632 +repage /tmp/iconrow.png)",
+      "Bash(identify /tmp/iconrow.png)",
+      "Bash(convert \"AIチャット正式版1.1.png\" -crop 866x46+0+1634 +repage /tmp/glyphband.png)",
+      "Bash(identify /tmp/glyphband.png)",
+      "Bash(convert \"AIチャット正式版1.1.png\" -crop 866x58+0+1627 +repage /tmp/glyphband2.png)",
+      "Bash(convert \"AIチャット正式版1.1.png\" -crop 866x90+0+1538 +repage /tmp/submitarea.png)",
+      "Bash(identify /tmp/glyphband2.png /tmp/submitarea.png)"
+    ]
+  }
+}

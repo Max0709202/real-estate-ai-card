@@ -1306,7 +1306,8 @@ if (!empty($card['profile_photo'])) {
                 <img id="chat-widget-avatar" class="chat-widget-avatar" src="" alt="" width="40" height="40">
                 <div class="chat-widget-header-text">
                     <span id="chat-widget-agent-name" class="chat-widget-agent-name"></span>
-                    <span class="chat-widget-badge">AIチャット</span>
+                    <span class="chat-widget-role">AIエージェント</span>
+                    <span class="chat-widget-badge">不動産AI名刺</span>
                 </div>
                 <div class="chat-widget-header-actions">
                     <button type="button" id="chat-widget-refresh" class="chat-widget-icon-btn chat-widget-refresh" aria-label="チャットを最初から始める" title="チャットを最初から始める">
@@ -1330,10 +1331,20 @@ if (!empty($card['profile_photo'])) {
                             </svg>
                         </span>
                     </button>
-                    <button type="button" id="chat-widget-send" class="chat-widget-send" aria-label="送信">送信</button>
+                    <button type="button" id="chat-widget-send" class="chat-widget-send" aria-label="送信"><span>送信</span><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/send.png" alt="" class="chat-widget-send-icon" aria-hidden="true"></button>
                 </div>
             </div>
             <div id="chat-widget-voice-status" class="chat-widget-voice-status" aria-live="polite" hidden></div>
+            <nav class="chat-widget-tabbar" aria-label="チャットメニュー">
+                <button type="button" class="chat-widget-tab is-active" data-chat-tab="ai" aria-current="page"><span class="chat-widget-tab-icon" aria-hidden="true"><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/ai.png" alt="" loading="lazy"></span><span>AI担当</span></button>
+                <button type="button" class="chat-widget-tab" data-chat-tab="conditions"><span class="chat-widget-tab-icon" aria-hidden="true"><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/conditions.png" alt="" loading="lazy"></span><span>条件整理</span></button>
+                <button type="button" class="chat-widget-tab" data-chat-tab="progress"><span class="chat-widget-tab-icon" aria-hidden="true"><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/progress.png" alt="" loading="lazy"></span><span>進捗管理</span></button>
+                <button type="button" class="chat-widget-tab" data-chat-tab="property"><span class="chat-widget-tab-icon" aria-hidden="true"><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/property.png" alt="" loading="lazy"></span><span>物件選定</span></button>
+                <button type="button" class="chat-widget-tab" data-chat-tab="tools"><span class="chat-widget-tab-icon" aria-hidden="true"><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/tools.png" alt="" loading="lazy"></span><span>ツール</span></button>
+                <button type="button" class="chat-widget-tab" data-chat-tab="schedule"><span class="chat-widget-tab-icon" aria-hidden="true"><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/schedule.png" alt="" loading="lazy"></span><span>日程調整</span></button>
+                <button type="button" class="chat-widget-tab" data-chat-tab="contact"><span class="chat-widget-tab-icon" aria-hidden="true"><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/contact.png" alt="" loading="lazy"></span><span>担当連絡</span></button>
+            </nav>
+            <p class="chat-widget-screen-note">※この画面はイメージです。実際の画面とは異なる場合があります。</p>
         </div>
     </div>
     <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>
