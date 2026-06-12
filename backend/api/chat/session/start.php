@@ -101,8 +101,18 @@ try {
 
     $agentName = $card['name'] ?? '担当者';
     $customerName = '';
+    // 「今までのご相談内容を表示しますか？」を出すかどうかの判定。
+    // 単に発言があっただけ（recent_context）では出さず、ヒアリングで相談実体が
+    // 溜まっている場合のみ true にする。
+    $hasConsultationSummary = false;
     if ($isResumed) {
         $customerName = chatResolveCustomerNameForSession($db, $sessionId, (int)$card['id']);
+        $sessionMemory = getChatSessionMemory($db, $sessionId);
+        if (is_array($sessionMemory)) {
+            foreach (['last_summary', 'intent', 'property_type', 'budget', 'preferred_area', 'family', 'loan_plan', 'income_range', 'lead_summary'] as $memKey) {
+                if (!empty($sessionMemory[$memKey])) { $hasConsultationSummary = true; break; }
+            }
+        }
     }
     $intake = chatIntakeInitialPayload($agentName);
     $resumeIntake = $isResumed ? chatIntakeResumePayload($db, $sessionId, $card['id']) : null;
@@ -120,6 +130,7 @@ try {
         'is_resumed' => $isResumed,
         'messages' => $messages,
         'has_previous_messages' => $hasPreviousMessages,
+        'has_consultation_summary' => $hasConsultationSummary,
         'agent_name' => $card['name'] ?? '',
         'customer_name' => $customerName,
         'resume_message' => $resumeMessage,

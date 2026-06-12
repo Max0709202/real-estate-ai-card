@@ -479,10 +479,21 @@
         showReloadNoticeIfNeeded();
         var customerLabel = customerCasualLabel(startupData);
         var differentPersonLabel = customerLabel === 'お客様' ? '別の方' : customerLabel + '以外の方';
-        appendBotMessage(customerLabel + '、お帰りなさい。\n\n前回ご相談いただいた内容を引き継いでおりますので、改めて同じ内容をご説明いただく必要はありません。\n\nこの端末からご利用の場合は、そのまま続きからご相談いただけます。\n\n' + differentPersonLabel + 'がご利用される場合は、「新しく相談を始める」をお選びください。\n\n');
-        renderEntryActions([
-            { label: '新しく相談を始める', action: 'start_as_different_person' }
-        ]);
+        // ヒアリングで相談内容が溜まっている場合のみ、「今までのご相談内容を表示しますか？」を会話の入口として出す。
+        var hasConsultationSummary = !!(startupData && startupData.has_consultation_summary);
+        if (hasConsultationSummary) {
+            appendBotMessage(customerLabel + '、お帰りなさい。\n\n今までのご相談内容を表示しますか？\n\n「今までの相談内容を表示する」を選ぶと、これまでのご相談を振り返ってからご案内します。そのまま続けてご相談いただくこともできます。\n\n' + differentPersonLabel + 'がご利用される場合は、「新しく相談を始める」をお選びください。\n\n');
+            renderEntryActions([
+                { label: '今までの相談内容を表示する', action: 'continue_saved_session' },
+                { label: '新しく相談を始める', action: 'start_as_different_person' }
+            ]);
+        } else {
+            // ヒアリング未実施: 相談内容の表示案内は出さない。
+            appendBotMessage(customerLabel + '、お帰りなさい。\n\nこの端末からは、そのまま続きからご相談いただけます。\n\n' + differentPersonLabel + 'がご利用される場合は、「新しく相談を始める」をお選びください。\n\n');
+            renderEntryActions([
+                { label: '新しく相談を始める', action: 'start_as_different_person' }
+            ]);
+        }
         setInputEnabled(true);
         inputEl.focus();
     }
