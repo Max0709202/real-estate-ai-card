@@ -966,7 +966,8 @@
                     syncAgentHeader();
                     startupData = data.data;
                     if (!greetingShown) {
-                        if (data.data.is_resumed && data.data.has_previous_messages) {
+                        // 同じ端末で登録済み（電話・氏名・メール入力済み）なら、リロードしても再入力は求めない。
+                        if (data.data.is_resumed && (data.data.has_previous_messages || data.data.registration_complete)) {
                             showReturningDeviceEntry(data.data);
                         } else {
                             showFirstTimeEntry(data.data);
