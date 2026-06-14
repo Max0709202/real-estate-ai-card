@@ -177,7 +177,7 @@
             }
         }
         if (agentNameEl) agentNameEl.textContent = agentName;
-        if (toggleLabelEl) toggleLabelEl.textContent = agentName + ' AIチャット';
+        if (toggleLabelEl) toggleLabelEl.textContent = agentName + ' AIエージェント';
         if (toggleAvatarEl) {
             if (agentPhoto && toggleAvatarEl.tagName === 'IMG') {
                 toggleAvatarEl.src = agentPhoto;

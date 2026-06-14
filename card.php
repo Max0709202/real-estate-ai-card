@@ -269,9 +269,9 @@ $shareUrl = rtrim(BASE_URL, '/') . '/card.php?slug=' . urlencode($card['url_slug
 if ($chatOnly) {
     $shareUrl .= '&chat=1';
 }
-$pageTitle = ($card['name'] ?? '担当者') . ($chatOnly ? ' - AIチャット' : ' - デジタル名刺');
+$pageTitle = ($card['name'] ?? '担当者') . ($chatOnly ? ' - AIエージェント' : ' - デジタル名刺');
 $pageDescription = $chatOnly
-    ? (($card['name'] ?? '担当者') . 'のAIチャットです。不動産の購入・売却などを相談できます。')
+    ? (($card['name'] ?? '担当者') . 'のAIエージェントです。不動産の購入・売却などを相談できます。')
     : (($card['name'] ?? '担当者') . 'のデジタル名刺です。');
 $agentPhotoUrlForChat = '';
 if (!empty($card['profile_photo'])) {
@@ -1299,7 +1299,7 @@ if (!empty($card['profile_photo'])) {
             <?php else: ?>
                 <span id="chat-widget-toggle-avatar" class="chat-widget-toggle-avatar chat-widget-toggle-avatar-fallback" aria-hidden="true"><?php echo htmlspecialchars(mb_substr($card['name'] ?? 'AI', 0, 1)); ?></span>
             <?php endif; ?>
-            <span id="chat-widget-toggle-label" class="chat-widget-toggle-label"><?php echo htmlspecialchars(($card['name'] ?? '担当者') . ' AIチャット'); ?></span>
+            <span id="chat-widget-toggle-label" class="chat-widget-toggle-label"><?php echo htmlspecialchars(($card['name'] ?? '担当者') . ' AIエージェント'); ?></span>
         </button>
         <div id="chat-widget-panel" hidden class="chat-widget-panel">
             <div class="chat-widget-header">
@@ -1307,7 +1307,6 @@ if (!empty($card['profile_photo'])) {
                 <div class="chat-widget-header-text">
                     <span id="chat-widget-agent-name" class="chat-widget-agent-name"></span>
                     <span class="chat-widget-role">AIエージェント</span>
-                    <span class="chat-widget-badge">不動産AI名刺</span>
                 </div>
                 <div class="chat-widget-header-actions">
                     <button type="button" id="chat-widget-refresh" class="chat-widget-icon-btn chat-widget-refresh" aria-label="チャットを最初から始める" title="チャットを最初から始める">
@@ -1350,8 +1349,8 @@ if (!empty($card['profile_photo'])) {
     <?php elseif ($chatOnly): ?>
     <div class="chat-only-unavailable">
         <div class="chat-only-unavailable-box">
-            <h1>AIチャットをご利用いただけません</h1>
-            <p>この名刺では現在、AIチャット機能が有効ではありません。</p>
+            <h1>AIエージェントをご利用いただけません</h1>
+            <p>この名刺では現在、AIエージェント機能が有効ではありません。</p>
         </div>
     </div>
     <?php endif; ?>
