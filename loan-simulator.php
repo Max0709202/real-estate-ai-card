@@ -17,7 +17,7 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <title>住宅ローンシミュレーター | 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/loan-simulator.css">
     <link rel="icon" type="image/png" sizes="32x32" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=32&v=2">

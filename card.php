@@ -106,7 +106,7 @@ if (!$preview && (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) 
     <html lang="ja">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
         <title>名刺の利用状況 - 不動産AI名刺</title>
     </head>
     <body style="margin:0; min-height:100vh; font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI',Meiryo,sans-serif; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);">
@@ -289,7 +289,7 @@ if (!empty($card['profile_photo'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+        content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover, interactive-widget=resizes-content">
     <title><?php echo htmlspecialchars($pageTitle); ?></title>
     <meta name="description" content="<?php echo htmlspecialchars($pageDescription); ?>">
     <meta property="og:title" content="<?php echo htmlspecialchars($pageTitle); ?>">
@@ -1344,7 +1344,6 @@ if (!empty($card['profile_photo'])) {
                 <button type="button" class="chat-widget-tab" data-chat-tab="schedule"><span class="chat-widget-tab-icon" aria-hidden="true"><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/schedule.png" alt="" loading="lazy"></span><span>日程調整</span></button>
                 <button type="button" class="chat-widget-tab" data-chat-tab="contact"><span class="chat-widget-tab-icon" aria-hidden="true"><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/contact.png" alt="" loading="lazy"></span><span>担当連絡</span></button>
             </nav>
-            <p class="chat-widget-screen-note">※この画面はイメージです。実際の画面とは異なる場合があります。</p>
         </div>
     </div>
     <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>

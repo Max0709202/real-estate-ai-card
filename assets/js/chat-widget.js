@@ -28,11 +28,14 @@
     var quickActions = document.getElementById('chat-widget-quick-actions');
     var tabBar = document.querySelector('.chat-widget-tabbar');
     var defaultPromptText = "不動産の購入・売却について、何でもお気軽にご質問ください。";
-    var entryNoticeText = "こんにちは。\nAI{agent}です。\n24時間365日、不動産のご相談を受付しています。\n\n・購入のご相談\n・売却のご相談\n・相場や住宅ローンのご質問\n・エリアや物件探しのご相談\n\nなど、気軽にご利用ください。\n\nまだ具体的に決まっていない段階でも大丈夫です。\n今の状況に合わせてご案内します。\n\n前回のご相談内容やご希望条件を引き継いで、続きからご案内できます。\nスマートフォンの機種変更時や、別の端末からでも同じ内容でご相談いただけます。";
+    var entryNoticeText = "こんにちは。\nAI{agent}です。\n\nこちらのAIエージェントでは、物件探しや進捗管理、私とのやり取りをスムーズに進めるために、ご相談内容を安全に保存し、スマートフォンの変更時や別の端末からアクセスした場合でも引き継げるよう、最初にSMS認証・メールアドレス・お名前の登録をお願いしています。\n\n最初にSMS認証を行います。電話番号を入力し、届いた認証コードを入力してください。";
     var firstConsultationNoticeText = "気になることを、そのまま文章で送ってください。\n\nまだ具体的に決まっていなくても大丈夫です。会話の流れの中で、必要なことだけ少しずつ確認します。\n\n※右下のマイクボタンから音声入力もご利用いただけます。\n\n※AIによるサービスのため、回答内容に誤りが含まれる場合があります。";
     var previousConfirmedNoticeText = "ありがとうございます。前回のご相談内容を確認しました。\n前回の内容をもとに、このまま続きからご案内できます。";
     var registeredPhoneNoticeText = "おかえりなさい、{customer}。\n\n前回のご相談内容をもとに、続きからご案内します。";
     var reloadNoticeText = "ページを再読み込みしました。チャットを再接続しましたので、前回の相談がある場合は続きから再開できます。";
+    var nameRegistrationText = "続いて、お名前を「姓」「名」の順で入力してください。「姓」と「名」の間にはスペースを入れて下さい。";
+    var emailRegistrationText = "続いてメールアドレスを入力して下さい。\n\nよく使うドメインは、下のボタンから選んで入力できます。";
+    var registrationCompleteText = "ご登録ありがとうございました。\n\nこれで、スマートフォンの機種変更時や別の端末からでも、SMS認証で続きからご相談いただけます。";
     var pwaModalIds = ['pwaIosModal1', 'pwaIosModal2', 'pwaIosModalSafari'];
 
     if (!toggleBtn || !panel || !messagesContainer || !inputEl || !sendBtn) return;
@@ -45,6 +48,7 @@
     var greetingShown = false;
     var startupData = null;
     var entryAwaitingChoice = false;
+    var registrationFlow = false;
     var firebaseConfigPromise = null;
     var firebaseAppReady = false;
     var firebaseConfirmationResult = null;
@@ -461,15 +465,13 @@
     function showFirstTimeEntry(data) {
         entryAwaitingChoice = true;
         greetingShown = true;
+        registrationFlow = true;
         startupData = data || startupData;
         messagesContainer.innerHTML = '';
         showReloadNoticeIfNeeded();
+        // 最初のアクセス時は、SMS認証→お名前→メールアドレスの順で個人情報の登録をお願いする。
         appendBotMessage(personalize(entryNoticeText, startupData));
-        renderEntryActions([
-            { label: '初めて相談する', action: 'first_consultation' },
-            { label: '前回の続きから相談する', action: 'continue_previous_sms' }
-        ]);
-        setInputEnabled(false);
+        showSmsAuth('upfront');
     }
 
     function showReturningDeviceEntry(data) {
@@ -584,7 +586,7 @@
             try { window.chatRecaptchaVerifier.clear(); } catch (e) {}
             window.chatRecaptchaVerifier = null;
         }
-        var smsIntro = reason === 'register'
+        var smsIntro = (reason === 'register' || reason === 'upfront')
             ? ''
             : '前回のご相談を安全に確認するため、SMS認証を行います。電話番号を入力し、届いた認証コードを入力してください。';
         if (smsIntro) appendBotMessage(smsIntro);
@@ -715,7 +717,9 @@
             removeSmsAuthBox();
             if (!data.success || !data.data) {
                 appendBotMessage(data.message || 'SMS認証を確認できませんでした。');
-                if (reason === 'register') {
+                if (reason === 'upfront') {
+                    showSmsAuth('upfront');
+                } else if (reason === 'register') {
                     renderQuickReplies([{ label: 'もう一度SMS認証する', value: 'sms_register', action: 'sms_register' }]);
                 } else {
                     renderEntryActions([{ label: 'もう一度SMS認証する', action: reason === 'other' ? 'use_as_someone_else' : 'continue_previous_sms' }]);
@@ -725,6 +729,17 @@
             sessionId = data.data.session_id;
             saveSessionId(sessionId);
             startupData = data.data;
+            if (reason === 'upfront') {
+                if (data.data.matched) {
+                    // 登録済みの電話番号: 別端末・機種変更でも前回の相談を引き継いで再開する。
+                    registrationFlow = false;
+                    continueSavedConsultation(startupData, true);
+                } else {
+                    // 新規登録: 続けてお名前→メールアドレスを登録してもらう。
+                    showNameForm();
+                }
+                return;
+            }
             if (data.data.registration_completed) {
                 entryAwaitingChoice = false;
                 renderQuickReplies([]);
@@ -739,6 +754,121 @@
                 beginFirstConsultation(startupData);
             }
         });
+    }
+
+    function removeProfileForm() {
+        var existing = messagesContainer.querySelector('.chat-profile-form');
+        if (existing) existing.remove();
+    }
+
+    function saveProfile(fields) {
+        var payload = { session_id: sessionId, visitor_id: visitorId, card_slug: cardSlug };
+        if (fields.name) payload.name = fields.name;
+        if (fields.email) payload.email = fields.email;
+        return fetch(apiBase + '/profile/save.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function (res) {
+            return res.json().catch(function () { return { success: false, message: 'サーバーから正しい応答を受け取れませんでした。' }; });
+        }).then(function (data) {
+            if (!data.success) throw new Error(data.message || '登録できませんでした。');
+            return data.data || {};
+        });
+    }
+
+    function showNameForm() {
+        entryAwaitingChoice = true;
+        registrationFlow = true;
+        renderQuickReplies([]);
+        removeProfileForm();
+        setInputEnabled(false);
+        appendBotMessage(nameRegistrationText);
+        var box = document.createElement('div');
+        box.className = 'chat-profile-form chat-profile-name';
+        box.innerHTML = '<label>お名前（姓 名）</label><input type="text" class="chat-profile-input chat-profile-name-input" placeholder="例：山田 太郎" autocomplete="name"><div class="chat-profile-status" aria-live="polite"></div><button type="button" class="chat-profile-submit">登録する</button>';
+        messagesContainer.appendChild(box);
+        scrollMessagesToBottom();
+
+        var input = box.querySelector('.chat-profile-name-input');
+        var submit = box.querySelector('.chat-profile-submit');
+        var status = box.querySelector('.chat-profile-status');
+        var submitName = function () {
+            var name = (input.value || '').trim();
+            if (!name) { status.textContent = 'お名前を入力してください。'; return; }
+            submit.disabled = true;
+            status.textContent = '登録しています...';
+            saveProfile({ name: name }).then(function (result) {
+                box.remove();
+                if (result && result.customer_name) {
+                    startupData = startupData || {};
+                    startupData.customer_name = result.customer_name;
+                }
+                appendUserMessage(name);
+                showEmailForm();
+            }).catch(function (error) {
+                submit.disabled = false;
+                status.textContent = (error && error.message) || 'お名前を登録できませんでした。姓と名の間にスペースを入れてご入力ください。';
+            });
+        };
+        submit.addEventListener('click', submitName);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); submitName(); }
+        });
+        setTimeout(function () { input.focus(); }, 50);
+    }
+
+    function showEmailForm() {
+        entryAwaitingChoice = true;
+        registrationFlow = true;
+        renderQuickReplies([]);
+        removeProfileForm();
+        setInputEnabled(false);
+        appendBotMessage(emailRegistrationText);
+        var domains = ['@gmail.com', '@icloud.com', '@yahoo.co.jp', '@docomo.ne.jp', '@ezweb.ne.jp', '@softbank.ne.jp'];
+        var chips = domains.map(function (domain) {
+            return '<button type="button" class="chat-email-domain-btn" data-domain="' + domain + '">' + domain + '</button>';
+        }).join('');
+        var box = document.createElement('div');
+        box.className = 'chat-profile-form chat-profile-email';
+        box.innerHTML = '<label>メールアドレス</label><input type="email" class="chat-profile-input chat-profile-email-input" inputmode="email" autocomplete="email" placeholder="例：yamada@example.com"><div class="chat-email-domains">' + chips + '</div><div class="chat-profile-status" aria-live="polite"></div><button type="button" class="chat-profile-submit">登録する</button>';
+        messagesContainer.appendChild(box);
+        scrollMessagesToBottom();
+
+        var input = box.querySelector('.chat-profile-email-input');
+        var submit = box.querySelector('.chat-profile-submit');
+        var status = box.querySelector('.chat-profile-status');
+        Array.prototype.forEach.call(box.querySelectorAll('.chat-email-domain-btn'), function (chip) {
+            chip.addEventListener('click', function () {
+                var domain = chip.getAttribute('data-domain') || '';
+                var current = (input.value || '').trim();
+                var at = current.indexOf('@');
+                if (at !== -1) current = current.slice(0, at);
+                input.value = current + domain;
+                input.focus();
+            });
+        });
+        var submitEmail = function () {
+            var email = (input.value || '').trim();
+            if (!email) { status.textContent = 'メールアドレスを入力してください。'; return; }
+            submit.disabled = true;
+            status.textContent = '登録しています...';
+            saveProfile({ email: email }).then(function () {
+                box.remove();
+                appendUserMessage(email);
+                registrationFlow = false;
+                appendBotMessage(registrationCompleteText);
+                beginFirstConsultation(startupData);
+            }).catch(function (error) {
+                submit.disabled = false;
+                status.textContent = (error && error.message) || 'メールアドレスの形式をご確認ください。';
+            });
+        };
+        submit.addEventListener('click', submitEmail);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); submitEmail(); }
+        });
+        setTimeout(function () { input.focus(); }, 50);
     }
 
     function renderQuickReplies(replies) {

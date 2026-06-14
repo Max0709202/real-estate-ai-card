@@ -54,7 +54,7 @@ if ($tokenValid && !empty($tokenData['email'])) {
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <?php if ($isTokenBased): ?>
     <!-- Prevent search engine indexing for token-based pages -->
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">

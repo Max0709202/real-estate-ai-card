@@ -45,7 +45,7 @@ if ($excludeFromSearch) {
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover, interactive-widget=resizes-content">
 
     <!-- Primary SEO -->
     <title>不動産AI名刺 | 商談機会を逃さない次世代営業ツール</title>

@@ -30,7 +30,7 @@ header('Content-Type: text/html; charset=UTF-8');
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <title>画像向き正規化テスト</title>
     <style>
         body {

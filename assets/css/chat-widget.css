@@ -409,6 +409,71 @@
     min-height: 1px;
 }
 
+.chat-profile-form {
+    align-self: stretch;
+    margin: 0 0 0.25rem 2.5rem;
+    padding: 0.85rem;
+    border: 1px solid #d9e4f2;
+    border-radius: 10px;
+    background: #f8fbff;
+    display: grid;
+    gap: 0.5rem;
+    max-width: 460px;
+}
+.chat-profile-form label {
+    color: #344054;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+.chat-profile-input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 0.58rem 0.65rem;
+    border: 1px solid #cfd8e3;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 0.9rem;
+}
+.chat-email-domains {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.chat-email-domain-btn {
+    border: 1px solid #cfd8e3;
+    border-radius: 999px;
+    background: #fff;
+    color: #0066cc;
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.32rem 0.6rem;
+    cursor: pointer;
+}
+.chat-email-domain-btn:hover {
+    background: #eef6ff;
+}
+.chat-profile-status {
+    min-height: 1.2em;
+    color: #475467;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+.chat-profile-submit {
+    justify-self: stretch;
+    border: 1px solid #0066cc;
+    border-radius: 8px;
+    background: #0066cc;
+    color: #fff;
+    font-weight: 700;
+    padding: 0.6rem 0.7rem;
+    cursor: pointer;
+}
+.chat-profile-submit:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .chat-intake-multi-hint {
     flex-basis: 100%;
     font-size: 0.75rem;
@@ -969,7 +1034,7 @@
     }
 
     .chat-widget-input-actions {
-        width: 62px;
+        width: 75px;
         flex-direction: column;
     }
 
@@ -980,7 +1045,7 @@
 
     .chat-widget-tabbar {
         overflow-x: auto;
-        grid-template-columns: repeat(7, minmax(64px, 1fr));
+        grid-template-columns: repeat(7, minmax(40px, 1fr));
         padding-inline: 0.7rem;
     }
 

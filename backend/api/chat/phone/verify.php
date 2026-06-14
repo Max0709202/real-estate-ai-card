@@ -67,9 +67,36 @@ try {
     $sessionId = '';
     $matched = false;
     $registrationCompleted = false;
+    $needsProfile = false;
     $customerName = $found['customer_name'] ?? null;
 
-    if ($reason === 'register' && $currentSessionId !== '') {
+    // 最初のアクセス時の事前登録フロー（SMS認証→お名前→メールアドレス）。
+    // 既に登録済みの電話番号なら過去の相談を引き継ぎ、未登録なら現在のセッションへ登録する。
+    if ($reason === 'upfront') {
+        if ($found && !empty($found['session_id'])) {
+            $sessionId = $found['session_id'];
+            $matched = true;
+            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$visitorId !== '' ? $visitorId : null, $sessionId]);
+        } else {
+            if ($currentSessionId !== '') {
+                $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
+                $stmt->execute([$currentSessionId, $businessCardId]);
+                $sessionId = (string)($stmt->fetchColumn() ?: '');
+            }
+            if ($sessionId === '') {
+                $sessionId = chatCreateSessionForVerifiedPhone($db, $businessCardId, $visitorId);
+            } else {
+                $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+                $stmt->execute([$visitorId !== '' ? $visitorId : null, $sessionId]);
+            }
+            $leadData = chatIntakeApplyVerifiedPhoneRegistration($db, $sessionId, $businessCardId, $phone);
+            $customerName = $leadData['customer_name'] ?? $customerName;
+            $needsProfile = true;
+        }
+    }
+
+    if ($sessionId === '' && $reason === 'register' && $currentSessionId !== '') {
         $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
         $stmt->execute([$currentSessionId, $businessCardId]);
         $sessionId = (string)($stmt->fetchColumn() ?: '');
@@ -113,6 +140,7 @@ try {
     sendSuccessResponse([
         'matched' => $matched,
         'registration_completed' => $registrationCompleted,
+        'needs_profile' => $needsProfile,
         'session_id' => $sessionId,
         'phone' => $phone,
         'customer_name' => $customerName,
