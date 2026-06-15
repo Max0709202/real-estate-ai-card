@@ -309,7 +309,7 @@ function callOpenAIChat($messages, $apiKey, $model = 'gpt-4o-mini', $options = [
             'Content-Type: application/json',
             'Authorization: Bearer ' . $apiKey,
         ],
-        CURLOPT_TIMEOUT       => 30,
+        CURLOPT_TIMEOUT       => isset($options['timeout']) ? max(3, (int)$options['timeout']) : 30,
         CURLOPT_SSL_VERIFYPEER => true,
     ]);
     $response = curl_exec($ch);
