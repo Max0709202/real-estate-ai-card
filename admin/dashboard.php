@@ -8,6 +8,7 @@ require_once __DIR__ . '/../backend/includes/functions.php';
 require_once __DIR__ . '/../backend/includes/chat-intake-helper.php';
 require_once __DIR__ . '/../backend/includes/chat-phone-helper.php';
 require_once __DIR__ . '/../backend/includes/loan-simulation-helper.php';
+require_once __DIR__ . '/../backend/includes/chat-crm-helper.php';
 require_once __DIR__ . '/../backend/includes/referral-tracking-helper.php';
 
 startSessionIfNotStarted();
@@ -23,6 +24,7 @@ $db = $database->getConnection();
 ensureChatLeadContactTable($db);
 ensureChatVerifiedPhonesTable($db);
 ensureLoanSimulationInputsTable($db);
+ensureChatCrmCasesTable($db);
 ensureReferralTrackingColumns($db, ['users', 'payments', 'subscriptions']);
 
 // 最終パスワード変更情報取得
@@ -225,6 +227,22 @@ $referralSummarySql = "
     LIMIT 12
 ";
 $referralSummary = $db->query($referralSummarySql)->fetchAll(PDO::FETCH_ASSOC);
+$crmSummarySql = "
+    SELECT deal_type, COUNT(*) AS total
+    FROM chat_crm_cases
+    GROUP BY deal_type
+";
+$crmSummary = $db->query($crmSummarySql)->fetchAll(PDO::FETCH_ASSOC);
+
+$crmRecentSql = "
+    SELECT c.session_id, c.deal_type, c.ai_summary, c.updated_at,
+           bc.name AS card_holder_name, bc.company_name, bc.url_slug
+    FROM chat_crm_cases c
+    JOIN business_cards bc ON bc.id = c.business_card_id
+    ORDER BY c.updated_at DESC
+    LIMIT 6
+";
+$crmRecent = $db->query($crmRecentSql)->fetchAll(PDO::FETCH_ASSOC);
 
 $stmt = $db->prepare('SELECT role FROM admins WHERE id = ?');
 $stmt->execute([$_SESSION['admin_id']]);
@@ -449,6 +467,36 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                     <?php endforeach; ?>
                     <?php if (empty($referralSummary)): ?>
                         <div style="color: #718096;">集計対象データはまだありません。</div>
+                    <?php endif; ?>
+                </div>
+            </section>
+
+            <section style="margin: 0 0 1rem; padding: 1rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <h2 style="font-size: 1rem; margin: 0 0 0.75rem; color: #2d3748;">CRM進捗サマリー</h2>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.8rem;">
+                    <?php foreach ($crmSummary as $item): ?>
+                        <div style="padding: 0.55rem 0.75rem; border: 1px solid #d9e4f2; border-radius: 6px; background: #f8fbff;">
+                            <strong style="display:block; color:#0b4f9f; font-size:0.82rem;"><?php echo htmlspecialchars($item['deal_type'] ?? '', ENT_QUOTES, 'UTF-8'); ?></strong>
+                            <span style="font-size:0.88rem;"><?php echo number_format((int)($item['total'] ?? 0)); ?>件</span>
+                        </div>
+                    <?php endforeach; ?>
+                    <?php if (empty($crmSummary)): ?>
+                        <div style="color:#718096;">CRMデータはまだありません。</div>
+                    <?php endif; ?>
+                </div>
+                <div style="display:grid; gap:0.6rem;">
+                    <?php foreach ($crmRecent as $item): ?>
+                        <div style="border:1px solid #edf2f7; border-radius:6px; padding:0.75rem; background:#f8fafc;">
+                            <div style="display:flex; justify-content:space-between; gap:0.8rem; flex-wrap:wrap;">
+                                <strong style="color:#1a202c;"><?php echo htmlspecialchars(($item['company_name'] ?? '') . ' ' . ($item['card_holder_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></strong>
+                                <span style="color:#0b4f9f;"><?php echo htmlspecialchars($item['deal_type'] ?? '', ENT_QUOTES, 'UTF-8'); ?></span>
+                            </div>
+                            <div style="font-size:0.86rem; color:#4a5568; margin-top:0.3rem;"><?php echo htmlspecialchars($item['ai_summary'] ?? '要約なし', ENT_QUOTES, 'UTF-8'); ?></div>
+                            <div style="font-size:0.8rem; color:#718096; margin-top:0.25rem;"><?php echo htmlspecialchars($item['updated_at'] ?? '', ENT_QUOTES, 'UTF-8'); ?> / <?php echo htmlspecialchars($item['url_slug'] ?? '', ENT_QUOTES, 'UTF-8'); ?></div>
+                        </div>
+                    <?php endforeach; ?>
+                    <?php if (empty($crmRecent)): ?>
+                        <div style="color:#718096;">最近更新されたCRM案件はありません。</div>
                     <?php endif; ?>
                 </div>
             </section>

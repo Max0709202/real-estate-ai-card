@@ -1319,6 +1319,7 @@ if (!empty($card['profile_photo'])) {
             </div>
             <div id="chat-widget-messages" class="chat-widget-messages"></div>
             <div class="chat-widget-quick-actions" id="chat-widget-quick-actions"></div>
+            <div id="chat-widget-feature-panel" class="chat-widget-feature-panel" hidden></div>
             <div class="chat-widget-input-wrap">
                 <textarea id="chat-widget-input" class="chat-widget-input" rows="2" placeholder="メッセージを入力..." maxlength="2000"></textarea>
                 <div class="chat-widget-input-actions">

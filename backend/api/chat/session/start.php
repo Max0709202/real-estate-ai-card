@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../../includes/chat-rag-helper.php';
 require_once __DIR__ . '/../../../includes/openai-chat-helper.php';
 require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
+require_once __DIR__ . '/../../../includes/chat-crm-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -154,6 +155,20 @@ try {
         'initial_message' => $intake['initial_message'],
         'quick_replies' => $isResumed ? $resumeQuickReplies : $intake['quick_replies'],
     ];
+    $crmCase = chatCrmLoadCase($db, $sessionId, (int)$card['id']);
+    if (!$crmCase) {
+        chatCrmUpsertCase($db, $sessionId, (int)$card['id'], [
+            'deal_type' => 'purchase',
+            'customer_name' => $customerName ?: '',
+        ]);
+        $crmCase = chatCrmLoadCase($db, $sessionId, (int)$card['id']);
+    }
+    if ($crmCase) {
+        $crmCase['conditions_summary'] = chatCrmSummarizeConditions($crmCase);
+        $crmCase['purchase_schedule'] = chatCrmCalculatePurchaseStages($crmCase['progress']['target_date'] ?? null, $crmCase['progress']['manual_overrides'] ?? []);
+        $crmCase['sale_schedule'] = chatCrmCalculateSaleStages($crmCase['progress']['target_date'] ?? null, $crmCase['progress']['manual_overrides'] ?? []);
+        $data['crm_case'] = $crmCase;
+    }
     sendSuccessResponse($data, 'セッションを作成しました');
 } catch (Exception $e) {
     error_log('Chat session start error: ' . $e->getMessage());

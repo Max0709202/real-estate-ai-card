@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../includes/chat-rag-helper.php';
 require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
+require_once __DIR__ . '/../../includes/chat-crm-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -87,6 +88,13 @@ try {
         'loan_simulation' => $loanSimulationData,
         'registered_phones' => chatRegisteredPhonesForCard($db, (int)$session['business_card_id'], 100),
     ];
+    $crmCase = chatCrmLoadCase($db, $sessionId, (int)$session['business_card_id']);
+    if ($crmCase) {
+        $crmCase['conditions_summary'] = chatCrmSummarizeConditions($crmCase);
+        $crmCase['purchase_schedule'] = chatCrmCalculatePurchaseStages($crmCase['progress']['target_date'] ?? null, $crmCase['progress']['manual_overrides'] ?? []);
+        $crmCase['sale_schedule'] = chatCrmCalculateSaleStages($crmCase['progress']['target_date'] ?? null, $crmCase['progress']['manual_overrides'] ?? []);
+        $data['crm_case'] = $crmCase;
+    }
     sendSuccessResponse($data, 'OK');
 } catch (Exception $e) {
     error_log('Chat session detail error: ' . $e->getMessage());

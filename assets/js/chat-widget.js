@@ -26,6 +26,7 @@
     var toggleAvatarEl = document.getElementById('chat-widget-toggle-avatar');
     var toggleLabelEl = document.getElementById('chat-widget-toggle-label');
     var quickActions = document.getElementById('chat-widget-quick-actions');
+    var featurePanel = document.getElementById('chat-widget-feature-panel');
     var tabBar = document.querySelector('.chat-widget-tabbar');
     var defaultPromptText = "不動産の購入・売却について、何でもお気軽にご質問ください。";
     var entryNoticeText = "こんにちは。\nAI{agent}です。\n\nこちらのAIエージェントでは、物件探しや進捗管理、私とのやり取りをスムーズに進めるために、ご相談内容を安全に保存し、スマートフォンの変更時や別の端末からアクセスした場合でも引き継げるよう、最初にSMS認証・メールアドレス・お名前の登録をお願いしています。\n\n最初にSMS認証を行います。電話番号を入力し、届いた認証コードを入力してください。";
@@ -64,6 +65,9 @@
     var quickActionsAwaitingBottomScroll = false;
     var quickActionsUserScrollIntent = false;
     var quickActionsScrollFrame = null;
+    var crmState = null;
+    var crmLoading = false;
+    var activeChatTab = 'ai';
 
     function detectPageReload() {
         try {
@@ -983,6 +987,7 @@
             sessionId = null;
             greetingShown = false;
             canUseLoanSim = true;
+            crmState = null;
             messagesContainer.innerHTML = '';
             renderQuickReplies([]);
             setVoiceStatus('');
@@ -1037,6 +1042,8 @@
                             showFirstTimeEntry(data.data);
                         }
                     }
+                    crmState = data.data.crm_case ? { session: data.data, case: data.data.crm_case, data: data.data } : null;
+                    loadCrmState(false);
                     if (!canUseLoanSim && quickActions) quickActions.style.display = 'none';
                 } else {
                     appendBotMessage(data.message || '申し訳ございません。いまチャットをご利用いただけません。');
@@ -1347,6 +1354,7 @@
 
     function setActiveChatTab(tab) {
         if (!tabBar) return;
+        activeChatTab = tab || 'ai';
         Array.prototype.forEach.call(tabBar.querySelectorAll('.chat-widget-tab'), function (btn) {
             var active = btn.getAttribute('data-chat-tab') === tab;
             btn.classList.toggle('is-active', active);
@@ -1357,7 +1365,373 @@
 
     function showConstructionNotice(tabLabel) {
         setActiveChatTab('ai');
-        appendBotMessage('「' + tabLabel + '」は現在工事中です。\nいまはAI担当チャットをご利用ください。');
+        if (featurePanel) featurePanel.hidden = true;
+        appendBotMessage('「' + tabLabel + '」を読み込めませんでした。');
+    }
+
+    function apiCrmUrl(path) {
+        return apiBase.replace(/\/?$/, '') + '/crm/' + path;
+    }
+
+    function loadCrmState(force) {
+        if (!sessionId) return Promise.resolve(null);
+        if (crmLoading && !force) return Promise.resolve(crmState);
+        crmLoading = true;
+        return fetch(apiCrmUrl('get.php?session_id=' + encodeURIComponent(sessionId)))
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                crmLoading = false;
+                if (data && data.success && data.data && data.data.case) {
+                    crmState = data.data;
+                    if (activeChatTab !== 'ai' && featurePanel && !featurePanel.hidden) {
+                        renderFeatureTab(activeChatTab);
+                    }
+                    return crmState;
+                }
+                crmState = { failed: true };
+                return crmState;
+            })
+            .catch(function () {
+                crmLoading = false;
+                crmState = { failed: true };
+                return crmState;
+            });
+    }
+
+    function saveCrmFeature(feature, payload) {
+        if (!sessionId) return Promise.reject(new Error('session missing'));
+        return fetch(apiCrmUrl('save.php'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, feature: feature, payload: payload || {} })
+        }).then(function (res) { return res.json(); }).then(function (data) {
+            if (!data.success || !data.data || !data.data.case) throw new Error(data.message || '保存できませんでした');
+            crmState = data.data;
+            return crmState;
+        });
+    }
+
+    function crmCase() {
+        return crmState && crmState.case ? crmState.case : null;
+    }
+
+    function crmFields(value) {
+        return escapeHtml(value == null ? '' : String(value));
+    }
+
+    function crmArray(value) {
+        return Array.isArray(value) ? value : [];
+    }
+
+    function crmJson(value) {
+        try {
+            return JSON.stringify(value, null, 2);
+        } catch (e) {
+            return '{}';
+        }
+    }
+
+    function renderFeaturePanel(html) {
+        if (!featurePanel) return;
+        featurePanel.hidden = false;
+        featurePanel.innerHTML = html;
+    }
+
+    function renderConditionsTab() {
+        var c = crmCase();
+        if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
+        var cond = c.conditions || {};
+        var buyer = cond.buyer || {};
+        var seller = cond.seller || {};
+        var dealType = c.deal_type || 'purchase';
+        var html = '';
+        html += '<div class="chat-feature-head"><strong>条件整理</strong><span>AI要約: ' + crmFields(c.ai_summary || '未作成') + '</span></div>';
+        html += '<label class="chat-feature-field">取引種別<select name="deal_type"><option value="purchase"' + (dealType === 'purchase' ? ' selected' : '') + '>購入</option><option value="sale"' + (dealType === 'sale' ? ' selected' : '') + '>売却</option><option value="both"' + (dealType === 'both' ? ' selected' : '') + '>両方</option></select></label>';
+        html += '<div class="chat-feature-grid">';
+        html += '<section><h4>購入条件</h4>';
+        html += '<label>希望時期<input name="buyer_purchase_timing" value="' + crmFields(buyer.purchase_timing || '') + '"></label>';
+        html += '<label>引渡希望日<input type="date" name="buyer_move_in_date" value="' + crmFields(buyer.move_in_date || '') + '"></label>';
+        html += '<label>予算上限<input name="buyer_budget_max" value="' + crmFields(buyer.budget_max || '') + '"></label>';
+        html += '<label>希望エリア<textarea name="buyer_areas">' + crmFields(crmArray(buyer.areas).join('、')) + '</textarea></label>';
+        html += '<label>希望駅<textarea name="buyer_stations">' + crmFields(crmArray(buyer.stations).join('、')) + '</textarea></label>';
+        html += '<label>駅徒歩<input name="buyer_walk_minutes" value="' + crmFields(buyer.walk_minutes || '') + '"></label>';
+        html += '<label>種別<input name="buyer_property_type" value="' + crmFields(buyer.property_type || '') + '"></label>';
+        html += '<label>間取り<input name="buyer_layout" value="' + crmFields(buyer.layout || '') + '"></label>';
+        html += '<label>面積<input name="buyer_area_min" value="' + crmFields(buyer.area_min || '') + '"></label>';
+        html += '<label>築年数<input name="buyer_building_age" value="' + crmFields(buyer.building_age || '') + '"></label>';
+        html += '<label>リノベ希望<input name="buyer_renovation_preference" value="' + crmFields(buyer.renovation_preference || '') + '"></label>';
+        html += '<label>購入理由<textarea name="buyer_purchase_reason">' + crmFields(buyer.purchase_reason || '') + '</textarea></label>';
+        html += '</section>';
+        html += '<section><h4>売却条件</h4>';
+        html += '<label>売却理由<textarea name="seller_sale_reason">' + crmFields(seller.sale_reason || '') + '</textarea></label>';
+        html += '<label>売却時期<input name="seller_sale_timing" value="' + crmFields(seller.sale_timing || '') + '"></label>';
+        html += '<label>決済希望日<input type="date" name="seller_closing_date" value="' + crmFields(seller.closing_date || '') + '"></label>';
+        html += '<label>希望価格<input name="seller_sale_price" value="' + crmFields(seller.sale_price || '') + '"></label>';
+        html += '<label>最低価格<input name="seller_minimum_price" value="' + crmFields(seller.minimum_price || '') + '"></label>';
+        html += '<label>ローン残債<input name="seller_loan_balance" value="' + crmFields(seller.loan_balance || '') + '"></label>';
+        html += '<label>住み替え予定<input name="seller_relocation_plan" value="' + crmFields(seller.relocation_plan || '') + '"></label>';
+        html += '<label>売却後の住まい<input name="seller_post_sale_home" value="' + crmFields(seller.post_sale_home || '') + '"></label>';
+        html += '<label>内覧対応<textarea name="seller_viewing_availability">' + crmFields(seller.viewing_availability || '') + '"></textarea></label>';
+        html += '<label>アピールポイント<textarea name="seller_appeal_points">' + crmFields(crmArray(seller.appeal_points).join('、')) + '</textarea></label>';
+        html += '</section></div>';
+        html += '<label class="chat-feature-field">営業メモ<textarea name="notes">' + crmFields(cond.notes || '') + '</textarea></label>';
+        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-save" data-save-feature="conditions">保存</button><button type="button" class="chat-feature-sync" data-sync-feature="conditions">チャットから再読込</button></div>';
+        html += '<div class="chat-feature-summary"><strong>整理結果</strong><p>' + crmFields(c.conditions_summary || '未整理') + '</p></div>';
+        renderFeaturePanel(html);
+    }
+
+    function renderProgressTab() {
+        var c = crmCase();
+        if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
+        var p = c.progress || {};
+        var stages = crmArray(p.stages);
+        var html = '<div class="chat-feature-head"><strong>進捗管理</strong><span>進捗率 ' + crmFields(p.progress_percent || 0) + '%</span></div>';
+        html += '<label class="chat-feature-field">基準日<input type="date" name="target_date" value="' + crmFields(p.target_date || '') + '"></label>';
+        html += '<label class="chat-feature-field">現在のステージ<input name="current_stage" value="' + crmFields(p.current_stage || '') + '"></label>';
+        html += '<label class="chat-feature-field">AIコメント<textarea name="ai_comment">' + crmFields(p.ai_comment || '') + '</textarea></label>';
+        html += '<div class="chat-feature-list">';
+        stages.forEach(function (stage, idx) {
+            html += '<div class="chat-feature-list-row"><div><strong>' + crmFields(stage.label || '') + '</strong><div>' + crmFields(stage.date || '') + '</div></div>';
+            html += '<input type="date" data-stage-key="' + crmFields(stage.key || ('stage_' + idx)) + '" value="' + crmFields((p.manual_overrides && p.manual_overrides[stage.key]) || '') + '"></div>';
+        });
+        html += '</div>';
+        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-save" data-save-feature="progress">保存</button></div>';
+        renderFeaturePanel(html);
+    }
+
+    function renderPropertiesTab() {
+        var c = crmCase();
+        if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
+        var items = crmArray((c.properties || {}).items);
+        var html = '<div class="chat-feature-head"><strong>物件選定</strong><span>候補の管理</span></div>';
+        html += '<div class="chat-feature-list">';
+        items.forEach(function (item, idx) {
+            html += '<div class="chat-feature-card">';
+            html += '<div class="chat-feature-card-head"><strong>' + crmFields(item.name || ('物件 ' + (idx + 1))) + '</strong><span>' + crmFields(item.status || '検討中') + '</span></div>';
+            html += '<div class="chat-feature-small">' + crmFields(item.price || '') + ' / ' + crmFields(item.address || '') + '</div>';
+            html += '<p>' + crmFields(item.comment || '') + '</p></div>';
+        });
+        if (!items.length) html += '<div class="chat-feature-empty">候補物件はまだありません。</div>';
+        html += '</div>';
+        html += '<div class="chat-feature-grid">';
+        html += '<label>物件名<input name="property_name"></label>';
+        html += '<label>住所<input name="property_address"></label>';
+        html += '<label>価格<input name="property_price"></label>';
+        html += '<label>ステータス<select name="property_status"><option>購入希望</option><option>内見希望</option><option selected>検討中</option><option>候補外</option></select></label>';
+        html += '<label>コメント<textarea name="property_comment"></textarea></label>';
+        html += '</div>';
+        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-add" data-add-feature="property">追加</button><button type="button" class="chat-feature-save" data-save-feature="properties">保存</button></div>';
+        renderFeaturePanel(html);
+    }
+
+    function renderToolsTab() {
+        var c = crmCase();
+        if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
+        var tools = (crmState && crmState.data && crmState.data.tools) ? crmState.data.tools : [];
+        var html = '<div class="chat-feature-head"><strong>ツール</strong><span>リンク集</span></div>';
+        html += '<div class="chat-feature-tools">';
+        tools.forEach(function (tool) {
+            html += '<a class="chat-feature-tool" href="' + crmFields(tool.tool_url || '#') + '" target="_blank" rel="noopener noreferrer">' + crmFields(tool.tool_type || '') + '</a>';
+        });
+        if (canUseLoanSim) {
+            html += '<a class="chat-feature-tool" href="' + crmFields('loan-simulator.php?slug=' + encodeURIComponent(cardSlug)) + '" target="_blank" rel="noopener noreferrer">ローンシミュレーター</a>';
+        }
+        html += '</div>';
+        renderFeaturePanel(html);
+    }
+
+    function renderSchedulesTab() {
+        var c = crmCase();
+        if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
+        var schedules = c.schedules || {};
+        var normal = crmArray(schedules.normal);
+        var viewings = crmArray(schedules.viewings);
+        var html = '<div class="chat-feature-head"><strong>日程調整</strong><span>候補日時の管理</span></div>';
+        html += '<div class="chat-feature-grid">';
+        html += '<label>種類<select name="schedule_kind"><option>面談</option><option>内覧</option><option>重要事項説明</option><option>売買契約</option><option>引き渡し（決済）</option></select></label>';
+        html += '<label>日時<input type="datetime-local" name="schedule_datetime"></label>';
+        html += '<label>ステータス<select name="schedule_status"><option>候補</option><option>担当者確認中</option><option>顧客確認待ち</option><option>売主確認待ち</option><option>確定済み</option><option>変更依頼中</option><option>キャンセル済み</option></select></label>';
+        html += '<label>メモ<textarea name="schedule_message"></textarea></label>';
+        html += '</div>';
+        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-add" data-add-feature="schedule">追加</button><button type="button" class="chat-feature-save" data-save-feature="schedules">保存</button></div>';
+        html += '<div class="chat-feature-list">';
+        normal.forEach(function (item) {
+            html += '<div class="chat-feature-card"><strong>' + crmFields(item.kind || '日程') + '</strong><div>' + crmFields(item.datetime || '') + '</div><p>' + crmFields(item.status || '') + '</p></div>';
+        });
+        viewings.forEach(function (item) {
+            html += '<div class="chat-feature-card"><strong>' + crmFields(item.property_name || '内覧') + '</strong><div>' + crmFields(item.time || '') + '</div><p>' + crmFields(item.address || '') + '</p></div>';
+        });
+        html += '</div>';
+        renderFeaturePanel(html);
+    }
+
+    function renderContactTab() {
+        var c = crmCase();
+        if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
+        var contact = c.contact || {};
+        var draft = (c.reply_draft && c.reply_draft.draft) ? c.reply_draft.draft : (contact.reply_draft || '');
+        var html = '<div class="chat-feature-head"><strong>担当連絡</strong><span>返信文ブラッシュアップ</span></div>';
+        html += '<label class="chat-feature-field"><input type="checkbox" name="auto_reply_enabled"' + (contact.auto_reply_enabled !== false ? ' checked' : '') + '> 自動返信を有効にする</label>';
+        html += '<label class="chat-feature-field">返信下書き<textarea name="reply_draft">' + crmFields(draft || '') + '</textarea></label>';
+        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-draft" data-draft-feature="contact">文面を作成</button><button type="button" class="chat-feature-save" data-save-feature="contact">保存</button></div>';
+        html += '<div class="chat-feature-summary"><strong>AI要約</strong><p>' + crmFields(c.ai_summary || '未作成') + '</p></div>';
+        html += '<div class="chat-feature-summary"><strong>条件</strong><p>' + crmFields(c.conditions_summary || '未整理') + '</p></div>';
+        renderFeaturePanel(html);
+    }
+
+    function renderFeatureTab(tab) {
+        if (!featurePanel) return;
+        if (tab === 'ai') {
+            featurePanel.hidden = true;
+            return;
+        }
+        featurePanel.hidden = false;
+        if (!crmState) {
+            renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
+            if (!crmLoading) {
+                loadCrmState(true).then(function () { renderFeatureTab(tab); });
+            }
+            return;
+        }
+        if (crmState.failed) {
+            renderFeaturePanel('<div class="chat-feature-empty">読み込みに失敗しました。</div>');
+            return;
+        }
+        if (tab === 'conditions') renderConditionsTab();
+        else if (tab === 'progress') renderProgressTab();
+        else if (tab === 'property') renderPropertiesTab();
+        else if (tab === 'tools') renderToolsTab();
+        else if (tab === 'schedule') renderSchedulesTab();
+        else if (tab === 'contact') renderContactTab();
+        else renderFeaturePanel('<div class="chat-feature-empty">準備中です。</div>');
+    }
+
+    function collectConditionsPayload() {
+        var root = featurePanel;
+        var buyerAreas = (root.querySelector('[name="buyer_areas"]') || {}).value || '';
+        var buyerStations = (root.querySelector('[name="buyer_stations"]') || {}).value || '';
+        var sellerAppeal = (root.querySelector('[name="seller_appeal_points"]') || {}).value || '';
+        return {
+            deal_type: (root.querySelector('[name="deal_type"]') || {}).value || 'purchase',
+            customer_name: crmCase().customer_name || '',
+            ai_summary: crmCase().ai_summary || '',
+            conditions: {
+                deal_type: (root.querySelector('[name="deal_type"]') || {}).value || 'purchase',
+                buyer: {
+                    purchase_timing: (root.querySelector('[name="buyer_purchase_timing"]') || {}).value || '',
+                    move_in_date: (root.querySelector('[name="buyer_move_in_date"]') || {}).value || '',
+                    budget_max: (root.querySelector('[name="buyer_budget_max"]') || {}).value || '',
+                    areas: buyerAreas ? buyerAreas.split(/[、,]/).map(function (s) { return s.trim(); }).filter(Boolean) : [],
+                    stations: buyerStations ? buyerStations.split(/[、,]/).map(function (s) { return s.trim(); }).filter(Boolean) : [],
+                    walk_minutes: (root.querySelector('[name="buyer_walk_minutes"]') || {}).value || '',
+                    property_type: (root.querySelector('[name="buyer_property_type"]') || {}).value || '',
+                    layout: (root.querySelector('[name="buyer_layout"]') || {}).value || '',
+                    area_min: (root.querySelector('[name="buyer_area_min"]') || {}).value || '',
+                    building_age: (root.querySelector('[name="buyer_building_age"]') || {}).value || '',
+                    renovation_preference: (root.querySelector('[name="buyer_renovation_preference"]') || {}).value || '',
+                    purchase_reason: (root.querySelector('[name="buyer_purchase_reason"]') || {}).value || '',
+                },
+                seller: {
+                    sale_reason: (root.querySelector('[name="seller_sale_reason"]') || {}).value || '',
+                    sale_timing: (root.querySelector('[name="seller_sale_timing"]') || {}).value || '',
+                    closing_date: (root.querySelector('[name="seller_closing_date"]') || {}).value || '',
+                    sale_price: (root.querySelector('[name="seller_sale_price"]') || {}).value || '',
+                    minimum_price: (root.querySelector('[name="seller_minimum_price"]') || {}).value || '',
+                    loan_balance: (root.querySelector('[name="seller_loan_balance"]') || {}).value || '',
+                    relocation_plan: (root.querySelector('[name="seller_relocation_plan"]') || {}).value || '',
+                    post_sale_home: (root.querySelector('[name="seller_post_sale_home"]') || {}).value || '',
+                    viewing_availability: (root.querySelector('[name="seller_viewing_availability"]') || {}).value || '',
+                    appeal_points: sellerAppeal ? sellerAppeal.split(/[、,]/).map(function (s) { return s.trim(); }).filter(Boolean) : [],
+                },
+                notes: (root.querySelector('[name="notes"]') || {}).value || ''
+            }
+        };
+    }
+
+    function collectProgressPayload() {
+        var root = featurePanel;
+        var overrides = {};
+        Array.prototype.forEach.call(root.querySelectorAll('[data-stage-key]'), function (input) {
+            overrides[input.getAttribute('data-stage-key')] = input.value || '';
+        });
+        return {
+            deal_type: crmCase().deal_type || 'purchase',
+            progress: {
+                deal_type: crmCase().deal_type || 'purchase',
+                target_date: (root.querySelector('[name="target_date"]') || {}).value || '',
+                current_stage: (root.querySelector('[name="current_stage"]') || {}).value || '',
+                progress_percent: crmCase().progress ? crmCase().progress.progress_percent : 0,
+                ai_comment: (root.querySelector('[name="ai_comment"]') || {}).value || '',
+                manual_overrides: overrides
+            }
+        };
+    }
+
+    function collectPropertiesPayload() {
+        var root = featurePanel;
+        return {
+            deal_type: crmCase().deal_type || 'purchase',
+            properties: {
+                items: crmArray((crmCase().properties || {}).items).concat([{
+                    id: Date.now(),
+                    name: (root.querySelector('[name="property_name"]') || {}).value || '',
+                    address: (root.querySelector('[name="property_address"]') || {}).value || '',
+                    price: (root.querySelector('[name="property_price"]') || {}).value || '',
+                    status: (root.querySelector('[name="property_status"]') || {}).value || '検討中',
+                    comment: (root.querySelector('[name="property_comment"]') || {}).value || ''
+                }]).filter(function (item) { return item.name || item.address || item.price || item.comment; })
+            }
+        };
+    }
+
+    function collectSchedulesPayload() {
+        var root = featurePanel;
+        return {
+            deal_type: crmCase().deal_type || 'purchase',
+            schedules: {
+                deal_type: crmCase().deal_type || 'purchase',
+                normal: crmArray((crmCase().schedules || {}).normal).concat([{
+                    id: Date.now(),
+                    kind: (root.querySelector('[name="schedule_kind"]') || {}).value || '',
+                    datetime: (root.querySelector('[name="schedule_datetime"]') || {}).value || '',
+                    status: (root.querySelector('[name="schedule_status"]') || {}).value || '',
+                    message: (root.querySelector('[name="schedule_message"]') || {}).value || ''
+                }]),
+                viewings: crmArray((crmCase().schedules || {}).viewings),
+                seller_viewing_availability: crmArray((crmCase().schedules || {}).seller_viewing_availability)
+            }
+        };
+    }
+
+    function collectContactPayload(draftText) {
+        var root = featurePanel;
+        return {
+            contact: {
+                auto_reply_enabled: !!(root.querySelector('[name="auto_reply_enabled"]') || {}).checked,
+                reply_draft: draftText || (root.querySelector('[name="reply_draft"]') || {}).value || '',
+                reply_history: crmArray((crmCase().contact || {}).reply_history)
+            },
+            reply_draft: {
+                source_message: (crmCase().reply_draft || {}).source_message || '',
+                draft: draftText || (root.querySelector('[name="reply_draft"]') || {}).value || '',
+                mode: 'manual',
+                updated_at: new Date().toISOString()
+            }
+        };
+    }
+
+    function draftReply(mode) {
+        var payload = { session_id: sessionId, message: inputEl.value.trim() || (crmCase().reply_draft || {}).source_message || '', mode: mode || 'polish' };
+        return fetch(apiBase.replace(/\/?$/, '') + '/reply-draft.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function (res) { return res.json(); }).then(function (data) {
+            if (!data.success || !data.data || !data.data.draft) throw new Error(data.message || '下書きを作成できませんでした');
+            var el = featurePanel.querySelector('[name="reply_draft"]');
+            if (el) el.value = data.data.draft;
+            return saveCrmFeature('reply_draft', { reply_draft: { source_message: payload.message, draft: data.data.draft, mode: mode || 'polish', updated_at: new Date().toISOString() } });
+        });
     }
 
     updateVoiceButtonState();
@@ -1411,10 +1785,81 @@
             var tab = btn.getAttribute('data-chat-tab') || 'ai';
             if (tab === 'ai') {
                 setActiveChatTab('ai');
+                if (featurePanel) featurePanel.hidden = true;
                 if (!panel.hidden) inputEl.focus();
                 return;
             }
-            showConstructionNotice((btn.textContent || 'この機能').trim());
+            setActiveChatTab(tab);
+            loadCrmState(false).then(function () {
+                renderFeatureTab(tab);
+            });
+        });
+    }
+
+    if (featurePanel) {
+        featurePanel.addEventListener('click', function (e) {
+            var saveBtn = e.target.closest('[data-save-feature]');
+            var syncBtn = e.target.closest('[data-sync-feature]');
+            var addBtn = e.target.closest('[data-add-feature]');
+            var draftBtn = e.target.closest('[data-draft-feature]');
+
+            if (syncBtn) {
+                var syncFeature = syncBtn.getAttribute('data-sync-feature');
+                if (syncFeature === 'conditions') {
+                    loadCrmState(true).then(function () { renderConditionsTab(); });
+                }
+                return;
+            }
+            if (saveBtn) {
+                var feature = saveBtn.getAttribute('data-save-feature');
+                var payload = null;
+                if (feature === 'conditions') payload = collectConditionsPayload();
+                else if (feature === 'progress') payload = collectProgressPayload();
+                else if (feature === 'properties') payload = collectPropertiesPayload();
+                else if (feature === 'schedules') payload = collectSchedulesPayload();
+                else if (feature === 'contact') payload = collectContactPayload();
+                if (!payload) return;
+                saveBtn.disabled = true;
+                saveCrmFeature(feature, payload).then(function () {
+                    if (feature === 'conditions') renderConditionsTab();
+                    else if (feature === 'progress') renderProgressTab();
+                    else if (feature === 'properties') renderPropertiesTab();
+                    else if (feature === 'schedules') renderSchedulesTab();
+                    else if (feature === 'contact') renderContactTab();
+                }).catch(function () {
+                    appendBotMessage('保存に失敗しました。');
+                }).finally(function () {
+                    saveBtn.disabled = false;
+                });
+                return;
+            }
+            if (addBtn) {
+                var addFeature = addBtn.getAttribute('data-add-feature');
+                var payloadAdd = null;
+                if (addFeature === 'property') payloadAdd = collectPropertiesPayload();
+                else if (addFeature === 'schedule') payloadAdd = collectSchedulesPayload();
+                if (!payloadAdd) return;
+                addBtn.disabled = true;
+                saveCrmFeature(addFeature === 'property' ? 'properties' : 'schedules', payloadAdd).then(function () {
+                    if (addFeature === 'property') renderPropertiesTab();
+                    else renderSchedulesTab();
+                }).catch(function () {
+                    appendBotMessage('追加に失敗しました。');
+                }).finally(function () {
+                    addBtn.disabled = false;
+                });
+                return;
+            }
+            if (draftBtn) {
+                draftBtn.disabled = true;
+                draftReply('polish').then(function () {
+                    renderContactTab();
+                }).catch(function () {
+                    appendBotMessage('返信文の作成に失敗しました。');
+                }).finally(function () {
+                    draftBtn.disabled = false;
+                });
+            }
         });
     }
 

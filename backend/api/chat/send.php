@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../includes/openai-chat-helper.php';
 require_once __DIR__ . '/../../includes/chat-intake-helper.php';
+require_once __DIR__ . '/../../includes/chat-crm-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -126,6 +127,7 @@ try {
 
     // Update lightweight conversation memory for future turns and reload continuity
     updateChatSessionMemoryHeuristic($db, $sessionId, $card['id'], $message, $reply);
+    chatCrmSyncFromChatSession($db, $sessionId, (int)$card['id']);
 
     // Update session last_seen
     $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
