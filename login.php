@@ -36,6 +36,7 @@ $prefillEmail = $_GET['email'] ?? '';
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/modal.css">
+    <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
     <style>
         .login-container {
             min-height: 100vh;
@@ -277,4 +278,3 @@ $prefillEmail = $_GET['email'] ?? '';
     <script src="assets/js/modal.js"></script>
 </body>
 </html>
-

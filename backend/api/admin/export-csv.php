@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/referral-tracking-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 try {
@@ -12,6 +13,7 @@ try {
     
     $database = new Database();
     $db = $database->getConnection();
+    ensureReferralTrackingColumns($db, ['users']);
 
     // 検索条件の構築（dashboard.phpと同じロジック）
     $where = [];
@@ -20,6 +22,7 @@ try {
     $emailSearch = trim((string)($_GET['email'] ?? ''));
     $nameSearch = trim((string)($_GET['name'] ?? ''));
     $companyNameSearch = trim((string)($_GET['company_name'] ?? ''));
+    $agentSearch = trim((string)($_GET['agent'] ?? ''));
 
     if ($emailSearch !== '') {
         $where[] = "u.email LIKE ?";
@@ -34,6 +37,11 @@ try {
     if ($companyNameSearch !== '') {
         $where[] = "bc.company_name LIKE ?";
         $params[] = '%' . $companyNameSearch . '%';
+    }
+
+    if ($agentSearch !== '') {
+        $where[] = "u.agent LIKE ?";
+        $params[] = '%' . $agentSearch . '%';
     }
 
     // 入金状況の検索条件
@@ -62,6 +70,7 @@ try {
     // ヘッダー
     fputcsv($output, [
         '分類', '入金状況', 'OPEN', '社名', '名前', '携帯電話番号', 'メールアドレス',
+        'agent', 'utm_source', 'utm_medium', 'utm_campaign', '初回アクセス日時',
         '表示回数（過去1か月）', '表示回数（累積）', '名刺URL', '登録日', '最終ログイン日'
     ]);
 
@@ -86,6 +95,11 @@ try {
             bc.name,
             bc.mobile_phone,
             u.email,
+            u.agent,
+            u.utm_source,
+            u.utm_medium,
+            u.utm_campaign,
+            u.first_accessed_at,
             COALESCE((
                 SELECT COUNT(*) 
                 FROM access_logs al 
@@ -103,7 +117,8 @@ try {
         FROM business_cards bc
         JOIN users u ON bc.user_id = u.id
         $whereClause
-        GROUP BY bc.id, u.id, u.email, u.user_type, bc.company_name, bc.name, bc.mobile_phone, bc.url_slug, 
+        GROUP BY bc.id, u.id, u.email, u.user_type, u.agent, u.utm_source, u.utm_medium, u.utm_campaign, u.first_accessed_at,
+                 bc.company_name, bc.name, bc.mobile_phone, bc.url_slug,
                  bc.is_published, bc.payment_status, bc.created_at, u.last_login_at
         ORDER BY bc.created_at DESC
     ";
@@ -120,6 +135,11 @@ try {
             $row['name'],
             $row['mobile_phone'],
             $row['email'],
+            $row['agent'],
+            $row['utm_source'],
+            $row['utm_medium'],
+            $row['utm_campaign'],
+            $row['first_accessed_at'],
             $row['monthly_views'],
             $row['total_views'],
             $row['card_url'],

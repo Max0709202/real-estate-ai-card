@@ -2879,6 +2879,9 @@ document.getElementById('submit-payment')?.addEventListener('click', async () =>
     
     // Create payment intent
     try {
+        const referralTracking = (window.aiFcardReferralTracking && typeof window.aiFcardReferralTracking.get === 'function')
+            ? window.aiFcardReferralTracking.get()
+            : null;
         const response = await fetch('backend/api/payment/create-intent.php', {
             method: 'POST',
             headers: {
@@ -2886,7 +2889,8 @@ document.getElementById('submit-payment')?.addEventListener('click', async () =>
             },
             body: JSON.stringify({
                 payment_method: paymentMethod,
-                payment_type: (typeof window !== 'undefined' && window.isCanceledAccount) ? 'new' : (formData.user_type || window.userType)
+                payment_type: (typeof window !== 'undefined' && window.isCanceledAccount) ? 'new' : (formData.user_type || window.userType),
+                referral_tracking: referralTracking
             }),
             credentials: 'include'
         });

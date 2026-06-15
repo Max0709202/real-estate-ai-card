@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/referral-tracking-helper.php';
 
 startSessionIfNotStarted();
 header('Content-Type: application/json; charset=UTF-8');
@@ -26,6 +27,8 @@ try {
 
     $database = new Database();
     $db = $database->getConnection();
+    ensureReferralTrackingColumns($db, ['users']);
+    $referralTracking = referralTrackingForSql(referralTrackingFromInput($input));
 
     // Get invitation details and verify token is valid (no expiration check)
     $stmt = $db->prepare("
@@ -57,14 +60,22 @@ try {
         $passwordHash = hashPassword($defaultPassword);
         
         $insertStmt = $db->prepare("
-            INSERT INTO users (email, password_hash, phone_number, user_type, status, email_verified, is_era_member, invitation_token, created_at)
-            VALUES (?, ?, '', 'existing', 'active', 1, ?, ?, NOW())
+            INSERT INTO users (
+                email, password_hash, phone_number, user_type, status, email_verified, is_era_member, invitation_token, created_at,
+                agent, utm_source, utm_medium, utm_campaign, first_accessed_at
+            )
+            VALUES (?, ?, '', 'existing', 'active', 1, ?, ?, NOW(), ?, ?, ?, ?, ?)
         ");
         $insertStmt->execute([
             $invitation['email'],
             $passwordHash,
             $isEraMember ? 1 : 0,
-            $token
+            $token,
+            $referralTracking['agent'],
+            $referralTracking['utm_source'],
+            $referralTracking['utm_medium'],
+            $referralTracking['utm_campaign'],
+            $referralTracking['first_accessed_at']
         ]);
         
         $userId = $db->lastInsertId();

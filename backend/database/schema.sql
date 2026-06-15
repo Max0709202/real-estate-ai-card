@@ -18,11 +18,17 @@ CREATE TABLE IF NOT EXISTS users (
     email_reset_token_expires_at TIMESTAMP NULL,
     email_reset_new_email VARCHAR(255),
     is_era_member TINYINT(1) DEFAULT 0 COMMENT 'ERA会員かどうか',
+    agent VARCHAR(255) NULL,
+    utm_source VARCHAR(255) NULL,
+    utm_medium VARCHAR(255) NULL,
+    utm_campaign VARCHAR(255) NULL,
+    first_accessed_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_login_at TIMESTAMP NULL,
     INDEX idx_email (email),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_users_agent (agent)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ビジネスカードテーブル
@@ -74,7 +80,8 @@ CREATE TABLE IF NOT EXISTS business_cards (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_url_slug (url_slug),
     INDEX idx_user_id (user_id),
-    INDEX idx_payment_status (payment_status)
+    INDEX idx_payment_status (payment_status),
+    INDEX idx_payments_agent (agent)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 挨拶文テーブル
@@ -138,6 +145,11 @@ CREATE TABLE IF NOT EXISTS payments (
     bank_transfer_reference VARCHAR(255),
     paid_at TIMESTAMP NULL,
     renewal_subscription_extended TINYINT(1) NOT NULL DEFAULT 0,
+    agent VARCHAR(255) NULL,
+    utm_source VARCHAR(255) NULL,
+    utm_medium VARCHAR(255) NULL,
+    utm_campaign VARCHAR(255) NULL,
+    first_accessed_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
@@ -158,13 +170,19 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     billing_cycle ENUM('monthly', 'yearly') DEFAULT 'monthly',
     next_billing_date DATE,
     cancelled_at TIMESTAMP NULL,
+    agent VARCHAR(255) NULL,
+    utm_source VARCHAR(255) NULL,
+    utm_medium VARCHAR(255) NULL,
+    utm_campaign VARCHAR(255) NULL,
+    first_accessed_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (business_card_id) REFERENCES business_cards(id) ON DELETE CASCADE,
     INDEX idx_user_id (user_id),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_subscriptions_agent (agent)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- アクセスログテーブル
@@ -267,5 +285,3 @@ INSERT IGNORE INTO settings (setting_key, setting_value, description) VALUES
 ('stripe_publishable_key', '', 'Stripe公開キー'),
 ('stripe_secret_key', '', 'Stripeシークレットキー'),
 ('stripe_webhook_secret', '', 'Stripe Webhookシークレット');
-
-

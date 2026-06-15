@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/referral-tracking-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 // Stripe SDK読み込み（Composer経由）
@@ -34,6 +35,11 @@ try {
 
     $database = new Database();
     $db = $database->getConnection();
+    ensureReferralTrackingColumns($db, ['users', 'payments', 'subscriptions']);
+    $userReferral = referralTrackingFetchForUser($db, $userId);
+    $inputReferral = referralTrackingFromInput($input);
+    $referralTracking = referralTrackingForSql(referralTrackingMerge($inputReferral, $userReferral));
+    $stripeReferralMetadata = referralTrackingMetadata($referralTracking);
 
     // ユーザー情報取得（停止されたアカウントの検出も含む）
     $stmt = $db->prepare("
@@ -173,8 +179,11 @@ try {
 
     // 決済レコードを作成
     $stmt = $db->prepare("
-        INSERT INTO payments (user_id, business_card_id, payment_type, amount, tax_amount, total_amount, payment_method, payment_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+        INSERT INTO payments (
+            user_id, business_card_id, payment_type, amount, tax_amount, total_amount, payment_method, payment_status,
+            agent, utm_source, utm_medium, utm_campaign, first_accessed_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
     ");
     
     $stmt->execute([
@@ -184,7 +193,12 @@ try {
         $amount,
         $taxAmount,
         $totalAmount,
-        $paymentMethod
+        $paymentMethod,
+        $referralTracking['agent'],
+        $referralTracking['utm_source'],
+        $referralTracking['utm_medium'],
+        $referralTracking['utm_campaign'],
+        $referralTracking['first_accessed_at']
     ]);
 
     $paymentId = $db->lastInsertId();
@@ -237,7 +251,7 @@ try {
             'metadata' => [
                 'user_id' => $userId,
                 'business_card_id' => $userInfo['business_card_id']
-            ]
+            ] + $stripeReferralMetadata
         ]);
         $stripeCustomerId = $customer->id;
 
@@ -263,7 +277,7 @@ try {
                 'payment_id' => (string)$paymentId,
                 'payment_type' => $paymentType,
                 'business_card_id' => (string)$userInfo['business_card_id']
-            ],
+            ] + $stripeReferralMetadata,
             'description' => $paymentType === 'renewal'
                 ? '不動産AI名刺 - 利用更新（クレジット）'
                 : ('不動産AI名刺 - ' . (($paymentType === 'new_user' || $userType === 'new') ? '新規ユーザー' : '既存ユーザー') . '初期費用')
@@ -314,7 +328,7 @@ try {
                     'payment_id' => (string)$paymentId,
                     'payment_type' => $paymentType,
                     'business_card_id' => (string)$userInfo['business_card_id']
-                ],
+                ] + $stripeReferralMetadata,
                 'description' => $paymentType === 'renewal'
                     ? '不動産AI名刺 - 利用更新（銀行振込・年額）'
                     : ($paymentType === 'new_user'
@@ -440,7 +454,7 @@ try {
                     'user_id' => (string)$userId,
                     'payment_id' => (string)$paymentId,
                     'business_card_id' => (string)$userInfo['business_card_id']
-                ]
+                ] + $stripeReferralMetadata
             ]);
 
             $stripeSubscriptionId = $subscription->id;
@@ -451,21 +465,34 @@ try {
 
             // subscriptionsテーブルにも保存（停止されたアカウントの復活も含む）
             $stmt = $db->prepare("
-                INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, status, amount, billing_cycle, next_billing_date, cancelled_at)
-                VALUES (?, ?, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH), NULL)
+                INSERT INTO subscriptions (
+                    user_id, business_card_id, stripe_subscription_id, status, amount, billing_cycle, next_billing_date, cancelled_at,
+                    agent, utm_source, utm_medium, utm_campaign, first_accessed_at
+                )
+                VALUES (?, ?, ?, 'active', ?, 'monthly', DATE_ADD(NOW(), INTERVAL 1 MONTH), NULL, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                     stripe_subscription_id = VALUES(stripe_subscription_id),
                     status = 'active',
                     amount = VALUES(amount),
                     next_billing_date = DATE_ADD(NOW(), INTERVAL 1 MONTH),
                     cancelled_at = NULL,
+                    agent = COALESCE(VALUES(agent), agent),
+                    utm_source = COALESCE(VALUES(utm_source), utm_source),
+                    utm_medium = COALESCE(VALUES(utm_medium), utm_medium),
+                    utm_campaign = COALESCE(VALUES(utm_campaign), utm_campaign),
+                    first_accessed_at = COALESCE(VALUES(first_accessed_at), first_accessed_at),
                     updated_at = NOW()
             ");
             $stmt->execute([
                 $userId,
                 $userInfo['business_card_id'],
                 $stripeSubscriptionId,
-                $monthlyAmount
+                $monthlyAmount,
+                $referralTracking['agent'],
+                $referralTracking['utm_source'],
+                $referralTracking['utm_medium'],
+                $referralTracking['utm_campaign'],
+                $referralTracking['first_accessed_at']
             ]);
 
             // 停止されたアカウントの復活処理：ビジネスカードの状態を更新

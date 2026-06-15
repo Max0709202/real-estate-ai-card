@@ -65,6 +65,7 @@ if ($tokenValid && !empty($tokenData['email'])) {
     <title>アカウント作成 - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/register.css">
+    <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
     <link rel="stylesheet" href="assets/css/modal.css">
 </head>
 <body>
@@ -305,6 +306,10 @@ if ($tokenValid && !empty($tokenData['email'])) {
 
             const formDataObj = new FormData(e.target);
             const data = Object.fromEntries(formDataObj);
+            if (window.aiFcardReferralTracking && typeof window.aiFcardReferralTracking.get === 'function') {
+                const referralTracking = window.aiFcardReferralTracking.get();
+                if (referralTracking) data.referral_tracking = referralTracking;
+            }
 
             // Remove password_confirm from data before sending
             delete data.password_confirm;
@@ -386,4 +391,3 @@ if ($tokenValid && !empty($tokenData['email'])) {
     <script src="assets/js/error-handler.js"></script>
 </body>
 </html>
-

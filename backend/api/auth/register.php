@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/referral-tracking-helper.php';
 
 startSessionIfNotStarted();
 header('Content-Type: application/json; charset=UTF-8');
@@ -77,6 +78,8 @@ try {
 
     $database = new Database();
     $db = $database->getConnection();
+    ensureReferralTrackingColumns($db, ['users']);
+    $referralTracking = referralTrackingForSql(referralTrackingFromInput($input));
 
     // Start transaction to prevent duplicate registrations
     $db->beginTransaction();
@@ -126,8 +129,12 @@ try {
         // ユーザー登録
         // Include invitation_token and ERA membership if provided
         $stmt = $db->prepare("
-        INSERT INTO users (email, password_hash, phone_number, user_type, verification_token, verification_token_expires_at, invitation_token, is_era_member, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+        INSERT INTO users (
+            email, password_hash, phone_number, user_type,
+            verification_token, verification_token_expires_at, invitation_token, is_era_member, status,
+            agent, utm_source, utm_medium, utm_campaign, first_accessed_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
         ");
 
         $stmt->execute([
@@ -138,7 +145,12 @@ try {
             $verificationToken,
             $tokenExpiresAt,
             !empty($invitationToken) ? $invitationToken : null,
-            $isEraMember
+            $isEraMember,
+            $referralTracking['agent'],
+            $referralTracking['utm_source'],
+            $referralTracking['utm_medium'],
+            $referralTracking['utm_campaign'],
+            $referralTracking['first_accessed_at']
         ]);
 
         $userId = $db->lastInsertId();
@@ -315,4 +327,3 @@ try {
     error_log("Registration Error: " . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
 }
-

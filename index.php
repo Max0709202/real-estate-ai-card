@@ -1116,6 +1116,7 @@ if ($excludeFromSearch) {
 
     <!-- Swiper JS -->
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
     <script src="assets/js/main.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script src="assets/js/modal.js"></script>
@@ -1191,4 +1192,3 @@ if ($excludeFromSearch) {
     <?php endif; ?>
 </body>
 </html>
-

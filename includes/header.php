@@ -129,6 +129,7 @@ if ($isLoggedIn) {
 <link rel="stylesheet" href="/new_lp.css">
 <!-- Modal Notification Script (load early so functions are available) -->
 <script src="assets/js/modal.js"></script>
+<script src="assets/js/referral-tracking.js"></script>
 <header class="header">
     <div class="container">
         <div class="header-content">
@@ -640,5 +641,4 @@ if ($isLoggedIn) {
 
 <!-- Mobile Menu Script -->
 <script src="assets/js/mobile-menu.js"></script>
-
 

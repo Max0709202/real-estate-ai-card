@@ -1345,6 +1345,7 @@ if (!empty($card['profile_photo'])) {
             </nav>
         </div>
     </div>
+    <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
     <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>
     <?php elseif ($chatOnly): ?>
     <div class="chat-only-unavailable">

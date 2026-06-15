@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/qr-helper.php';
+require_once __DIR__ . '/../../includes/referral-tracking-helper.php';
 
 // Stripe SDK読み込み
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -38,6 +39,7 @@ try {
 
     $database = new Database();
     $db = $database->getConnection();
+    ensureReferralTrackingColumns($db, ['payments', 'subscriptions']);
 
     // Idempotency: Check if event was already processed
     $eventId = $event['id'];
@@ -140,7 +142,9 @@ try {
             $stmt->execute([$paymentIntentId]);
             
             $stmt = $db->prepare("
-                        SELECT p.id as payment_id, p.user_id, p.business_card_id, p.payment_type, p.payment_method, u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member, u.stripe_customer_id
+                        SELECT p.id as payment_id, p.user_id, p.business_card_id, p.payment_type, p.payment_method,
+                               p.agent, p.utm_source, p.utm_medium, p.utm_campaign, p.first_accessed_at,
+                               u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member, u.stripe_customer_id
                 FROM payments p
                         JOIN users u ON p.user_id = u.id
                 WHERE p.stripe_payment_intent_id = ? AND p.payment_status = 'completed'
@@ -268,15 +272,23 @@ try {
                                 // This allows the cancel button to appear and subscription management to work
                                 try {
                                     $stmt = $db->prepare("
-                                        INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, stripe_customer_id, status, amount, billing_cycle, next_billing_date)
-                                        VALUES (?, ?, ?, ?, 'active', ?, 'monthly', {$nextBillingSql})
+                                        INSERT INTO subscriptions (
+                                            user_id, business_card_id, stripe_subscription_id, stripe_customer_id, status, amount, billing_cycle, next_billing_date,
+                                            agent, utm_source, utm_medium, utm_campaign, first_accessed_at
+                                        )
+                                        VALUES (?, ?, ?, ?, 'active', ?, 'monthly', {$nextBillingSql}, ?, ?, ?, ?, ?)
                                     ");
                                     $stmt->execute([
                                         $payment['user_id'],
                                         $payment['business_card_id'],
                                         $stripeSubscriptionId, // NULL if not found, which is acceptable
                                         $payment['stripe_customer_id'],
-                                        $monthlyAmount
+                                        $monthlyAmount,
+                                        $payment['agent'] ?? null,
+                                        $payment['utm_source'] ?? null,
+                                        $payment['utm_medium'] ?? null,
+                                        $payment['utm_campaign'] ?? null,
+                                        $payment['first_accessed_at'] ?? null
                                     ]);
                                     error_log("Created subscription record after invoice.payment_succeeded: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, monthly_amount={$monthlyAmount}");
                                     
@@ -537,7 +549,9 @@ try {
                 $stmt->execute([$paymentIntentId]);
                 
                 $stmt = $db->prepare("
-                    SELECT p.id as payment_id, p.user_id, p.business_card_id, p.payment_type, p.payment_method, u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member, u.stripe_customer_id
+                    SELECT p.id as payment_id, p.user_id, p.business_card_id, p.payment_type, p.payment_method,
+                           p.agent, p.utm_source, p.utm_medium, p.utm_campaign, p.first_accessed_at,
+                           u.user_type, COALESCE(u.is_era_member, 0) AS is_era_member, u.stripe_customer_id
                     FROM payments p
                     JOIN users u ON p.user_id = u.id
                     WHERE p.stripe_payment_intent_id = ? AND p.payment_status = 'completed'
@@ -672,15 +686,23 @@ try {
                             // This allows the cancel button to appear and subscription management to work
                             try {
                                 $stmt = $db->prepare("
-                                    INSERT INTO subscriptions (user_id, business_card_id, stripe_subscription_id, stripe_customer_id, status, amount, billing_cycle, next_billing_date)
-                                    VALUES (?, ?, ?, ?, 'active', ?, 'monthly', {$nextBillingSql})
+                                    INSERT INTO subscriptions (
+                                        user_id, business_card_id, stripe_subscription_id, stripe_customer_id, status, amount, billing_cycle, next_billing_date,
+                                        agent, utm_source, utm_medium, utm_campaign, first_accessed_at
+                                    )
+                                    VALUES (?, ?, ?, ?, 'active', ?, 'monthly', {$nextBillingSql}, ?, ?, ?, ?, ?)
                                 ");
                                 $stmt->execute([
                                     $payment['user_id'],
                                     $payment['business_card_id'],
                                     $stripeSubscriptionId, // NULL if not found, which is acceptable
                                     $payment['stripe_customer_id'],
-                                    $monthlyAmount
+                                    $monthlyAmount,
+                                    $payment['agent'] ?? null,
+                                    $payment['utm_source'] ?? null,
+                                    $payment['utm_medium'] ?? null,
+                                    $payment['utm_campaign'] ?? null,
+                                    $payment['first_accessed_at'] ?? null
                                 ]);
                                 error_log("Created subscription record after payment_intent.succeeded: user_id={$payment['user_id']}, bc_id={$payment['business_card_id']}, payment_type={$payment['payment_type']}, monthly_amount={$monthlyAmount}");
                                 

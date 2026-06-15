@@ -84,6 +84,7 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
     <title>お支払い - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/register.css">
+    <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
     <script src="https://js.stripe.com/v3/"></script>
     <style>
         .payment-container {
@@ -671,4 +672,3 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
     </script>
 </body>
 </html>
-

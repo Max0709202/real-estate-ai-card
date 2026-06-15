@@ -8,6 +8,7 @@ require_once __DIR__ . '/../backend/includes/functions.php';
 require_once __DIR__ . '/../backend/includes/chat-intake-helper.php';
 require_once __DIR__ . '/../backend/includes/chat-phone-helper.php';
 require_once __DIR__ . '/../backend/includes/loan-simulation-helper.php';
+require_once __DIR__ . '/../backend/includes/referral-tracking-helper.php';
 
 startSessionIfNotStarted();
 
@@ -22,6 +23,7 @@ $db = $database->getConnection();
 ensureChatLeadContactTable($db);
 ensureChatVerifiedPhonesTable($db);
 ensureLoanSimulationInputsTable($db);
+ensureReferralTrackingColumns($db, ['users', 'payments', 'subscriptions']);
 
 // 最終パスワード変更情報取得
 $stmt = $db->prepare("
@@ -55,6 +57,7 @@ $params = [];
 $emailSearch = trim((string)($_GET['email'] ?? ''));
 $nameSearch = trim((string)($_GET['name'] ?? ''));
 $companyNameSearch = trim((string)($_GET['company_name'] ?? ''));
+$agentSearch = trim((string)($_GET['agent'] ?? ''));
 
 if ($emailSearch !== '') {
     $where[] = "u.email LIKE ?";
@@ -69,6 +72,11 @@ if ($nameSearch !== '') {
 if ($companyNameSearch !== '') {
     $where[] = "bc.company_name LIKE ?";
     $params[] = '%' . $companyNameSearch . '%';
+}
+
+if ($agentSearch !== '') {
+    $where[] = "u.agent LIKE ?";
+    $params[] = '%' . $agentSearch . '%';
 }
 
 // 入金状況の検索条件
@@ -129,6 +137,11 @@ $sql = "
         u.email,
         u.user_type,
         u.is_era_member,
+        u.agent,
+        u.utm_source,
+        u.utm_medium,
+        u.utm_campaign,
+        u.first_accessed_at,
         bc.company_name,
         bc.name,
         bc.mobile_phone,
@@ -174,7 +187,8 @@ $sql = "
         ) s2 ON s1.business_card_id = s2.business_card_id AND s1.created_at = s2.max_created_at
     ) s ON s.business_card_id = bc.id
     $whereClause
-    GROUP BY bc.id, u.id, u.email, u.user_type, u.is_era_member, bc.company_name, bc.name, bc.mobile_phone, bc.url_slug, bc.company_slug,
+    GROUP BY bc.id, u.id, u.email, u.user_type, u.is_era_member, u.agent, u.utm_source, u.utm_medium, u.utm_campaign, u.first_accessed_at,
+             bc.company_name, bc.name, bc.mobile_phone, bc.url_slug, bc.company_slug,
              bc.is_published, bc.admin_notes, bc.payment_status, bc.created_at, u.last_login_at,
              s.next_billing_date, s.cancelled_at
     ORDER BY $sortField $sortOrder
@@ -189,6 +203,28 @@ $stmt = $db->prepare($sql);
 Database::bindValues($stmt, $queryParams);
 $stmt->execute();
 $users = $stmt->fetchAll();
+
+$referralSummarySql = "
+    SELECT
+        COALESCE(NULLIF(u.agent, ''), '未設定') AS agent_label,
+        COUNT(DISTINCT u.id) AS registered_count,
+        COUNT(DISTINCT CASE
+            WHEN EXISTS (
+                SELECT 1 FROM payments p
+                WHERE p.user_id = u.id AND p.payment_status = 'completed'
+            )
+            OR EXISTS (
+                SELECT 1 FROM business_cards bc2
+                WHERE bc2.user_id = u.id AND bc2.payment_status IN ('CR', 'BANK_PAID', 'ST')
+            )
+            THEN u.id
+        END) AS contracted_count
+    FROM users u
+    GROUP BY COALESCE(NULLIF(u.agent, ''), '未設定')
+    ORDER BY contracted_count DESC, registered_count DESC, agent_label ASC
+    LIMIT 12
+";
+$referralSummary = $db->query($referralSummarySql)->fetchAll(PDO::FETCH_ASSOC);
 
 $stmt = $db->prepare('SELECT role FROM admins WHERE id = ?');
 $stmt->execute([$_SESSION['admin_id']]);
@@ -329,6 +365,11 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                            value="<?php echo htmlspecialchars($companyNameSearch, ENT_QUOTES, 'UTF-8'); ?>"
                            placeholder="社名で検索"
                            class="filter-input">
+                    <input type="text"
+                           name="agent"
+                           value="<?php echo htmlspecialchars($agentSearch, ENT_QUOTES, 'UTF-8'); ?>"
+                           placeholder="代理店コードで検索"
+                           class="filter-input">
                     <select name="payment_status">
                         <option value="">入金状況</option>
                         <option value="CR" <?php echo ($_GET['payment_status'] ?? '') === 'CR' ? 'selected' : ''; ?>>CR</option>
@@ -361,6 +402,9 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                     if ($companyNameSearch !== '') {
                         $csvParams['company_name'] = $companyNameSearch;
                     }
+                    if ($agentSearch !== '') {
+                        $csvParams['agent'] = $agentSearch;
+                    }
                     $csvUrl = '../backend/api/admin/export-csv.php';
                     if (!empty($csvParams)) {
                         $csvUrl .= '?' . http_build_query($csvParams);
@@ -384,6 +428,26 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                     <?php endif; ?>
                 </form>
             </div>
+
+            <section style="margin: 0 0 1rem; padding: 1rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <h2 style="font-size: 1rem; margin: 0 0 0.75rem; color: #2d3748;">代理店別成果集計</h2>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+                    <?php foreach ($referralSummary as $summary): ?>
+                        <div style="border: 1px solid #edf2f7; border-radius: 6px; padding: 0.75rem; background: #f8fafc;">
+                            <div style="font-weight: 700; color: #1a202c; margin-bottom: 0.35rem;">
+                                <?php echo htmlspecialchars($summary['agent_label'] ?? '未設定', ENT_QUOTES, 'UTF-8'); ?>
+                            </div>
+                            <div style="font-size: 0.85rem; color: #4a5568;">
+                                登録者数: <?php echo number_format((int)($summary['registered_count'] ?? 0)); ?>人<br>
+                                契約者数: <?php echo number_format((int)($summary['contracted_count'] ?? 0)); ?>人
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    <?php if (empty($referralSummary)): ?>
+                        <div style="color: #718096;">集計対象データはまだありません。</div>
+                    <?php endif; ?>
+                </div>
+            </section>
             
             <?php if ($totalPages > 1): ?>
                 <?php
@@ -442,9 +506,8 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                         <th class="sortable" data-sort="url_slug">企業URL</th>
                         <th class="sortable" data-sort="name">名前</th>
                         <th class="sortable" data-sort="mobile_phone">携帯</th>
-                        <th>チャット登録電話</th>
-                        <th>ローン入力</th>
                         <th class="sortable" data-sort="email">メール</th>
+                        <th>流入情報</th>
                         <th class="sortable" data-sort="monthly_views">表示回数<br>（1か月）</th>
                         <th class="sortable" data-sort="total_views">表示回数<br>（累積）</th>
                         <th class="sortable" data-sort="registered_at">登録日</th>
@@ -625,24 +688,17 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                             <?php endif; ?>
                         </td>
                         <td data-label="携帯"><?php echo htmlspecialchars($user['mobile_phone'] ?? ''); ?></td>
-                        <td data-label="チャット登録電話">
-                            <?php
-                            $chatPhones = [];
-                            foreach ([$user['chat_verified_phones'] ?? '', $user['chat_contact_phones'] ?? ''] as $phoneGroup) {
-                                foreach (array_filter(array_map('trim', explode(',', (string)$phoneGroup))) as $phone) {
-                                    if (!in_array($phone, $chatPhones, true)) $chatPhones[] = $phone;
-                                }
-                            }
-                            echo htmlspecialchars(implode(', ', array_slice($chatPhones, 0, 5)));
-                            ?>
-                        </td>
-                        <td data-label="ローン入力">
-                            <?php echo renderAdminLoanSimulationRows($db, (int)$user['id']); ?>
-                        </td>
                         <td data-label="メール">
                             <a href="mailto:<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>" style="color: #0066cc; text-decoration: none;">
                                 <?php echo htmlspecialchars($user['email']); ?>
                             </a>
+                        </td>
+                        <td data-label="流入情報" style="font-size: 0.78rem; line-height: 1.45; min-width: 180px;">
+                            <strong>agent:</strong> <?php echo htmlspecialchars($user['agent'] ?: '-', ENT_QUOTES, 'UTF-8'); ?><br>
+                            <strong>source:</strong> <?php echo htmlspecialchars($user['utm_source'] ?: '-', ENT_QUOTES, 'UTF-8'); ?><br>
+                            <strong>medium:</strong> <?php echo htmlspecialchars($user['utm_medium'] ?: '-', ENT_QUOTES, 'UTF-8'); ?><br>
+                            <strong>campaign:</strong> <?php echo htmlspecialchars($user['utm_campaign'] ?: '-', ENT_QUOTES, 'UTF-8'); ?><br>
+                            <strong>初回:</strong> <?php echo htmlspecialchars($user['first_accessed_at'] ?: '-', ENT_QUOTES, 'UTF-8'); ?>
                         </td>
                         <td data-label="表示回数（1か月）"><?php echo $user['monthly_views']; ?></td>
                         <td data-label="表示回数（累積）"><?php echo $user['total_views']; ?></td>
