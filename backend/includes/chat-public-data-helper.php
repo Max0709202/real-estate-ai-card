@@ -22,7 +22,7 @@ function ensureChatPublicDataCacheTable($db) {
 }
 
 function chatPublicDataShouldRun($message) {
-    return (bool)preg_match('/(住所|所在地|駅|エリア|地域|周辺|公的|データ|国土交通|政府統計|統計|相場|取引価格|成約|地価|公示|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|用途地域|都市計画|再開発|交通|道路|インフラ|人口|世帯|高齢|子育て|子供|子ども|ファミリー|年収|昼夜|外国人|持ち家|マンション|物件|建物|基礎情報|基本情報|概要|詳細|築年月|築年数|竣工|総戸数|階建|最寄り)/u', (string)$message);
+    return (bool)preg_match('/(住所|所在地|駅|エリア|地域|周辺|公的|データ|国土交通|政府統計|統計|相場|取引価格|成約|地価|公示|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|用途地域|都市計画|再開発|交通|道路|インフラ|人口|世帯|高齢|子育て|子供|子ども|ファミリー|年収|昼夜|外国人|持ち家|マンション|物件|建物|基礎情報|基本情報|概要|詳細|築年月|築年数|竣工|総戸数|階建|最寄り|乗降|乗降客|乗降人員|利用者数|乗客|混雑)/u', (string)$message);
 }
 
 function chatPublicDataSourceLabel($provider) {
@@ -209,9 +209,9 @@ function chatReinfoCityCode($db, $prefCode, $cityName) {
     return null;
 }
 
-function chatReinfoContext($db, $message, $area) {
+function chatReinfoContext($db, $message, $area, $force = false) {
     if (!defined('REINFOLIB_API_KEY') || REINFOLIB_API_KEY === '') return null;
-    if (!preg_match('/(相場|取引価格|成約|地価|公示|価格|マンション|エリア|地域)/u', $message)) return null;
+    if (!$force && !preg_match('/(相場|取引価格|成約|地価|公示|価格|マンション|エリア|地域)/u', $message)) return null;
     $cityCode = chatReinfoCityCode($db, $area['prefecture_code'] ?? null, $area['city_name'] ?? null);
     if (!$cityCode) return null;
     $year = (int)date('Y') - 1;
@@ -242,9 +242,9 @@ function chatReinfoContext($db, $message, $area) {
     ];
 }
 
-function chatMlitDpfContext($db, $message, $area) {
+function chatMlitDpfContext($db, $message, $area, $force = false) {
     if (!defined('MLIT_DPF_API_KEY') || MLIT_DPF_API_KEY === '') return null;
-    if (!preg_match('/(公的|データ|国土交通|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|都市計画|再開発|交通|道路|インフラ|河川|地域データ|周辺環境|エリア説明|子育て|子供|子ども|ファミリー)/u', $message)) return null;
+    if (!$force && !preg_match('/(公的|データ|国土交通|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|都市計画|再開発|交通|道路|インフラ|河川|地域データ|周辺環境|エリア説明|子育て|子供|子ども|ファミリー)/u', $message)) return null;
     $keyword = trim(($area['prefecture_name'] ?? '') . ' ' . ($area['city_name'] ?? '') . ' ' . ($area['station_name'] ?? ''));
     if ($keyword === '') $keyword = mb_substr($message, 0, 80);
     $base = defined('MLIT_DPF_BASE_URL') ? rtrim(MLIT_DPF_BASE_URL, '/') . '/' : 'https://data-platform.mlit.go.jp/api/v1/';
@@ -275,9 +275,9 @@ function chatMlitDpfContext($db, $message, $area) {
     ];
 }
 
-function chatEstatContext($db, $message, $area) {
+function chatEstatContext($db, $message, $area, $force = false) {
     if (!defined('ESTAT_APP_ID') || ESTAT_APP_ID === '') return null;
-    if (!preg_match('/(人口|世帯|高齢|子育て|子供|子ども|ファミリー|年収|昼夜|外国人|持ち家|統計|政府統計|e-Stat)/u', $message)) return null;
+    if (!$force && !preg_match('/(人口|世帯|高齢|子育て|子供|子ども|ファミリー|年収|昼夜|外国人|持ち家|統計|政府統計|e-Stat)/u', $message)) return null;
     $keyword = $area['city_name'] ?: mb_substr($message, 0, 40);
     $url = 'https://api.e-stat.go.jp/rest/3.0/app/json/getStatsList?' . http_build_query([
         'appId' => ESTAT_APP_ID,
@@ -443,9 +443,9 @@ function chatMansionFormatFacts($row, $fields) {
     return array_values(array_unique($facts));
 }
 
-function chatMansionDbContext($db, $message) {
+function chatMansionDbContext($db, $message, $force = false) {
     if (!$db instanceof PDO) return null;
-    if (!preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|物件名|住所|所在地|アクセス)/u', $message)) return null;
+    if (!$force && !preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|物件名|住所|所在地|アクセス)/u', $message)) return null;
     $terms = chatExtractMansionSearchTerms($message);
     if (empty($terms)) return null;
     try {
@@ -519,16 +519,264 @@ function chatPublicDataTrimForPrompt($data, $maxLength = 4000) {
     return mb_strlen($json) > $maxLength ? mb_substr($json, 0, $maxLength) . "\n...（一部省略）" : $json;
 }
 
+/**
+ * Convert WGS84 lat/lon to slippy-map tile coordinates at zoom $z.
+ * Used to address the reinfolib GIS tile APIs (XKT***) which take z/x/y.
+ */
+function chatGeoLatLonToTile($lat, $lon, $z) {
+    $lat = max(-85.05112878, min(85.05112878, (float)$lat));
+    $n = 1 << (int)$z;
+    $x = (int)floor(($lon + 180.0) / 360.0 * $n);
+    $latRad = deg2rad($lat);
+    $y = (int)floor((1.0 - log(tan($latRad) + 1.0 / cos($latRad)) / M_PI) / 2.0 * $n);
+    $x = max(0, min($n - 1, $x));
+    $y = max(0, min($n - 1, $y));
+    return ['z' => (int)$z, 'x' => $x, 'y' => $y];
+}
+
+/**
+ * Resolve a station name to lat/lon using the HeartRails Express API (no key
+ * required, station-specific so far more reliable than a generic geocoder).
+ * When $prefName is given, a station in that prefecture is preferred to
+ * disambiguate same-named stations. Cached via the shared cache table.
+ */
+function chatStationGeocode($db, $stationName, $prefName = null) {
+    $name = preg_replace('/駅$/u', '', trim((string)$stationName));
+    if ($name === '') return null;
+    $url = 'https://express.heartrails.com/api/json?method=getStations&name=' . rawurlencode($name);
+    $result = chatPublicDataCachedGet($db, 'station_geocode', $url, [], 2592000, 6);
+    $stations = $result['data']['response']['station'] ?? null;
+    if (!is_array($stations) || empty($stations)) return null;
+    $chosen = null;
+    if ($prefName) {
+        foreach ($stations as $s) {
+            if (isset($s['prefecture']) && mb_strpos((string)$s['prefecture'], $prefName) !== false) { $chosen = $s; break; }
+        }
+    }
+    if (!$chosen) $chosen = $stations[0];
+    if (!isset($chosen['x'], $chosen['y'])) return null;
+    return [
+        'lon' => (float)$chosen['x'],
+        'lat' => (float)$chosen['y'],
+        'title' => ($chosen['name'] ?? $name) . '駅',
+        'prefecture' => $chosen['prefecture'] ?? null,
+    ];
+}
+
+/**
+ * Extract the station name a 乗降客数 question is about. Falls back to a noun
+ * captured right before 乗降/利用者/乗客 when the area extractor found no 〜駅.
+ */
+function chatReinfoStationName($message, $area) {
+    $station = $area['station_name'] ?? null;
+    if ($station) return $station;
+    $message = (string)$message;
+    if (preg_match('/([一-龥ぁ-んァ-ンA-Za-z0-9０-９ヶケー]{2,14}?)駅?(?:の|は|について|で)?\s*(?:乗降|乗車|降車|利用者|乗客)/u', $message, $m)) {
+        $name = trim($m[1]);
+        if ($name !== '') return mb_substr($name, -1) === '駅' ? $name : $name . '駅';
+    }
+    return null;
+}
+
+/**
+ * XKT015: 駅別乗降客数. Geocode the station → tile coords → fetch the GeoJSON
+ * tile (center first, then its 3x3 neighbours) → match the station by name and
+ * report the most recent available annual passenger counts. Null-graceful.
+ */
+function chatReinfoStationContext($db, $message, $area) {
+    if (!defined('REINFOLIB_API_KEY') || REINFOLIB_API_KEY === '') return null;
+    $stationQuery = chatReinfoStationName($message, $area);
+    if (!$stationQuery) return null;
+    $geo = chatStationGeocode($db, $stationQuery, $area['prefecture_name'] ?? null);
+    if (!$geo) return null;
+
+    $z = 14;
+    $center = chatGeoLatLonToTile($geo['lat'], $geo['lon'], $z);
+    // Scan the centre tile first, then the surrounding ring, stopping as soon as
+    // the station is found. Caching makes repeated tile fetches cheap.
+    $offsets = [[0,0],[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+    $needle = preg_replace('/駅$/u', '', $stationQuery);
+    $yearMap = ['S12_009'=>2011,'S12_013'=>2012,'S12_017'=>2013,'S12_021'=>2014,'S12_025'=>2015,'S12_029'=>2016,'S12_033'=>2017,'S12_037'=>2018,'S12_041'=>2019,'S12_045'=>2020,'S12_049'=>2021,'S12_053'=>2022,'S12_057'=>2023];
+    $matches = [];
+    $fetchedAt = null;
+    $cached = true;
+    foreach ($offsets as $off) {
+        if (!empty($matches)) break;
+        $tx = $center['x'] + $off[0];
+        $ty = $center['y'] + $off[1];
+        $url = 'https://www.reinfolib.mlit.go.jp/ex-api/external/XKT015?' . http_build_query([
+            'response_format' => 'geojson',
+            'z' => $z,
+            'x' => $tx,
+            'y' => $ty,
+        ]);
+        $result = chatPublicDataCachedGet($db, 'reinfolib', $url, ['Ocp-Apim-Subscription-Key' => REINFOLIB_API_KEY], 2592000);
+        $fetchedAt = $result['fetched_at'] ?? $fetchedAt;
+        if (empty($result['cached'])) $cached = false;
+        if (!$result['ok'] || !is_array($result['data'])) continue;
+        $features = $result['data']['features'] ?? [];
+        if (!is_array($features)) continue;
+        foreach ($features as $feature) {
+            $props = $feature['properties'] ?? null;
+            if (!is_array($props)) continue;
+            $name = (string)($props['S12_001_ja'] ?? '');
+            if ($name === '' || ($needle !== '' && mb_strpos($name, $needle) === false && mb_strpos($needle, $name) === false)) continue;
+            $latestYear = null;
+            $latestCount = null;
+            foreach ($yearMap as $field => $year) {
+                $val = $props[$field] ?? null;
+                if ($val === null || $val === '' || (int)$val <= 0) continue;
+                $latestYear = $year;
+                $latestCount = (int)$val;
+            }
+            if ($latestCount === null) continue;
+            $matches[] = [
+                'station' => $name,
+                'company' => (string)($props['S12_002_ja'] ?? ''),
+                'line' => (string)($props['S12_003_ja'] ?? ''),
+                'year' => $latestYear,
+                'passengers_per_day' => $latestCount,
+            ];
+        }
+    }
+    if (empty($matches)) return null;
+    $matches = array_slice($matches, 0, 8);
+    $scope = $stationQuery . 'の駅別乗降客数（路線・事業者別、年間）';
+    return [
+        'provider' => 'reinfolib',
+        'title' => '駅別乗降客数（XKT015）',
+        'notice' => $stationQuery . 'の乗降客数を公的データ（不動産情報ライブラリ）で確認します。',
+        'data' => $matches,
+        'record_count' => count($matches),
+        'total_count' => count($matches),
+        'scope_note' => $scope,
+        'count_note' => 'passengers_per_day は国土数値情報（駅別乗降客数 S12）の「1日あたりの平均乗降客数（人/日）」です。年間値ではありません。year はその数値の集計年度です。同一駅でも路線・事業者ごとに別レコードのため、合算する場合は乗り換えの重複に注意してください。事業者により未集計（0）の年があり、その場合は直近で取得できた年の値を表示しています。',
+        'fetched_at' => $fetchedAt ?? date('Y-m-d H:i:s'),
+        'cached' => $cached,
+    ];
+}
+
+/**
+ * Declarative registry of the server-side data providers the chat can call.
+ * Adding a new API = adding an entry here (keywords + one-line description) and
+ * a dispatch case in chatPublicDataInvokeProvider(); no new branching elsewhere.
+ */
+function chatPublicDataProviderRegistry() {
+    return [
+        'mansion_db' => [
+            'label' => '当社 全国マンションデータベース',
+            'keywords' => 'マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|築年月|築年数|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|物件名',
+            'description' => '特定のマンション・物件・建物の基礎情報（住所/築年月/構造/総戸数/階数/最寄り駅）',
+        ],
+        'reinfo_price' => [
+            'label' => '国土交通省 不動産情報ライブラリ',
+            'keywords' => '相場|取引価格|成約|地価|公示|価格',
+            'description' => 'エリアの不動産取引価格・成約事例・地価などの価格データ',
+        ],
+        'reinfo_station' => [
+            'label' => '国土交通省 不動産情報ライブラリ',
+            'keywords' => '乗降客数|乗降客|乗降人員|乗車人員|利用者数|乗客数|乗降|混雑',
+            'description' => '駅の乗降客数（年別の利用者数・路線/事業者別）',
+        ],
+        'mlit_dpf' => [
+            'label' => '国土交通データプラットフォーム',
+            'keywords' => '災害|防災|浸水|洪水|水害|土砂|地盤|液状化|都市計画|再開発|道路|インフラ|河川|周辺環境',
+            'description' => '災害リスク・都市計画・インフラ・周辺環境に関する国交省データセットの有無',
+        ],
+        'estat' => [
+            'label' => '政府統計の総合窓口 e-Stat',
+            'keywords' => '人口|世帯|高齢|子育て|子供|子ども|ファミリー|年収|昼夜|外国人|持ち家|政府統計|国勢調査',
+            'description' => '人口・世帯・年齢構成などの政府統計（国勢調査等）',
+        ],
+    ];
+}
+
+function chatPublicDataInvokeProvider($db, $key, $message, $area) {
+    switch ($key) {
+        case 'mansion_db':     return chatMansionDbContext($db, $message, true);
+        case 'reinfo_price':   return chatReinfoContext($db, $message, $area, true);
+        case 'reinfo_station': return chatReinfoStationContext($db, $message, $area);
+        case 'mlit_dpf':       return chatMlitDpfContext($db, $message, $area, true);
+        case 'estat':          return chatEstatContext($db, $message, $area, true);
+    }
+    return null;
+}
+
+/**
+ * LLM fallback router. Only called when keyword routing matched nothing but the
+ * message still passed the global data gate. Uses the light/cheap model with a
+ * short timeout; on any failure it returns no providers (graceful: chat falls
+ * back to a normal answer). Returns ['providers'=>[...], 'station'=>string].
+ */
+function chatPublicDataLlmRouter($message, $registry) {
+    if (!function_exists('callOpenAIChat')) return ['providers' => [], 'station' => ''];
+    if (!defined('OPENAI_API_KEY') || OPENAI_API_KEY === '') return ['providers' => [], 'station' => ''];
+    $apiKey = defined('OPENAI_API_KEY_LIGHT') && OPENAI_API_KEY_LIGHT !== '' ? OPENAI_API_KEY_LIGHT : OPENAI_API_KEY;
+    $model = defined('OPENAI_MODEL_LIGHT') && OPENAI_MODEL_LIGHT !== '' ? OPENAI_MODEL_LIGHT : (defined('OPENAI_CHAT_MODEL') ? OPENAI_CHAT_MODEL : 'gpt-4o-mini');
+
+    $lines = [];
+    foreach ($registry as $key => $p) {
+        $lines[] = '- ' . $key . ': ' . ($p['description'] ?? '');
+    }
+    $system = "あなたは不動産チャットの質問を、回答に必要なサーバー側データソースへ振り分けるルーターです。\n"
+        . "次のデータソースから、ユーザーの質問に答えるのに本当に必要なものだけを選んでください。該当が無ければ空配列にします。\n"
+        . implode("\n", $lines) . "\n"
+        . "出力は次のJSONのみ（前後に文章やコードフェンスを付けない）:\n"
+        . '{"providers":["キー", ...],"station":"駅名（乗降客数など駅の質問のときだけ。無ければ空文字）"}';
+    $messages = [
+        ['role' => 'system', 'content' => $system],
+        ['role' => 'user', 'content' => chatOpenAITrimPromptText($message, 500)],
+    ];
+    $resp = callOpenAIChat($messages, $apiKey, $model, [
+        'purpose' => 'router', 'max_tokens' => 150, 'temperature' => 0, 'timeout' => 8,
+    ]);
+    if (empty($resp['reply'])) return ['providers' => [], 'station' => ''];
+    $raw = trim($resp['reply']);
+    $raw = preg_replace('/^```(?:json)?|```$/m', '', $raw);
+    if (preg_match('/\{.*\}/s', $raw, $m)) $raw = $m[0];
+    $parsed = json_decode($raw, true);
+    if (!is_array($parsed)) return ['providers' => [], 'station' => ''];
+    $valid = array_keys($registry);
+    $providers = [];
+    foreach ((array)($parsed['providers'] ?? []) as $p) {
+        if (in_array($p, $valid, true) && !in_array($p, $providers, true)) $providers[] = $p;
+    }
+    return ['providers' => $providers, 'station' => trim((string)($parsed['station'] ?? ''))];
+}
+
+/**
+ * Hybrid router (keyword pre-filter → LLM fallback). Returns the provider keys
+ * to invoke plus a possibly-enriched $area (LLM may supply a station name).
+ */
+function chatPublicDataRoute($db, $message, $area) {
+    $registry = chatPublicDataProviderRegistry();
+    $matched = [];
+    foreach ($registry as $key => $p) {
+        if (!empty($p['keywords']) && preg_match('/(' . $p['keywords'] . ')/u', (string)$message)) {
+            $matched[] = $key;
+        }
+    }
+    if (!empty($matched)) {
+        return ['providers' => $matched, 'area' => $area, 'router' => 'keyword'];
+    }
+    // Ambiguous: the global gate passed but no provider keyword matched. Ask the
+    // cheap LLM router to classify (and extract a station name if relevant).
+    $llm = chatPublicDataLlmRouter($message, $registry);
+    if (!empty($llm['station']) && empty($area['station_name'])) {
+        $st = $llm['station'];
+        $area['station_name'] = mb_substr($st, -1) === '駅' ? $st : $st . '駅';
+    }
+    return ['providers' => $llm['providers'], 'area' => $area, 'router' => 'llm'];
+}
+
 function chatBuildPublicDataContext($db, $message) {
     if (!chatPublicDataShouldRun($message)) return ['context' => '', 'sources' => [], 'notices' => [], 'meta' => [], 'attempted' => false];
     $area = chatPublicExtractArea($message);
+    $route = chatPublicDataRoute($db, $message, $area);
+    $area = $route['area'];
     $items = [];
-    foreach ([
-        chatMansionDbContext($db, $message),
-        chatReinfoContext($db, $message, $area),
-        chatMlitDpfContext($db, $message, $area),
-        chatEstatContext($db, $message, $area),
-    ] as $item) {
+    foreach ($route['providers'] as $providerKey) {
+        $item = chatPublicDataInvokeProvider($db, $providerKey, $message, $area);
         if ($item) $items[] = $item;
     }
     if (empty($items)) {

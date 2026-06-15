@@ -480,7 +480,7 @@
         startupData = data || startupData;
         messagesContainer.innerHTML = '';
         showReloadNoticeIfNeeded();
-        var customerLabel = customerCasualLabel(startupData);
+        var customerLabel = customerLabelWithSuffix(startupData, '様');
         var differentPersonLabel = customerLabel === 'お客様' ? '別の方' : customerLabel + '以外の方';
         // ヒアリングで相談内容が溜まっている場合のみ、「今までのご相談内容を表示しますか？」を会話の入口として出す。
         var hasConsultationSummary = !!(startupData && startupData.has_consultation_summary);
@@ -605,17 +605,9 @@
         var status = box.querySelector('.chat-sms-status');
         var setStatus = function (message) { status.textContent = message || ''; };
 
-        sendButton.addEventListener('click', function () {
-            var phone = normalizePhoneInput(phoneInput.value);
-            if (!phone) {
-                setStatus('電話番号を入力してください。');
-                return;
-            }
-            sendButton.disabled = true;
-            verifyButton.disabled = true;
-            firebaseConfirmationResult = null;
+        function sendSmsCode(phone) {
             setStatus('SMSを送信しています...（送信先: ' + phone + '）');
-            ensureFirebaseReady().then(function () {
+            return ensureFirebaseReady().then(function () {
                 var auth = window.firebase.auth();
                 // invisible reCAPTCHA は使い回せないため、送信のたびに作り直す（再送信を可能にする）。
                 if (window.chatRecaptchaVerifier && window.chatRecaptchaVerifier.clear) {
@@ -641,6 +633,37 @@
                     try { window.chatRecaptchaVerifier.clear(); } catch (e) {}
                     window.chatRecaptchaVerifier = null;
                 }
+            });
+        }
+
+        sendButton.addEventListener('click', function () {
+            var phone = normalizePhoneInput(phoneInput.value);
+            if (!phone) {
+                setStatus('電話番号を入力してください。');
+                return;
+            }
+            sendButton.disabled = true;
+            verifyButton.disabled = true;
+            firebaseConfirmationResult = null;
+            setStatus('登録済みの電話番号か確認しています...');
+            lookupRegisteredPhone(phone).then(function (lookup) {
+                if (lookup && lookup.registered) {
+                    removeSmsAuthBox();
+                    entryAwaitingChoice = false;
+                    registrationFlow = false;
+                    renderQuickReplies([]);
+                    var returningLabel = customerCasualLabel(startupData || {});
+                    var welcomeText = returningLabel === 'お客様' ? 'お帰りなさい。' : returningLabel + '、お帰りなさい。';
+                    appendBotMessage(welcomeText + '\n\nこの電話番号は登録済みですので、SMS認証を省略しました。このままご相談いただけます。');
+                    appendVoiceAvailabilityNotice();
+                    setInputEnabled(true);
+                    inputEl.focus();
+                    return;
+                }
+                return sendSmsCode(phone);
+            }).catch(function (error) {
+                if (window.console && console.warn) console.warn('Phone registration lookup failed; continuing with SMS:', error);
+                sendSmsCode(phone);
             });
         });
 
@@ -683,6 +706,19 @@
         var replyText = String(reply || '');
         if (replyText.indexOf('SMS認証フォームを表示します') !== -1) return true;
         return !!normalizePhoneInput(userText) && replyText.indexOf('最後に、携帯電話番号をご入力ください') !== -1;
+    }
+
+    function lookupRegisteredPhone(phone) {
+        return fetch(apiBase + '/phone/lookup.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: phone, card_slug: cardSlug })
+        }).then(function (res) {
+            return res.json().catch(function () { return { success: false }; });
+        }).then(function (data) {
+            if (!data.success || !data.data) return null;
+            return data.data;
+        });
     }
 
     function firebaseSmsErrorMessage(error, normalizedPhone) {
@@ -966,7 +1002,8 @@
                     syncAgentHeader();
                     startupData = data.data;
                     if (!greetingShown) {
-                        if (data.data.is_resumed && data.data.has_previous_messages) {
+                        // 同じ端末で登録済み（電話・氏名・メール入力済み）なら、リロードしても再入力は求めない。
+                        if (data.data.is_resumed) {
                             showReturningDeviceEntry(data.data);
                         } else {
                             showFirstTimeEntry(data.data);

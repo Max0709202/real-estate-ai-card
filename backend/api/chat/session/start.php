@@ -116,6 +116,16 @@ try {
     }
     $intake = chatIntakeInitialPayload($agentName);
     $resumeIntake = $isResumed ? chatIntakeResumePayload($db, $sessionId, $card['id']) : null;
+    // 同じ端末で電話番号・お名前・メールアドレスの登録が済んでいるか。
+    // 済んでいれば、リロード時に再入力を求めずそのまま相談へ進める。
+    $registrationComplete = false;
+    if ($isResumed && $resumeIntake && !empty($resumeIntake['data'])) {
+        $ld = $resumeIntake['data'];
+        $registrationComplete = !empty($ld['customer_phone_verified'])
+            && !empty($ld['customer_last_name'])
+            && !empty($ld['customer_first_name'])
+            && !empty($ld['customer_email']);
+    }
     $resumeMessage = $isResumed ? getChatResumeMessageForSession($db, $sessionId, $agentName, $card['id'], true) : '';
     $resumeQuickReplies = [];
     if ($isResumed && $resumeIntake && !empty($resumeIntake['can_ask_next'])) {
@@ -131,6 +141,7 @@ try {
         'messages' => $messages,
         'has_previous_messages' => $hasPreviousMessages,
         'has_consultation_summary' => $hasConsultationSummary,
+        'registration_complete' => $registrationComplete,
         'agent_name' => $card['name'] ?? '',
         'customer_name' => $customerName,
         'resume_message' => $resumeMessage,
