@@ -480,7 +480,7 @@
         startupData = data || startupData;
         messagesContainer.innerHTML = '';
         showReloadNoticeIfNeeded();
-        var customerLabel = customerCasualLabel(startupData);
+        var customerLabel = customerLabelWithSuffix(startupData, '様');
         var differentPersonLabel = customerLabel === 'お客様' ? '別の方' : customerLabel + '以外の方';
         // ヒアリングで相談内容が溜まっている場合のみ、「今までのご相談内容を表示しますか？」を会話の入口として出す。
         var hasConsultationSummary = !!(startupData && startupData.has_consultation_summary);
@@ -513,14 +513,11 @@
         setInputEnabled(true);
     }
 
-    function continueSavedConsultation(data, alreadyConfirmed, welcomeMessage) {
+    function continueSavedConsultation(data, alreadyConfirmed) {
         entryAwaitingChoice = false;
         startupData = data || startupData || {};
         renderQuickReplies([]);
         messagesContainer.innerHTML = '';
-        if (welcomeMessage) {
-            appendBotMessage(welcomeMessage);
-        }
         if (alreadyConfirmed) {
             appendBotMessage(previousConfirmedNoticeText);
         }
@@ -608,26 +605,9 @@
         var status = box.querySelector('.chat-sms-status');
         var setStatus = function (message) { status.textContent = message || ''; };
 
-        sendButton.addEventListener('click', function () {
-            var phone = normalizePhoneInput(phoneInput.value);
-            if (!phone) {
-                setStatus('電話番号を入力してください。');
-                return;
-            }
-            sendButton.disabled = true;
-            verifyButton.disabled = true;
-            firebaseConfirmationResult = null;
-            setStatus('電話番号の登録状況を確認しています...');
-            lookupRegisteredPhone(phone).then(function (lookupData) {
-                if (lookupData && lookupData.matched) {
-                    removeSmsAuthBox();
-                    handleResolvedPhoneSession(lookupData, reason, true);
-                    return null;
-                }
-                setStatus('SMSを送信しています...（送信先: ' + phone + '）');
-                return ensureFirebaseReady();
-            }).then(function (firebaseReady) {
-                if (firebaseReady === null) return null;
+        function sendSmsCode(phone) {
+            setStatus('SMSを送信しています...（送信先: ' + phone + '）');
+            return ensureFirebaseReady().then(function () {
                 var auth = window.firebase.auth();
                 // invisible reCAPTCHA は使い回せないため、送信のたびに作り直す（再送信を可能にする）。
                 if (window.chatRecaptchaVerifier && window.chatRecaptchaVerifier.clear) {
@@ -637,7 +617,6 @@
                 window.chatRecaptchaVerifier = new window.firebase.auth.RecaptchaVerifier('chat-firebase-recaptcha', { size: 'invisible' });
                 return auth.signInWithPhoneNumber(phone, window.chatRecaptchaVerifier);
             }).then(function (confirmationResult) {
-                if (!confirmationResult) return;
                 firebaseConfirmationResult = confirmationResult;
                 // 送信後も「SMS再送信」を押せるようにし、コード期限切れ・未着でも取り直せるようにする。
                 sendButton.disabled = false;
@@ -654,6 +633,37 @@
                     try { window.chatRecaptchaVerifier.clear(); } catch (e) {}
                     window.chatRecaptchaVerifier = null;
                 }
+            });
+        }
+
+        sendButton.addEventListener('click', function () {
+            var phone = normalizePhoneInput(phoneInput.value);
+            if (!phone) {
+                setStatus('電話番号を入力してください。');
+                return;
+            }
+            sendButton.disabled = true;
+            verifyButton.disabled = true;
+            firebaseConfirmationResult = null;
+            setStatus('登録済みの電話番号か確認しています...');
+            lookupRegisteredPhone(phone).then(function (lookup) {
+                if (lookup && lookup.registered) {
+                    removeSmsAuthBox();
+                    entryAwaitingChoice = false;
+                    registrationFlow = false;
+                    renderQuickReplies([]);
+                    var returningLabel = customerCasualLabel(startupData || {});
+                    var welcomeText = returningLabel === 'お客様' ? 'お帰りなさい。' : returningLabel + '、お帰りなさい。';
+                    appendBotMessage(welcomeText + '\n\nこの電話番号は登録済みですので、SMS認証を省略しました。このままご相談いただけます。');
+                    appendVoiceAvailabilityNotice();
+                    setInputEnabled(true);
+                    inputEl.focus();
+                    return;
+                }
+                return sendSmsCode(phone);
+            }).catch(function (error) {
+                if (window.console && console.warn) console.warn('Phone registration lookup failed; continuing with SMS:', error);
+                sendSmsCode(phone);
             });
         });
 
@@ -679,21 +689,6 @@
         });
     }
 
-    function lookupRegisteredPhone(phone) {
-        return fetch(apiBase + '/phone/lookup.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: phone, card_slug: cardSlug, visitor_id: visitorId })
-        }).then(function (res) {
-            return res.json().catch(function () { return { success: false, message: 'サーバーから正しい応答を受け取れませんでした。' }; });
-        }).then(function (data) {
-            if (!data.success || !data.data) return { matched: false };
-            return data.data;
-        }).catch(function () {
-            return { matched: false };
-        });
-    }
-
     function normalizePhoneInput(value) {
         var raw = String(value || '').trim().replace(/[－ー―−\s]/g, '-');
         if (!raw) return '';
@@ -711,6 +706,19 @@
         var replyText = String(reply || '');
         if (replyText.indexOf('SMS認証フォームを表示します') !== -1) return true;
         return !!normalizePhoneInput(userText) && replyText.indexOf('最後に、携帯電話番号をご入力ください') !== -1;
+    }
+
+    function lookupRegisteredPhone(phone) {
+        return fetch(apiBase + '/phone/lookup.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: phone, card_slug: cardSlug })
+        }).then(function (res) {
+            return res.json().catch(function () { return { success: false }; });
+        }).then(function (data) {
+            if (!data.success || !data.data) return null;
+            return data.data;
+        });
     }
 
     function firebaseSmsErrorMessage(error, normalizedPhone) {
@@ -757,38 +765,31 @@
             sessionId = data.data.session_id;
             saveSessionId(sessionId);
             startupData = data.data;
-            handleResolvedPhoneSession(data.data, reason, false);
-        });
-    }
-
-    function handleResolvedPhoneSession(data, reason, skippedSms) {
-        sessionId = data.session_id;
-        saveSessionId(sessionId);
-        startupData = data;
-        if (reason === 'upfront') {
-            if (data.matched) {
-                // 登録済みの電話番号: 別端末・機種変更でも前回の相談を引き継いで再開する。
-                registrationFlow = false;
-                continueSavedConsultation(startupData, true, skippedSms ? customerCasualLabel(startupData) + '、お帰りなさい。' : '');
-            } else {
-                // 新規登録: 続けてお名前→メールアドレスを登録してもらう。
-                showNameForm();
+            if (reason === 'upfront') {
+                if (data.data.matched) {
+                    // 登録済みの電話番号: 別端末・機種変更でも前回の相談を引き継いで再開する。
+                    registrationFlow = false;
+                    continueSavedConsultation(startupData, true);
+                } else {
+                    // 新規登録: 続けてお名前→メールアドレスを登録してもらう。
+                    showNameForm();
+                }
+                return;
             }
-            return;
-        }
-        if (data.registration_completed) {
-            entryAwaitingChoice = false;
-            renderQuickReplies([]);
-            appendBotMessage('ご登録ありがとうございました。\n\n次回以降は、\n・スマートフォン\n・タブレット\n・パソコン\nなど別のデバイスから接続した場合でも、SMS認証を行うことで、これまでのご相談内容を引き継いでご利用いただけます。');
-            setInputEnabled(true);
-            inputEl.focus();
-        } else if (data.matched) {
-            if (reason === 'other') appendBotMessage(personalize(registeredPhoneNoticeText, startupData));
-            continueSavedConsultation(startupData, reason !== 'other', skippedSms && reason !== 'other' ? customerCasualLabel(startupData) + '、お帰りなさい。' : '');
-        } else {
-            appendBotMessage('この電話番号で登録された前回のご相談は見つかりませんでした。初めてのご相談としてご案内します。');
-            beginFirstConsultation(startupData);
-        }
+            if (data.data.registration_completed) {
+                entryAwaitingChoice = false;
+                renderQuickReplies([]);
+                appendBotMessage('ご登録ありがとうございました。\n\n次回以降は、\n・スマートフォン\n・タブレット\n・パソコン\nなど別のデバイスから接続した場合でも、SMS認証を行うことで、これまでのご相談内容を引き継いでご利用いただけます。');
+                setInputEnabled(true);
+                inputEl.focus();
+            } else if (data.data.matched) {
+                if (reason === 'other') appendBotMessage(personalize(registeredPhoneNoticeText, startupData));
+                continueSavedConsultation(startupData, reason !== 'other');
+            } else {
+                appendBotMessage('この電話番号で登録された前回のご相談は見つかりませんでした。初めてのご相談としてご案内します。');
+                beginFirstConsultation(startupData);
+            }
+        });
     }
 
     function removeProfileForm() {
@@ -1001,7 +1002,8 @@
                     syncAgentHeader();
                     startupData = data.data;
                     if (!greetingShown) {
-                        if (data.data.is_resumed && (data.data.has_previous_messages || data.data.customer_name)) {
+                        // 同じ端末で登録済み（電話・氏名・メール入力済み）なら、リロードしても再入力は求めない。
+                        if (data.data.is_resumed) {
                             showReturningDeviceEntry(data.data);
                         } else {
                             showFirstTimeEntry(data.data);
