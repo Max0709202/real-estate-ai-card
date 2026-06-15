@@ -442,8 +442,6 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                         <th class="sortable" data-sort="url_slug">企業URL</th>
                         <th class="sortable" data-sort="name">名前</th>
                         <th class="sortable" data-sort="mobile_phone">携帯</th>
-                        <th>チャット登録電話</th>
-                        <th>ローン入力</th>
                         <th class="sortable" data-sort="email">メール</th>
                         <th class="sortable" data-sort="monthly_views">表示回数<br>（1か月）</th>
                         <th class="sortable" data-sort="total_views">表示回数<br>（累積）</th>
@@ -625,20 +623,7 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                             <?php endif; ?>
                         </td>
                         <td data-label="携帯"><?php echo htmlspecialchars($user['mobile_phone'] ?? ''); ?></td>
-                        <td data-label="チャット登録電話">
-                            <?php
-                            $chatPhones = [];
-                            foreach ([$user['chat_verified_phones'] ?? '', $user['chat_contact_phones'] ?? ''] as $phoneGroup) {
-                                foreach (array_filter(array_map('trim', explode(',', (string)$phoneGroup))) as $phone) {
-                                    if (!in_array($phone, $chatPhones, true)) $chatPhones[] = $phone;
-                                }
-                            }
-                            echo htmlspecialchars(implode(', ', array_slice($chatPhones, 0, 5)));
-                            ?>
-                        </td>
-                        <td data-label="ローン入力">
-                            <?php echo renderAdminLoanSimulationRows($db, (int)$user['id']); ?>
-                        </td>
+                        
                         <td data-label="メール">
                             <a href="mailto:<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>" style="color: #0066cc; text-decoration: none;">
                                 <?php echo htmlspecialchars($user['email']); ?>
