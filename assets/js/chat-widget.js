@@ -110,6 +110,10 @@
         return 'ai_fcard_chat_session_id:' + (cardSlug || 'default') + ':' + visitorId;
     }
 
+    function getCustomerNameStorageKey() {
+        return 'ai_fcard_chat_customer_name:' + (cardSlug || 'default') + ':' + visitorId;
+    }
+
     function getSavedSessionId() {
         var saved = safeStorageGet(getSessionStorageKey()) || '';
         return /^[A-Fa-f0-9-]{36}$/.test(saved) ? saved : '';
@@ -121,6 +125,15 @@
 
     function clearSavedSessionId() {
         safeStorageRemove(getSessionStorageKey());
+    }
+
+    function getSavedCustomerName() {
+        return cleanCustomerName(safeStorageGet(getCustomerNameStorageKey()));
+    }
+
+    function saveCustomerName(name) {
+        var cleaned = cleanCustomerName(name);
+        if (cleaned) safeStorageSet(getCustomerNameStorageKey(), cleaned);
     }
 
     function resetVisitorIdentity() {
@@ -409,7 +422,8 @@
             data.contact && data.contact.customer_name,
             typeof data.customer === 'string' ? data.customer : (data.customer && (data.customer.customer_name || data.customer.name)),
             data.lead && data.lead.customer_name,
-            leadData && (leadData.customer_name || leadData.customerName)
+            leadData && (leadData.customer_name || leadData.customerName),
+            getSavedCustomerName()
         ];
 
         for (var i = 0; i < candidates.length; i++) {
@@ -652,6 +666,14 @@
                     entryAwaitingChoice = false;
                     registrationFlow = false;
                     renderQuickReplies([]);
+                    startupData = Object.assign({}, startupData || {}, lookup);
+                    if (lookup.customer_name) {
+                        saveCustomerName(lookup.customer_name);
+                    }
+                    if (lookup.session_id) {
+                        sessionId = lookup.session_id;
+                        saveSessionId(sessionId);
+                    }
                     var returningLabel = customerCasualLabel(startupData || {});
                     var welcomeText = returningLabel === 'お客様' ? 'お帰りなさい。' : returningLabel + '、お帰りなさい。';
                     appendBotMessage(welcomeText + '\n\nこの電話番号は登録済みですので、SMS認証を省略しました。このままご相談いただけます。');
@@ -712,7 +734,7 @@
         return fetch(apiBase + '/phone/lookup.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: phone, card_slug: cardSlug })
+            body: JSON.stringify({ phone: phone, card_slug: cardSlug, visitor_id: visitorId })
         }).then(function (res) {
             return res.json().catch(function () { return { success: false }; });
         }).then(function (data) {
@@ -765,6 +787,9 @@
             sessionId = data.data.session_id;
             saveSessionId(sessionId);
             startupData = data.data;
+            if (data.data.customer_name) {
+                saveCustomerName(data.data.customer_name);
+            }
             if (reason === 'upfront') {
                 if (data.data.matched) {
                     // 登録済みの電話番号: 別端末・機種変更でも前回の相談を引き継いで再開する。
@@ -996,14 +1021,17 @@
                     saveSessionId(sessionId);
                     canUseLoanSim = data.data.can_use_loan_sim !== false;
                     if (data.data.agent_name) agentName = data.data.agent_name;
-                    if (data.data.agent_photo_url) {
-                        agentPhoto = data.data.agent_photo_url;
-                    }
-                    syncAgentHeader();
-                    startupData = data.data;
-                    if (!greetingShown) {
-                        // 同じ端末で登録済み（電話・氏名・メール入力済み）なら、リロードしても再入力は求めない。
-                        if (data.data.is_resumed) {
+                if (data.data.agent_photo_url) {
+                    agentPhoto = data.data.agent_photo_url;
+                }
+                syncAgentHeader();
+                startupData = data.data;
+                if (data.data.customer_name) {
+                    saveCustomerName(data.data.customer_name);
+                }
+                if (!greetingShown) {
+                    // 同じ端末で登録済み（電話・氏名・メール入力済み）なら、リロードしても再入力は求めない。
+                    if (data.data.is_resumed) {
                             showReturningDeviceEntry(data.data);
                         } else {
                             showFirstTimeEntry(data.data);

@@ -349,83 +349,87 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
 
         <div class="admin-content">
             <div class="filters">
-                <form method="GET" class="filter-form">
-                    <input type="text"
-                           name="email"
-                           value="<?php echo htmlspecialchars($emailSearch, ENT_QUOTES, 'UTF-8'); ?>"
-                           placeholder="メールで検索"
-                           class="filter-input">
-                    <input type="text"
-                           name="name"
-                           value="<?php echo htmlspecialchars($nameSearch, ENT_QUOTES, 'UTF-8'); ?>"
-                           placeholder="名前で検索"
-                           class="filter-input">
-                    <input type="text"
-                           name="company_name"
-                           value="<?php echo htmlspecialchars($companyNameSearch, ENT_QUOTES, 'UTF-8'); ?>"
-                           placeholder="社名で検索"
-                           class="filter-input">
-                    <input type="text"
-                           name="agent"
-                           value="<?php echo htmlspecialchars($agentSearch, ENT_QUOTES, 'UTF-8'); ?>"
-                           placeholder="代理店コードで検索"
-                           class="filter-input">
-                    <select name="payment_status">
-                        <option value="">入金状況</option>
-                        <option value="CR" <?php echo ($_GET['payment_status'] ?? '') === 'CR' ? 'selected' : ''; ?>>CR</option>
-                        <option value="BANK_PENDING" <?php echo ($_GET['payment_status'] ?? '') === 'BANK_PENDING' ? 'selected' : ''; ?>>振込予定</option>
-                        <option value="BANK_PAID" <?php echo ($_GET['payment_status'] ?? '') === 'BANK_PAID' ? 'selected' : ''; ?>>振込済</option>
-                        <option value="ST" <?php echo ($_GET['payment_status'] ?? '') === 'ST' ? 'selected' : ''; ?>>ST送金</option>
-                        <option value="UNUSED" <?php echo ($_GET['payment_status'] ?? '') === 'UNUSED' ? 'selected' : ''; ?>>未利用</option>
-                    </select>
-                    <select name="is_open">
-                        <option value="">公開状況</option>
-                        <option value="1" <?php echo ($_GET['is_open'] ?? '') === '1' ? 'selected' : ''; ?>>公開中</option>
-                        <option value="0" <?php echo ($_GET['is_open'] ?? '') === '0' ? 'selected' : ''; ?>>非公開</option>
-                    </select>
-                    <button type="submit" class="btn-filter">検索</button>
-                    <?php
-                    // CSV出力リンクに検索条件を追�
-                    $csvParams = [];
-                    if (!empty($_GET['payment_status'])) {
-                        $csvParams['payment_status'] = $_GET['payment_status'];
-                    }
-                    if (isset($_GET['is_open']) && $_GET['is_open'] !== '') {
-                        $csvParams['is_open'] = $_GET['is_open'];
-                    }
-                    if ($emailSearch !== '') {
-                        $csvParams['email'] = $emailSearch;
-                    }
-                    if ($nameSearch !== '') {
-                        $csvParams['name'] = $nameSearch;
-                    }
-                    if ($companyNameSearch !== '') {
-                        $csvParams['company_name'] = $companyNameSearch;
-                    }
-                    if ($agentSearch !== '') {
-                        $csvParams['agent'] = $agentSearch;
-                    }
-                    $csvUrl = '../backend/api/admin/export-csv.php';
-                    if (!empty($csvParams)) {
-                        $csvUrl .= '?' . http_build_query($csvParams);
-                    }
-                    ?>
-                    <a href="<?php echo htmlspecialchars($csvUrl); ?>" class="btn-export">CSV出力</a>
-                    <a href="../backend/api/admin/export-chat-questions.php" class="btn-export">チャット質問CSV</a>
-                    <?php if ($isAdmin): ?>
-                    <button type="button" class="btn-check-overdue" id="btn-check-overdue" title="未払い月額料金をチェックして自動更新">
-                        未払いチェック
-                    </button>
-                    <?php endif; ?>
-                    <?php if ($isAdmin): ?>
-                    <button type="button" class="btn-delete-bulk" id="btn-delete-selected" disabled>
-                    選択したユーザーを削除
-                    </button>
-                    <?php else: ?>
-                    <button type="button" class="btn-delete-bulk" disabled style="opacity: 0.5; cursor: not-allowed;" title="クライアントロールは削除操作ができません">
-                    選択したユーザーを削除
-                    </button>
-                    <?php endif; ?>
+                <form method="GET" class="filter-form" style="display : flex; flex-direction : column">
+                    <div>
+                        <input type="text"
+                            name="email"
+                            value="<?php echo htmlspecialchars($emailSearch, ENT_QUOTES, 'UTF-8'); ?>"
+                            placeholder="メールで検索"
+                            class="filter-input">
+                        <input type="text"
+                            name="name"
+                            value="<?php echo htmlspecialchars($nameSearch, ENT_QUOTES, 'UTF-8'); ?>"
+                            placeholder="名前で検索"
+                            class="filter-input">
+                        <input type="text"
+                            name="company_name"
+                            value="<?php echo htmlspecialchars($companyNameSearch, ENT_QUOTES, 'UTF-8'); ?>"
+                            placeholder="社名で検索"
+                            class="filter-input">
+                        <input type="text"
+                            name="agent"
+                            value="<?php echo htmlspecialchars($agentSearch, ENT_QUOTES, 'UTF-8'); ?>"
+                            placeholder="代理店コードで検索"
+                            class="filter-input">
+                        <select name="payment_status">
+                            <option value="">入金状況</option>
+                            <option value="CR" <?php echo ($_GET['payment_status'] ?? '') === 'CR' ? 'selected' : ''; ?>>CR</option>
+                            <option value="BANK_PENDING" <?php echo ($_GET['payment_status'] ?? '') === 'BANK_PENDING' ? 'selected' : ''; ?>>振込予定</option>
+                            <option value="BANK_PAID" <?php echo ($_GET['payment_status'] ?? '') === 'BANK_PAID' ? 'selected' : ''; ?>>振込済</option>
+                            <option value="ST" <?php echo ($_GET['payment_status'] ?? '') === 'ST' ? 'selected' : ''; ?>>ST送金</option>
+                            <option value="UNUSED" <?php echo ($_GET['payment_status'] ?? '') === 'UNUSED' ? 'selected' : ''; ?>>未利用</option>
+                        </select>
+                        <select name="is_open">
+                            <option value="">公開状況</option>
+                            <option value="1" <?php echo ($_GET['is_open'] ?? '') === '1' ? 'selected' : ''; ?>>公開中</option>
+                            <option value="0" <?php echo ($_GET['is_open'] ?? '') === '0' ? 'selected' : ''; ?>>非公開</option>
+                        </select>
+                        <button type="submit" class="btn-filter">検索</button>
+                        <?php
+                        // CSV出力リンクに検索条件を追�
+                        $csvParams = [];
+                        if (!empty($_GET['payment_status'])) {
+                            $csvParams['payment_status'] = $_GET['payment_status'];
+                        }
+                        if (isset($_GET['is_open']) && $_GET['is_open'] !== '') {
+                            $csvParams['is_open'] = $_GET['is_open'];
+                        }
+                        if ($emailSearch !== '') {
+                            $csvParams['email'] = $emailSearch;
+                        }
+                        if ($nameSearch !== '') {
+                            $csvParams['name'] = $nameSearch;
+                        }
+                        if ($companyNameSearch !== '') {
+                            $csvParams['company_name'] = $companyNameSearch;
+                        }
+                        if ($agentSearch !== '') {
+                            $csvParams['agent'] = $agentSearch;
+                        }
+                        $csvUrl = '../backend/api/admin/export-csv.php';
+                        if (!empty($csvParams)) {
+                            $csvUrl .= '?' . http_build_query($csvParams);
+                        }
+                        ?>
+                    </div>
+                    <div>
+                        <a href="<?php echo htmlspecialchars($csvUrl); ?>" class="btn-export">CSV出力</a>
+                        <a href="../backend/api/admin/export-chat-questions.php" class="btn-export">チャット質問CSV</a>
+                        <?php if ($isAdmin): ?>
+                        <button type="button" class="btn-check-overdue" id="btn-check-overdue" title="未払い月額料金をチェックして自動更新">
+                            未払いチェック
+                        </button>
+                        <?php endif; ?>
+                        <?php if ($isAdmin): ?>
+                        <button type="button" class="btn-delete-bulk" id="btn-delete-selected" disabled>
+                        選択したユーザーを削除
+                        </button>
+                        <?php else: ?>
+                        <button type="button" class="btn-delete-bulk" disabled style="opacity: 0.5; cursor: not-allowed;" title="クライアントロールは削除操作ができません">
+                        選択したユーザーを削除
+                        </button>
+                        <?php endif; ?>
+                    </div>
                 </form>
             </div>
 
