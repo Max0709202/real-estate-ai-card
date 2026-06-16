@@ -3180,7 +3180,13 @@ $defaultGreetings = [
                             listEl.innerHTML = phoneHtml + '<p>まだチャットのやり取りはありません。</p>';
                             return;
                         }
-                        var html = phoneHtml + '<ul class="chat-session-list">';
+                        var html = phoneHtml;
+                        html += '<div class="chat-session-bulk-actions">';
+                        html += '<label class="chat-session-select-all"><input type="checkbox" id="chat-session-select-all"> すべて選択</label>';
+                        html += '<span id="chat-session-selected-count" class="chat-session-selected-count">0件選択中</span>';
+                        html += '<button type="button" id="chat-session-bulk-delete" class="chat-session-bulk-delete" disabled>選択した履歴を削除</button>';
+                        html += '</div>';
+                        html += '<ul class="chat-session-list">';
                         sessions.forEach(function(s) {
                             var date = s.last_seen_at || s.created_at || '';
                             var dateStr = date ? new Date(date).toLocaleString('ja-JP') : '-';
@@ -3189,6 +3195,7 @@ $defaultGreetings = [
                             var loanBadge = s.has_loan_simulation ? ' <span class="chat-lead-badge chat-loan-badge">ローン入力あり</span>' : '';
                             var customerName = s.customer_name ? ' <span class="chat-session-customer">' + escapeHtml(s.customer_name) + '</span>' : '';
                             html += '<li class="chat-session-item" data-session-id="' + escapeHtml(s.id || '') + '">';
+                            html += '<label class="chat-session-select" aria-label="削除対象に選択"><input type="checkbox" class="chat-session-checkbox" value="' + escapeHtml(s.id || '') + '"></label>';
                             html += '<div class="chat-session-main"><span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + customerName + leadBadge + contactBadge + loanBadge + '</div>';
                             html += '<span class="chat-session-meta">' + (s.message_count || 0) + '件</span>';
                             html += '<button type="button" class="chat-session-delete" data-session-id="' + escapeHtml(s.id || '') + '">削除</button>';
@@ -3207,6 +3214,37 @@ $defaultGreetings = [
                                 deleteSession(btn.getAttribute('data-session-id'));
                             });
                         });
+                        listEl.querySelectorAll('.chat-session-checkbox').forEach(function(checkbox) {
+                            checkbox.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                            });
+                            checkbox.addEventListener('change', updateBulkDeleteState);
+                        });
+                        listEl.querySelectorAll('.chat-session-select').forEach(function(label) {
+                            label.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                            });
+                        });
+                        var selectAll = document.getElementById('chat-session-select-all');
+                        if (selectAll) {
+                            selectAll.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                            });
+                            selectAll.addEventListener('change', function() {
+                                listEl.querySelectorAll('.chat-session-checkbox').forEach(function(checkbox) {
+                                    checkbox.checked = selectAll.checked;
+                                });
+                                updateBulkDeleteState();
+                            });
+                        }
+                        var bulkDeleteBtn = document.getElementById('chat-session-bulk-delete');
+                        if (bulkDeleteBtn) {
+                            bulkDeleteBtn.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                                deleteSelectedSessions();
+                            });
+                        }
+                        updateBulkDeleteState();
                     })
                     .catch(function() {
                         listEl.innerHTML = '<p>読み込みに失敗しました。</p>';
@@ -3231,6 +3269,26 @@ $defaultGreetings = [
                 });
                 html += '</div>';
                 return html;
+            }
+
+            function getSelectedSessionIds() {
+                return Array.prototype.slice.call(listEl.querySelectorAll('.chat-session-checkbox:checked'))
+                    .map(function(checkbox) { return checkbox.value || ''; })
+                    .filter(Boolean);
+            }
+
+            function updateBulkDeleteState() {
+                var selectedIds = getSelectedSessionIds();
+                var countEl = document.getElementById('chat-session-selected-count');
+                var deleteBtn = document.getElementById('chat-session-bulk-delete');
+                var selectAll = document.getElementById('chat-session-select-all');
+                var checkboxes = Array.prototype.slice.call(listEl.querySelectorAll('.chat-session-checkbox'));
+                if (countEl) countEl.textContent = selectedIds.length + '件選択中';
+                if (deleteBtn) deleteBtn.disabled = selectedIds.length === 0;
+                if (selectAll) {
+                    selectAll.checked = checkboxes.length > 0 && selectedIds.length === checkboxes.length;
+                    selectAll.indeterminate = selectedIds.length > 0 && selectedIds.length < checkboxes.length;
+                }
             }
 
 
@@ -3338,16 +3396,19 @@ $defaultGreetings = [
                     });
             }
 
-            function deleteSession(sessionId) {
-                if (!sessionId) return;
-                if (!confirm('このチャット履歴を削除します。よろしいですか？')) return;
-                fetch(apiBase + '/session-delete.php', {
+            function deleteSessionRequest(sessionId) {
+                return fetch(apiBase + '/session-delete.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ id: sessionId })
-                })
-                    .then(function(r) { return r.json(); })
+                }).then(function(r) { return r.json(); });
+            }
+
+            function deleteSession(sessionId) {
+                if (!sessionId) return;
+                if (!confirm('このチャット履歴を削除します。よろしいですか？')) return;
+                deleteSessionRequest(sessionId)
                     .then(function(res) {
                         if (!res.success) {
                             alert(res.message || '削除に失敗しました');
@@ -3363,6 +3424,44 @@ $defaultGreetings = [
                     .catch(function() {
                         alert('削除に失敗しました');
                     });
+            }
+
+            function deleteSelectedSessions() {
+                var selectedIds = getSelectedSessionIds();
+                if (!selectedIds.length) return;
+                if (!confirm(selectedIds.length + '件のチャット履歴を削除します。よろしいですか？')) return;
+                var bulkDeleteBtn = document.getElementById('chat-session-bulk-delete');
+                var countEl = document.getElementById('chat-session-selected-count');
+                if (bulkDeleteBtn) {
+                    bulkDeleteBtn.disabled = true;
+                    bulkDeleteBtn.textContent = '削除中...';
+                }
+                if (countEl) countEl.textContent = selectedIds.length + '件を削除中';
+
+                var succeeded = 0;
+                var failed = 0;
+                selectedIds.reduce(function(chain, sessionId) {
+                    return chain.then(function() {
+                        return deleteSessionRequest(sessionId)
+                            .then(function(res) {
+                                if (res.success) succeeded += 1;
+                                else failed += 1;
+                            })
+                            .catch(function() {
+                                failed += 1;
+                            });
+                    });
+                }, Promise.resolve()).then(function() {
+                    if (currentDetailSessionId && selectedIds.indexOf(currentDetailSessionId) !== -1) {
+                        currentDetailSessionId = '';
+                        detailEl.style.display = 'none';
+                        listEl.style.display = '';
+                    }
+                    if (failed > 0) {
+                        alert('削除完了: ' + succeeded + '件 / 失敗: ' + failed + '件');
+                    }
+                    loadSessions();
+                });
             }
 
             if (detailDeleteBtn) {
@@ -3392,4 +3491,3 @@ $defaultGreetings = [
     </script>
 </body>
 </html>
-

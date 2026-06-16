@@ -121,13 +121,20 @@ try {
         }
     }
 
-    // Save bot message
-    $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'bot', ?)");
-    $stmt->execute([$sessionId, $reply]);
-
     // Update lightweight conversation memory for future turns and reload continuity
     updateChatSessionMemoryHeuristic($db, $sessionId, $card['id'], $message, $reply);
-    chatCrmSyncFromChatSession($db, $sessionId, (int)$card['id']);
+    $crmCase = chatCrmSyncFromChatSession($db, $sessionId, (int)$card['id']);
+    if ($crmCase && chatCrmConditionReminderDue($crmCase)) {
+        $conditionReminder = chatCrmBuildConditionReminder($crmCase);
+        if ($conditionReminder !== '') {
+            $reply = rtrim($reply) . "\n\n" . $conditionReminder;
+            chatCrmMarkConditionReminderShown($db, $sessionId, (int)$card['id']);
+        }
+    }
+
+    // Save bot message after condition reminder has been appended.
+    $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'bot', ?)");
+    $stmt->execute([$sessionId, $reply]);
 
     // Update session last_seen
     $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");

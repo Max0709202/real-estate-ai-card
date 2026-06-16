@@ -58,6 +58,11 @@ try {
         $case['conditions'] = chatCrmDecodeJsonValue($payload['conditions'] ?? null, $case['conditions']);
         $case['ai_summary'] = trim((string)($payload['ai_summary'] ?? $case['ai_summary']));
         $case['customer_name'] = trim((string)($payload['customer_name'] ?? $case['customer_name']));
+        if ($case['deal_type'] === 'sale' && !empty($case['conditions']['seller']['closing_date'])) {
+            $case['progress']['target_date'] = $case['conditions']['seller']['closing_date'];
+        } elseif (!empty($case['conditions']['buyer']['move_in_date'])) {
+            $case['progress']['target_date'] = $case['conditions']['buyer']['move_in_date'];
+        }
     } elseif ($feature === 'progress') {
         $case['progress'] = chatCrmDecodeJsonValue($payload['progress'] ?? null, $case['progress']);
         $case['deal_type'] = chatCrmNormalizeDealType($payload['deal_type'] ?? $case['deal_type']);
@@ -110,4 +115,3 @@ try {
     error_log('chat crm save error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
 }
-

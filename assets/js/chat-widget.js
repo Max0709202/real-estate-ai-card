@@ -988,6 +988,7 @@
             greetingShown = false;
             canUseLoanSim = true;
             crmState = null;
+            exitFeatureView();
             messagesContainer.innerHTML = '';
             renderQuickReplies([]);
             setVoiceStatus('');
@@ -1363,9 +1364,33 @@
         });
     }
 
+    function featureTabLabel(tab) {
+        if (!tabBar) return '戻る';
+        var btn = tabBar.querySelector('.chat-widget-tab[data-chat-tab="' + tab + '"]');
+        return btn ? (btn.textContent || '戻る').trim() : '戻る';
+    }
+
+    function exitFeatureView() {
+        activeChatTab = 'ai';
+        setActiveChatTab('ai');
+        if (featurePanel) {
+            featurePanel.hidden = true;
+            featurePanel.innerHTML = '';
+        }
+        panel.classList.remove('is-feature-view');
+        if (!panel.hidden) inputEl.focus();
+    }
+
+    function enterFeatureView(tab) {
+        panel.classList.add('is-feature-view');
+        setActiveChatTab(tab);
+        if (featurePanel) featurePanel.hidden = false;
+    }
+
     function showConstructionNotice(tabLabel) {
         setActiveChatTab('ai');
         if (featurePanel) featurePanel.hidden = true;
+        panel.classList.remove('is-feature-view');
         appendBotMessage('「' + tabLabel + '」を読み込めませんでした。');
     }
 
@@ -1434,7 +1459,8 @@
     function renderFeaturePanel(html) {
         if (!featurePanel) return;
         featurePanel.hidden = false;
-        featurePanel.innerHTML = html;
+        var label = featureTabLabel(activeChatTab);
+        featurePanel.innerHTML = '<div class="chat-feature-toolbar"><button type="button" class="chat-feature-back" data-feature-back="1">← AI担当</button></div><div class="chat-feature-body">' + html + '</div>';
     }
 
     function renderConditionsTab() {
@@ -1444,37 +1470,47 @@
         var buyer = cond.buyer || {};
         var seller = cond.seller || {};
         var dealType = c.deal_type || 'purchase';
+        function selected(value, current) {
+            return String(value || '') === String(current || '') ? ' selected' : '';
+        }
+        function optionList(options, current, placeholder) {
+            var out = placeholder ? '<option value="">' + escapeHtml(placeholder) + '</option>' : '';
+            options.forEach(function (option) {
+                out += '<option value="' + escapeAttribute(option) + '"' + selected(option, current) + '>' + escapeHtml(option) + '</option>';
+            });
+            return out;
+        }
         var html = '';
-        html += '<div class="chat-feature-head"><strong>条件整理</strong><span>AI要約: ' + crmFields(c.ai_summary || '未作成') + '</span></div>';
-        html += '<label class="chat-feature-field">取引種別<select name="deal_type"><option value="purchase"' + (dealType === 'purchase' ? ' selected' : '') + '>購入</option><option value="sale"' + (dealType === 'sale' ? ' selected' : '') + '>売却</option><option value="both"' + (dealType === 'both' ? ' selected' : '') + '>両方</option></select></label>';
+        html += '<div class="chat-feature-head"><strong>条件整理</strong><span>AIチャットから抽出した条件を保存します</span></div>';
+        html += '<label class="chat-feature-field">相談種別<select name="deal_type"><option value="purchase"' + (dealType === 'purchase' ? ' selected' : '') + '>購入</option><option value="sale"' + (dealType === 'sale' ? ' selected' : '') + '>売却</option><option value="both"' + (dealType === 'both' ? ' selected' : '') + '>購入・売却</option></select></label>';
         html += '<div class="chat-feature-grid">';
         html += '<section><h4>購入条件</h4>';
-        html += '<label>希望時期<input name="buyer_purchase_timing" value="' + crmFields(buyer.purchase_timing || '') + '"></label>';
-        html += '<label>引渡希望日<input type="date" name="buyer_move_in_date" value="' + crmFields(buyer.move_in_date || '') + '"></label>';
-        html += '<label>予算上限<input name="buyer_budget_max" value="' + crmFields(buyer.budget_max || '') + '"></label>';
-        html += '<label>希望エリア<textarea name="buyer_areas">' + crmFields(crmArray(buyer.areas).join('、')) + '</textarea></label>';
-        html += '<label>希望駅<textarea name="buyer_stations">' + crmFields(crmArray(buyer.stations).join('、')) + '</textarea></label>';
-        html += '<label>駅徒歩<input name="buyer_walk_minutes" value="' + crmFields(buyer.walk_minutes || '') + '"></label>';
-        html += '<label>種別<input name="buyer_property_type" value="' + crmFields(buyer.property_type || '') + '"></label>';
-        html += '<label>間取り<input name="buyer_layout" value="' + crmFields(buyer.layout || '') + '"></label>';
-        html += '<label>面積<input name="buyer_area_min" value="' + crmFields(buyer.area_min || '') + '"></label>';
-        html += '<label>築年数<input name="buyer_building_age" value="' + crmFields(buyer.building_age || '') + '"></label>';
-        html += '<label>リノベ希望<input name="buyer_renovation_preference" value="' + crmFields(buyer.renovation_preference || '') + '"></label>';
-        html += '<label>購入理由<textarea name="buyer_purchase_reason">' + crmFields(buyer.purchase_reason || '') + '</textarea></label>';
+        html += '<label>購入時期<select name="buyer_purchase_timing">' + optionList(['できるだけ早く', '3か月以内', '6か月以内', '1年以内', '未定'], buyer.purchase_timing, '選択') + '</select></label>';
+        html += '<label>引越希望日<input type="date" name="buyer_move_in_date" value="' + crmFields(buyer.move_in_date || '') + '"></label>';
+        html += '<label>購入予算上限<input name="buyer_budget_max" placeholder="例：8000万円" value="' + crmFields(buyer.budget_max || '') + '"></label>';
+        html += '<label>希望エリア<textarea name="buyer_areas" placeholder="例：中野区&#10;杉並区&#10;武蔵野市">' + crmFields(crmArray(buyer.areas).join('\n')) + '</textarea></label>';
+        html += '<label>希望沿線<textarea name="buyer_station_lines" placeholder="例：中央線">' + crmFields(crmArray(buyer.station_lines).join('\n')) + '</textarea></label>';
+        html += '<label>希望駅<textarea name="buyer_stations" placeholder="例：中野駅&#10;高円寺駅&#10;阿佐ヶ谷駅">' + crmFields(crmArray(buyer.stations).join('\n')) + '</textarea></label>';
+        html += '<label>駅徒歩<select name="buyer_walk_minutes">' + optionList(['5分以内', '10分以内', '15分以内', 'こだわらない'], buyer.walk_minutes, '選択') + '</select></label>';
+        html += '<label>種別<select name="buyer_property_type">' + optionList(['マンション', '戸建', 'どちらでも可'], buyer.property_type, '選択') + '</select></label>';
+        html += '<label>間取り<select name="buyer_layout">' + optionList(['ワンルーム', '1K', '1LDK', '2LDK', '3LDK', '4LDK', '5LDK以上', 'こだわらない'], buyer.layout, '選択') + '</select></label>';
+        html += '<label>面積<input name="buyer_area_min" placeholder="例：60㎡以上" value="' + crmFields(buyer.area_min || '') + '"></label>';
+        html += '<label>築年数<select name="buyer_building_age">' + optionList(['新築', '10年以内', '20年以内', '30年以内', 'こだわらない'], buyer.building_age, '選択') + '</select></label>';
+        html += '<label>リノベーション希望<select name="buyer_renovation_preference">' + optionList(['リノベーション済み希望', '自らリフォームする予定'], buyer.renovation_preference, '選択') + '</select></label>';
+        html += '<label>購入理由<select name="buyer_purchase_reason_select">' + optionList(['家賃がもったいない', '結婚', '出産', '子供の進学', '住み替え', '投資', 'その他'], buyer.purchase_reason, '選択') + '</select><textarea name="buyer_purchase_reason" placeholder="自由入力">' + crmFields(buyer.purchase_reason && ['家賃がもったいない', '結婚', '出産', '子供の進学', '住み替え', '投資', 'その他'].indexOf(buyer.purchase_reason) === -1 ? buyer.purchase_reason : '') + '</textarea></label>';
         html += '</section>';
         html += '<section><h4>売却条件</h4>';
-        html += '<label>売却理由<textarea name="seller_sale_reason">' + crmFields(seller.sale_reason || '') + '</textarea></label>';
-        html += '<label>売却時期<input name="seller_sale_timing" value="' + crmFields(seller.sale_timing || '') + '"></label>';
+        html += '<label>売却理由<select name="seller_sale_reason_select">' + optionList(['住み替え', '相続', '離婚', '転勤', '資産整理', '投資売却', 'その他'], seller.sale_reason, '選択') + '</select><textarea name="seller_sale_reason" placeholder="自由入力">' + crmFields(seller.sale_reason && ['住み替え', '相続', '離婚', '転勤', '資産整理', '投資売却', 'その他'].indexOf(seller.sale_reason) === -1 ? seller.sale_reason : '') + '</textarea></label>';
+        html += '<label>売却希望時期<select name="seller_sale_timing">' + optionList(['できるだけ早く', '3か月以内', '半年以内', '1年以内', '未定'], seller.sale_timing, '選択') + '</select></label>';
         html += '<label>決済希望日<input type="date" name="seller_closing_date" value="' + crmFields(seller.closing_date || '') + '"></label>';
-        html += '<label>希望価格<input name="seller_sale_price" value="' + crmFields(seller.sale_price || '') + '"></label>';
-        html += '<label>最低価格<input name="seller_minimum_price" value="' + crmFields(seller.minimum_price || '') + '"></label>';
-        html += '<label>ローン残債<input name="seller_loan_balance" value="' + crmFields(seller.loan_balance || '') + '"></label>';
-        html += '<label>住み替え予定<input name="seller_relocation_plan" value="' + crmFields(seller.relocation_plan || '') + '"></label>';
-        html += '<label>売却後の住まい<input name="seller_post_sale_home" value="' + crmFields(seller.post_sale_home || '') + '"></label>';
-        html += '<label>内覧対応<textarea name="seller_viewing_availability">' + crmFields(seller.viewing_availability || '') + '"></textarea></label>';
-        html += '<label>アピールポイント<textarea name="seller_appeal_points">' + crmFields(crmArray(seller.appeal_points).join('、')) + '</textarea></label>';
+        html += '<label>売却希望価格<input name="seller_sale_price" placeholder="例：5,500万円" value="' + crmFields(seller.sale_price || '') + '"></label>';
+        html += '<label>最低売却価格<input name="seller_minimum_price" placeholder="例：5,000万円" value="' + crmFields(seller.minimum_price || '') + '"></label>';
+        html += '<label>住宅ローン残債<input name="seller_loan_balance" placeholder="例：3,200万円" value="' + crmFields(seller.loan_balance || '') + '"></label>';
+        html += '<label>住み替え予定<select name="seller_relocation_plan">' + optionList(['あり', 'なし', '未定'], seller.relocation_plan, '選択') + '</select></label>';
+        html += '<label>売却後の住まい<select name="seller_post_sale_home">' + optionList(['購入予定', '賃貸予定', '実家', '未定'], seller.post_sale_home, '選択') + '</select></label>';
+        html += '<label>内覧対応<select name="seller_viewing_availability">' + optionList(['土日可', '平日可', 'いつでも可', '要相談'], seller.viewing_availability, '選択') + '</select></label>';
+        html += '<label>アピールポイント<textarea name="seller_appeal_points" placeholder="例：日当たりが良い&#10;管理状態が良い&#10;角部屋&#10;駅近">' + crmFields(crmArray(seller.appeal_points).join('\n')) + '</textarea></label>';
         html += '</section></div>';
-        html += '<label class="chat-feature-field">営業メモ<textarea name="notes">' + crmFields(cond.notes || '') + '</textarea></label>';
         html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-save" data-save-feature="conditions">保存</button><button type="button" class="chat-feature-sync" data-sync-feature="conditions">チャットから再読込</button></div>';
         html += '<div class="chat-feature-summary"><strong>整理結果</strong><p>' + crmFields(c.conditions_summary || '未整理') + '</p></div>';
         renderFeaturePanel(html);
@@ -1527,7 +1563,7 @@
     function renderToolsTab() {
         var c = crmCase();
         if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
-        var tools = (crmState && crmState.data && crmState.data.tools) ? crmState.data.tools : [];
+        var tools = (c.tools && Array.isArray(c.tools)) ? c.tools : [];
         var html = '<div class="chat-feature-head"><strong>ツール</strong><span>リンク集</span></div>';
         html += '<div class="chat-feature-tools">';
         tools.forEach(function (tool) {
@@ -1582,9 +1618,10 @@
     function renderFeatureTab(tab) {
         if (!featurePanel) return;
         if (tab === 'ai') {
-            featurePanel.hidden = true;
+            exitFeatureView();
             return;
         }
+        enterFeatureView(tab);
         featurePanel.hidden = false;
         if (!crmState) {
             renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
@@ -1609,8 +1646,16 @@
     function collectConditionsPayload() {
         var root = featurePanel;
         var buyerAreas = (root.querySelector('[name="buyer_areas"]') || {}).value || '';
+        var buyerStationLines = (root.querySelector('[name="buyer_station_lines"]') || {}).value || '';
         var buyerStations = (root.querySelector('[name="buyer_stations"]') || {}).value || '';
         var sellerAppeal = (root.querySelector('[name="seller_appeal_points"]') || {}).value || '';
+        var purchaseReasonFree = ((root.querySelector('[name="buyer_purchase_reason"]') || {}).value || '').trim();
+        var purchaseReasonSelect = ((root.querySelector('[name="buyer_purchase_reason_select"]') || {}).value || '').trim();
+        var saleReasonFree = ((root.querySelector('[name="seller_sale_reason"]') || {}).value || '').trim();
+        var saleReasonSelect = ((root.querySelector('[name="seller_sale_reason_select"]') || {}).value || '').trim();
+        function splitList(value) {
+            return value ? value.split(/[、,，\n\r]+/).map(function (s) { return s.trim(); }).filter(Boolean) : [];
+        }
         return {
             deal_type: (root.querySelector('[name="deal_type"]') || {}).value || 'purchase',
             customer_name: crmCase().customer_name || '',
@@ -1621,18 +1666,19 @@
                     purchase_timing: (root.querySelector('[name="buyer_purchase_timing"]') || {}).value || '',
                     move_in_date: (root.querySelector('[name="buyer_move_in_date"]') || {}).value || '',
                     budget_max: (root.querySelector('[name="buyer_budget_max"]') || {}).value || '',
-                    areas: buyerAreas ? buyerAreas.split(/[、,]/).map(function (s) { return s.trim(); }).filter(Boolean) : [],
-                    stations: buyerStations ? buyerStations.split(/[、,]/).map(function (s) { return s.trim(); }).filter(Boolean) : [],
+                    areas: splitList(buyerAreas),
+                    station_lines: splitList(buyerStationLines),
+                    stations: splitList(buyerStations),
                     walk_minutes: (root.querySelector('[name="buyer_walk_minutes"]') || {}).value || '',
                     property_type: (root.querySelector('[name="buyer_property_type"]') || {}).value || '',
                     layout: (root.querySelector('[name="buyer_layout"]') || {}).value || '',
                     area_min: (root.querySelector('[name="buyer_area_min"]') || {}).value || '',
                     building_age: (root.querySelector('[name="buyer_building_age"]') || {}).value || '',
                     renovation_preference: (root.querySelector('[name="buyer_renovation_preference"]') || {}).value || '',
-                    purchase_reason: (root.querySelector('[name="buyer_purchase_reason"]') || {}).value || '',
+                    purchase_reason: purchaseReasonFree || purchaseReasonSelect,
                 },
                 seller: {
-                    sale_reason: (root.querySelector('[name="seller_sale_reason"]') || {}).value || '',
+                    sale_reason: saleReasonFree || saleReasonSelect,
                     sale_timing: (root.querySelector('[name="seller_sale_timing"]') || {}).value || '',
                     closing_date: (root.querySelector('[name="seller_closing_date"]') || {}).value || '',
                     sale_price: (root.querySelector('[name="seller_sale_price"]') || {}).value || '',
@@ -1641,9 +1687,9 @@
                     relocation_plan: (root.querySelector('[name="seller_relocation_plan"]') || {}).value || '',
                     post_sale_home: (root.querySelector('[name="seller_post_sale_home"]') || {}).value || '',
                     viewing_availability: (root.querySelector('[name="seller_viewing_availability"]') || {}).value || '',
-                    appeal_points: sellerAppeal ? sellerAppeal.split(/[、,]/).map(function (s) { return s.trim(); }).filter(Boolean) : [],
+                    appeal_points: splitList(sellerAppeal),
                 },
-                notes: (root.querySelector('[name="notes"]') || {}).value || ''
+                notes: ''
             }
         };
     }
@@ -1784,12 +1830,10 @@
             if (!btn) return;
             var tab = btn.getAttribute('data-chat-tab') || 'ai';
             if (tab === 'ai') {
-                setActiveChatTab('ai');
-                if (featurePanel) featurePanel.hidden = true;
-                if (!panel.hidden) inputEl.focus();
+                exitFeatureView();
                 return;
             }
-            setActiveChatTab(tab);
+            enterFeatureView(tab);
             loadCrmState(false).then(function () {
                 renderFeatureTab(tab);
             });
@@ -1798,6 +1842,11 @@
 
     if (featurePanel) {
         featurePanel.addEventListener('click', function (e) {
+            var backBtn = e.target.closest('[data-feature-back]');
+            if (backBtn) {
+                exitFeatureView();
+                return;
+            }
             var saveBtn = e.target.closest('[data-save-feature]');
             var syncBtn = e.target.closest('[data-sync-feature]');
             var addBtn = e.target.closest('[data-add-feature]');
@@ -1806,7 +1855,14 @@
             if (syncBtn) {
                 var syncFeature = syncBtn.getAttribute('data-sync-feature');
                 if (syncFeature === 'conditions') {
-                    loadCrmState(true).then(function () { renderConditionsTab(); });
+                    syncBtn.disabled = true;
+                    saveCrmFeature('sync', {}).then(function () {
+                        renderConditionsTab();
+                    }).catch(function () {
+                        appendBotMessage('チャットからの再読込に失敗しました。');
+                    }).finally(function () {
+                        syncBtn.disabled = false;
+                    });
                 }
                 return;
             }

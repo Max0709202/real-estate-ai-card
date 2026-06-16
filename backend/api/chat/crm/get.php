@@ -23,7 +23,7 @@ try {
     $db = $database->getConnection();
 
     $stmt = $db->prepare("
-        SELECT cs.id, cs.business_card_id, bc.user_id, bc.name AS card_holder_name, bc.company_name, bc.url_slug, bc.plan_type, bc.profile_photo
+        SELECT cs.id, cs.business_card_id, bc.user_id, bc.name AS card_holder_name, bc.company_name, bc.url_slug, bc.profile_photo
         FROM chat_sessions cs
         JOIN business_cards bc ON bc.id = cs.business_card_id
         WHERE cs.id = ?

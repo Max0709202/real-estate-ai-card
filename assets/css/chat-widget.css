@@ -308,6 +308,48 @@
     border-top: 1px solid #e7edf8;
     background: #f8fbff;
 }
+.chat-widget-panel.is-feature-view .chat-widget-messages,
+.chat-widget-panel.is-feature-view .chat-widget-quick-actions,
+.chat-widget-panel.is-feature-view .chat-widget-input-wrap,
+.chat-widget-panel.is-feature-view .chat-widget-voice-status {
+    display: none !important;
+}
+.chat-widget-panel.is-feature-view .chat-widget-feature-panel {
+    flex: 1 1 auto;
+    max-height: none;
+    min-height: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    border-top: none;
+}
+.chat-feature-toolbar {
+    flex: 0 0 auto;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid #d9e4f2;
+    background: #fff;
+}
+.chat-feature-back {
+    border: none;
+    border-radius: 8px;
+    background: #0b4f9f;
+    color: #fff;
+    padding: 0.52rem 0.75rem;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.chat-feature-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 0.75rem 1rem;
+}
 .chat-widget-default-prompt {
     flex-basis: 100%;
     color: #5f6b7a;
@@ -1187,6 +1229,9 @@
     }
     .chat-widget-feature-panel {
         max-height: 180px;
+    }
+    .chat-widget-panel.is-feature-view .chat-widget-feature-panel {
+        max-height: none;
     }
     .chat-feature-grid {
         grid-template-columns: 1fr;
