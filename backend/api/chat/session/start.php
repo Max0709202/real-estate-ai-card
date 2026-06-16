@@ -31,7 +31,6 @@ $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $cardSlug = trim($input['card_slug'] ?? '');
 $visitorId = trim($input['visitor_id'] ?? '');
 $currentSessionId = trim($input['current_session_id'] ?? '');
-$resumeRequested = !empty($input['resume']);
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
     $visitorId = '';
 }
@@ -59,19 +58,26 @@ try {
     $sessionId = '';
     $isResumed = false;
 
-    if ($resumeRequested && $visitorId !== '') {
-        if ($currentSessionId !== '') {
-            $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? AND visitor_identifier = ? LIMIT 1");
-            $stmt->execute([$currentSessionId, $card['id'], $visitorId]);
-            $sessionId = (string)($stmt->fetchColumn() ?: '');
-        }
-        if ($sessionId === '') {
-            $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE business_card_id = ? AND visitor_identifier = ? ORDER BY last_seen_at DESC, created_at DESC LIMIT 1");
-            $stmt->execute([$card['id'], $visitorId]);
-            $sessionId = (string)($stmt->fetchColumn() ?: '');
-        }
-        if ($sessionId !== '') {
-            $isResumed = true;
+    // 同じ端末・同じ訪問者のチャットは、新しい履歴を増やさず既存履歴へ戻す。
+    // まず保存済み session_id を優先し、次に visitor_id の最新履歴を探す。
+    if ($currentSessionId !== '') {
+        $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
+        $stmt->execute([$currentSessionId, $card['id']]);
+        $sessionId = (string)($stmt->fetchColumn() ?: '');
+    }
+
+    if ($sessionId === '' && $visitorId !== '') {
+        $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE business_card_id = ? AND visitor_identifier = ? ORDER BY last_seen_at DESC, created_at DESC LIMIT 1");
+        $stmt->execute([$card['id'], $visitorId]);
+        $sessionId = (string)($stmt->fetchColumn() ?: '');
+    }
+
+    if ($sessionId !== '') {
+        $isResumed = true;
+        if ($visitorId !== '') {
+            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$visitorId, $sessionId]);
+        } else {
             $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$sessionId]);
         }

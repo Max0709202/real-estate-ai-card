@@ -503,16 +503,17 @@
         // ヒアリングで相談内容が溜まっている場合のみ、「今までのご相談内容を表示しますか？」を会話の入口として出す。
         var hasConsultationSummary = !!(startupData && startupData.has_consultation_summary);
         if (hasConsultationSummary) {
-            appendBotMessage(customerLabel + '、お帰りなさい。\n\n今までのご相談内容を表示しますか？\n\n「今までの相談内容を表示する」を選ぶと、これまでのご相談を振り返ってからご案内します。そのまま続けてご相談いただくこともできます。\n\n' + differentPersonLabel + 'がご利用される場合は、「新しく相談を始める」をお選びください。\n\n');
+            appendBotMessage(customerLabel + '、お帰りなさい。\n\n今までのご相談内容を表示しますか？\n\n「今までの相談内容を表示する」を選ぶと、これまでのご相談を振り返ってからご案内します。そのまま続けてご相談いただくこともできます。\n\n' + differentPersonLabel + 'がご利用される場合は、「別の方として始める」をお選びください。\n\n');
             renderEntryActions([
                 { label: '今までの相談内容を表示する', action: 'continue_saved_session' },
-                { label: '新しく相談を始める', action: 'start_as_different_person' }
+                { label: '別の方として始める', action: 'start_as_different_person' }
             ]);
         } else {
             // ヒアリング未実施: 相談内容の表示案内は出さない。
-            appendBotMessage(customerLabel + '、お帰りなさい。\n\nこの端末からは、そのまま続きからご相談いただけます。\n\n' + differentPersonLabel + 'がご利用される場合は、「新しく相談を始める」をお選びください。\n\n');
+            appendBotMessage(customerLabel + '、お帰りなさい。\n\nこの端末からは、そのまま続きからご相談いただけます。\n\n' + differentPersonLabel + 'がご利用される場合は、「別の方として始める」をお選びください。\n\n');
             renderEntryActions([
-                { label: '新しく相談を始める', action: 'start_as_different_person' }
+                { label: 'このまま相談する', action: 'continue_current_session' },
+                { label: '別の方として始める', action: 'start_as_different_person' }
             ]);
         }
         setInputEnabled(true);
@@ -982,7 +983,7 @@
         syncQuickActionsAfterRender();
     }
 
-    function startSession(reset) {
+    function startSession(reset, keepSavedSession) {
         if (reset) {
             sessionId = null;
             greetingShown = false;
@@ -993,7 +994,7 @@
             renderQuickReplies([]);
             setVoiceStatus('');
             inputEl.value = '';
-            clearSavedSessionId();
+            if (!keepSavedSession) clearSavedSessionId();
             if (quickActions) quickActions.style.display = '';
         }
 
@@ -1006,12 +1007,12 @@
         sessionStarting = true;
         setInputEnabled(false);
         var loadingRow = appendBotMessage('チャットを接続しています', true);
-        var savedSessionId = reset ? '' : getSavedSessionId();
+        var savedSessionId = (reset && !keepSavedSession) ? '' : getSavedSessionId();
 
         fetch(apiBase + '/session/start.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: savedSessionId, resume: !reset })
+            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: savedSessionId, resume: !reset || !!keepSavedSession })
         })
             .then(function (res) {
                 return res.json().catch(function () {
@@ -1807,7 +1808,7 @@
         refreshBtn.addEventListener('click', function () {
             if (sessionStarting || sendingMessage) return;
             if (isListening) stopVoiceInput();
-            startSession(true);
+            startSession(true, true);
         });
     }
 
@@ -1931,6 +1932,8 @@
                     showSmsAuth('continue');
                 } else if (entryAction === 'continue_saved_session') {
                     continueSavedConsultation(startupData || {}, false);
+                } else if (entryAction === 'continue_current_session') {
+                    beginFirstConsultation(startupData || {});
                 } else if (entryAction === 'start_as_different_person') {
                     resetVisitorIdentity();
                     sessionId = null;
