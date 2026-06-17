@@ -47,10 +47,7 @@ try {
     $case['purchase_schedule'] = chatCrmCalculatePurchaseStages($case['progress']['target_date'] ?? null, $case['progress']['manual_overrides'] ?? []);
     $case['sale_schedule'] = chatCrmCalculateSaleStages($case['progress']['target_date'] ?? null, $case['progress']['manual_overrides'] ?? []);
 
-    $case['tools'] = [];
-    $stmt = $db->prepare("SELECT tool_type, tool_url, display_order, is_active FROM tech_tool_selections WHERE business_card_id = ? AND is_active = 1 ORDER BY display_order ASC");
-    $stmt->execute([(int)$session['business_card_id']]);
-    $case['tools'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $case['tools'] = chatCrmLoadToolsForCard($db, (int)$session['business_card_id']);
 
     sendSuccessResponse([
         'session' => $session,

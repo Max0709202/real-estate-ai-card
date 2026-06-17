@@ -47,6 +47,113 @@ function chatCrmNowIso() {
     return date('c');
 }
 
+function chatCrmToolName($toolType) {
+    $names = [
+        'mdb' => '全国マンションデータベース',
+        'rlp' => '物件提案ロボ',
+        'llp' => '土地情報ロボ',
+        'ai' => 'AIマンション査定',
+        'slp' => 'セルフィン',
+        'olp' => 'オーナーコネクト',
+        'alp' => '統合LP',
+    ];
+    return $names[$toolType] ?? 'テックツール';
+}
+
+function chatCrmToolDescription($toolType) {
+    $descriptions = [
+        'mdb' => '国内最大規模のマンションデータベース。マンションの基礎情報・販売履歴をはじめ、口コミなども閲覧できます。',
+        'rlp' => '希望条件に合う新着の売却情報を売り出しから24時間以内にAI評価付きで毎日配信します。希望物件の見落としが無くなります。',
+        'llp' => '建てたい工務店は決まっているのに、土地情報を探しているお客様向け。新着の土地売却情報を売り出しから24時間以内に毎日配信します。',
+        'ai' => '個人情報不要で、膨大な販売履歴より瞬時にマンションの価格を査定します。いつでも自分のマンションの査定が可能です。',
+        'slp' => '物件の良し悪しを自動でしかも一瞬で判定するセルフインスペクションWEBアプリ。ネガティブ情報の発見にご活用ください。',
+        'olp' => '今日の自宅の価格、今日の残債、今日売ったらいくら手元に残るかなど、登録すると1週間に1回配信されます。他住戸の売り出し情報が出たら直ちに情報を配信します。',
+        'alp' => '全国マンションデータベース、物件提案ロボ、土地情報ロボ、AIマンション査定、セルフィン、オーナーコネクトをご紹介するページです。',
+    ];
+    return $descriptions[$toolType] ?? '';
+}
+
+function chatCrmToolImageUrl($toolType) {
+    $file = preg_replace('/[^a-z0-9_-]/i', '', (string)$toolType);
+    if ($file === '') $file = 'default';
+    return rtrim(BASE_URL, '/') . '/assets/images/lp_icon/' . $file . '.png';
+}
+
+function chatCrmToolButtonLabel($toolType) {
+    $labels = [
+        'mdb' => '売却・購入',
+        'rlp' => '購入',
+        'llp' => '購入',
+        'ai' => '売却',
+        'slp' => '売却・購入',
+        'olp' => 'マンション所有者',
+        'alp' => '詳細',
+    ];
+    return $labels[$toolType] ?? '利用';
+}
+
+function chatCrmBuildToolUrl($toolType, $card, $savedUrl = '') {
+    $isEraMember = (int)($card['is_era_member'] ?? 0) === 1;
+    $selfInBase = $isEraMember ? 'https://era.self-in.com/' : 'https://self-in.com/';
+    $selfInNetBase = $isEraMember ? 'https://era.self-in.net/' : 'https://self-in.net/';
+    $cardSlug = trim((string)($card['url_slug'] ?? ''));
+    $toolSlug = trim((string)($card['company_slug'] ?? ''));
+    if ($toolSlug === '') $toolSlug = $cardSlug;
+    if ($toolSlug === '') return $savedUrl;
+
+    switch ($toolType) {
+        case 'mdb':
+            return $selfInBase . $toolSlug . '/mdb/';
+        case 'ai':
+            return $selfInBase . $toolSlug . '/ai/';
+        case 'rlp':
+            return $selfInNetBase . 'rlp/index.php?id=' . $toolSlug . '/';
+        case 'llp':
+            return $selfInNetBase . 'llp/index.php?id=' . $toolSlug . '/';
+        case 'slp':
+            return $selfInNetBase . 'slp/index.php?id=' . $toolSlug . '/';
+        case 'olp':
+            return $selfInNetBase . 'olp/index.php?id=' . $toolSlug . '/';
+        case 'alp':
+            return $selfInNetBase . 'alp/index.php?id=' . $toolSlug . '/';
+        default:
+            return $savedUrl;
+    }
+}
+
+function chatCrmLoadToolsForCard($db, $businessCardId) {
+    if (!$db instanceof PDO || (int)$businessCardId <= 0) return [];
+    try {
+        $stmt = $db->prepare("
+            SELECT bc.id, bc.url_slug, bc.company_slug, COALESCE(u.is_era_member, 0) AS is_era_member
+            FROM business_cards bc
+            JOIN users u ON u.id = bc.user_id
+            WHERE bc.id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([(int)$businessCardId]);
+        $card = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$card) return [];
+
+        $stmt = $db->prepare("SELECT tool_type, tool_url, display_order, is_active FROM tech_tool_selections WHERE business_card_id = ? AND is_active = 1 ORDER BY display_order ASC");
+        $stmt->execute([(int)$businessCardId]);
+        $tools = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($tools as &$tool) {
+            $toolType = trim((string)($tool['tool_type'] ?? ''));
+            $tool['tool_name'] = chatCrmToolName($toolType);
+            $tool['tool_url'] = chatCrmBuildToolUrl($toolType, $card, trim((string)($tool['tool_url'] ?? '')));
+            $tool['description'] = chatCrmToolDescription($toolType);
+            $tool['image_url'] = chatCrmToolImageUrl($toolType);
+            $tool['button_label'] = chatCrmToolButtonLabel($toolType);
+        }
+        unset($tool);
+        return $tools;
+    } catch (Throwable $e) {
+        error_log('chat CRM load tools error: ' . $e->getMessage());
+        return [];
+    }
+}
+
 function chatCrmDefaultConditions($dealType = 'purchase') {
     $isSale = $dealType === 'sale';
     return [

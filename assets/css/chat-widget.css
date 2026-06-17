@@ -662,6 +662,11 @@
     gap: 0.45rem;
     margin-bottom: 0.65rem;
 }
+.chat-feature-tools-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+}
 .chat-feature-tool {
     padding: 0.5rem 0.7rem;
     border: 1px solid #cdd8e6;
@@ -669,6 +674,60 @@
     text-decoration: none;
     color: #0b4f9f;
     background: #fff;
+}
+.chat-feature-tool-card {
+    display: flex;
+    min-height: 290px;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.8rem 0.65rem;
+    border: 1px solid #cbdcf0;
+    border-radius: 8px;
+    background: #e5f3ff;
+    color: #25364a;
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(31, 78, 121, 0.08);
+}
+.chat-feature-tool-card:hover {
+    border-color: #93bbe5;
+    box-shadow: 0 5px 14px rgba(31, 78, 121, 0.14);
+    transform: translateY(-1px);
+}
+.chat-feature-tool-image {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 112px;
+    padding: 0.25rem;
+    background: rgba(255, 255, 255, 0.55);
+}
+.chat-feature-tool-image img {
+    display: block;
+    width: 100%;
+    max-width: 132px;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+}
+.chat-feature-tool-description {
+    display: block;
+    flex: 1 1 auto;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.65;
+    color: #344054;
+}
+.chat-feature-tool-button {
+    display: block;
+    width: 100%;
+    min-height: 42px;
+    padding: 0.65rem 0.4rem;
+    border-radius: 999px;
+    background: #0070d9;
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: center;
 }
 .chat-feature-list {
     display: grid;
@@ -1246,6 +1305,21 @@
     }
     .chat-feature-grid {
         grid-template-columns: 1fr;
+    }
+    .chat-feature-tools-grid {
+        gap: 0.55rem;
+    }
+    .chat-feature-tool-card {
+        min-height: 270px;
+        padding: 0.7rem 0.55rem;
+    }
+    .chat-feature-tool-description {
+        font-size: 0.74rem;
+        line-height: 1.55;
+    }
+    .chat-feature-tool-button {
+        min-height: 38px;
+        font-size: 0.76rem;
     }
 }
 

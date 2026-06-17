@@ -105,10 +105,7 @@ try {
     $fresh['conditions_summary'] = chatCrmSummarizeConditions($fresh);
     $fresh['purchase_schedule'] = chatCrmCalculatePurchaseStages($fresh['progress']['target_date'] ?? null, $fresh['progress']['manual_overrides'] ?? []);
     $fresh['sale_schedule'] = chatCrmCalculateSaleStages($fresh['progress']['target_date'] ?? null, $fresh['progress']['manual_overrides'] ?? []);
-    $fresh['tools'] = [];
-    $stmt = $db->prepare("SELECT tool_type, tool_url, display_order, is_active FROM tech_tool_selections WHERE business_card_id = ? AND is_active = 1 ORDER BY display_order ASC");
-    $stmt->execute([(int)$session['business_card_id']]);
-    $fresh['tools'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $fresh['tools'] = chatCrmLoadToolsForCard($db, (int)$session['business_card_id']);
 
     sendSuccessResponse(['case' => $fresh], 'OK');
 } catch (Exception $e) {

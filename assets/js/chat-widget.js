@@ -10,6 +10,7 @@
     var agentName = root.getAttribute('data-agent-name') || '担当者';
     var agentPhoto = root.getAttribute('data-agent-photo') || '';
     var apiBase = root.getAttribute('data-api-base') || (window.location.origin + '/backend/api/chat');
+    var siteBase = apiBase.replace(/\/backend\/api\/chat\/?$/, '');
     var chatOnly = root.getAttribute('data-chat-only') === '1' || document.body.classList.contains('chat-only-mode');
 
     var toggleBtn = document.getElementById('chat-widget-toggle');
@@ -1471,6 +1472,10 @@
         return escapeHtml(value == null ? '' : String(value));
     }
 
+    function crmAttr(value) {
+        return crmFields(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     function crmArray(value) {
         return Array.isArray(value) ? value : [];
     }
@@ -1591,14 +1596,29 @@
         var c = crmCase();
         if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
         var tools = (c.tools && Array.isArray(c.tools)) ? c.tools : [];
+        var loanRepaymentUrl = siteBase + '/loan-simulator.php?slug=' + encodeURIComponent(cardSlug) + '&form=repayment';
+        var loanBorrowUrl = siteBase + '/loan-simulator.php?slug=' + encodeURIComponent(cardSlug) + '&form=borrow-income';
+        var loanRepaymentImage = siteBase + '/assets/images/lp_icon/loan_repayment.png';
+        var loanBorrowImage = siteBase + '/assets/images/lp_icon/loan_borrowable.png';
         var html = '<div class="chat-feature-head"><strong>ツール</strong><span>リンク集</span></div>';
-        html += '<div class="chat-feature-tools">';
+        html += '<div class="chat-feature-tools chat-feature-tools-grid">';
         tools.forEach(function (tool) {
-            html += '<a class="chat-feature-tool" href="' + crmFields(tool.tool_url || '#') + '" target="_blank" rel="noopener noreferrer">' + crmFields(tool.tool_type || '') + '</a>';
+            html += '<a class="chat-feature-tool-card" href="' + crmAttr(tool.tool_url || '#') + '" target="_blank" rel="noopener noreferrer">';
+            html += '<span class="chat-feature-tool-image"><img src="' + crmAttr(tool.image_url || '') + '" alt="' + crmAttr(tool.tool_name || 'ツール') + '" loading="lazy"></span>';
+            html += '<span class="chat-feature-tool-description">' + crmFields(tool.description || '') + '</span>';
+            html += '<span class="chat-feature-tool-button">' + crmFields(tool.button_label || '利用') + '</span>';
+            html += '</a>';
         });
-        if (canUseLoanSim) {
-            html += '<a class="chat-feature-tool" href="' + crmFields('loan-simulator.php?slug=' + encodeURIComponent(cardSlug)) + '" target="_blank" rel="noopener noreferrer">ローンシミュレーター</a>';
-        }
+        html += '<a class="chat-feature-tool-card chat-feature-tool-card-loan" href="' + crmAttr(loanRepaymentUrl) + '" target="_blank" rel="noopener noreferrer">';
+        html += '<span class="chat-feature-tool-image"><img src="' + crmAttr(loanRepaymentImage) + '" alt="ローンシミュレーター 月額返済額計算" loading="lazy"></span>';
+        html += '<span class="chat-feature-tool-description">借入額と金利から毎月の返済額を瞬時に計算。住宅購入後の資金計画に役立ちます。</span>';
+        html += '<span class="chat-feature-tool-button">シミュレーション</span>';
+        html += '</a>';
+        html += '<a class="chat-feature-tool-card chat-feature-tool-card-loan" href="' + crmAttr(loanBorrowUrl) + '" target="_blank" rel="noopener noreferrer">';
+        html += '<span class="chat-feature-tool-image"><img src="' + crmAttr(loanBorrowImage) + '" alt="ローンシミュレーター 借入可能額計算" loading="lazy"></span>';
+        html += '<span class="chat-feature-tool-description">年収や返済額から借入可能額を瞬時に試算。購入できる物件価格の目安が分かります。</span>';
+        html += '<span class="chat-feature-tool-button">シミュレーション</span>';
+        html += '</a>';
         html += '</div>';
         renderFeaturePanel(html);
     }
