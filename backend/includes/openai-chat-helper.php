@@ -426,6 +426,11 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
         'notices' => [],
         'meta' => [],
     ];
+    $agentCustom = [
+        'context' => '',
+        'sources' => [],
+        'prohibited_words' => [],
+    ];
 
     $liveRefresh = [
         'attempted' => false,
@@ -444,6 +449,9 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
             $leadData = chatLoadLeadDataForMemory($db, $sessionId);
             if (!empty($leadData)) chatApplyLeadDataToMemory($memory, $leadData);
             $businessCardId = chatOpenAIGetSessionBusinessCardId($db, $sessionId, $leadData);
+        }
+        if ($businessCardId) {
+            $agentCustom = getAgentCustomContextForChat($db, $businessCardId, $userMessage, 5);
         }
         $publicData = chatBuildPublicDataContext($db, $userMessage);
     }
@@ -472,6 +480,13 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
     }
     $publicDataContext = $publicData['context'] !== ''
         ? "\n\n" . $publicData['context']
+        : '';
+    $agentCustomContext = $agentCustom['context'] !== ''
+        ? "\n\n" . $agentCustom['context']
+        : '';
+    $agentProhibitedPrompt = buildAgentProhibitedWordsPrompt($agentCustom['prohibited_words'] ?? []);
+    $agentProhibitedContext = $agentProhibitedPrompt !== ''
+        ? "\n\n" . $agentProhibitedPrompt
         : '';
     $publicDataMeta = $publicData['meta'] ?? [];
     $publicDataUiSources = chatPublicDataSourcesForUi($publicData['sources'], $publicDataMeta);
@@ -602,7 +617,7 @@ e-Statの統計情報を使う場合は、自然な文脈で「政府統計に�
 
 {$loanSimulationContext}
 
-{$ragContext}{$refreshContext}{$publicDataContext} 
+{$ragContext}{$refreshContext}{$publicDataContext}{$agentCustomContext}{$agentProhibitedContext} 
 PROMPT;
 
     $messages = [
@@ -634,9 +649,10 @@ PROMPT;
         }
     }
     if ($result['error'] !== null) {
-        return ['reply' => null, 'sources' => array_merge($rag['sources'], $publicDataUiSources), 'freshness' => $liveRefresh, 'error' => $result['error'], 'model' => $result['model'] ?? $model];
+        return ['reply' => null, 'sources' => array_merge($rag['sources'], $publicDataUiSources, $agentCustom['sources']), 'freshness' => $liveRefresh, 'error' => $result['error'], 'model' => $result['model'] ?? $model];
     }
     $safeReply = sanitizeChatReferralLanguage($result['reply'], $agentName);
+    $safeReply = applyAgentProhibitedWordsToReply($safeReply, $agentCustom['prohibited_words'] ?? []);
     if (!empty($publicData['sources'])) {
         $safeReply = chatAppendPublicDataSourcesToReply($safeReply, $publicData['sources']);
     }
@@ -648,5 +664,5 @@ PROMPT;
             $safeReply = rtrim($safeReply) . "\n\n" . $transparencyFooter;
         }
     }
-    return ['reply' => $safeReply, 'sources' => array_merge($rag['sources'], $publicDataUiSources), 'freshness' => $liveRefresh, 'error' => null, 'model' => $result['model'] ?? $model, 'usage' => $result['usage'] ?? null];
+    return ['reply' => $safeReply, 'sources' => array_merge($rag['sources'], $publicDataUiSources, $agentCustom['sources']), 'freshness' => $liveRefresh, 'error' => null, 'model' => $result['model'] ?? $model, 'usage' => $result['usage'] ?? null];
 }

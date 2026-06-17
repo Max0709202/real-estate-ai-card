@@ -121,6 +121,34 @@ function ensureChatRagTables($db) {
         FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
         INDEX idx_chat_session_memory_card (business_card_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $db->exec("CREATE TABLE IF NOT EXISTS agent_custom_rag_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        business_card_id INT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        content MEDIUMTEXT NOT NULL,
+        source_note VARCHAR(255) NULL,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (business_card_id) REFERENCES business_cards(id) ON DELETE CASCADE,
+        INDEX idx_agent_custom_rag_card_enabled (business_card_id, enabled),
+        FULLTEXT KEY ft_agent_custom_rag (title, content)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $db->exec("CREATE TABLE IF NOT EXISTS agent_prohibited_words (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        business_card_id INT NOT NULL,
+        word VARCHAR(255) NOT NULL,
+        replacement VARCHAR(255) NULL,
+        note VARCHAR(255) NULL,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (business_card_id) REFERENCES business_cards(id) ON DELETE CASCADE,
+        UNIQUE KEY uniq_agent_prohibited_word (business_card_id, word),
+        INDEX idx_agent_prohibited_card_enabled (business_card_id, enabled)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
 
 function seedDefaultChatKnowledgeSources($db) {
@@ -389,6 +417,131 @@ function getChatRagContextForChat($db, $message, $limit = 6) {
         error_log('Chat RAG context error: ' . $e->getMessage());
         return $empty;
     }
+}
+
+function getAgentCustomContextForChat($db, $businessCardId, $message, $limit = 5) {
+    $empty = ['context' => '', 'sources' => [], 'prohibited_words' => []];
+    if (!$db instanceof PDO || !$businessCardId) return $empty;
+
+    try {
+        ensureChatRagTables($db);
+        $terms = chatExtractSearchTerms($message);
+        if (preg_match_all('/[一-龥ぁ-んァ-ンA-Za-z0-9０-９]{2,}/u', (string)$message, $m)) {
+            foreach ($m[0] as $term) {
+                $terms[] = $term;
+            }
+        }
+        $terms = array_values(array_unique(array_filter(array_map('trim', $terms))));
+
+        $where = 'business_card_id = ? AND enabled = 1';
+        $params = [(int)$businessCardId];
+        if (!empty($terms)) {
+            $likes = [];
+            foreach (array_slice($terms, 0, 8) as $term) {
+                $likes[] = '(title LIKE ? OR content LIKE ? OR source_note LIKE ?)';
+                $like = '%' . $term . '%';
+                $params[] = $like;
+                $params[] = $like;
+                $params[] = $like;
+            }
+            $where .= ' AND (' . implode(' OR ', $likes) . ')';
+        }
+
+        $stmt = $db->prepare("SELECT id, title, content, source_note, updated_at
+            FROM agent_custom_rag_items
+            WHERE {$where}
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 80");
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($rows) && empty($terms)) {
+            $stmt = $db->prepare("SELECT id, title, content, source_note, updated_at
+                FROM agent_custom_rag_items
+                WHERE business_card_id = ? AND enabled = 1
+                ORDER BY updated_at DESC, id DESC
+                LIMIT 20");
+            $stmt->execute([(int)$businessCardId]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        if (!empty($rows)) {
+            foreach ($rows as &$row) {
+                $row['_score'] = chatScoreKnowledgeChunk([
+                    'title' => $row['title'] ?? '',
+                    'content' => $row['content'] ?? '',
+                    'priority' => 35,
+                    'source_type' => 'agent_custom',
+                ], $terms);
+            }
+            unset($row);
+            usort($rows, function ($a, $b) {
+                if ($a['_score'] === $b['_score']) return strcmp((string)$b['updated_at'], (string)$a['updated_at']);
+                return $b['_score'] <=> $a['_score'];
+            });
+        }
+
+        $parts = [];
+        $sources = [];
+        foreach (array_slice($rows, 0, max(1, min(10, (int)$limit))) as $idx => $row) {
+            $snippet = trim((string)$row['content']);
+            if (mb_strlen($snippet) > 700) $snippet = mb_substr($snippet, 0, 700) . '…';
+            $note = trim((string)($row['source_note'] ?? ''));
+            $parts[] = '[' . ($idx + 1) . '] ' . ($row['title'] ?: '追加RAG') . ($note !== '' ? "\nメモ: " . $note : '') . "\n内容: " . $snippet;
+            $sources[] = [
+                'url' => '',
+                'title' => '担当者追加RAG: ' . ($row['title'] ?: '追加RAG'),
+                'type' => 'agent_custom',
+                'last_fetched_at' => $row['updated_at'] ?? null,
+            ];
+        }
+
+        $stmt = $db->prepare("SELECT word, replacement, note
+            FROM agent_prohibited_words
+            WHERE business_card_id = ? AND enabled = 1
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 200");
+        $stmt->execute([(int)$businessCardId]);
+        $words = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return [
+            'context' => !empty($parts) ? "【担当者追加RAG】\n" . implode("\n\n", $parts) : '',
+            'sources' => $sources,
+            'prohibited_words' => $words,
+        ];
+    } catch (Throwable $e) {
+        error_log('Agent custom context error: ' . $e->getMessage());
+        return $empty;
+    }
+}
+
+function buildAgentProhibitedWordsPrompt($words) {
+    if (empty($words) || !is_array($words)) return '';
+    $lines = [];
+    foreach (array_slice($words, 0, 100) as $row) {
+        $word = trim((string)($row['word'] ?? ''));
+        if ($word === '') continue;
+        $replacement = trim((string)($row['replacement'] ?? ''));
+        $note = trim((string)($row['note'] ?? ''));
+        $line = '- "' . $word . '" は使わない';
+        if ($replacement !== '') $line .= '。必要なら "' . $replacement . '" に言い換える';
+        if ($note !== '') $line .= '（' . $note . '）';
+        $lines[] = $line;
+    }
+    if (empty($lines)) return '';
+    return "【担当者指定の禁止ワード】\n以下の語句・表現は、この担当者のAI回答で使わないでください。出力前に必ず言い換えてください。\n" . implode("\n", $lines);
+}
+
+function applyAgentProhibitedWordsToReply($reply, $words) {
+    $reply = (string)$reply;
+    if ($reply === '' || empty($words) || !is_array($words)) return $reply;
+    foreach ($words as $row) {
+        $word = trim((string)($row['word'] ?? ''));
+        if ($word === '') continue;
+        $replacement = trim((string)($row['replacement'] ?? ''));
+        $reply = str_replace($word, $replacement !== '' ? $replacement : '別表現', $reply);
+    }
+    return $reply;
 }
 
 function chatExtractPageTitle($html, $fallback) {

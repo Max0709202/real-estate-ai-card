@@ -735,8 +735,20 @@ function chatAddressGeocode($db, $query) {
  * GIS tile API to address the right XYZ tile. Null when nothing is resolvable.
  */
 function chatReinfoResolveLatLon($db, $area, $message) {
+    if (isset($area['lat'], $area['lon'])) {
+        return [
+            'lat' => (float)$area['lat'],
+            'lon' => (float)$area['lon'],
+            'title' => $area['title'] ?? trim((string)$message),
+            'prefecture' => $area['prefecture_name'] ?? null,
+        ];
+    }
     if (!empty($area['station_name'])) {
         $geo = chatStationGeocode($db, $area['station_name'], $area['prefecture_name'] ?? null);
+        if ($geo) return $geo;
+    }
+    if (preg_match('/((?:北海道|東京都|京都府|大阪府|.{2,3}県)[一-龥ぁ-んァ-ン0-9０-９\-－丁目番地号の\s]{3,80})/u', (string)$message, $m)) {
+        $geo = chatAddressGeocode($db, trim($m[1]));
         if ($geo) return $geo;
     }
     $addr = trim(($area['prefecture_name'] ?? '') . ($area['city_name'] ?? ''));
@@ -745,6 +757,42 @@ function chatReinfoResolveLatLon($db, $area, $message) {
         if ($geo) return $geo;
     }
     return null;
+}
+
+function chatHazardAddressReport($db, $address) {
+    if (!$db instanceof PDO) return null;
+    $address = trim((string)$address);
+    if ($address === '') return null;
+    $geo = chatAddressGeocode($db, $address);
+    if (!$geo) return [
+        'address' => $address,
+        'geocoded' => null,
+        'items' => [],
+        'message' => '住所の座標を取得できませんでした。',
+    ];
+
+    $area = [
+        'lat' => $geo['lat'],
+        'lon' => $geo['lon'],
+        'title' => $geo['title'] ?? $address,
+    ];
+    $catalog = chatReinfoApiCatalog();
+    $hazardKeys = ['XKT026', 'XKT029', 'XKT028', 'XKT027', 'XKT025', 'XKT022', 'XKT021', 'XKT020', 'XKT016', 'XST001', 'XGT001'];
+    $items = [];
+    foreach ($hazardKeys as $key) {
+        if (!isset($catalog[$key])) continue;
+        $item = chatReinfoCatalogContext($db, $key, $catalog[$key], $address . ' ハザード 災害 防災', $area);
+        if ($item) {
+            $item['code'] = $key;
+            $items[] = $item;
+        }
+    }
+    return [
+        'address' => $address,
+        'geocoded' => $geo,
+        'items' => $items,
+        'message' => empty($items) ? '指定住所周辺で取得できるハザードデータは見つかりませんでした。' : 'ハザード関連データを取得しました。',
+    ];
 }
 
 /** Ray-casting point-in-polygon test for a single linear ring ([[lon,lat],...]). */

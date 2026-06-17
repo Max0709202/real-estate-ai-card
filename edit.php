@@ -575,6 +575,181 @@ $defaultGreetings = [
             line-height: 34px;
             font-size: 13px;
         }
+        .agent-training-grid {
+            display: grid;
+            gap: 1rem;
+            align-items: start;
+        }
+        .agent-training-panel {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            background: #fff;
+        }
+        .agent-training-panel h3 {
+            margin-top: 0;
+        }
+        .agent-training-panel textarea {
+            min-height: 180px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+        .agent-training-bulk-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.75rem;
+            table-layout: fixed;
+            min-width: 720px;
+        }
+        .agent-training-bulk-table th,
+        .agent-training-bulk-table td {
+            border: 1px solid #dbe3ec;
+            padding: 0.4rem;
+            vertical-align: top;
+            background: #fff;
+        }
+        .agent-training-bulk-table th {
+            background: #f7fafc;
+            font-size: 0.85rem;
+            text-align: left;
+        }
+        .agent-training-bulk-table input,
+        .agent-training-bulk-table textarea {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            padding: 0.45rem 0.5rem;
+            font-size: 13px;
+            font-family: inherit;
+            background: #fff;
+        }
+        .agent-training-bulk-table textarea {
+            min-height: 70px;
+            resize: vertical;
+        }
+        .agent-training-bulk-table .bulk-col-actions {
+            width: 72px;
+            text-align: center;
+        }
+        .agent-training-bulk-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .agent-training-bulk-hint {
+            color: #718096;
+            font-size: 0.85rem;
+        }
+        .agent-training-table-wrap,
+        .agent-training-bulk-table-wrap {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .agent-training-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+        }
+        .agent-training-table th,
+        .agent-training-table td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 0.65rem;
+            text-align: left;
+            vertical-align: top;
+        }
+        .agent-training-table th {
+            background: #f7fafc;
+            color: #2d3748;
+            font-weight: 700;
+        }
+        .agent-training-cell-content {
+            max-width: 360px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .hazard-result {
+            margin-top: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            background: #fff;
+        }
+        .hazard-result-list {
+            display: grid;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+        }
+        .hazard-result-item {
+            border-left: 4px solid #4461a5;
+            background: #f8fafc;
+            padding: 0.75rem;
+            border-radius: 6px;
+        }
+        .hazard-result-item pre {
+            margin: 0.5rem 0 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 12px;
+        }
+        @media (max-width: 900px) {
+            .agent-training-grid {
+                grid-template-columns: 1fr;
+            }
+            .agent-training-panel {
+                padding: 0.875rem;
+            }
+            .agent-training-bulk-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .agent-training-bulk-toolbar .btn-secondary,
+            .agent-training-bulk-toolbar .agent-training-bulk-hint {
+                width: 100%;
+            }
+            .agent-training-bulk-table {
+                min-width: 640px;
+            }
+            .agent-training-panel h3,
+            .hazard-result strong {
+                font-size: 1rem;
+            }
+            .hazard-result {
+                padding: 0.85rem;
+            }
+        }
+        @media (max-width: 640px) {
+            .agent-training-panel {
+                padding: 0.75rem;
+            }
+            .agent-training-bulk-table th,
+            .agent-training-bulk-table td {
+                padding: 0.3rem;
+            }
+            .agent-training-bulk-table input,
+            .agent-training-bulk-table textarea {
+                font-size: 12px;
+                padding: 0.4rem 0.45rem;
+            }
+            .agent-training-bulk-table {
+                min-width: 560px;
+            }
+            .agent-training-table {
+                font-size: 0.8rem;
+            }
+            .hazard-result-list {
+                gap: 0.6rem;
+            }
+            .hazard-result-item {
+                padding: 0.65rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -628,6 +803,9 @@ $defaultGreetings = [
                     </a>
                     <a href="#chat-history" class="nav-item" data-step="chat" data-section="chat-history-section">
                         <span class="step-label">チャット履歴</span>
+                    </a>
+                    <a href="#agent-training" class="nav-item" data-step="agent" data-section="agent-training-section">
+                        <span class="step-label">AI育成</span>
                     </a>
                 </nav>
             </div>
@@ -1315,6 +1493,89 @@ $defaultGreetings = [
                             <button type="button" class="btn-secondary" id="chat-history-detail-back">一覧に戻る</button>
                             <button type="button" class="btn-danger" id="chat-history-detail-delete">この履歴を削除</button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Agent training -->
+                <div id="agent-training-section" class="edit-section" style="display: none;">
+                    <h2>AI育成</h2>
+                    <p class="step-description">AI担当に覚えさせたい情報や、使わせたくない表現を登録できます。</p>
+
+                    <div class="form-section">
+                        <h3>住所ハザード確認</h3>
+                        <p class="section-note">住所を入力すると、国土交通省系の公的GISデータから洪水・土砂災害・津波・高潮・液状化などの関連情報を確認します。</p>
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 1;">
+                                <label>確認する住所</label>
+                                <input type="text" id="hazard-address-input" class="form-control" placeholder="例：東京都千代田区丸の内1-1-1">
+                            </div>
+                            <div class="form-group" style="align-self: end;">
+                                <button type="button" class="btn-primary" id="hazard-check-btn">確認</button>
+                            </div>
+                        </div>
+                        <div id="hazard-result" class="hazard-result" style="display: none;"></div>
+                    </div>
+
+                    <div class="agent-training-grid">
+                        <div class="agent-training-panel">
+                            <h3>RAGを追加</h3>
+                            <div class="agent-training-bulk-table-wrap">
+                                <table class="agent-training-bulk-table" id="agent-rag-table">
+                                    <thead>
+                                        <tr>
+                                            <th>タイトル</th>
+                                            <th>内容</th>
+                                            <th>メモ</th>
+                                            <th class="bulk-col-actions">削除</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="agent-rag-bulk-body">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="agent-training-bulk-toolbar">
+                                <div class="agent-training-bulk-hint">Excelのように行を増やして入力できます。</div>
+                                <button type="button" class="btn-secondary" id="agent-rag-add-row-btn">行を追加</button>
+                            </div>
+                            <div style="text-align: right; margin-top: 0.75rem;">
+                                <button type="button" class="btn-primary" id="agent-rag-add-btn">RAGを一括登録</button>
+                            </div>
+                        </div>
+
+                        <div class="agent-training-panel">
+                            <h3>禁止ワードを追加</h3>
+                            <div class="agent-training-bulk-table-wrap">
+                                <table class="agent-training-bulk-table" id="agent-word-table">
+                                    <thead>
+                                        <tr>
+                                            <th>禁止ワード</th>
+                                            <th>言い換え</th>
+                                            <th>メモ</th>
+                                            <th class="bulk-col-actions">削除</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="agent-word-bulk-body">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="agent-training-bulk-toolbar">
+                                <div class="agent-training-bulk-hint">1行ずつ増やして、禁止表現をまとめて管理できます。</div>
+                                <button type="button" class="btn-secondary" id="agent-word-add-row-btn">行を追加</button>
+                            </div>
+                            <div style="text-align: right; margin-top: 0.75rem;">
+                                <button type="button" class="btn-primary" id="agent-word-add-btn">禁止ワードを一括登録</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section" style="margin-top: 1rem;">
+                        <h3>登録済みRAG</h3>
+                        <div id="agent-rag-list">読み込み中...</div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>登録済み禁止ワード</h3>
+                        <div id="agent-word-list">読み込み中...</div>
                     </div>
                 </div>
             </div>
@@ -3488,6 +3749,324 @@ $defaultGreetings = [
             loadSessions();
         })();
 
+    </script>
+    <script>
+        (function() {
+            var apiUrl = window.location.origin + '/backend/api/mypage/agent-training.php';
+            var hazardUrl = window.location.origin + '/backend/api/mypage/hazard-check.php';
+            var ragList = document.getElementById('agent-rag-list');
+            var wordList = document.getElementById('agent-word-list');
+            var ragBody = document.getElementById('agent-rag-bulk-body');
+            var wordBody = document.getElementById('agent-word-bulk-body');
+            var loaded = false;
+
+            function h(value) {
+                return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+                    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[ch];
+                });
+            }
+
+            function notifySuccess(message) {
+                if (typeof window.showSuccess === 'function') window.showSuccess(message);
+                else alert(message);
+            }
+
+            function notifyError(message) {
+                if (typeof window.showError === 'function') window.showError(message);
+                else alert(message);
+            }
+
+            function bulkRowHtml(type, index) {
+                if (type === 'rag') {
+                    return '' +
+                        '<tr data-bulk-row="1">' +
+                        '<td><input type="text" data-field="title" placeholder="例：住宅ローン減税の説明"></td>' +
+                        '<td><textarea data-field="content" placeholder="例：省エネ性能によって確認項目が変わります"></textarea></td>' +
+                        '<td><input type="text" data-field="source_note" placeholder="例：社内資料A"></td>' +
+                        '<td class="bulk-col-actions"><button type="button" class="btn-danger" data-bulk-remove-row="1">削除</button></td>' +
+                        '</tr>';
+                }
+                return '' +
+                    '<tr data-bulk-row="1">' +
+                    '<td><input type="text" data-field="word" placeholder="例：専門家に相談してください"></td>' +
+                    '<td><input type="text" data-field="replacement" placeholder="例：担当者に確認します"></td>' +
+                    '<td><input type="text" data-field="note" placeholder="例：外部誘導を避ける"></td>' +
+                    '<td class="bulk-col-actions"><button type="button" class="btn-danger" data-bulk-remove-row="1">削除</button></td>' +
+                    '</tr>';
+            }
+
+            function ensureBulkRow(tbody, type) {
+                if (!tbody) return;
+                if (!tbody.querySelector('tr')) {
+                    tbody.innerHTML = bulkRowHtml(type, 0);
+                }
+            }
+
+            function addBulkRow(type) {
+                var tbody = type === 'rag' ? ragBody : wordBody;
+                if (!tbody) return;
+                var row = document.createElement('tr');
+                row.setAttribute('data-bulk-row', '1');
+                if (type === 'rag') {
+                    row.innerHTML = '' +
+                        '<td><input type="text" data-field="title" placeholder="例：住宅ローン減税の説明"></td>' +
+                        '<td><textarea data-field="content" placeholder="例：省エネ性能によって確認項目が変わります"></textarea></td>' +
+                        '<td><input type="text" data-field="source_note" placeholder="例：社内資料A"></td>' +
+                        '<td class="bulk-col-actions"><button type="button" class="btn-danger" data-bulk-remove-row="1">削除</button></td>';
+                } else {
+                    row.innerHTML = '' +
+                        '<td><input type="text" data-field="word" placeholder="例：専門家に相談してください"></td>' +
+                        '<td><input type="text" data-field="replacement" placeholder="例：担当者に確認します"></td>' +
+                        '<td><input type="text" data-field="note" placeholder="例：外部誘導を避ける"></td>' +
+                        '<td class="bulk-col-actions"><button type="button" class="btn-danger" data-bulk-remove-row="1">削除</button></td>';
+                }
+                tbody.appendChild(row);
+            }
+
+            function collectBulkItems(type) {
+                var tbody = type === 'rag' ? ragBody : wordBody;
+                if (!tbody) return [];
+                var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+                var items = [];
+                rows.forEach(function(row) {
+                    var item = {};
+                    row.querySelectorAll('[data-field]').forEach(function(field) {
+                        item[field.getAttribute('data-field')] = (field.value || '').trim();
+                    });
+                    if (type === 'rag') {
+                        if (item.title || item.content || item.source_note) items.push(item);
+                    } else {
+                        if (item.word || item.replacement || item.note) items.push(item);
+                    }
+                });
+                return items;
+            }
+
+            function renderRag(items) {
+                if (!ragList) return;
+                if (!items || !items.length) {
+                    ragList.innerHTML = '<p>登録済みRAGはありません。</p>';
+                    return;
+                }
+                var html = '<table class="agent-training-table"><thead><tr><th>タイトル</th><th>内容</th><th>メモ</th><th></th></tr></thead><tbody>';
+                items.forEach(function(item) {
+                    html += '<tr>';
+                    html += '<td>' + h(item.title) + '</td>';
+                    html += '<td class="agent-training-cell-content">' + h(item.content) + '</td>';
+                    html += '<td>' + h(item.source_note || '') + '</td>';
+                    html += '<td><button type="button" class="btn-danger" data-agent-delete="rag" data-id="' + h(item.id) + '">削除</button></td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                ragList.innerHTML = html;
+            }
+
+            function renderWords(items) {
+                if (!wordList) return;
+                if (!items || !items.length) {
+                    wordList.innerHTML = '<p>登録済み禁止ワードはありません。</p>';
+                    return;
+                }
+                var html = '<table class="agent-training-table"><thead><tr><th>禁止ワード</th><th>言い換え</th><th>メモ</th><th></th></tr></thead><tbody>';
+                items.forEach(function(item) {
+                    html += '<tr>';
+                    html += '<td>' + h(item.word) + '</td>';
+                    html += '<td>' + h(item.replacement || '') + '</td>';
+                    html += '<td>' + h(item.note || '') + '</td>';
+                    html += '<td><button type="button" class="btn-danger" data-agent-delete="prohibited" data-id="' + h(item.id) + '">削除</button></td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                wordList.innerHTML = html;
+            }
+
+            async function loadTraining() {
+                if (!ragList || !wordList) return;
+                ragList.innerHTML = '読み込み中...';
+                wordList.innerHTML = '読み込み中...';
+                try {
+                    var response = await fetch(apiUrl, { credentials: 'include' });
+                    var result = await response.json();
+                    if (!result.success) throw new Error(result.message || '取得に失敗しました');
+                    renderRag(result.data.rag_items || []);
+                    renderWords(result.data.prohibited_words || []);
+                    loaded = true;
+                } catch (error) {
+                    ragList.innerHTML = '<p>取得に失敗しました。</p>';
+                    wordList.innerHTML = '<p>取得に失敗しました。</p>';
+                }
+            }
+
+            async function addItems(type, textareaId, buttonId) {
+                var button = document.getElementById(buttonId);
+                var items = collectBulkItems(type);
+                if (!items.length) {
+                    notifyError('登録する内容を入力してください');
+                    return;
+                }
+                var previous = button ? button.textContent : '';
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = '登録中...';
+                }
+                try {
+                    var response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ type: type, items: items })
+                    });
+                    var result = await response.json();
+                    if (!result.success) throw new Error(result.message || '登録に失敗しました');
+                    if (type === 'rag' && ragBody) ragBody.innerHTML = bulkRowHtml('rag', 0);
+                    if (type === 'prohibited' && wordBody) wordBody.innerHTML = bulkRowHtml('prohibited', 0);
+                    notifySuccess((result.data.created || 0) + '件登録しました');
+                    await loadTraining();
+                } catch (error) {
+                    notifyError(error.message || '登録に失敗しました');
+                } finally {
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = previous;
+                    }
+                }
+            }
+
+            function initBulkTables() {
+                ensureBulkRow(ragBody, 'rag');
+                ensureBulkRow(wordBody, 'prohibited');
+            }
+
+            async function deleteItem(type, id) {
+                if (!confirm('削除します。よろしいですか？')) return;
+                try {
+                    var response = await fetch(apiUrl, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ type: type, id: id })
+                    });
+                    var result = await response.json();
+                    if (!result.success) throw new Error(result.message || '削除に失敗しました');
+                    await loadTraining();
+                } catch (error) {
+                    notifyError(error.message || '削除に失敗しました');
+                }
+            }
+
+            function summarizeHazardItem(item) {
+                var rows = Array.isArray(item.data) ? item.data : [];
+                var html = '<div class="hazard-result-item">';
+                html += '<strong>' + h(item.title || item.code || 'ハザード情報') + '</strong>';
+                html += '<div>取得件数: ' + h(item.record_count || rows.length || 0) + '</div>';
+                if (item.count_note) html += '<p>' + h(item.count_note) + '</p>';
+                if (rows.length) {
+                    html += '<pre>' + h(JSON.stringify(rows.slice(0, 3), null, 2)) + '</pre>';
+                }
+                html += '</div>';
+                return html;
+            }
+
+            async function checkHazard() {
+                var input = document.getElementById('hazard-address-input');
+                var button = document.getElementById('hazard-check-btn');
+                var resultEl = document.getElementById('hazard-result');
+                var address = input ? input.value.trim() : '';
+                if (!address) {
+                    notifyError('住所を入力してください');
+                    return;
+                }
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = '確認中...';
+                }
+                if (resultEl) {
+                    resultEl.style.display = 'block';
+                    resultEl.innerHTML = '確認中...';
+                }
+                try {
+                    var response = await fetch(hazardUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ address: address })
+                    });
+                    var result = await response.json();
+                    if (!result.success) throw new Error(result.message || '取得に失敗しました');
+                    var data = result.data || {};
+                    var html = '<strong>' + h(data.message || '確認しました') + '</strong>';
+                    if (data.geocoded) {
+                        html += '<p>照合地点: ' + h(data.geocoded.title || address) + '（緯度 ' + h(data.geocoded.lat) + ' / 経度 ' + h(data.geocoded.lon) + '）</p>';
+                    }
+                    var items = data.items || [];
+                    if (items.length) {
+                        html += '<div class="hazard-result-list">' + items.map(summarizeHazardItem).join('') + '</div>';
+                    } else {
+                        html += '<p>公的GISデータで該当レイヤーを取得できませんでした。自治体ハザードマップでの最終確認も行ってください。</p>';
+                    }
+                    if (resultEl) resultEl.innerHTML = html;
+                } catch (error) {
+                    if (resultEl) resultEl.innerHTML = '<p>' + h(error.message || '取得に失敗しました') + '</p>';
+                } finally {
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = '確認';
+                    }
+                }
+            }
+
+            initBulkTables();
+
+            var ragAddBtn = document.getElementById('agent-rag-add-btn');
+            if (ragAddBtn) ragAddBtn.addEventListener('click', function() {
+                addItems('rag', '', 'agent-rag-add-btn');
+            });
+            var wordAddBtn = document.getElementById('agent-word-add-btn');
+            if (wordAddBtn) wordAddBtn.addEventListener('click', function() {
+                addItems('prohibited', '', 'agent-word-add-btn');
+            });
+            var hazardBtn = document.getElementById('hazard-check-btn');
+            if (hazardBtn) hazardBtn.addEventListener('click', checkHazard);
+            var ragAddRowBtn = document.getElementById('agent-rag-add-row-btn');
+            if (ragAddRowBtn) ragAddRowBtn.addEventListener('click', function() {
+                addBulkRow('rag');
+            });
+            var wordAddRowBtn = document.getElementById('agent-word-add-row-btn');
+            if (wordAddRowBtn) wordAddRowBtn.addEventListener('click', function() {
+                addBulkRow('prohibited');
+            });
+            document.addEventListener('click', function(event) {
+                var btn = event.target.closest('[data-agent-delete]');
+                if (!btn) return;
+                deleteItem(btn.getAttribute('data-agent-delete'), btn.getAttribute('data-id'));
+            });
+            document.addEventListener('click', function(event) {
+                var rowRemove = event.target.closest('[data-bulk-remove-row]');
+                if (!rowRemove) return;
+                var row = rowRemove.closest('tr');
+                var tbody = row ? row.parentNode : null;
+                if (!row || !tbody) return;
+                row.parentNode.removeChild(row);
+                if (!tbody.querySelector('tr')) {
+                    if (tbody.id === 'agent-rag-bulk-body') {
+                        tbody.innerHTML = bulkRowHtml('rag', 0);
+                    } else if (tbody.id === 'agent-word-bulk-body') {
+                        tbody.innerHTML = bulkRowHtml('prohibited', 0);
+                    }
+                }
+            });
+            var navAgentTraining = document.querySelector('.nav-item[data-section="agent-training-section"]');
+            if (navAgentTraining) {
+                navAgentTraining.addEventListener('click', function() {
+                    setTimeout(function() {
+                        if (!loaded) loadTraining();
+                    }, 250);
+                });
+            }
+            if (window.location.hash === '#agent-training') {
+                setTimeout(loadTraining, 500);
+            }
+        })();
     </script>
 </body>
 </html>
