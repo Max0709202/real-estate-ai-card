@@ -468,7 +468,7 @@ if (!empty($card['profile_photo'])) {
                         }
                         ?>
                         <?php if (!empty($photoPath)): ?>
-                            <img src="<?php echo htmlspecialchars($photoPath); ?>" alt="プロフィール写真" class="profile-photo" onerror="this.style.display='none';">
+                            <img src="<?php echo htmlspecialchars($photoPath); ?>" alt="<?php echo htmlspecialchars(trim(($card['name'] ?? '担当者') . ' ' . ($card['company_name'] ?? ''))); ?> プロフィール写真" class="profile-photo" loading="lazy" onerror="this.style.display='none';">
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
@@ -487,7 +487,7 @@ if (!empty($card['profile_photo'])) {
                     }
                     ?>
                     <?php if (!empty($logoPath)): ?>
-                        <img src="<?php echo htmlspecialchars($logoPath); ?>" alt="ロゴ" class="company-logo" onerror="this.style.display='none';">
+                        <img src="<?php echo htmlspecialchars($logoPath); ?>" alt="<?php echo htmlspecialchars(($card['company_name'] ?? '') !== '' ? $card['company_name'] . 'のロゴ' : '会社ロゴ'); ?>" class="company-logo" loading="lazy" onerror="this.style.display='none';">
                     <?php endif; ?>
                 <?php endif; ?>
                 <div class="person-info-1">

@@ -304,7 +304,7 @@ if ($excludeFromSearch) {
                         <p class="problem-card-text" id="features">競合エージェントとの違いを明確に示せず、選ばれる理由が弱い</p>
                     </div>
                     <div class="problem-illustration">
-                        <img src="./images/section5-1.png" alt="悩む人">
+                        <img src="./images/section5-1.png" alt="営業の課題に悩む不動産エージェント" loading="lazy">
                     </div>
                     <div class="problem-card problem-card-2">
                         <div class="problem-checkmark">
@@ -334,7 +334,7 @@ if ($excludeFromSearch) {
             <!-- Smart (mobile) layout -->
             <div class="problems-smart">
                 <div class="problems-smart-illustration">
-                    <img src="./images/section5-1.png" alt="悩む人">
+                    <img src="./images/section5-1.png" alt="営業の課題に悩む不動産エージェント" loading="lazy">
                 </div>
                 <ul class="problems-smart-list">
                     <li class="problems-smart-item">
@@ -516,7 +516,7 @@ if ($excludeFromSearch) {
             <!-- Point 1: SNS Connection -->
             <div class="capability-point point-sns">
                 <div class="capability-image-left">
-                    <img src="./images/section9-1.png" alt="SNS Connection">
+                    <img src="./images/section9-1.png" alt="不動産AI名刺のSNS連携機能" loading="lazy">
                 </div>
                 <div class="capability-content-right">
                     <div class="point-badge">
@@ -708,7 +708,7 @@ if ($excludeFromSearch) {
             <!-- Point 3: Quick Setup -->
             <div class="capability-point point-setup">
                 <div class="capability-image-left">
-                    <img src="./images/section9-2.png" alt="Quick Setup" alt="Quick Setup">
+                    <img src="./images/section9-2.png" alt="不動産AI名刺は3分で完成・即日利用開始" loading="lazy">
                 </div>
                 <div class="capability-content-right">
                     <div class="point-badge">
@@ -796,12 +796,12 @@ if ($excludeFromSearch) {
 
                 <!-- Right Phone Image -->
                 <div class="profile-main-image">
-                    <img src="./images/section10-1.png" alt="Profile Page">
+                    <img src="./images/section10-1.png" alt="不動産AI名刺のプロフィールページ画面" loading="lazy">
                 </div>
 
                 <!-- Left Bottom Illustration -->
                 <div class="profile-main-illustration">
-                    <img src="./images/section10-2.png" alt="Person">
+                    <img src="./images/section10-2.png" alt="不動産AI名刺を活用する不動産エージェント" loading="lazy">
                 </div>
             </div>
 
@@ -810,7 +810,7 @@ if ($excludeFromSearch) {
                 <!-- Card 1 -->
                 <div class="profile-card">
                     <div class="profile-card-image">
-                        <img src="./images/section10-left.png" alt="LINE Integration">
+                        <img src="./images/section10-left.png" alt="ワンタップでLINE・不動産チェックツールに接続できる不動産AI名刺" loading="lazy">
                     </div>
                     <div class="profile-card-content">
                         <h3 class="profile-card-heading">
@@ -826,7 +826,7 @@ if ($excludeFromSearch) {
                 <!-- Card 2 -->
                 <div class="profile-card">
                     <div class="profile-card-image">
-                        <img src="./images/section10-middle.png" alt="Documents">
+                        <img src="./images/section10-middle.png" alt="物件提案・査定に役立つリンクを自由に掲載" loading="lazy">
                     </div>
                     <div class="profile-card-content">
                         <h3 class="profile-card-heading">
@@ -841,7 +841,7 @@ if ($excludeFromSearch) {
                 <!-- Card 3 -->
                 <div class="profile-card">
                     <div class="profile-card-image">
-                        <img src="./images/section10-right.png" alt="Communication">
+                        <img src="./images/section10-right.png" alt="顧客とのつながりを増やし失注を減らす不動産AI名刺" loading="lazy">
                     </div>
                     <div class="profile-card-content">
                         <h3 class="profile-card-heading">
@@ -857,7 +857,7 @@ if ($excludeFromSearch) {
 
             <!-- Bottom Right Illustration -->
             <div class="profile-bottom-illustration">
-                <img src="./images/section10-bottom.png" alt="Business People">
+                <img src="./images/section10-bottom.png" alt="不動産AI名刺で商談を進めるビジネスパーソン" loading="lazy">
             </div>
         </div>
     </section>
@@ -899,7 +899,7 @@ if ($excludeFromSearch) {
                 <div class="features-content">
                     <!-- Left Side - QR Code Image -->
                     <div class="features-image">
-                        <img src="./images/section11-1.png" alt="QR Code">
+                        <img src="./images/section11-1.png" alt="不動産AI名刺のQRコード" loading="lazy">
                     </div>
 
                     <!-- Right Side - Features List -->
@@ -1010,7 +1010,7 @@ if ($excludeFromSearch) {
 
                     <!-- Illustration -->
                     <div class="features-illustration">
-                        <img src="./images/section11-2.png" alt="Business Illustration">
+                        <img src="./images/section11-2.png" alt="不動産AI名刺のサービスイメージイラスト" loading="lazy">
                     </div>
                 </div>
             </div>
@@ -1045,7 +1045,7 @@ if ($excludeFromSearch) {
 
             <!-- Illustration -->
             <div class="cta-illustration">
-                <img src="./images/section12-1.png" alt="AI Business Card">
+                <img src="./images/section12-1.png" alt="不動産AI名刺をつくる" loading="lazy">
             </div>
         </div>
     </section>

@@ -287,6 +287,17 @@
     font-weight: 400;
 }
 
+.chat-msg-address-link {
+    color: #0052a3;
+    text-decoration: underline;
+    overflow-wrap: anywhere;
+}
+.chat-msg-address-link::before {
+    content: "\1F4CD";
+    margin-right: 2px;
+    text-decoration: none;
+}
+
 .chat-widget-quick-actions {
     flex: 0 0 auto;
     max-height: 116px;

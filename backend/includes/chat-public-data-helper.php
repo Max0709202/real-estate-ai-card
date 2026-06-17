@@ -22,7 +22,7 @@ function ensureChatPublicDataCacheTable($db) {
 }
 
 function chatPublicDataShouldRun($message) {
-    return (bool)preg_match('/(住所|所在地|駅|エリア|地域|周辺|公的|データ|国土交通|政府統計|統計|相場|取引価格|成約|地価|公示|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|用途地域|都市計画|再開発|交通|道路|インフラ|人口|世帯|高齢|子育て|子供|子ども|ファミリー|年収|昼夜|外国人|持ち家|マンション|物件|建物|基礎情報|基本情報|概要|詳細|築年月|築年数|竣工|総戸数|階建|最寄り|乗降|乗降客|乗降人員|利用者数|乗客|混雑)/u', (string)$message);
+    return (bool)preg_match('/(住所|所在地|駅|エリア|地域|周辺|公的|データ|国土交通|政府統計|統計|相場|取引価格|成約|地価|公示|地価調査|基準地価|鑑定|評価書|路線価|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|津波|高潮|地すべり|地滑り|急傾斜|崖|がけ|盛土|造成地|災害危険|被災|用途地域|建蔽率|建ぺい率|容積率|都市計画|区域区分|市街化|立地適正化|防火|地区計画|高度利用|再開発|交通|道路|インフラ|学校|小学校|中学校|高校|学区|病院|医療|クリニック|診療|図書館|公園|役所|役場|公民館|避難|保育|幼稚園|こども園|福祉|介護|老人ホーム|人口|世帯|高齢|子育て|子供|子ども|ファミリー|年収|昼夜|外国人|持ち家|人口集中|DID|将来人口|推計人口|マンション|物件|建物|基礎情報|基本情報|概要|詳細|築年月|築年数|竣工|総戸数|階建|最寄り|乗降|乗降客|乗降人員|利用者数|乗客|混雑)/u', (string)$message);
 }
 
 function chatPublicDataSourceLabel($provider) {
@@ -303,6 +303,35 @@ function chatEstatContext($db, $message, $area, $force = false) {
     ];
 }
 
+/**
+ * Canonical normalization for matching マンション names across 表記ブレ (notation
+ * variants). Collapses everything that varies between how a user types a name and
+ * how it is stored, so the same building matches regardless of:
+ *   - 全角/半角 英数字・記号 (NFKC) and upper/lower case
+ *   - 半角カタカナ → 全角、濁点・半濁点の合成 (NFKC + mb_convert_kana 'KV')
+ *   - ひらがな ⇔ カタカナ (unified to カタカナ)
+ *   - 長音「ー」とハイフン/ダッシュ/チルダ各種（除去して同一視）
+ *   - スペース・中黒「・」・引用符・各種記号（除去）
+ * The SAME function normalizes both the stored columns (name_norm / search_norm)
+ * and the query term, so a substring match on the normalized form is robust.
+ * MUST stay in sync with the backfill in import_mansion_buildings.php.
+ */
+function chatMansionNormalizeText($s) {
+    $s = (string)$s;
+    if ($s === '') return '';
+    if (class_exists('Normalizer')) {
+        $n = Normalizer::normalize($s, Normalizer::FORM_KC);
+        if (is_string($n) && $n !== '') $s = $n;
+    }
+    $s = mb_convert_kana($s, 'KVC');
+    $s = mb_strtolower($s);
+    // Long-vowel marks and hyphen/dash/tilde variants → removed (treated as noise).
+    $s = preg_replace('/[ー―‐\x{2010}-\x{2015}\x{2212}\x{301C}\x{FF5E}\-－〜~ｰ]/u', '', $s);
+    // Spaces, middle dots, quotes, punctuation, brackets and common symbols → removed.
+    $s = preg_replace('/[\s\x{3000}・･,，、。.／\/「」『』（）()\[\]【】｛｝{}＆&\x{2019}\x{2018}\x{201C}\x{201D}\x{0027}\x{0060}"’‘`*~!！?？:：;；|｜＿_]/u', '', $s);
+    return $s === null ? '' : $s;
+}
+
 function chatNormalizeMansionSearchTerm($term) {
     $term = trim((string)$term);
     $term = preg_replace('/^[\s「」『』"\']+|[\s「」『』"\']+$/u', '', $term);
@@ -320,11 +349,16 @@ function chatExtractMansionSearchTerms($message) {
     $message = trim((string)$message);
     $terms = [];
     $fieldWords = '基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|築|竣工|完成|建築年|構造|総戸数|戸数|階建|階数|最寄り駅|最寄駅|アクセス|徒歩|住所|所在地';
+    // Broad "building-name character" class: kanji, kana (full & half width), Latin
+    // & digits (full & half width), 中黒, apostrophes, hyphen/dash/長音 variants,
+    // ＆ and spaces. Missing any of these previously sliced names mid-string (e.g.
+    // a long vowel typed as "-" or a half-width-kana name) and matched the wrong row.
+    $nameChars = '一-龯々〆ぁ-んァ-ヺー\x{3000}・\x{FF65}\x{FF66}-\x{FF9F}A-Za-z0-9０-９Ａ-Ｚａ-ｚ’‘\'\x{2018}\x{2019}\-－―‐\x{301C}\x{FF5E}＆&.．\s';
     $patterns = [
         '/「([^」]{2,80})」/u',
         '/『([^』]{2,80})』/u',
-        '/([一-龥ぁ-んァ-ンA-Za-z0-9０-９・ー－\s]{2,80}?)(?:の)?(?:' . $fieldWords . ')/u',
-        '/(?:マンション|物件|建物)(?:名)?(?:は|の|：|:)?\s*([一-龥ぁ-んァ-ンA-Za-z0-9０-９・ー－\s]{2,80})/u',
+        '/([' . $nameChars . ']{2,80}?)(?:の)?(?:' . $fieldWords . ')/u',
+        '/(?:マンション|物件|建物)(?:名)?(?:は|の|：|:)?\s*([' . $nameChars . ']{2,80})/u',
     ];
     foreach ($patterns as $pattern) {
         if (preg_match($pattern, $message, $m)) {
@@ -337,6 +371,17 @@ function chatExtractMansionSearchTerms($message) {
         $clean = chatNormalizeMansionSearchTerm($clean);
         if (mb_strlen($clean) >= 2 && mb_strlen($clean) <= 80) $terms[] = $clean;
     }
+    // Fallback: a bare building-name question with location/about intent but no
+    // field/物件 keyword ("○○について教えて" / "○○はどこ" / "○○を調べて"). Capture
+    // the proper-noun candidate, but only accept names containing カタカナ (almost
+    // all マンション names do) so generic area words are not misread as buildings.
+    if (empty($terms) && preg_match('/(どこ|場所|所在|について|教えて|調べて|知りたい|検索)/u', $message)) {
+        $cand = preg_replace('/(?:について|に関して)?\s*(?:の(?:住所|場所|所在地))?\s*(?:は|を|って|の)?\s*(?:どこ(?:に(?:ある|あります))?(?:か|ですか)?|場所|所在地?|教えて|調べて|検索して|知りたい|ですか|でしょうか|ください|下さい|お願いします)?[\s。、,，.\?？！!]*$/u', '', $message);
+        $cand = chatNormalizeMansionSearchTerm($cand);
+        if ($cand !== '' && mb_strlen($cand) >= 4 && preg_match('/[ァ-ヶ]/u', $cand)) {
+            $terms[] = $cand;
+        }
+    }
     return array_values(array_unique(array_filter($terms)));
 }
 
@@ -348,14 +393,21 @@ function chatMansionDbSearchRows($db, $terms, $limit = 5) {
     foreach (array_slice((array)$terms, 0, 4) as $term) {
         $term = chatNormalizeMansionSearchTerm($term);
         if ($term === '') continue;
-        $like = '%' . $term . '%';
-        $prefixLike = $term . '%';
+        // Canonical 表記ブレ-insensitive match against the normalized columns, with
+        // a raw building_name LIKE kept as a recall fallback (collation already
+        // folds 全半角/かな/大小文字 there). name_norm/search_norm collapse spaces,
+        // 中黒, 長音, ハイフン, 記号 so those variants all hit the same row.
+        $norm = chatMansionNormalizeText($term);
+        if ($norm === '') continue;
+        $nlike = '%' . $norm . '%';
+        $nprefix = $norm . '%';
+        $rawLike = '%' . $term . '%';
         $stmt = $db->prepare("SELECT building_name, postal_code, prefecture, city, town, address_detail, full_address, structure, floors_above, floors_below, built_year_month, total_units, nearest_line, nearest_station, nearest_access_method, nearest_minutes, transports_json
             FROM mansion_buildings
-            WHERE building_name LIKE ? OR full_address LIKE ? OR search_text LIKE ?
-            ORDER BY CASE WHEN building_name = ? THEN 0 WHEN building_name LIKE ? THEN 1 WHEN search_text LIKE ? THEN 2 ELSE 3 END, id ASC
+            WHERE name_norm LIKE :n1 OR search_norm LIKE :n2 OR building_name LIKE :raw
+            ORDER BY CASE WHEN name_norm = :neq THEN 0 WHEN name_norm LIKE :n3 THEN 1 WHEN search_norm LIKE :n4 THEN 2 ELSE 3 END, id ASC
             LIMIT {$limit}");
-        $stmt->execute([$like, $like, $like, $term, $prefixLike, $prefixLike]);
+        $stmt->execute([':n1' => $nlike, ':n2' => $nlike, ':raw' => $rawLike, ':neq' => $norm, ':n3' => $nprefix, ':n4' => $nlike]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $key = ($row['building_name'] ?? '') . '|' . ($row['full_address'] ?? '');
             if ($key === '|' || isset($seen[$key])) continue;
@@ -381,13 +433,13 @@ function chatMansionTermLooksSpecific($terms, $message) {
 function chatMansionRequestedFields($message) {
     $message = (string)$message;
     $fields = [];
-    if (preg_match('/(住所|所在地|場所|どこ)/u', $message)) $fields[] = 'address';
+    if (preg_match('/(住所|所在地|所在|場所|どこ)/u', $message)) $fields[] = 'address';
     if (preg_match('/(築年月|築年数|築|竣工|完成|建築年)/u', $message)) $fields[] = 'built';
     if (preg_match('/構造/u', $message)) $fields[] = 'structure';
     if (preg_match('/(総戸数|戸数)/u', $message)) $fields[] = 'units';
     if (preg_match('/(階建|階数|地下|地上)/u', $message)) $fields[] = 'floors';
     if (preg_match('/(最寄り駅|最寄駅|アクセス|徒歩|駅)/u', $message)) $fields[] = 'station';
-    if (empty($fields) && preg_match('/(概要|情報|詳細|について|教えて|知りたい)/u', $message)) {
+    if (empty($fields) && preg_match('/(概要|情報|詳細|について|教えて|知りたい|調べて|検索)/u', $message)) {
         $fields = ['address', 'built', 'station', 'structure', 'floors', 'units'];
     }
     return array_values(array_unique($fields));
@@ -470,7 +522,7 @@ function chatMansionDbContext($db, $message, $force = false) {
 
 function chatMansionDbDirectAnswer($db, $message) {
     if (!$db instanceof PDO) return null;
-    if (!preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|築|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|住所|所在地|アクセス)/u', (string)$message)) return null;
+    if (!preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|築|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|住所|所在地|所在|アクセス|どこ|場所|について|教えて|調べて|知りたい|検索)/u', (string)$message)) return null;
     $terms = chatExtractMansionSearchTerms($message);
     if (empty($terms) || !chatMansionTermLooksSpecific($terms, $message)) return null;
     $fields = chatMansionRequestedFields($message);
@@ -657,12 +709,467 @@ function chatReinfoStationContext($db, $message, $area) {
 }
 
 /**
+ * Geocode a free-form address / city name to lat/lon using the GSI (国土地理院)
+ * address-search API (no key required). Returns the best (first) match.
+ */
+function chatAddressGeocode($db, $query) {
+    $q = trim((string)$query);
+    if ($q === '') return null;
+    $url = 'https://msearch.gsi.go.jp/address-search/AddressSearch?q=' . rawurlencode($q);
+    $result = chatPublicDataCachedGet($db, 'gsi_geocode', $url, [], 2592000, 6);
+    $data = $result['data'];
+    if (!is_array($data) || empty($data[0]['geometry']['coordinates'])) return null;
+    $c = $data[0]['geometry']['coordinates'];
+    if (!isset($c[0], $c[1])) return null;
+    return [
+        'lon' => (float)$c[0],
+        'lat' => (float)$c[1],
+        'title' => $data[0]['properties']['title'] ?? $q,
+        'prefecture' => null,
+    ];
+}
+
+/**
+ * Resolve a lat/lon for the area a question is about: prefer a named station,
+ * then fall back to GSI geocoding of 都道府県+市区町村. Used by every reinfolib
+ * GIS tile API to address the right XYZ tile. Null when nothing is resolvable.
+ */
+function chatReinfoResolveLatLon($db, $area, $message) {
+    if (!empty($area['station_name'])) {
+        $geo = chatStationGeocode($db, $area['station_name'], $area['prefecture_name'] ?? null);
+        if ($geo) return $geo;
+    }
+    $addr = trim(($area['prefecture_name'] ?? '') . ($area['city_name'] ?? ''));
+    if ($addr !== '') {
+        $geo = chatAddressGeocode($db, $addr);
+        if ($geo) return $geo;
+    }
+    return null;
+}
+
+/** Ray-casting point-in-polygon test for a single linear ring ([[lon,lat],...]). */
+function chatGeoPointInRing($lon, $lat, $ring) {
+    if (!is_array($ring)) return false;
+    $inside = false;
+    $n = count($ring);
+    for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+        if (!isset($ring[$i][0], $ring[$i][1], $ring[$j][0], $ring[$j][1])) continue;
+        $xi = (float)$ring[$i][0]; $yi = (float)$ring[$i][1];
+        $xj = (float)$ring[$j][0]; $yj = (float)$ring[$j][1];
+        $denom = ($yj - $yi) ?: 1e-12;
+        if ((($yi > $lat) !== ($yj > $lat)) && ($lon < ($xj - $xi) * ($lat - $yi) / $denom + $xi)) {
+            $inside = !$inside;
+        }
+    }
+    return $inside;
+}
+
+/** Whether a WGS84 point falls inside a GeoJSON Polygon / MultiPolygon geometry. */
+function chatGeoPointInFeature($lon, $lat, $geom) {
+    if (!is_array($geom)) return false;
+    $type = $geom['type'] ?? '';
+    $coords = $geom['coordinates'] ?? null;
+    if (!is_array($coords)) return false;
+    if ($type === 'Polygon') return chatGeoPointInRing($lon, $lat, $coords[0] ?? []);
+    if ($type === 'MultiPolygon') {
+        foreach ($coords as $poly) {
+            if (is_array($poly) && chatGeoPointInRing($lon, $lat, $poly[0] ?? [])) return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Reduce raw GeoJSON features to the rows most relevant to the query point:
+ *  - polygon: features whose polygon contains the point (the location's zone /
+ *    hazard area). Falls back to the first $limit features when nothing contains
+ *    the point (e.g. point sits on a tile/area boundary).
+ *  - point: the $limit nearest features by squared planar distance.
+ *  - other (lines etc.): the first $limit features in the tile.
+ * Returns ['rows'=>[properties...], 'total'=>int].
+ */
+function chatGeoFilterFeatures($features, $lon, $lat, $geom, $limit = 8) {
+    $propsOf = function ($f) {
+        return is_array($f) && isset($f['properties']) && is_array($f['properties']) ? $f['properties'] : null;
+    };
+    if ($geom === 'polygon') {
+        $matched = [];
+        foreach ($features as $f) {
+            $p = $propsOf($f);
+            if ($p === null) continue;
+            if (chatGeoPointInFeature($lon, $lat, $f['geometry'] ?? null)) $matched[] = $p;
+        }
+        if (empty($matched)) {
+            foreach (array_slice($features, 0, $limit) as $f) {
+                $p = $propsOf($f);
+                if ($p !== null) $matched[] = $p;
+            }
+        }
+        return ['rows' => array_slice($matched, 0, $limit), 'total' => count($matched)];
+    }
+    if ($geom === 'point') {
+        $arr = [];
+        foreach ($features as $f) {
+            $p = $propsOf($f);
+            if ($p === null) continue;
+            $c = $f['geometry']['coordinates'] ?? null;
+            $d = PHP_FLOAT_MAX;
+            if (is_array($c) && isset($c[0], $c[1])) {
+                $dx = (float)$c[0] - $lon; $dy = (float)$c[1] - $lat;
+                $d = $dx * $dx + $dy * $dy;
+            }
+            $arr[] = ['d' => $d, 'p' => $p];
+        }
+        usort($arr, function ($a, $b) { return $a['d'] <=> $b['d']; });
+        $rows = array_map(function ($x) { return $x['p']; }, array_slice($arr, 0, $limit));
+        return ['rows' => $rows, 'total' => count($arr)];
+    }
+    $rows = [];
+    foreach (array_slice($features, 0, $limit) as $f) {
+        $p = $propsOf($f);
+        if ($p !== null) $rows[] = $p;
+    }
+    return ['rows' => $rows, 'total' => count($features)];
+}
+
+/**
+ * Single source of truth for every remaining 不動産情報ライブラリ public API
+ * (everything except XIT001/XIT002/XKT015, which keep their bespoke handlers).
+ * Each entry drives both routing (keywords/description) and fetching (endpoint
+ * code, tile zoom range, geometry handling, required params, field whitelist).
+ *
+ *   type    : 'tile' (default, XYZ GIS APIs) | 'query' (XCT001)
+ *   geom    : 'polygon' (zone at the point) | 'point' (nearest facilities) | 'other'
+ *   zmin/zmax: valid zoom range from each API's manual page
+ *   params  : extra query params; a closure(int $year) for year-dependent APIs
+ *   fields  : optional [propertyKey => 日本語ラベル] whitelist for cleaner output
+ */
+function chatReinfoApiCatalog() {
+    return [
+        // --- 価格・地価・鑑定 ---------------------------------------------
+        'XPT001' => [
+            'title' => '不動産取引価格ポイント', 'geom' => 'point', 'zmin' => 11, 'zmax' => 15,
+            'keywords' => '取引価格|成約価格|取引事例|売買事例',
+            'description' => '地点周辺の不動産取引価格・成約価格のポイントデータ',
+            'params' => function ($year) { return ['from' => ($year - 2) . '1', 'to' => ($year - 1) . '4']; },
+        ],
+        'XPT002' => [
+            'title' => '地価公示・地価調査ポイント', 'geom' => 'point', 'zmin' => 13, 'zmax' => 15,
+            'keywords' => '地価公示|地価調査|公示価格|基準地価|地価',
+            'description' => '地点周辺の地価公示・地価調査（標準地・基準地の価格）',
+            'params' => function ($year) { return ['year' => ($year - 2)]; },
+        ],
+        'XCT001' => [
+            'type' => 'query',
+            'title' => '鑑定評価書情報', 'keywords' => '鑑定|鑑定評価|評価書|路線価',
+            'description' => '不動産鑑定評価書情報（標準地の価格・路線価・法令規制・鑑定手法）',
+        ],
+        // --- 都市計画 -----------------------------------------------------
+        'XKT001' => [
+            'title' => '都市計画区域・区域区分', 'geom' => 'polygon',
+            'keywords' => '都市計画区域|区域区分|市街化区域|市街化調整区域|非線引き',
+            'description' => '都市計画区域および市街化区域・市街化調整区域の区分',
+        ],
+        'XKT002' => [
+            'title' => '用途地域', 'geom' => 'polygon',
+            'keywords' => '用途地域|建蔽率|建ぺい率|容積率',
+            'description' => '用途地域・建蔽率・容積率（都市計画決定GISデータ）',
+            'fields' => [
+                'use_area_ja' => '用途地域', 'u_building_coverage_ratio_ja' => '建蔽率',
+                'u_floor_area_ratio_ja' => '容積率', 'city_name' => '市区町村', 'prefecture' => '都道府県',
+            ],
+        ],
+        'XKT003' => [
+            'title' => '立地適正化計画', 'geom' => 'polygon',
+            'keywords' => '立地適正化|居住誘導|都市機能誘導',
+            'description' => '立地適正化計画（居住誘導区域・都市機能誘導区域）',
+        ],
+        'XKT014' => [
+            'title' => '防火・準防火地域', 'geom' => 'polygon',
+            'keywords' => '防火地域|準防火地域|防火',
+            'description' => '防火地域・準防火地域（都市計画決定GISデータ）',
+        ],
+        'XKT023' => [
+            'title' => '地区計画', 'geom' => 'polygon',
+            'keywords' => '地区計画',
+            'description' => '地区計画（都市計画決定GISデータ）',
+        ],
+        'XKT024' => [
+            'title' => '高度利用地区', 'geom' => 'polygon',
+            'keywords' => '高度利用地区',
+            'description' => '高度利用地区（都市計画決定GISデータ）',
+        ],
+        'XKT030' => [
+            'title' => '都市計画道路', 'geom' => 'other',
+            'keywords' => '都市計画道路|計画道路',
+            'description' => '都市計画道路（都市計画決定GISデータ）',
+        ],
+        // --- 災害・ハザード ----------------------------------------------
+        'XKT016' => [
+            'title' => '災害危険区域', 'geom' => 'polygon',
+            'keywords' => '災害危険区域',
+            'description' => '災害危険区域（建築制限のある区域）',
+        ],
+        'XKT020' => [
+            'title' => '大規模盛土造成地', 'geom' => 'polygon',
+            'keywords' => '盛土|大規模盛土|造成地',
+            'description' => '大規模盛土造成地マップ（地盤リスク）',
+        ],
+        'XKT021' => [
+            'title' => '地すべり防止地区', 'geom' => 'polygon',
+            'keywords' => '地すべり|地滑り',
+            'description' => '地すべり防止地区',
+        ],
+        'XKT022' => [
+            'title' => '急傾斜地崩壊危険区域', 'geom' => 'polygon',
+            'keywords' => '急傾斜|がけ崩れ|崖崩れ|崖',
+            'description' => '急傾斜地崩壊危険区域',
+        ],
+        'XKT025' => [
+            'title' => '液状化傾向（地形区分）', 'geom' => 'polygon',
+            'keywords' => '液状化|液状化傾向',
+            'description' => '地形区分に基づく液状化の発生傾向図',
+        ],
+        'XKT026' => [
+            'title' => '洪水浸水想定区域（想定最大規模）', 'geom' => 'polygon', 'zmin' => 14, 'zmax' => 15,
+            'keywords' => '洪水|浸水|水害|浸水想定',
+            'description' => '洪水浸水想定区域（想定最大規模・河川別の浸水深ランク）',
+            'fields' => ['A31a_202' => '河川名', 'A31a_205' => '浸水深ランク', 'A31a_204' => '河川管理者'],
+            'note' => '浸水深ランクは数値が大きいほど想定浸水深が深いことを示します（具体的なメートル数はハザードマップで要確認）。',
+        ],
+        'XKT027' => [
+            'title' => '高潮浸水想定区域', 'geom' => 'polygon', 'zmin' => 14, 'zmax' => 15,
+            'keywords' => '高潮',
+            'description' => '高潮浸水想定区域',
+        ],
+        'XKT028' => [
+            'title' => '津波浸水想定', 'geom' => 'polygon', 'zmin' => 14, 'zmax' => 15,
+            'keywords' => '津波',
+            'description' => '津波浸水想定（浸水域・浸水深）',
+        ],
+        'XKT029' => [
+            'title' => '土砂災害警戒区域', 'geom' => 'polygon',
+            'keywords' => '土砂災害|土砂|警戒区域|レッドゾーン|イエローゾーン',
+            'description' => '土砂災害警戒区域・特別警戒区域',
+        ],
+        'XST001' => [
+            'title' => '災害履歴', 'geom' => 'point', 'zmin' => 9, 'zmax' => 15,
+            'keywords' => '災害履歴|過去の災害|被災履歴|災害記録',
+            'description' => '国土調査による災害履歴（過去の災害の種類・発生年月日）',
+            'fields' => ['disaster_name_ja' => '災害分類', 'disaster_date' => '発生年月日', 'disaster_source' => '資料'],
+        ],
+        // --- 周辺施設・生活利便 ------------------------------------------
+        'XKT004' => [
+            'title' => '小学校区', 'geom' => 'polygon',
+            'keywords' => '小学校区|学区',
+            'description' => '小学校の通学区域（学区）',
+        ],
+        'XKT005' => [
+            'title' => '中学校区', 'geom' => 'polygon',
+            'keywords' => '中学校区',
+            'description' => '中学校の通学区域（学区）',
+        ],
+        'XKT006' => [
+            'title' => '学校', 'geom' => 'point',
+            'keywords' => '学校|小学校|中学校|高校|高等学校',
+            'description' => '周辺の学校（小・中・高等学校等）の位置',
+        ],
+        'XKT007' => [
+            'title' => '保育園・幼稚園等', 'geom' => 'point',
+            'keywords' => '保育園|幼稚園|保育所|認定こども園|こども園',
+            'description' => '周辺の保育園・幼稚園・認定こども園',
+        ],
+        'XKT010' => [
+            'title' => '医療機関', 'geom' => 'point', 'zmin' => 13, 'zmax' => 15,
+            'keywords' => '病院|医療|クリニック|診療所|医療機関',
+            'description' => '周辺の医療機関（病院・診療所等）',
+        ],
+        'XKT011' => [
+            'title' => '福祉施設', 'geom' => 'point', 'zmin' => 13, 'zmax' => 15,
+            'keywords' => '福祉施設|介護|福祉|老人ホーム|高齢者施設',
+            'description' => '周辺の福祉施設（介護・高齢者・障害者・児童福祉等）',
+            'fields' => [
+                'P14_008_ja' => '施設名', 'P14_005_name_ja' => '大分類',
+                'P14_006_name_ja' => '中分類', 'P14_002' => '市区町村',
+            ],
+        ],
+        'XKT017' => [
+            'title' => '図書館', 'geom' => 'point',
+            'keywords' => '図書館',
+            'description' => '周辺の図書館',
+        ],
+        'XKT018' => [
+            'title' => '市区町村役場・集会施設', 'geom' => 'point',
+            'keywords' => '役所|役場|市役所|区役所|町役場|村役場|公民館|集会施設',
+            'description' => '周辺の市区町村役場・支所・公民館等の集会施設',
+        ],
+        'XKT019' => [
+            'title' => '自然公園地域', 'geom' => 'polygon',
+            'keywords' => '自然公園|国立公園|国定公園|都道府県立自然公園',
+            'description' => '自然公園地域（国立・国定・都道府県立自然公園）',
+        ],
+        'XGT001' => [
+            'title' => '指定緊急避難場所', 'geom' => 'point',
+            'keywords' => '避難場所|避難所|指定緊急避難場所|防災拠点',
+            'description' => '周辺の指定緊急避難場所（災害種別ごとの対応）',
+        ],
+        // --- 人口 ---------------------------------------------------------
+        'XKT013' => [
+            'title' => '将来推計人口250mメッシュ', 'geom' => 'polygon',
+            'keywords' => '将来人口|推計人口|人口予測|人口推計|将来推計人口',
+            'description' => '将来推計人口（250mメッシュ・年齢階級別）',
+        ],
+        'XKT031' => [
+            'title' => '人口集中地区（DID）', 'geom' => 'polygon',
+            'keywords' => '人口集中地区|DID',
+            'description' => '人口集中地区（DID）の範囲',
+        ],
+    ];
+}
+
+/**
+ * Generic fetcher for a reinfolib GIS tile API described by a catalog entry:
+ * geocode the area → derive the XYZ tile (clamped to the API's zoom range) →
+ * fetch GeoJSON (centre tile for zones, centre+ring for point facilities) →
+ * spatially filter to the query point → format. Null-graceful throughout.
+ */
+function chatReinfoTileContext($db, $code, $def, $message, $area) {
+    if (!defined('REINFOLIB_API_KEY') || REINFOLIB_API_KEY === '') return null;
+    $geo = chatReinfoResolveLatLon($db, $area, $message);
+    if (!$geo) return null;
+
+    $zmin = (int)($def['zmin'] ?? 11);
+    $zmax = (int)($def['zmax'] ?? 15);
+    $z = max($zmin, min($zmax, 14));
+    $center = chatGeoLatLonToTile($geo['lat'], $geo['lon'], $z);
+    $geom = $def['geom'] ?? 'polygon';
+    // Point facilities: scan a 3x3 ring to catch nearby items across tile edges.
+    // Zones/lines: the centre tile already contains the point's polygon.
+    $offsets = $geom === 'point'
+        ? [[0,0],[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]]
+        : [[0,0]];
+    $year = (int)date('Y');
+    $extra = [];
+    if (isset($def['params'])) {
+        $extra = is_callable($def['params']) ? ($def['params'])($year) : (array)$def['params'];
+    }
+
+    $features = [];
+    $fetchedAt = null;
+    $cached = true;
+    foreach ($offsets as $off) {
+        $query = array_merge([
+            'response_format' => 'geojson',
+            'z' => $z,
+            'x' => $center['x'] + $off[0],
+            'y' => $center['y'] + $off[1],
+        ], $extra);
+        $url = 'https://www.reinfolib.mlit.go.jp/ex-api/external/' . $code . '?' . http_build_query($query);
+        $result = chatPublicDataCachedGet($db, 'reinfolib', $url, ['Ocp-Apim-Subscription-Key' => REINFOLIB_API_KEY], 2592000);
+        $fetchedAt = $result['fetched_at'] ?? $fetchedAt;
+        if (empty($result['cached'])) $cached = false;
+        if (!$result['ok'] || !is_array($result['data'])) continue;
+        $f = $result['data']['features'] ?? [];
+        if (is_array($f) && !empty($f)) {
+            $features = array_merge($features, $f);
+            if ($geom !== 'point') break;      // zones: centre tile is enough
+            if (count($features) >= 60) break;  // bound the work for dense layers
+        }
+    }
+    if (empty($features)) return null;
+
+    $filtered = chatGeoFilterFeatures($features, $geo['lon'], $geo['lat'], $geom, 8);
+    $rows = [];
+    foreach ($filtered['rows'] as $props) {
+        if (!empty($def['fields'])) {
+            $row = [];
+            foreach ($def['fields'] as $key => $label) {
+                if (isset($props[$key]) && $props[$key] !== '') $row[$label] = $props[$key];
+            }
+            $rows[] = !empty($row) ? $row : $props;
+        } else {
+            $rows[] = $props;
+        }
+    }
+    if (empty($rows)) return null;
+
+    $base = $geo['title'] ?? trim(($area['prefecture_name'] ?? '') . ($area['city_name'] ?? ''));
+    $scope = trim($base . '周辺の' . $def['title']);
+    $note = ($def['note'] ?? 'これは指定地点周辺のGISデータです。');
+    if ($geom === 'polygon') {
+        $note .= ' 取得した区域は基準点（' . $base . '）を含む/近接する区域です。';
+    } else {
+        $note .= ' 基準点（' . $base . '）から近い順に表示しています。';
+    }
+    return [
+        'provider' => 'reinfolib',
+        'title' => $def['title'] . '（' . $code . '）',
+        'notice' => $base . '周辺の' . $def['title'] . 'を不動産情報ライブラリで確認します。',
+        'data' => $rows,
+        'record_count' => count($rows),
+        'total_count' => (int)$filtered['total'],
+        'scope_note' => $scope,
+        'count_note' => $note,
+        'fetched_at' => $fetchedAt ?: date('Y-m-d H:i:s'),
+        'cached' => $cached,
+    ];
+}
+
+/**
+ * XCT001 鑑定評価書情報 (query API: year + 都道府県コード + 用途区分). Tries the
+ * current year then the previous year; picks a 用途区分 from the question.
+ */
+function chatReinfoAppraisalContext($db, $message, $area) {
+    if (!defined('REINFOLIB_API_KEY') || REINFOLIB_API_KEY === '') return null;
+    $pref = $area['prefecture_code'] ?? null;
+    if (!$pref) return null;
+    $division = '00'; // 住宅地
+    if (preg_match('/(商業|店舗|オフィス|繁華街)/u', (string)$message)) $division = '05';
+    elseif (preg_match('/(工業|工場|準工業)/u', (string)$message)) $division = '09';
+    foreach ([(int)date('Y'), (int)date('Y') - 1] as $year) {
+        $url = 'https://www.reinfolib.mlit.go.jp/ex-api/external/XCT001?' . http_build_query([
+            'year' => $year, 'area' => $pref, 'division' => $division,
+        ]);
+        $result = chatPublicDataCachedGet($db, 'reinfolib', $url, ['Ocp-Apim-Subscription-Key' => REINFOLIB_API_KEY], 604800);
+        if (!$result['ok'] || !is_array($result['data'])) continue;
+        $allRows = chatPublicDataRows($result['data']);
+        if (empty($allRows)) continue;
+        $total = count($allRows);
+        $rows = array_slice($allRows, 0, 5);
+        $scope = $year . '年・' . ($area['prefecture_name'] ?? '') . 'の鑑定評価書情報（用途区分 ' . $division . '）';
+        return [
+            'provider' => 'reinfolib',
+            'title' => '鑑定評価書情報（XCT001）',
+            'notice' => ($area['prefecture_name'] ?? '') . 'の鑑定評価書情報を不動産情報ライブラリで確認します。',
+            'data' => $rows,
+            'record_count' => count($rows),
+            'total_count' => $total,
+            'scope_note' => $scope,
+            'count_note' => 'これは都道府県単位の標準地（鑑定評価書）一覧です。先頭 ' . count($rows) . ' 件のみ添付、該当総件数は ' . $total . ' 件です。特定地点の評価ではない点に注意してください。',
+            'fetched_at' => $result['fetched_at'] ?? date('Y-m-d H:i:s'),
+            'cached' => !empty($result['cached']),
+        ];
+    }
+    return null;
+}
+
+/** Dispatch a catalog entry to the right fetcher based on its type. */
+function chatReinfoCatalogContext($db, $code, $def, $message, $area) {
+    $type = $def['type'] ?? 'tile';
+    if ($type === 'query') {
+        if ($code === 'XCT001') return chatReinfoAppraisalContext($db, $message, $area);
+        return null;
+    }
+    return chatReinfoTileContext($db, $code, $def, $message, $area);
+}
+
+/**
  * Declarative registry of the server-side data providers the chat can call.
- * Adding a new API = adding an entry here (keywords + one-line description) and
- * a dispatch case in chatPublicDataInvokeProvider(); no new branching elsewhere.
+ * The five hand-written providers below are merged with every entry in
+ * chatReinfoApiCatalog(), so adding a reinfolib API = one catalog entry only.
  */
 function chatPublicDataProviderRegistry() {
-    return [
+    $registry = [
         'mansion_db' => [
             'label' => '当社 全国マンションデータベース',
             'keywords' => 'マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|築年月|築年数|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|物件名',
@@ -671,7 +1178,7 @@ function chatPublicDataProviderRegistry() {
         'reinfo_price' => [
             'label' => '国土交通省 不動産情報ライブラリ',
             'keywords' => '相場|取引価格|成約|地価|公示|価格',
-            'description' => 'エリアの不動産取引価格・成約事例・地価などの価格データ',
+            'description' => 'エリア（市区町村単位）の不動産取引価格・成約事例の集計データ',
         ],
         'reinfo_station' => [
             'label' => '国土交通省 不動産情報ライブラリ',
@@ -680,8 +1187,8 @@ function chatPublicDataProviderRegistry() {
         ],
         'mlit_dpf' => [
             'label' => '国土交通データプラットフォーム',
-            'keywords' => '災害|防災|浸水|洪水|水害|土砂|地盤|液状化|都市計画|再開発|道路|インフラ|河川|周辺環境',
-            'description' => '災害リスク・都市計画・インフラ・周辺環境に関する国交省データセットの有無',
+            'keywords' => '周辺環境|地域データ|エリア説明',
+            'description' => '不動産情報ライブラリに無い国交省データセットの横断検索（カタログ）',
         ],
         'estat' => [
             'label' => '政府統計の総合窓口 e-Stat',
@@ -689,6 +1196,14 @@ function chatPublicDataProviderRegistry() {
             'description' => '人口・世帯・年齢構成などの政府統計（国勢調査等）',
         ],
     ];
+    foreach (chatReinfoApiCatalog() as $code => $def) {
+        $registry[$code] = [
+            'label' => '国土交通省 不動産情報ライブラリ',
+            'keywords' => $def['keywords'] ?? '',
+            'description' => $def['description'] ?? $def['title'] ?? $code,
+        ];
+    }
+    return $registry;
 }
 
 function chatPublicDataInvokeProvider($db, $key, $message, $area) {
@@ -699,6 +1214,8 @@ function chatPublicDataInvokeProvider($db, $key, $message, $area) {
         case 'mlit_dpf':       return chatMlitDpfContext($db, $message, $area, true);
         case 'estat':          return chatEstatContext($db, $message, $area, true);
     }
+    $catalog = chatReinfoApiCatalog();
+    if (isset($catalog[$key])) return chatReinfoCatalogContext($db, $key, $catalog[$key], $message, $area);
     return null;
 }
 
@@ -774,8 +1291,12 @@ function chatBuildPublicDataContext($db, $message) {
     $area = chatPublicExtractArea($message);
     $route = chatPublicDataRoute($db, $message, $area);
     $area = $route['area'];
+    // Bound per-message fan-out: a broad question (e.g. "災害") can match many
+    // catalog APIs, each of which fetches one or more tiles. Cap to keep latency
+    // predictable; keyword/registry order keeps the highest-value APIs first.
+    $providers = array_slice($route['providers'], 0, 5);
     $items = [];
-    foreach ($route['providers'] as $providerKey) {
+    foreach ($providers as $providerKey) {
         $item = chatPublicDataInvokeProvider($db, $providerKey, $message, $area);
         if ($item) $items[] = $item;
     }

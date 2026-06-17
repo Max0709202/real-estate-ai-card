@@ -3092,7 +3092,7 @@ function ensureRegisterCropperModalExists() {
         modal.id = 'image-cropper-modal';
         modal.className = 'modal-overlay';
         modal.style.cssText = 'display: none; z-index: 10000; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center;';
-        modal.innerHTML = '<div class="modal-content" style="max-width: 90%; max-height: 90vh; overflow: auto; background: white; border-radius: 8px; padding: 0;"><div style="padding: 20px;"><h3 style="margin-bottom: 20px; color: #333;">画像をトリミング</h3><p style="margin-bottom: 15px; color: #666; font-size: 14px;">画像のサイズを調整し、必要な部分を選択してください。指でドラッグしてトリミングエリアを移動・拡大縮小できます。</p><div id="cropper-image-container" style="width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;"><img id="cropper-image" style="max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;"></div><div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;"><button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; width: auto; cursor: pointer;">キャンセル</button><button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px; width: auto;">トリミングを適用</button></div></div></div>';
+        modal.innerHTML = '<div class="modal-content" style="max-width: 90%; max-height: 90vh; overflow: auto; background: white; border-radius: 8px; padding: 0;"><div style="padding: 20px;"><h3 style="margin-bottom: 20px; color: #333;">画像をトリミング</h3><p style="margin-bottom: 15px; color: #666; font-size: 14px;">画像のサイズを調整し、必要な部分を選択してください。指でドラッグしてトリミングエリアを移動・拡大縮小できます。</p><div id="cropper-image-container" style="width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;"><img id="cropper-image" alt="" style="max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;"></div><div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;"><button type="button" id="crop-cancel-btn" class="btn-secondary" style="padding: 10px 20px; width: auto; cursor: pointer;">キャンセル</button><button type="button" id="crop-confirm-btn" class="btn-primary" style="padding: 10px 20px; width: auto;">トリミングを適用</button></div></div></div>';
         document.body.appendChild(modal);
     }
     let cropperContainer = document.getElementById('cropper-image-container');
@@ -3106,6 +3106,7 @@ function ensureRegisterCropperModalExists() {
             cropperContainer.style.cssText = 'width: 100%; max-width: 800px; margin: 0 auto; background: #f5f5f5; border-radius: 4px; padding: 10px; display: flex; justify-content: center; align-items: center;';
             const img = document.createElement('img');
             img.id = 'cropper-image';
+            img.alt = '';
             img.style.cssText = 'max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;';
             cropperContainer.appendChild(img);
             const inner = modal.querySelector('.modal-content > div');
@@ -3233,6 +3234,7 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
     cropperContainer.innerHTML = '';
     const newImg = document.createElement('img');
     newImg.id = 'cropper-image';
+    newImg.alt = '';
     newImg.style.cssText = 'max-width: 100%; max-height: 60vh; display: block; object-fit: contain; width: auto; height: auto;';
     cropperContainer.appendChild(newImg);
 

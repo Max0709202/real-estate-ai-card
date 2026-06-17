@@ -1204,8 +1204,34 @@
         return div.innerHTML;
     }
 
+    var ADDRESS_PREFECTURES = '北海道|青森県|岩手県|宮城県|秋田県|山形県|福島県|茨城県|栃木県|群馬県|埼玉県|千葉県|東京都|神奈川県|新潟県|富山県|石川県|福井県|山梨県|長野県|岐阜県|静岡県|愛知県|三重県|滋賀県|京都府|大阪府|兵庫県|奈良県|和歌山県|鳥取県|島根県|岡山県|広島県|山口県|徳島県|香川県|愛媛県|高知県|福岡県|佐賀県|長崎県|熊本県|大分県|宮崎県|鹿児島県|沖縄県';
+
+    // Turn Japanese addresses into Google Maps links. Matches text that starts
+    // with a prefecture name, followed by one or more 市/区/町/村/郡 segments and
+    // an optional 番地 part. This requires an administrative unit (so "東京都心の
+    // 物件" / "東京都の人口" do not match) and stops cleanly at the end of the
+    // address rather than running into surrounding prose. '県' is excluded from
+    // the inner character class so a match cannot bleed into a following
+    // prefecture (e.g. "...港区と神奈川県川崎市" stays two separate links).
+    var ADDRESS_DELIM = '\\s\\n、。，,「」『』（）()【】\\[\\]＜＞<>＆&"！!？?…：:；;／/';
+    var ADDRESS_INNER = '[^' + ADDRESS_DELIM + '県]';
+    var ADDRESS_RE = new RegExp(
+        '((?:' + ADDRESS_PREFECTURES + ')' +
+        '(?:' + ADDRESS_INNER + '{0,6}?(?:市|区|町|村|郡)){1,4}' +
+        '(?:' + ADDRESS_INNER + '*?[0-9０-９][0-9０-９条丁目番地号西東南北\\-‐―ー－]*)?)',
+        'g'
+    );
+
+    function linkifyAddresses(html) {
+        return html.replace(ADDRESS_RE, function (addr) {
+            var href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr);
+            return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" class="chat-msg-address-link">' + addr + '</a>';
+        });
+    }
+
     function formatBotMessageHtml(s) {
-        return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        var html = escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        return linkifyAddresses(html);
     }
 
     function escapeAttribute(s) {

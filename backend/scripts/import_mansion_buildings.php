@@ -39,14 +39,36 @@ function ensureMansionBuildingsTable(PDO $db) {
         transports_json JSON NULL,
         raw_data JSON NULL,
         search_text TEXT NULL,
+        name_norm VARCHAR(255) NULL,
+        search_norm TEXT NULL,
         source_file VARCHAR(255) NULL,
         imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_mansion_name (building_name),
+        INDEX idx_mansion_name_norm (name_norm),
         INDEX idx_mansion_pref_city (prefecture, city),
         INDEX idx_mansion_station (nearest_station),
         FULLTEXT KEY ft_mansion_search (building_name, full_address, search_text)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+/**
+ * 表記ブレ-insensitive normalization for マンション matching. MUST stay identical to
+ * chatMansionNormalizeText() in includes/chat-public-data-helper.php — the chat
+ * search normalizes the query the same way and matches name_norm/search_norm.
+ */
+function mansionNormalizeText($s) {
+    $s = (string)$s;
+    if ($s === '') return '';
+    if (class_exists('Normalizer')) {
+        $n = Normalizer::normalize($s, Normalizer::FORM_KC);
+        if (is_string($n) && $n !== '') $s = $n;
+    }
+    $s = mb_convert_kana($s, 'KVC');
+    $s = mb_strtolower($s);
+    $s = preg_replace('/[ー―‐\x{2010}-\x{2015}\x{2212}\x{301C}\x{FF5E}\-－〜~ｰ]/u', '', $s);
+    $s = preg_replace('/[\s\x{3000}・･,，、。.／\/「」『』（）()\[\]【】｛｝{}＆&\x{2019}\x{2018}\x{201C}\x{201D}\x{0027}\x{0060}"’‘`*~!！?？:：;；|｜＿_]/u', '', $s);
+    return $s === null ? '' : $s;
 }
 
 function xlsxColumnIndex($cellRef) {
@@ -131,12 +153,12 @@ $sql = "INSERT INTO mansion_buildings
     (building_name, postal_code, prefecture, city, town, address_detail, full_address, structure,
      floors_above, floors_below, built_year_month, built_date, total_units,
      nearest_line, nearest_station, nearest_access_method, nearest_minutes,
-     transports_json, raw_data, search_text, source_file)
+     transports_json, raw_data, search_text, name_norm, search_norm, source_file)
     VALUES
     (:building_name, :postal_code, :prefecture, :city, :town, :address_detail, :full_address, :structure,
      :floors_above, :floors_below, :built_year_month, :built_date, :total_units,
      :nearest_line, :nearest_station, :nearest_access_method, :nearest_minutes,
-     :transports_json, :raw_data, :search_text, :source_file)";
+     :transports_json, :raw_data, :search_text, :name_norm, :search_norm, :source_file)";
 $stmt = $db->prepare($sql);
 $db->beginTransaction();
 
@@ -216,6 +238,8 @@ while ($reader->read()) {
         ':transports_json' => json_encode($transports, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ':raw_data' => json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ':search_text' => $searchText,
+        ':name_norm' => mansionNormalizeText($name),
+        ':search_norm' => mansionNormalizeText($searchText),
         ':source_file' => basename($file),
     ]);
     $imported++;
