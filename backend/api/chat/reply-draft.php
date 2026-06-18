@@ -20,6 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     sendErrorResponse('Method not allowed', 405);
 }
 
+startSessionIfNotStarted();
+$userId = requireAuth();
+
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $sessionId = trim($input['session_id'] ?? '');
 $message = trim($input['message'] ?? '');
@@ -37,9 +40,9 @@ try {
         SELECT cs.id, cs.business_card_id, bc.name AS card_holder_name, bc.company_name
         FROM chat_sessions cs
         JOIN business_cards bc ON bc.id = cs.business_card_id
-        WHERE cs.id = ? LIMIT 1
+        WHERE cs.id = ? AND bc.user_id = ? LIMIT 1
     ");
-    $stmt->execute([$sessionId]);
+    $stmt->execute([$sessionId, $userId]);
     $session = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$session) {
         sendErrorResponse('セッションが見つかりません', 404);

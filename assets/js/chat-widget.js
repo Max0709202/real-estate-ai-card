@@ -69,6 +69,13 @@
     var crmState = null;
     var crmLoading = false;
     var activeChatTab = 'ai';
+    var attachBtn = document.getElementById('chat-widget-attach');
+    var fileInput = document.getElementById('chat-widget-file');
+    var attachListEl = document.getElementById('chat-widget-attach-list');
+    var lastAgentMsgId = 0;
+    var agentPollTimer = null;
+    var agentUnreadCount = 0;
+    var pendingAttachments = [];
 
     function detectPageReload() {
         try {
@@ -990,6 +997,9 @@
             greetingShown = false;
             canUseLoanSim = true;
             crmState = null;
+            lastAgentMsgId = 0;
+            pendingAttachments = [];
+            renderPendingAttachments();
             exitFeatureView();
             messagesContainer.innerHTML = '';
             renderQuickReplies([]);
@@ -1048,6 +1058,8 @@
                     crmState = data.data.crm_case ? { session: data.data, case: data.data.crm_case, data: data.data } : null;
                     loadCrmState(false);
                     if (!canUseLoanSim && quickActions) quickActions.style.display = 'none';
+                    startAgentPoll();
+                    maybeRequestNotificationPermission();
                 } else {
                     appendBotMessage(data.message || '申し訳ございません。いまチャットをご利用いただけません。');
                     setInputEnabled(false);
@@ -1070,11 +1082,16 @@
     function renderSessionMessages(messages) {
         messages.forEach(function (message) {
             var role = message.role || '';
+            var atts = message.attachments || [];
             if (role === 'user') {
-                appendUserMessage(message.message || '', message.created_at || '');
+                appendUserMessage(message.message || '', message.created_at || '', atts);
+            } else if (role === 'agent') {
+                appendAgentMessage(message.message || '', message.created_at || '', atts);
             } else if (role === 'bot' || role === 'assistant') {
                 appendBotMessage(message.message || '', false, null, message.created_at || '');
             }
+            var mid = parseInt(message.id, 10) || 0;
+            if (mid > lastAgentMsgId) lastAgentMsgId = mid;
         });
     }
 
@@ -1190,11 +1207,48 @@
         return wrap;
     }
 
-    function appendUserMessage(text, createdAt) {
+    function widgetAttachmentHtml(atts) {
+        if (!atts || !atts.length) return '';
+        var html = '<div class="chat-msg-attachments">';
+        atts.forEach(function (att) {
+            var url = appendVisitorToUrl(att.url || '');
+            if (att.is_image) {
+                html += '<a class="chat-msg-attach chat-msg-attach-image" href="' + escapeAttribute(url) + '" target="_blank" rel="noopener"><img src="' + escapeAttribute(url) + '" alt="' + escapeAttribute(att.original_name || '画像') + '"></a>';
+            } else {
+                var icon = att.kind === 'pdf' ? '📄' : (att.kind === 'word' ? '📝' : (att.kind === 'excel' ? '📊' : '📎'));
+                html += '<a class="chat-msg-attach chat-msg-attach-file" href="' + escapeAttribute(url) + '" target="_blank" rel="noopener">' + icon + ' ' + escapeHtml(att.original_name || 'ファイル') + '</a>';
+            }
+        });
+        html += '</div>';
+        return html;
+    }
+
+    function appendVisitorToUrl(url) {
+        if (!url) return '';
+        var sep = url.indexOf('?') === -1 ? '?' : '&';
+        return url + sep + 'session_id=' + encodeURIComponent(sessionId || '') + '&visitor_id=' + encodeURIComponent(visitorId || '');
+    }
+
+    function appendUserMessage(text, createdAt, attachments) {
         var wrap = document.createElement('div');
         wrap.className = 'chat-msg user';
         var time = formatMessageTime(createdAt);
-        wrap.innerHTML = '<div class="chat-msg-avatar"></div><div><div class="chat-msg-bubble">' + escapeHtml(text) + '</div><div class="chat-msg-time">' + time + '</div></div>';
+        var body = (text && text !== '[ファイルを送信しました]') ? escapeHtml(text) : '';
+        var atts = widgetAttachmentHtml(attachments);
+        wrap.innerHTML = '<div class="chat-msg-avatar"></div><div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div>';
+        messagesContainer.appendChild(wrap);
+        scrollMessagesToBottom();
+    }
+
+    // 担当（人間）のメッセージ。AIボットとは見た目を分け、担当者名ラベルを付ける。
+    function appendAgentMessage(text, createdAt, attachments) {
+        var wrap = document.createElement('div');
+        wrap.className = 'chat-msg agent';
+        var time = formatMessageTime(createdAt);
+        var img = agentPhoto ? '<img class="chat-msg-avatar" src="' + escapeAttribute(agentPhoto) + '" alt="">' : '<div class="chat-msg-avatar"></div>';
+        var body = (text && text !== '[ファイルを送信しました]') ? escapeHtml(text) : '';
+        var atts = widgetAttachmentHtml(attachments);
+        wrap.innerHTML = img + '<div class="chat-msg-content"><div class="chat-msg-agent-label">' + escapeHtml(agentName || '担当者') + '</div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div>';
         messagesContainer.appendChild(wrap);
         scrollMessagesToBottom();
     }
@@ -1203,6 +1257,126 @@
         var div = document.createElement('div');
         div.textContent = s;
         return div.innerHTML;
+    }
+
+    // ===== 担当連絡：担当からの新着ポーリング・通知・未読バッジ =====
+    function setContactTabBadge(count) {
+        if (!tabBar) return;
+        var btn = tabBar.querySelector('.chat-widget-tab[data-chat-tab="contact"]');
+        if (!btn) return;
+        var badge = btn.querySelector('.chat-tab-unread');
+        if (count > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'chat-tab-unread';
+                btn.appendChild(badge);
+            }
+            badge.textContent = count;
+        } else if (badge) {
+            badge.remove();
+        }
+    }
+
+    function notifyAgentMessage(text) {
+        // タブが非表示のときだけブラウザ通知（許可済みの場合）
+        try {
+            if (document.hidden && window.Notification && Notification.permission === 'granted') {
+                var n = new Notification((agentName || '担当者') + 'からのメッセージ', {
+                    body: (text || '').slice(0, 120),
+                    icon: agentPhoto || (siteBase + '/icon-192.png')
+                });
+                n.onclick = function () { window.focus(); n.close(); };
+            }
+        } catch (e) { /* 通知失敗は無視 */ }
+    }
+
+    function maybeRequestNotificationPermission() {
+        try {
+            if (window.Notification && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        } catch (e) { /* noop */ }
+    }
+
+    function pollAgentMessages() {
+        if (!sessionId) return;
+        var url = apiBase + '/customer/poll.php?session_id=' + encodeURIComponent(sessionId)
+            + '&visitor_id=' + encodeURIComponent(visitorId || '')
+            + '&since_id=' + lastAgentMsgId;
+        fetch(url)
+            .then(function (res) { return res.json().catch(function () { return { success: false }; }); })
+            .then(function (data) {
+                if (!data.success || !data.data) return;
+                var msgs = data.data.messages || [];
+                msgs.forEach(function (m) {
+                    var mid = parseInt(m.id, 10) || 0;
+                    if (mid <= lastAgentMsgId) return;
+                    lastAgentMsgId = mid;
+                    appendAgentMessage(m.message || '', m.created_at || '', m.attachments || []);
+                    notifyAgentMessage(m.message || '');
+                });
+                if (msgs.length) {
+                    // 画面を見ていない（パネル非表示 or タブ非アクティブ）ときはバッジを増やす
+                    if (panel.hidden || document.hidden || activeChatTab !== 'ai') {
+                        agentUnreadCount += msgs.length;
+                        setContactTabBadge(agentUnreadCount);
+                    }
+                }
+            })
+            .catch(function () { /* ネットワークエラーは無視して次回へ */ });
+    }
+
+    function startAgentPoll() {
+        stopAgentPoll();
+        agentPollTimer = setInterval(function () {
+            // アクティブ時は短間隔、非アクティブ時は間引く
+            if (document.hidden) {
+                if ((Date.now() / 1000 | 0) % 4 !== 0) return; // 約20秒に1回
+            }
+            pollAgentMessages();
+        }, 5000);
+    }
+
+    function stopAgentPoll() {
+        if (agentPollTimer) { clearInterval(agentPollTimer); agentPollTimer = null; }
+    }
+
+    // ===== 顧客側 添付アップロード =====
+    function renderPendingAttachments() {
+        if (!attachListEl) return;
+        if (!pendingAttachments.length) { attachListEl.innerHTML = ''; return; }
+        attachListEl.innerHTML = pendingAttachments.map(function (a, i) {
+            return '<span class="chat-widget-pending">' + escapeHtml(a.original_name || 'ファイル')
+                + ' <button type="button" data-idx="' + i + '" aria-label="削除">×</button></span>';
+        }).join('');
+        Array.prototype.forEach.call(attachListEl.querySelectorAll('button[data-idx]'), function (btn) {
+            btn.addEventListener('click', function () {
+                var idx = parseInt(btn.getAttribute('data-idx'), 10);
+                if (idx >= 0) { pendingAttachments.splice(idx, 1); renderPendingAttachments(); }
+            });
+        });
+    }
+
+    function uploadCustomerAttachment(file) {
+        if (!sessionId) { appendBotMessage('チャットの接続が完了してから添付してください。'); return; }
+        var fd = new FormData();
+        fd.append('session_id', sessionId);
+        fd.append('visitor_id', visitorId || '');
+        fd.append('uploaded_by', 'customer');
+        fd.append('file', file);
+        setVoiceStatus('ファイルをアップロード中...');
+        fetch(apiBase + '/attachment/upload.php', { method: 'POST', body: fd })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                setVoiceStatus('');
+                if (data.success && data.data) {
+                    pendingAttachments.push(data.data);
+                    renderPendingAttachments();
+                } else {
+                    appendBotMessage(data.message || 'ファイルのアップロードに失敗しました。');
+                }
+            })
+            .catch(function () { setVoiceStatus(''); appendBotMessage('ファイルのアップロードに失敗しました。'); });
     }
 
     var ADDRESS_PREFECTURES = '北海道|青森県|岩手県|宮城県|秋田県|山形県|福島県|茨城県|栃木県|群馬県|埼玉県|千葉県|東京都|神奈川県|新潟県|富山県|石川県|福井県|山梨県|長野県|岐阜県|静岡県|愛知県|三重県|滋賀県|京都府|大阪府|兵庫県|奈良県|和歌山県|鳥取県|島根県|岡山県|広島県|山口県|徳島県|香川県|愛媛県|高知県|福岡県|佐賀県|長崎県|熊本県|大分県|宮崎県|鹿児島県|沖縄県';
@@ -1306,7 +1480,8 @@
 
     function sendMessage(text, options) {
         options = options || {};
-        if (!text.trim() || sendingMessage) return;
+        var hasAttachments = pendingAttachments.length > 0;
+        if ((!text.trim() && !hasAttachments) || sendingMessage) return;
         if (isListening) {
             stopVoiceInput();
             return;
@@ -1318,13 +1493,22 @@
             return;
         }
 
+        var sentAttachments = pendingAttachments.slice();
+        var attachmentIds = sentAttachments.map(function (a) { return a.attachment_id; });
+        pendingAttachments = [];
+        renderPendingAttachments();
+
+        // 担当対応中（AI応答を止めている）かどうか。CRM状態に handoff があれば優先。
+        var agentMode = !!(startupData && startupData.handoff_mode === 'agent');
+
         sendingMessage = true;
         setInputEnabled(false);
-        appendUserMessage(text);
+        appendUserMessage(text, '', sentAttachments);
         inputEl.value = '';
-        var loadingRow = appendBotMessage('回答を考えています', true);
+        var loadingRow = (agentMode || !text.trim()) ? null : appendBotMessage('回答を考えています', true);
 
         var payload = { session_id: sessionId, visitor_id: visitorId, message: text };
+        if (attachmentIds.length) payload.attachment_ids = attachmentIds;
         if (options.buttonSelection) payload.button_selection = options.buttonSelection;
 
         fetch(apiBase + '/send.php', {
@@ -1338,7 +1522,7 @@
                 });
             })
             .then(function (data) {
-                loadingRow.remove();
+                if (loadingRow) loadingRow.remove();
                 var finishSend = function () {
                     sendingMessage = false;
                     setInputEnabled(true);
@@ -1346,6 +1530,13 @@
                     setVoiceStatus('');
                     inputEl.focus();
                 };
+                // 担当対応中：AI応答は返らず、担当者に届けられた。担当の返信はポーリングで届く。
+                if (data.success && data.data && data.data.agent_mode) {
+                    if (startupData) startupData.handoff_mode = 'agent';
+                    finishSend();
+                    pollAgentMessages();
+                    return;
+                }
                 if (data.success && data.data && (data.data.sms_auth_required || shouldOpenSmsAuthFromReply(data.data.reply, text))) {
                     sendingMessage = false;
                     updateVoiceButtonState();
@@ -1373,7 +1564,7 @@
             })
             .catch(function () {
                 sendingMessage = false;
-                loadingRow.remove();
+                if (loadingRow) loadingRow.remove();
                 appendBotMessage('送信に失敗しました。');
                 setInputEnabled(true);
                 updateVoiceButtonState();
@@ -1384,6 +1575,11 @@
     function setActiveChatTab(tab) {
         if (!tabBar) return;
         activeChatTab = tab || 'ai';
+        // AI担当タブ（担当の返信が表示される会話スレッド）を開いたら未読をクリア
+        if (activeChatTab === 'ai') {
+            agentUnreadCount = 0;
+            setContactTabBadge(0);
+        }
         Array.prototype.forEach.call(tabBar.querySelectorAll('.chat-widget-tab'), function (btn) {
             var active = btn.getAttribute('data-chat-tab') === tab;
             btn.classList.toggle('is-active', active);
@@ -1863,6 +2059,15 @@
     });
     if (voiceBtn) {
         voiceBtn.addEventListener('click', startVoiceInput);
+    }
+    if (attachBtn && fileInput) {
+        attachBtn.addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function () {
+            if (fileInput.files && fileInput.files[0]) {
+                uploadCustomerAttachment(fileInput.files[0]);
+                fileInput.value = '';
+            }
+        });
     }
     inputEl.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' && !e.shiftKey) {

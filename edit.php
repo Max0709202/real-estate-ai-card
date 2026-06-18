@@ -3431,6 +3431,34 @@ $defaultGreetings = [
             if (!listEl || !detailEl) return;
             var apiBase = window.location.origin + '/backend/api/chat';
             var currentDetailSessionId = '';
+            var agentChatLastMsgId = 0;
+            var agentChatPollTimer = null;
+            var agentChatHandoff = 'bot';
+            var agentChatPendingAttachments = [];
+            var agentChatBusy = false;
+
+            function attachmentHtml(att) {
+                if (!att) return '';
+                if (att.is_image) {
+                    return '<a class="chat-attach chat-attach-image" href="' + escapeHtml(att.url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(att.url) + '" alt="' + escapeHtml(att.original_name || '画像') + '"></a>';
+                }
+                var icon = att.kind === 'pdf' ? '📄' : (att.kind === 'word' ? '📝' : (att.kind === 'excel' ? '📊' : '📎'));
+                return '<a class="chat-attach chat-attach-file" href="' + escapeHtml(att.url) + '" target="_blank" rel="noopener">' + icon + ' ' + escapeHtml(att.original_name || 'ファイル') + '</a>';
+            }
+
+            function messageBubbleHtml(m) {
+                var role = m.role || '';
+                var who = role === 'user' ? 'お客様' : (role === 'agent' ? '自分' : (role === 'bot' || role === 'assistant' ? 'AI' : 'システム'));
+                var time = m.created_at ? new Date(String(m.created_at).replace(' ', 'T')).toLocaleString('ja-JP') : '';
+                var readMark = (role === 'agent' && m.read_at) ? '<span class="chat-thread-read">既読</span>' : '';
+                var atts = (m.attachments || []).map(attachmentHtml).join('');
+                var body = m.message && m.message !== '[ファイルを送信しました]' ? escapeHtml(m.message) : '';
+                return '<div class="chat-thread-msg chat-thread-' + escapeHtml(role) + '" data-msg-id="' + (parseInt(m.id, 10) || 0) + '">'
+                    + '<div class="chat-thread-meta"><span class="chat-thread-who">' + who + '</span><span class="chat-thread-time">' + escapeHtml(time) + '</span>' + readMark + '</div>'
+                    + (body ? '<div class="chat-thread-bubble">' + body + '</div>' : '')
+                    + (atts ? '<div class="chat-thread-attachments">' + atts + '</div>' : '')
+                    + '</div>';
+            }
 
             function loadSessions() {
                 listEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
@@ -3461,9 +3489,11 @@ $defaultGreetings = [
                             var contactBadge = s.has_contact ? ' <span class="chat-lead-badge">連絡先あり</span>' : '';
                             var loanBadge = s.has_loan_simulation ? ' <span class="chat-lead-badge chat-loan-badge">ローン入力あり</span>' : '';
                             var customerName = s.customer_name ? ' <span class="chat-session-customer">' + escapeHtml(s.customer_name) + '</span>' : '';
-                            html += '<li class="chat-session-item" data-session-id="' + escapeHtml(s.id || '') + '">';
+                            var unread = parseInt(s.unread_count, 10) || 0;
+                            var unreadBadge = unread > 0 ? ' <span class="chat-unread-badge" title="未読の顧客メッセージ">' + unread + '</span>' : '';
+                            html += '<li class="chat-session-item' + (unread > 0 ? ' chat-session-unread' : '') + '" data-session-id="' + escapeHtml(s.id || '') + '">';
                             html += '<label class="chat-session-select" aria-label="削除対象に選択"><input type="checkbox" class="chat-session-checkbox" value="' + escapeHtml(s.id || '') + '"></label>';
-                            html += '<div class="chat-session-main"><span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + customerName + leadBadge + contactBadge + loanBadge + '</div>';
+                            html += '<div class="chat-session-main"><span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + customerName + unreadBadge + leadBadge + contactBadge + loanBadge + '</div>';
                             html += '<span class="chat-session-meta">' + (s.message_count || 0) + '件</span>';
                             html += '<button type="button" class="chat-session-delete" data-session-id="' + escapeHtml(s.id || '') + '">削除</button>';
                             html += '</li>';
@@ -3651,16 +3681,207 @@ $defaultGreetings = [
                             });
                             html += '</div>';
                         }
-                        html += '<h4>会話履歴</h4><div class="chat-transcript">';
-                        (d.messages || []).forEach(function(m) {
-                            html += '<p><strong>' + (m.role === 'user' ? 'お客様' : 'ボット') + '</strong>: ' + escapeHtml(m.message) + '</p>';
-                        });
+                        agentChatHandoff = (d.session && d.session.handoff_mode) ? d.session.handoff_mode : 'bot';
+                        agentChatPendingAttachments = [];
+                        var msgs = d.messages || [];
+                        agentChatLastMsgId = msgs.length ? (parseInt(msgs[msgs.length - 1].id, 10) || 0) : 0;
+
+                        html += '<h4>担当連絡（チャット）</h4>';
+                        html += '<div class="chat-thread" id="agent-chat-thread">';
+                        msgs.forEach(function(m) { html += messageBubbleHtml(m); });
                         html += '</div>';
+
+                        html += '<div class="chat-compose">';
+                        html += '<div class="chat-compose-toolbar">';
+                        html += '<button type="button" class="btn-secondary" id="agent-chat-auto">自動回答作成</button>';
+                        html += '<button type="button" class="btn-secondary" id="agent-chat-polish">ブラッシュアップ</button>';
+                        html += '<label class="chat-compose-attach btn-secondary">添付<input type="file" id="agent-chat-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" hidden></label>';
+                        html += '<label class="chat-compose-handoff"><input type="checkbox" id="agent-chat-handoff"' + (agentChatHandoff === 'agent' ? ' checked' : '') + '> 担当対応中（AI自動応答を止める）</label>';
+                        html += '</div>';
+                        html += '<div class="chat-compose-attach-list" id="agent-chat-attach-list"></div>';
+                        html += '<textarea id="agent-chat-input" class="chat-compose-input" rows="3" placeholder="顧客へのメッセージを入力。「自動回答作成」で文案を生成、「ブラッシュアップ」で推敲できます。"></textarea>';
+                        html += '<div class="chat-compose-actions"><span class="chat-compose-status" id="agent-chat-status"></span><button type="button" class="btn-primary" id="agent-chat-send">送信</button></div>';
+                        html += '</div>';
+
                         detailContent.innerHTML = html;
+                        initAgentChat(sessionId);
                     })
                     .catch(function() {
                         detailContent.innerHTML = '<p>取得に失敗しました。</p>';
                     });
+            }
+
+            function setAgentStatus(msg) {
+                var el = document.getElementById('agent-chat-status');
+                if (el) el.textContent = msg || '';
+            }
+
+            function renderPendingAttachments() {
+                var listEl = document.getElementById('agent-chat-attach-list');
+                if (!listEl) return;
+                if (!agentChatPendingAttachments.length) { listEl.innerHTML = ''; return; }
+                listEl.innerHTML = agentChatPendingAttachments.map(function(a, i) {
+                    return '<span class="chat-pending-attach">' + escapeHtml(a.original_name || 'ファイル')
+                        + ' <button type="button" data-idx="' + i + '" class="chat-pending-remove" aria-label="削除">×</button></span>';
+                }).join('');
+                listEl.querySelectorAll('.chat-pending-remove').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        var idx = parseInt(btn.getAttribute('data-idx'), 10);
+                        if (idx >= 0) { agentChatPendingAttachments.splice(idx, 1); renderPendingAttachments(); }
+                    });
+                });
+            }
+
+            function uploadAgentAttachment(file, sessionId) {
+                var fd = new FormData();
+                fd.append('session_id', sessionId);
+                fd.append('uploaded_by', 'agent');
+                fd.append('file', file);
+                setAgentStatus('アップロード中...');
+                return fetch(apiBase + '/attachment/upload.php', { method: 'POST', credentials: 'include', body: fd })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (res.success && res.data) {
+                            agentChatPendingAttachments.push(res.data);
+                            renderPendingAttachments();
+                            setAgentStatus('');
+                        } else {
+                            setAgentStatus(res.message || 'アップロードに失敗しました');
+                        }
+                    })
+                    .catch(function() { setAgentStatus('アップロードに失敗しました'); });
+            }
+
+            function requestReplyDraft(mode, sessionId) {
+                var input = document.getElementById('agent-chat-input');
+                setAgentStatus(mode === 'auto' ? '文案を生成中...' : '推敲中...');
+                fetch(apiBase + '/reply-draft.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ session_id: sessionId, mode: mode, message: input ? input.value : '' })
+                })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (res.success && res.data && res.data.draft) {
+                            if (input) { input.value = res.data.draft; input.focus(); }
+                            setAgentStatus('文案を入力欄に反映しました。確認・修正のうえ送信してください。');
+                        } else {
+                            setAgentStatus(res.message || '生成に失敗しました');
+                        }
+                    })
+                    .catch(function() { setAgentStatus('生成に失敗しました'); });
+            }
+
+            function sendAgentMessage(sessionId) {
+                if (agentChatBusy) return;
+                var input = document.getElementById('agent-chat-input');
+                var text = input ? input.value.trim() : '';
+                if (!text && !agentChatPendingAttachments.length) { setAgentStatus('メッセージか添付を入力してください'); return; }
+                agentChatBusy = true;
+                setAgentStatus('送信中...');
+                var attachmentIds = agentChatPendingAttachments.map(function(a) { return a.attachment_id; });
+                fetch(apiBase + '/agent/send.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ session_id: sessionId, message: text, attachment_ids: attachmentIds })
+                })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        agentChatBusy = false;
+                        if (res.success && res.data) {
+                            if (input) input.value = '';
+                            agentChatPendingAttachments = [];
+                            renderPendingAttachments();
+                            setAgentStatus('');
+                            agentChatHandoff = 'agent';
+                            var handoffCb = document.getElementById('agent-chat-handoff');
+                            if (handoffCb) handoffCb.checked = true;
+                            // 送信した発言を即時表示
+                            var thread = document.getElementById('agent-chat-thread');
+                            if (thread) {
+                                thread.insertAdjacentHTML('beforeend', messageBubbleHtml({
+                                    id: res.data.message_id, role: 'agent', message: text,
+                                    created_at: res.data.created_at, attachments: res.data.attachments || []
+                                }));
+                                thread.scrollTop = thread.scrollHeight;
+                            }
+                            agentChatLastMsgId = Math.max(agentChatLastMsgId, parseInt(res.data.message_id, 10) || 0);
+                        } else {
+                            setAgentStatus(res.message || '送信に失敗しました');
+                        }
+                    })
+                    .catch(function() { agentChatBusy = false; setAgentStatus('送信に失敗しました'); });
+            }
+
+            function agentChatPoll(sessionId) {
+                fetch(apiBase + '/agent/poll.php?session_id=' + encodeURIComponent(sessionId) + '&since_id=' + agentChatLastMsgId, { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (!res.success || !res.data) return;
+                        var msgs = res.data.messages || [];
+                        var thread = document.getElementById('agent-chat-thread');
+                        var gotCustomer = false;
+                        msgs.forEach(function(m) {
+                            var id = parseInt(m.id, 10) || 0;
+                            if (id <= agentChatLastMsgId) return;
+                            agentChatLastMsgId = id;
+                            if (m.role === 'user') gotCustomer = true;
+                            // 自分が送った agent 発言は送信時に描画済みなので重複回避
+                            if (thread && !thread.querySelector('[data-msg-id="' + id + '"]')) {
+                                thread.insertAdjacentHTML('beforeend', messageBubbleHtml(m));
+                            }
+                        });
+                        if (msgs.length && thread) thread.scrollTop = thread.scrollHeight;
+                        // 顧客の新着が届いたら既読化
+                        if (gotCustomer) {
+                            fetch(apiBase + '/agent/read.php', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                                body: JSON.stringify({ session_id: sessionId })
+                            });
+                        }
+                    })
+                    .catch(function() {});
+            }
+
+            function stopAgentChatPoll() {
+                if (agentChatPollTimer) { clearInterval(agentChatPollTimer); agentChatPollTimer = null; }
+            }
+
+            function initAgentChat(sessionId) {
+                stopAgentChatPoll();
+                renderPendingAttachments();
+                // 開いた時点で顧客発言を既読化
+                fetch(apiBase + '/agent/read.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ session_id: sessionId })
+                }).catch(function() {});
+
+                var autoBtn = document.getElementById('agent-chat-auto');
+                var polishBtn = document.getElementById('agent-chat-polish');
+                var sendBtn = document.getElementById('agent-chat-send');
+                var fileInput = document.getElementById('agent-chat-file');
+                var handoffCb = document.getElementById('agent-chat-handoff');
+                if (autoBtn) autoBtn.addEventListener('click', function() { requestReplyDraft('auto', sessionId); });
+                if (polishBtn) polishBtn.addEventListener('click', function() { requestReplyDraft('polish', sessionId); });
+                if (sendBtn) sendBtn.addEventListener('click', function() { sendAgentMessage(sessionId); });
+                if (fileInput) fileInput.addEventListener('change', function() {
+                    if (fileInput.files && fileInput.files[0]) { uploadAgentAttachment(fileInput.files[0], sessionId); fileInput.value = ''; }
+                });
+                if (handoffCb) handoffCb.addEventListener('change', function() {
+                    var mode = handoffCb.checked ? 'agent' : 'bot';
+                    agentChatHandoff = mode;
+                    fetch(apiBase + '/agent/read.php', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                        body: JSON.stringify({ session_id: sessionId, mode: mode })
+                    }).catch(function() {});
+                });
+
+                agentChatPollTimer = setInterval(function() {
+                    if (document.hidden) return;
+                    agentChatPoll(sessionId);
+                }, 5000);
             }
 
             function deleteSessionRequest(sessionId) {
@@ -3682,6 +3903,7 @@ $defaultGreetings = [
                             return;
                         }
                         if (currentDetailSessionId === sessionId) {
+                            stopAgentChatPoll();
                             currentDetailSessionId = '';
                             detailEl.style.display = 'none';
                             listEl.style.display = '';
@@ -3720,6 +3942,7 @@ $defaultGreetings = [
                     });
                 }, Promise.resolve()).then(function() {
                     if (currentDetailSessionId && selectedIds.indexOf(currentDetailSessionId) !== -1) {
+                        stopAgentChatPoll();
                         currentDetailSessionId = '';
                         detailEl.style.display = 'none';
                         listEl.style.display = '';
@@ -3739,6 +3962,7 @@ $defaultGreetings = [
 
             if (backBtn) {
                 backBtn.addEventListener('click', function() {
+                    stopAgentChatPoll();
                     detailEl.style.display = 'none';
                     currentDetailSessionId = '';
                     listEl.style.display = '';
@@ -3752,6 +3976,34 @@ $defaultGreetings = [
                     setTimeout(loadSessions, 300);
                 });
             }
+
+            // チャット履歴メニューの未読件数バッジ（全セッション横断）
+            function updateNavUnreadBadge() {
+                if (!navChat) return;
+                fetch(apiBase + '/agent/poll.php', { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (!res.success || !res.data) return;
+                        var total = parseInt(res.data.total_unread, 10) || 0;
+                        var label = navChat.querySelector('.step-label');
+                        if (!label) return;
+                        var badge = label.querySelector('.chat-nav-unread');
+                        if (total > 0) {
+                            if (!badge) {
+                                badge = document.createElement('span');
+                                badge.className = 'chat-nav-unread chat-unread-badge';
+                                label.appendChild(badge);
+                            }
+                            badge.textContent = total;
+                        } else if (badge) {
+                            badge.remove();
+                        }
+                    })
+                    .catch(function() {});
+            }
+            updateNavUnreadBadge();
+            setInterval(function() { if (!document.hidden) updateNavUnreadBadge(); }, 15000);
+
             loadSessions();
         })();
 

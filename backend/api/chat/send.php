@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../includes/openai-chat-helper.php';
 require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../includes/chat-crm-helper.php';
+require_once __DIR__ . '/../../includes/agent-messaging-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -30,19 +31,23 @@ $sessionId = trim($input['session_id'] ?? '');
 $message = trim($input['message'] ?? '');
 $visitorId = trim($input['visitor_id'] ?? '');
 $buttonSelection = isset($input['button_selection']) && is_array($input['button_selection']) ? $input['button_selection'] : null;
+$attachmentIds = isset($input['attachment_ids']) && is_array($input['attachment_ids']) ? $input['attachment_ids'] : [];
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
     $visitorId = '';
 }
 
-if ($sessionId === '' || $message === '') {
+if ($sessionId === '' || ($message === '' && empty($attachmentIds))) {
     sendErrorResponse('session_id and message are required', 400);
+}
+if ($message === '' && !empty($attachmentIds)) {
+    $message = '[ファイルを送信しました]';
 }
 
 try {
     $database = new Database();
     $db = $database->getConnection();
 
-    $stmt = $db->prepare("SELECT id, business_card_id FROM chat_sessions WHERE id = ?");
+    $stmt = $db->prepare("SELECT id, business_card_id, handoff_mode FROM chat_sessions WHERE id = ?");
     $stmt->execute([$sessionId]);
     $session = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -52,6 +57,25 @@ try {
     if ($visitorId !== '') {
         $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?) WHERE id = ?");
         $stmt->execute([$visitorId, $sessionId]);
+    }
+
+    // 担当が会話に参加中（ハンドオフ=agent）の場合は、AIの自動応答を行わず
+    // 顧客発言を担当への未読メッセージとして保存するだけにする。
+    if (($session['handoff_mode'] ?? 'bot') === 'agent') {
+        $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'user', ?)");
+        $stmt->execute([$sessionId, $message]);
+        $userMessageId = (int)$db->lastInsertId();
+        if (!empty($attachmentIds)) {
+            agentMsgAttachMessageId($db, $attachmentIds, $userMessageId, $sessionId, 'customer');
+        }
+        $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$sessionId]);
+        sendSuccessResponse([
+            'reply' => '',
+            'agent_mode' => true,
+            'sources' => [],
+            'quick_replies' => [],
+        ], '担当者にお伝えしました');
     }
 
     $stmt = $db->prepare("SELECT * FROM business_cards WHERE id = ?");
@@ -71,6 +95,9 @@ try {
     // Save user message
     $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'user', ?)");
     $stmt->execute([$sessionId, $message]);
+    if (!empty($attachmentIds)) {
+        agentMsgAttachMessageId($db, $attachmentIds, (int)$db->lastInsertId(), $sessionId, 'customer');
+    }
 
     // Give the model the actual conversation so it analyzes the user's own sentences rather than a
     // mechanical keyword digest. For recap/summary requests, load the whole conversation so "まとめて"

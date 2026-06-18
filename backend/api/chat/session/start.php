@@ -141,9 +141,16 @@ try {
 
 条件整理を続ける場合は、下の選択肢から近いものを選べます。無理に答えなくても大丈夫ですし、そのまま自由に質問していただいても大丈夫です。");
     }
+    $handoffMode = 'bot';
+    try {
+        $stmt = $db->prepare("SELECT handoff_mode FROM chat_sessions WHERE id = ? LIMIT 1");
+        $stmt->execute([$sessionId]);
+        $handoffMode = (string)($stmt->fetchColumn() ?: 'bot');
+    } catch (Throwable $e) { /* 既定 bot */ }
     $data = [
         'session_id' => $sessionId,
         'visitor_id' => $visitorId,
+        'handoff_mode' => $handoffMode,
         'is_resumed' => $isResumed,
         'messages' => $messages,
         'has_previous_messages' => $hasPreviousMessages,

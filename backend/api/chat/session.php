@@ -12,6 +12,7 @@ require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
 require_once __DIR__ . '/../../includes/chat-crm-helper.php';
+require_once __DIR__ . '/../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -30,7 +31,7 @@ try {
     $db = $database->getConnection();
 
     $stmt = $db->prepare("
-        SELECT cs.id, cs.business_card_id, cs.last_seen_at, cs.created_at,
+        SELECT cs.id, cs.business_card_id, cs.last_seen_at, cs.created_at, cs.handoff_mode,
                bc.name as card_holder_name
         FROM chat_sessions cs
         JOIN business_cards bc ON bc.id = cs.business_card_id
@@ -43,9 +44,14 @@ try {
         sendErrorResponse('セッションが見つかりません', 404);
     }
 
-    $stmt = $db->prepare("SELECT id, role, message, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC");
+    $stmt = $db->prepare("SELECT id, role, sender_user_id, message, read_at, created_at FROM chat_messages WHERE session_id = ? ORDER BY id ASC");
     $stmt->execute([$sessionId]);
     $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($messages) {
+        $attach = agentMsgLoadAttachments($db, array_column($messages, 'id'));
+        foreach ($messages as &$mRow) { $mRow['attachments'] = $attach[(int)$mRow['id']] ?? []; }
+        unset($mRow);
+    }
 
     $stmt = $db->prepare("SELECT structured_data, consent_given, created_at, updated_at FROM chat_leads WHERE session_id = ?");
     $stmt->execute([$sessionId]);

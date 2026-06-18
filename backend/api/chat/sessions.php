@@ -24,9 +24,12 @@ try {
     ensureChatLeadContactTable($db);
 
     $sql = "
-        SELECT cs.id, cs.business_card_id, cs.last_seen_at, cs.created_at,
+        SELECT cs.id, cs.business_card_id, cs.last_seen_at, cs.created_at, cs.handoff_mode,
                bc.name as card_holder_name,
                (SELECT COUNT(*) FROM chat_messages cm WHERE cm.session_id = cs.id) as message_count,
+               (SELECT COUNT(*) FROM chat_messages cmu WHERE cmu.session_id = cs.id AND cmu.role = 'user' AND cmu.read_at IS NULL) as unread_count,
+               (SELECT cml.created_at FROM chat_messages cml WHERE cml.session_id = cs.id ORDER BY cml.id DESC LIMIT 1) as last_message_at,
+               (SELECT cmlr.role FROM chat_messages cmlr WHERE cmlr.session_id = cs.id ORDER BY cmlr.id DESC LIMIT 1) as last_message_role,
                (SELECT cl.id FROM chat_leads cl WHERE cl.session_id = cs.id LIMIT 1) as has_lead,
                (SELECT cc.id FROM chat_lead_contacts cc WHERE cc.session_id = cs.id LIMIT 1) as has_contact,
                (SELECT cc.customer_name FROM chat_lead_contacts cc WHERE cc.session_id = cs.id LIMIT 1) as customer_name
@@ -39,7 +42,8 @@ try {
         $sql .= " AND cs.business_card_id = ?";
         $params[] = $cardId;
     }
-    $sql .= " ORDER BY cs.last_seen_at DESC LIMIT 200";
+    // 未読（要返信）を最優先で上位表示し、その中で新しい順に並べる
+    $sql .= " ORDER BY (unread_count > 0) DESC, last_message_at DESC, cs.last_seen_at DESC LIMIT 200";
 
     $stmt = $db->prepare($sql);
     $stmt->execute($params);

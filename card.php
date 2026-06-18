@@ -1331,9 +1331,14 @@ if (!empty($card['profile_photo'])) {
                             </svg>
                         </span>
                     </button>
+                    <button type="button" id="chat-widget-attach" class="chat-widget-attach" aria-label="ファイルを添付" title="ファイルを添付">
+                        <span aria-hidden="true">＋</span>
+                    </button>
+                    <input type="file" id="chat-widget-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" hidden>
                     <button type="button" id="chat-widget-send" class="chat-widget-send" aria-label="送信"><span>送信</span><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/send.png" alt="" class="chat-widget-send-icon" aria-hidden="true"></button>
                 </div>
             </div>
+            <div id="chat-widget-attach-list" class="chat-widget-attach-list"></div>
             <div id="chat-widget-voice-status" class="chat-widget-voice-status" aria-live="polite" hidden></div>
             <nav class="chat-widget-tabbar" aria-label="チャットメニュー">
                 <button type="button" class="chat-widget-tab is-active" data-chat-tab="ai" aria-current="page"><span class="chat-widget-tab-icon" aria-hidden="true"><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/ai.png" alt="" loading="lazy"></span><span>AI担当</span></button>

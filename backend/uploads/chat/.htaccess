@@ -1,0 +1,9 @@
+# 担当連絡の添付は download.php（認証付きプロキシ）経由でのみ配信する。
+# 直接の HTTP アクセスは全面的に禁止（ファイルはサーバ内のファイルシステムから読み出す）。
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>
