@@ -491,6 +491,12 @@ try {
     $stripeCustomerId = '';
 }
 
+// 利用者（決済済みで名刺が稼働中のユーザー）かどうか。
+// 利用者は「チャット履歴・顧客一覧」を最初に表示する。未利用者・ゲストは従来どおりヘッダー・挨拶から開始。
+$isUtilizingUser = !$isGuestAccess
+    && !empty($userId)
+    && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true);
+
 // Default greeting messages
 $defaultGreetings = [
     [
@@ -773,7 +779,7 @@ $defaultGreetings = [
         <div class="edit-content">
             <div class="edit-sidebar">
                 <nav class="edit-nav">
-                    <a href="#header-greeting" class="nav-item active" data-step="1" data-section="header-greeting-section">
+                    <a href="#header-greeting" class="nav-item<?php echo $isUtilizingUser ? '' : ' active'; ?>" data-step="1" data-section="header-greeting-section">
                         <span class="step-number">1/7</span>
                         <span class="step-label">ヘッダー・挨拶</span>
                     </a>
@@ -801,7 +807,7 @@ $defaultGreetings = [
                         <span class="step-number">7/7</span>
                         <span class="step-label">決済</span>
                     </a>
-                    <a href="#chat-history" class="nav-item" data-step="chat" data-section="chat-history-section">
+                    <a href="#chat-history" class="nav-item<?php echo $isUtilizingUser ? ' active' : ''; ?>" data-step="chat" data-section="chat-history-section">
                         <span class="step-label">チャット履歴</span>
                     </a>
                     <a href="#agent-training" class="nav-item" data-step="agent" data-section="agent-training-section">
@@ -812,7 +818,7 @@ $defaultGreetings = [
 
             <div class="edit-main">
                 <!-- Step 1: Header & Greeting -->
-                <div id="header-greeting-section" class="edit-section active">
+                <div id="header-greeting-section" class="edit-section<?php echo $isUtilizingUser ? '' : ' active'; ?>"<?php echo $isUtilizingUser ? ' style="display: none;"' : ''; ?>>
                     <h2>ヘッダー・挨拶部</h2>
                     <p class="step-description">会社情報とご挨拶文を入力してください</p>
                     <form id="header-greeting-form" class="edit-form">
@@ -1480,7 +1486,7 @@ $defaultGreetings = [
                 </div>
 
                 <!-- Chat history / Leads (My Page) -->
-                <div id="chat-history-section" class="edit-section" style="display: none;">
+                <div id="chat-history-section" class="edit-section<?php echo $isUtilizingUser ? ' active' : ''; ?>"<?php echo $isUtilizingUser ? '' : ' style="display: none;"'; ?>>
                     <h2>チャット履歴・顧客一覧</h2>
                     <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。</p>
                     <div id="chat-history-list" class="chat-history-list">
