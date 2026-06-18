@@ -345,6 +345,21 @@ function chatNormalizeMansionSearchTerm($term) {
     return $term;
 }
 
+/**
+ * Whether a message is just a building name typed on its own (no field word, no
+ * intent, no sentence) — e.g. "キャピタルコータス南砂". These should still trigger a
+ * DB lookup. Kept conservative (must contain カタカナ, be short, and not look like
+ * a generic real-estate question) so general chat is not hijacked.
+ */
+function chatMansionLooksLikeBareName($message) {
+    $m = trim((string)$message);
+    if ($m === '' || mb_strlen($m) > 40) return false;
+    if (preg_match('/[。、，,．.！!？?\n]/u', $m)) return false;
+    if (!preg_match('/[ァ-ヶｦ-ﾟ]/u', $m)) return false;
+    if (preg_match('/(相場|価格|地価|ローン|いくら|教えて|どこ|おすすめ|ランキング|探|住みたい|エリア|周辺|近く|物件は|物件を|物件が)/u', $m)) return false;
+    return true;
+}
+
 function chatExtractMansionSearchTerms($message) {
     $message = trim((string)$message);
     $terms = [];
@@ -378,11 +393,85 @@ function chatExtractMansionSearchTerms($message) {
     if (empty($terms) && preg_match('/(どこ|場所|所在|について|教えて|調べて|知りたい|検索)/u', $message)) {
         $cand = preg_replace('/(?:について|に関して)?\s*(?:の(?:住所|場所|所在地))?\s*(?:は|を|って|の)?\s*(?:どこ(?:に(?:ある|あります))?(?:か|ですか)?|場所|所在地?|教えて|調べて|検索して|知りたい|ですか|でしょうか|ください|下さい|お願いします)?[\s。、,，.\?？！!]*$/u', '', $message);
         $cand = chatNormalizeMansionSearchTerm($cand);
-        if ($cand !== '' && mb_strlen($cand) >= 4 && preg_match('/[ァ-ヶ]/u', $cand)) {
+        if ($cand !== '' && mb_strlen($cand) >= 4 && preg_match('/[ァ-ヶｦ-ﾟ]/u', $cand)) {
             $terms[] = $cand;
         }
     }
+    // Bare proper-noun query (just a building name, no field/intent word).
+    if (empty($terms) && chatMansionLooksLikeBareName($message)) {
+        $cand = chatNormalizeMansionSearchTerm($message);
+        if ($cand !== '') $terms[] = $cand;
+    }
     return array_values(array_unique(array_filter($terms)));
+}
+
+/** Unicode script class of a single character, for tokenizing building names. */
+function chatMansionCharClass($ch) {
+    $cp = function_exists('mb_ord') ? mb_ord($ch, 'UTF-8') : ord($ch);
+    if ($cp === false) return 'other';
+    if (($cp >= 0x4E00 && $cp <= 0x9FFF) || $cp === 0x3005 || $cp === 0x3006) return 'han';
+    if (($cp >= 0x3040 && $cp <= 0x30FF) || ($cp >= 0xFF66 && $cp <= 0xFF9F)) return 'kana';
+    if (($cp >= 0x30 && $cp <= 0x39) || ($cp >= 0x41 && $cp <= 0x5A) || ($cp >= 0x61 && $cp <= 0x7A)
+        || ($cp >= 0xFF10 && $cp <= 0xFF19) || ($cp >= 0xFF21 && $cp <= 0xFF3A) || ($cp >= 0xFF41 && $cp <= 0xFF5A)) return 'alnum';
+    return 'other';
+}
+
+/**
+ * Split a building-name query into normalized tokens, breaking on spaces, 中黒,
+ * punctuation AND script transitions (漢字 / かな / 英数). This makes matching
+ * word-order independent: "キャピタルコータス南砂" → [キャピタルコタス, 南砂] which
+ * matches the stored "南砂キャピタルコータース" (= [南砂, キャピタルコタス]) even
+ * though the order differs and a contiguous substring match would fail.
+ */
+function chatMansionTokenizeForMatch($s) {
+    $s = preg_replace('/[\s\x{3000}・･,，、。.／\/「」『』（）()\[\]【】’‘\'＆&]+/u', ' ', (string)$s);
+    $tokens = [];
+    foreach (preg_split('/\s+/u', trim($s)) as $word) {
+        if ($word === '') continue;
+        $chars = preg_split('//u', $word, -1, PREG_SPLIT_NO_EMPTY);
+        $cur = '';
+        $curClass = null;
+        foreach ($chars as $ch) {
+            $cls = chatMansionCharClass($ch);
+            if ($curClass !== null && $cls !== $curClass && !($cls === 'other' || $curClass === 'other')) {
+                $n = chatMansionNormalizeText($cur);
+                if ($n !== '' && mb_strlen($n) >= 2) $tokens[] = $n;
+                $cur = '';
+            }
+            $cur .= $ch;
+            $curClass = $cls;
+        }
+        $n = chatMansionNormalizeText($cur);
+        if ($n !== '' && mb_strlen($n) >= 2) $tokens[] = $n;
+    }
+    return array_values(array_unique($tokens));
+}
+
+/**
+ * True when the matched row genuinely corresponds to the query: every query token
+ * must appear in the row's normalized name+address. For a bare proper-noun query
+ * (no field keyword) we additionally require ≥2 tokens, so an ambiguous single
+ * word like "ライオンズ" never yields one confidently-wrong building.
+ */
+function chatMansionRowConfident($row, $terms, $requireMultiToken = false) {
+    $tokens = [];
+    foreach ((array)$terms as $t) {
+        foreach (chatMansionTokenizeForMatch($t) as $tok) $tokens[] = $tok;
+    }
+    $tokens = array_values(array_unique($tokens));
+    if (empty($tokens)) return false;
+    if ($requireMultiToken && count($tokens) < 2) return false;
+    // Strict (bare-name) match looks at the building NAME only, so a district token
+    // that merely matches the address (e.g. "東京タワー" → some 東京 building) cannot
+    // produce a confident answer. Field-word queries allow name+address.
+    $hay = $requireMultiToken
+        ? chatMansionNormalizeText($row['building_name'] ?? '')
+        : chatMansionNormalizeText(($row['building_name'] ?? '') . ' ' . ($row['full_address'] ?? ''));
+    if ($hay === '') return false;
+    foreach ($tokens as $tok) {
+        if (mb_strpos($hay, $tok) === false) return false;
+    }
+    return true;
 }
 
 function chatMansionDbSearchRows($db, $terms, $limit = 5) {
@@ -393,21 +482,55 @@ function chatMansionDbSearchRows($db, $terms, $limit = 5) {
     foreach (array_slice((array)$terms, 0, 4) as $term) {
         $term = chatNormalizeMansionSearchTerm($term);
         if ($term === '') continue;
-        // Canonical 表記ブレ-insensitive match against the normalized columns, with
-        // a raw building_name LIKE kept as a recall fallback (collation already
-        // folds 全半角/かな/大小文字 there). name_norm/search_norm collapse spaces,
-        // 中黒, 長音, ハイフン, 記号 so those variants all hit the same row.
+        // Canonical 表記ブレ-insensitive match. name_norm/search_norm collapse
+        // spaces, 中黒, 長音, ハイフン, 記号; raw building_name is a recall fallback
+        // (collation folds 全半角/かな/大小文字). Token AND-matching additionally
+        // makes word order irrelevant ("A南砂" ⇔ "南砂A").
         $norm = chatMansionNormalizeText($term);
         if ($norm === '') continue;
-        $nlike = '%' . $norm . '%';
-        $nprefix = $norm . '%';
-        $rawLike = '%' . $term . '%';
-        $stmt = $db->prepare("SELECT building_name, postal_code, prefecture, city, town, address_detail, full_address, structure, floors_above, floors_below, built_year_month, total_units, nearest_line, nearest_station, nearest_access_method, nearest_minutes, transports_json
+        $tokens = chatMansionTokenizeForMatch($term);
+
+        $where = ['name_norm LIKE :n_sub', 'search_norm LIKE :s_sub', 'building_name LIKE :raw'];
+        $params = [':n_sub' => '%' . $norm . '%', ':s_sub' => '%' . $norm . '%', ':raw' => '%' . $term . '%'];
+        // Token AND-match. Placeholders are duplicated between WHERE and ORDER BY,
+        // and this PDO connection has emulated prepares off (each placeholder must
+        // be bound exactly once), so use a separate :ont* set for the ORDER BY copy.
+        $nameAndWhere = '1=0';
+        $nameAndOrder = '1=0';
+        if (count($tokens) >= 2) {
+            $nameAnd = [];
+            $nameAndOrd = [];
+            $searchAnd = [];
+            foreach ($tokens as $i => $tok) {
+                $nameAnd[] = "name_norm LIKE :nt{$i}";
+                $nameAndOrd[] = "name_norm LIKE :ont{$i}";
+                $searchAnd[] = "search_norm LIKE :st{$i}";
+                $params[":nt{$i}"] = '%' . $tok . '%';
+                $params[":ont{$i}"] = '%' . $tok . '%';
+                $params[":st{$i}"] = '%' . $tok . '%';
+            }
+            $nameAndWhere = '(' . implode(' AND ', $nameAnd) . ')';
+            $nameAndOrder = '(' . implode(' AND ', $nameAndOrd) . ')';
+            $where[] = $nameAndWhere;
+            $where[] = '(' . implode(' AND ', $searchAnd) . ')';
+        }
+        $params[':neq'] = $norm;
+        $params[':npre'] = $norm . '%';
+        $params[':s_sub2'] = '%' . $norm . '%';
+
+        $sql = "SELECT building_name, postal_code, prefecture, city, town, address_detail, full_address, structure, floors_above, floors_below, built_year_month, total_units, nearest_line, nearest_station, nearest_access_method, nearest_minutes, transports_json
             FROM mansion_buildings
-            WHERE name_norm LIKE :n1 OR search_norm LIKE :n2 OR building_name LIKE :raw
-            ORDER BY CASE WHEN name_norm = :neq THEN 0 WHEN name_norm LIKE :n3 THEN 1 WHEN search_norm LIKE :n4 THEN 2 ELSE 3 END, id ASC
-            LIMIT {$limit}");
-        $stmt->execute([':n1' => $nlike, ':n2' => $nlike, ':raw' => $rawLike, ':neq' => $norm, ':n3' => $nprefix, ':n4' => $nlike]);
+            WHERE " . implode(' OR ', $where) . "
+            ORDER BY CASE
+                WHEN name_norm = :neq THEN 0
+                WHEN name_norm LIKE :npre THEN 1
+                WHEN {$nameAndOrder} THEN 2
+                WHEN search_norm LIKE :s_sub2 THEN 3
+                ELSE 4 END,
+                CHAR_LENGTH(name_norm) ASC, id ASC
+            LIMIT {$limit}";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $key = ($row['building_name'] ?? '') . '|' . ($row['full_address'] ?? '');
             if ($key === '|' || isset($seen[$key])) continue;
@@ -522,16 +645,26 @@ function chatMansionDbContext($db, $message, $force = false) {
 
 function chatMansionDbDirectAnswer($db, $message) {
     if (!$db instanceof PDO) return null;
-    if (!preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|築|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|住所|所在地|所在|アクセス|どこ|場所|について|教えて|調べて|知りたい|検索)/u', (string)$message)) return null;
+    $hasKeyword = (bool)preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|築|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|住所|所在地|所在|アクセス|どこ|場所|について|教えて|調べて|知りたい|検索)/u', (string)$message);
+    $isBareName = chatMansionLooksLikeBareName($message);
+    if (!$hasKeyword && !$isBareName) return null;
     $terms = chatExtractMansionSearchTerms($message);
     if (empty($terms) || !chatMansionTermLooksSpecific($terms, $message)) return null;
     $fields = chatMansionRequestedFields($message);
-    if (empty($fields)) return null;
+    // A bare building name ("○○タワー") is treated as an overview request.
+    if (empty($fields)) {
+        if (!$isBareName) return null;
+        $fields = ['address', 'built', 'station', 'structure', 'floors', 'units'];
+    }
 
     try {
         $rows = chatMansionDbSearchRows($db, $terms, 3);
         if (empty($rows)) return null;
         $row = $rows[0];
+        // Only answer when the top row genuinely matches the query (all tokens present
+        // in its name+address). For a bare name we also require ≥2 tokens so an
+        // ambiguous single word never produces one confidently-wrong building.
+        if (!chatMansionRowConfident($row, $terms, $isBareName && !$hasKeyword)) return null;
         $facts = chatMansionFormatFacts($row, $fields);
         if (empty($facts)) return null;
 
