@@ -42,11 +42,11 @@ try {
         sendErrorResponse('セッションを確認できません', 403);
     }
 
-    // 担当の新着発言を取得
+    // 担当の新着発言を取得（担当連絡チャネルの人間担当発言のみ）
     $stmt = $db->prepare("
         SELECT id, role, message, created_at
         FROM chat_messages
-        WHERE session_id = ? AND role = 'agent' AND id > ?
+        WHERE session_id = ? AND role = 'agent' AND channel = 'contact' AND id > ?
         ORDER BY id ASC LIMIT 200
     ");
     $stmt->execute([$sessionId, $sinceId]);

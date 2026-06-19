@@ -44,7 +44,7 @@ try {
         sendErrorResponse('セッションが見つかりません', 404);
     }
 
-    $stmt = $db->prepare("SELECT id, role, sender_user_id, message, read_at, created_at FROM chat_messages WHERE session_id = ? ORDER BY id ASC");
+    $stmt = $db->prepare("SELECT id, role, channel, sender_user_id, message, read_at, created_at FROM chat_messages WHERE session_id = ? ORDER BY id ASC");
     $stmt->execute([$sessionId]);
     $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if ($messages) {

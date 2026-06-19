@@ -3433,7 +3433,6 @@ $defaultGreetings = [
             var currentDetailSessionId = '';
             var agentChatLastMsgId = 0;
             var agentChatPollTimer = null;
-            var agentChatHandoff = 'bot';
             var agentChatPendingAttachments = [];
             var agentChatBusy = false;
 
@@ -3681,14 +3680,23 @@ $defaultGreetings = [
                             });
                             html += '</div>';
                         }
-                        agentChatHandoff = (d.session && d.session.handoff_mode) ? d.session.handoff_mode : 'bot';
                         agentChatPendingAttachments = [];
                         var msgs = d.messages || [];
-                        agentChatLastMsgId = msgs.length ? (parseInt(msgs[msgs.length - 1].id, 10) || 0) : 0;
+                        // AI担当（AIチャネル）と担当連絡（contactチャネル）を分けて表示する。
+                        var aiMsgs = msgs.filter(function(m) { return (m.channel || 'ai') !== 'contact'; });
+                        var contactMsgs = msgs.filter(function(m) { return (m.channel || 'ai') === 'contact'; });
+                        // ライブポーリングは担当連絡チャネルのみを返すため、since_id は担当連絡の最終IDを基準にする。
+                        agentChatLastMsgId = contactMsgs.length ? (parseInt(contactMsgs[contactMsgs.length - 1].id, 10) || 0) : 0;
+
+                        html += '<h4>AIチャット履歴（顧客とAIの会話・閲覧のみ）</h4>';
+                        html += '<div class="chat-thread chat-thread-readonly">';
+                        if (aiMsgs.length) { aiMsgs.forEach(function(m) { html += messageBubbleHtml(m); }); }
+                        else { html += '<p class="chat-thread-empty">AIとの会話はまだありません。</p>'; }
+                        html += '</div>';
 
                         html += '<h4>担当連絡（チャット）</h4>';
                         html += '<div class="chat-thread" id="agent-chat-thread">';
-                        msgs.forEach(function(m) { html += messageBubbleHtml(m); });
+                        contactMsgs.forEach(function(m) { html += messageBubbleHtml(m); });
                         html += '</div>';
 
                         html += '<div class="chat-compose">';
@@ -3696,7 +3704,6 @@ $defaultGreetings = [
                         html += '<button type="button" class="btn-secondary" id="agent-chat-auto">自動回答作成</button>';
                         html += '<button type="button" class="btn-secondary" id="agent-chat-polish">ブラッシュアップ</button>';
                         html += '<label class="chat-compose-attach btn-secondary">添付<input type="file" id="agent-chat-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" hidden></label>';
-                        html += '<label class="chat-compose-handoff"><input type="checkbox" id="agent-chat-handoff"' + (agentChatHandoff === 'agent' ? ' checked' : '') + '> 担当対応中（AI自動応答を止める）</label>';
                         html += '</div>';
                         html += '<div class="chat-compose-attach-list" id="agent-chat-attach-list"></div>';
                         html += '<textarea id="agent-chat-input" class="chat-compose-input" rows="3" placeholder="顧客へのメッセージを入力。「自動回答作成」で文案を生成、「ブラッシュアップ」で推敲できます。"></textarea>';
@@ -3795,14 +3802,11 @@ $defaultGreetings = [
                             agentChatPendingAttachments = [];
                             renderPendingAttachments();
                             setAgentStatus('');
-                            agentChatHandoff = 'agent';
-                            var handoffCb = document.getElementById('agent-chat-handoff');
-                            if (handoffCb) handoffCb.checked = true;
                             // 送信した発言を即時表示
                             var thread = document.getElementById('agent-chat-thread');
                             if (thread) {
                                 thread.insertAdjacentHTML('beforeend', messageBubbleHtml({
-                                    id: res.data.message_id, role: 'agent', message: text,
+                                    id: res.data.message_id, role: 'agent', channel: 'contact', message: text,
                                     created_at: res.data.created_at, attachments: res.data.attachments || []
                                 }));
                                 thread.scrollTop = thread.scrollHeight;
@@ -3862,20 +3866,11 @@ $defaultGreetings = [
                 var polishBtn = document.getElementById('agent-chat-polish');
                 var sendBtn = document.getElementById('agent-chat-send');
                 var fileInput = document.getElementById('agent-chat-file');
-                var handoffCb = document.getElementById('agent-chat-handoff');
                 if (autoBtn) autoBtn.addEventListener('click', function() { requestReplyDraft('auto', sessionId); });
                 if (polishBtn) polishBtn.addEventListener('click', function() { requestReplyDraft('polish', sessionId); });
                 if (sendBtn) sendBtn.addEventListener('click', function() { sendAgentMessage(sessionId); });
                 if (fileInput) fileInput.addEventListener('change', function() {
                     if (fileInput.files && fileInput.files[0]) { uploadAgentAttachment(fileInput.files[0], sessionId); fileInput.value = ''; }
-                });
-                if (handoffCb) handoffCb.addEventListener('change', function() {
-                    var mode = handoffCb.checked ? 'agent' : 'bot';
-                    agentChatHandoff = mode;
-                    fetch(apiBase + '/agent/read.php', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-                        body: JSON.stringify({ session_id: sessionId, mode: mode })
-                    }).catch(function() {});
                 });
 
                 agentChatPollTimer = setInterval(function() {

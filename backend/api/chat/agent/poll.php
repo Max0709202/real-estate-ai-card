@@ -34,7 +34,7 @@ try {
                MAX(cm.created_at) AS last_unread_at
         FROM chat_sessions cs
         JOIN business_cards bc ON bc.id = cs.business_card_id
-        JOIN chat_messages cm ON cm.session_id = cs.id AND cm.role = 'user' AND cm.read_at IS NULL
+        JOIN chat_messages cm ON cm.session_id = cs.id AND cm.role = 'user' AND cm.channel = 'contact' AND cm.read_at IS NULL
         WHERE bc.user_id = ?
         GROUP BY cs.id, cs.business_card_id
         ORDER BY last_unread_at DESC
@@ -48,10 +48,11 @@ try {
     if ($sessionId !== '') {
         // 所有検証
         agentMsgVerifyOwnedSession($db, $sessionId, (int)$userId);
+        // 担当連絡チャネルの新着のみ（AIチャネルは担当のライブ表示に混ぜない）
         $stmt = $db->prepare("
-            SELECT id, role, sender_user_id, message, read_at, created_at
+            SELECT id, role, channel, sender_user_id, message, read_at, created_at
             FROM chat_messages
-            WHERE session_id = ? AND id > ?
+            WHERE session_id = ? AND channel = 'contact' AND id > ?
             ORDER BY id ASC LIMIT 200
         ");
         $stmt->execute([$sessionId, $sinceId]);

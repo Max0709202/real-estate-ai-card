@@ -643,6 +643,40 @@ function chatMansionDbContext($db, $message, $force = false) {
     }
 }
 
+/**
+ * Build a disambiguation reply when a mansion-name query matches several genuinely
+ * different buildings. Per the accuracy policy we must NOT auto-pick one row: we
+ * list the candidates and ask the user to specify before answering any fact.
+ * Returns null when fewer than 2 distinct candidates can be listed.
+ */
+function chatMansionDisambiguationAnswer($terms, $candidates) {
+    $queryLabel = '';
+    foreach ((array)$terms as $t) {
+        $t = trim((string)$t);
+        if ($t !== '') { $queryLabel = $t; break; }
+    }
+    $lines = [];
+    foreach ($candidates as $r) {
+        $name = trim((string)($r['building_name'] ?? ''));
+        if ($name === '') continue;
+        $loc = trim((string)($r['prefecture'] ?? '') . (string)($r['city'] ?? ''));
+        if ($loc === '') $loc = trim((string)($r['full_address'] ?? ''));
+        $lines[] = '・' . $name . ($loc !== '' ? '（' . $loc . '）' : '');
+    }
+    if (count($lines) < 2) return null;
+    $head = ($queryLabel !== '' ? '「' . $queryLabel . '」' : 'ご入力の名称')
+        . 'に近い物件が複数見つかりました。どの物件について確認しますか？';
+    $reply = $head . "\n\n" . implode("\n", $lines)
+        . "\n\n正式名称または所在エリア（都道府県・市区町村など）を教えていただければ、その物件の情報をお調べします。";
+    return [
+        'reply' => $reply,
+        'sources' => [],
+        'row' => null,
+        'meta' => [],
+        'ambiguous' => true,
+    ];
+}
+
 function chatMansionDbDirectAnswer($db, $message) {
     if (!$db instanceof PDO) return null;
     $hasKeyword = (bool)preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|築|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|住所|所在地|所在|アクセス|どこ|場所|について|教えて|調べて|知りたい|検索)/u', (string)$message);
@@ -658,21 +692,38 @@ function chatMansionDbDirectAnswer($db, $message) {
     }
 
     try {
-        $rows = chatMansionDbSearchRows($db, $terms, 3);
+        $rows = chatMansionDbSearchRows($db, $terms, 5);
         if (empty($rows)) return null;
-        $row = $rows[0];
-        // Only answer when the top row genuinely matches the query (all tokens present
-        // in its name+address). For a bare name we also require ≥2 tokens so an
+        // Only answer when a row genuinely matches the query (all tokens present in
+        // its name+address). For a bare name we also require ≥2 tokens so an
         // ambiguous single word never produces one confidently-wrong building.
-        if (!chatMansionRowConfident($row, $terms, $isBareName && !$hasKeyword)) return null;
+        $requireMulti = $isBareName && !$hasKeyword;
+        $confident = [];
+        foreach ($rows as $r) {
+            if (chatMansionRowConfident($r, $terms, $requireMulti)) $confident[] = $r;
+        }
+        if (empty($confident)) return null;
+        // Accuracy policy (req. 4): when the query matches several genuinely different
+        // buildings, never auto-pick one. List the distinct candidates (by name+市区
+        // 町村) and ask the user to specify before answering any property fact.
+        $distinct = [];
+        foreach ($confident as $r) {
+            $key = chatMansionNormalizeText(($r['building_name'] ?? '') . '|' . ($r['city'] ?? ''));
+            if (!isset($distinct[$key])) $distinct[$key] = $r;
+        }
+        if (count($distinct) > 1) {
+            $disambig = chatMansionDisambiguationAnswer($terms, array_slice(array_values($distinct), 0, 5));
+            if ($disambig !== null) return $disambig;
+        }
+        $row = reset($confident);
         $facts = chatMansionFormatFacts($row, $fields);
         if (empty($facts)) return null;
 
         $source = chatPublicDataSourceLabel('mansion_db');
         $fetchedAt = date('Y-m-d H:i:s');
         $reply = ($row['building_name'] ?? '該当マンション') . 'について、当社データベースでは次の内容を確認できます。' . "\n\n・" . implode("\n・", $facts);
-        if (count($rows) > 1) {
-            $reply .= "\n\n※似た名称の候補が複数あります。必要であれば住所やエリアを添えていただくと、より絞り込めます。";
+        if (count($rows) > count($confident)) {
+            $reply .= "\n\n※似た名称の候補が他にもあります。別の物件の場合は、住所やエリアを添えていただくと、より正確に絞り込めます。";
         }
         $reply .= "\n\n出典：" . $source;
         $meta = [[

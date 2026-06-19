@@ -37,9 +37,9 @@ try {
 
     $session = agentMsgVerifyOwnedSession($db, $sessionId, (int)$userId);
 
-    // 担当発言を保存（本文が空でも添付のみで送れるよう、空なら添付の説明を入れる）
+    // 担当発言を保存（担当連絡チャネル。本文が空でも添付のみで送れるよう、空なら添付の説明を入れる）
     $storedMessage = $message !== '' ? $message : '[ファイルを送信しました]';
-    $messageId = agentMsgInsertMessage($db, $sessionId, 'agent', $storedMessage, (int)$userId);
+    $messageId = agentMsgInsertMessage($db, $sessionId, 'agent', $storedMessage, (int)$userId, 'contact');
 
     // 仮アップロード済みの添付を確定メッセージに紐付け
     if (!empty($attachmentIds)) {
@@ -49,8 +49,7 @@ try {
     // 顧客発言を既読化（担当が読んだ）
     agentMsgMarkRead($db, $sessionId, 'user');
 
-    // 担当が会話に参加 → 以後はAIの自動応答を止める
-    agentMsgSetHandoff($db, $sessionId, 'agent');
+    // 担当連絡とAI担当は独立したチャネルのため、AIの自動応答は止めない。
 
     // セッションの最終更新
     $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");

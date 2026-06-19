@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../../includes/chat-rag-helper.php';
 require_once __DIR__ . '/../../../includes/openai-chat-helper.php';
 require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
+require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');

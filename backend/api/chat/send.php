@@ -32,6 +32,8 @@ $message = trim($input['message'] ?? '');
 $visitorId = trim($input['visitor_id'] ?? '');
 $buttonSelection = isset($input['button_selection']) && is_array($input['button_selection']) ? $input['button_selection'] : null;
 $attachmentIds = isset($input['attachment_ids']) && is_array($input['attachment_ids']) ? $input['attachment_ids'] : [];
+// channel: 'ai'（AIチャット, 既定） | 'contact'（担当連絡＝人間担当へ）
+$channel = (($input['channel'] ?? '') === 'contact') ? 'contact' : 'ai';
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
     $visitorId = '';
 }
@@ -59,12 +61,11 @@ try {
         $stmt->execute([$visitorId, $sessionId]);
     }
 
-    // 担当が会話に参加中（ハンドオフ=agent）の場合は、AIの自動応答を行わず
-    // 顧客発言を担当への未読メッセージとして保存するだけにする。
-    if (($session['handoff_mode'] ?? 'bot') === 'agent') {
-        $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'user', ?)");
-        $stmt->execute([$sessionId, $message]);
-        $userMessageId = (int)$db->lastInsertId();
+    // 担当連絡チャネル：人間の担当者宛のメッセージ。AIの自動応答は行わず、
+    // 顧客発言を担当への未読メッセージ（channel='contact'）として保存するだけにする。
+    // AI担当チャネルとは独立しているため、AIは別途このチャネルを文脈として捕捉する。
+    if ($channel === 'contact') {
+        $userMessageId = agentMsgInsertMessage($db, $sessionId, 'user', $message, null, 'contact');
         if (!empty($attachmentIds)) {
             agentMsgAttachMessageId($db, $attachmentIds, $userMessageId, $sessionId, 'customer');
         }
@@ -92,8 +93,8 @@ try {
         chatIntakeArchiveButtonSelection($db, $sessionId, $card['id'], $buttonSelection, $message);
     }
 
-    // Save user message
-    $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'user', ?)");
+    // Save user message (AIチャネル)
+    $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, channel, message) VALUES (?, 'user', 'ai', ?)");
     $stmt->execute([$sessionId, $message]);
     if (!empty($attachmentIds)) {
         agentMsgAttachMessageId($db, $attachmentIds, (int)$db->lastInsertId(), $sessionId, 'customer');
@@ -102,17 +103,19 @@ try {
     // Give the model the actual conversation so it analyzes the user's own sentences rather than a
     // mechanical keyword digest. For recap/summary requests, load the whole conversation so "まとめて"
     // produces a real summary; otherwise use a generous recent window for continuity.
+    // 両チャネル（ai / contact）を時系列で取り込み、担当連絡（人間担当との会話）も
+    // AIの文脈として捕捉する。発言主体は role/channel で区別してプロンプト化する。
     $isRecapRequest = function_exists('chatIsRecapRequest') && chatIsRecapRequest($message);
     $historyLimit = $isRecapRequest ? 200 : 20;
     $stmt = $db->prepare("
-        SELECT role, message FROM chat_messages
+        SELECT role, channel, message FROM chat_messages
         WHERE session_id = ? AND id < (SELECT MAX(id) FROM chat_messages WHERE session_id = ?)
         ORDER BY id DESC
         LIMIT " . (int)$historyLimit . "
     ");
     $stmt->execute([$sessionId, $sessionId]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $conversationHistory = array_reverse(array_map(function ($r) { return ['role' => $r['role'], 'message' => $r['message']]; }, $rows));
+    $conversationHistory = array_reverse(array_map(function ($r) { return ['role' => $r['role'], 'channel' => $r['channel'], 'message' => $r['message']]; }, $rows));
 
     $intake = processChatIntakeMessage($db, $sessionId, $card['id'], $message, [
         'from_button' => $buttonSelection !== null,
@@ -159,8 +162,8 @@ try {
         }
     }
 
-    // Save bot message after condition reminder has been appended.
-    $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, message) VALUES (?, 'bot', ?)");
+    // Save bot message after condition reminder has been appended. (AIチャネル)
+    $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, channel, message) VALUES (?, 'bot', 'ai', ?)");
     $stmt->execute([$sessionId, $reply]);
 
     // Update session last_seen

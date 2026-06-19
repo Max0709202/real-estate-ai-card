@@ -76,6 +76,9 @@
     var agentPollTimer = null;
     var agentUnreadCount = 0;
     var pendingAttachments = [];
+    // 担当連絡（人間担当↔顧客）チャネル。AI担当スレッドとは別に保持する。
+    var contactMessages = [];
+    var contactPendingAttachments = [];
 
     function detectPageReload() {
         try {
@@ -999,6 +1002,8 @@
             crmState = null;
             lastAgentMsgId = 0;
             pendingAttachments = [];
+            contactMessages = [];
+            contactPendingAttachments = [];
             renderPendingAttachments();
             exitFeatureView();
             messagesContainer.innerHTML = '';
@@ -1082,17 +1087,23 @@
     function renderSessionMessages(messages) {
         messages.forEach(function (message) {
             var role = message.role || '';
+            var channel = message.channel || 'ai';
             var atts = message.attachments || [];
+            var mid = parseInt(message.id, 10) || 0;
+            // 担当連絡チャネルは別スレッド（contactMessages）に積む。
+            if (channel === 'contact') {
+                contactMessages.push({ id: mid, role: role, message: message.message || '', created_at: message.created_at || '', attachments: atts });
+                if (role === 'agent' && mid > lastAgentMsgId) lastAgentMsgId = mid;
+                return;
+            }
+            // AI担当チャネル
             if (role === 'user') {
                 appendUserMessage(message.message || '', message.created_at || '', atts);
-            } else if (role === 'agent') {
-                appendAgentMessage(message.message || '', message.created_at || '', atts);
             } else if (role === 'bot' || role === 'assistant') {
                 appendBotMessage(message.message || '', false, null, message.created_at || '');
             }
-            var mid = parseInt(message.id, 10) || 0;
-            if (mid > lastAgentMsgId) lastAgentMsgId = mid;
         });
+        if (activeChatTab === 'contact') renderContactThread();
     }
 
     function scrollMessagesToBottom() {
@@ -1240,23 +1251,138 @@
         scrollMessagesToBottom();
     }
 
-    // 担当（人間）のメッセージ。AIボットとは見た目を分け、担当者名ラベルを付ける。
-    function appendAgentMessage(text, createdAt, attachments) {
-        var wrap = document.createElement('div');
-        wrap.className = 'chat-msg agent';
-        var time = formatMessageTime(createdAt);
-        var img = agentPhoto ? '<img class="chat-msg-avatar" src="' + escapeAttribute(agentPhoto) + '" alt="">' : '<div class="chat-msg-avatar"></div>';
-        var body = (text && text !== '[ファイルを送信しました]') ? escapeHtml(text) : '';
-        var atts = widgetAttachmentHtml(attachments);
-        wrap.innerHTML = img + '<div class="chat-msg-content"><div class="chat-msg-agent-label">' + escapeHtml(agentName || '担当者') + '</div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div>';
-        messagesContainer.appendChild(wrap);
-        scrollMessagesToBottom();
-    }
-
     function escapeHtml(s) {
         var div = document.createElement('div');
         div.textContent = s;
         return div.innerHTML;
+    }
+
+    // ===== 担当連絡（人間担当↔顧客）チャネルのチャットUI =====
+    function contactMsgHtml(m) {
+        var time = formatMessageTime(m.created_at || '');
+        var atts = widgetAttachmentHtml(m.attachments || []);
+        var body = (m.message && m.message !== '[ファイルを送信しました]') ? escapeHtml(m.message) : '';
+        if (m.role === 'agent') {
+            var img = agentPhoto ? '<img class="chat-msg-avatar" src="' + escapeAttribute(agentPhoto) + '" alt="">' : '<div class="chat-msg-avatar"></div>';
+            return '<div class="chat-msg agent">' + img + '<div class="chat-msg-content"><div class="chat-msg-agent-label">' + escapeHtml(agentName || '担当者') + '</div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div></div>';
+        }
+        // 顧客（user）
+        return '<div class="chat-msg user"><div class="chat-msg-avatar"></div><div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div></div>';
+    }
+
+    function pushContactMessage(m) {
+        contactMessages.push(m);
+        if (activeChatTab === 'contact') {
+            var el = document.getElementById('chat-contact-messages');
+            if (el) {
+                var empty = el.querySelector('.chat-contact-empty');
+                if (empty) empty.remove();
+                el.insertAdjacentHTML('beforeend', contactMsgHtml(m));
+                el.scrollTop = el.scrollHeight;
+            }
+        }
+    }
+
+    function renderContactPendingAttachments() {
+        var listEl = document.getElementById('chat-contact-attach-list');
+        if (!listEl) return;
+        if (!contactPendingAttachments.length) { listEl.innerHTML = ''; return; }
+        listEl.innerHTML = contactPendingAttachments.map(function (a, i) {
+            return '<span class="chat-widget-pending">' + escapeHtml(a.original_name || 'ファイル')
+                + ' <button type="button" data-idx="' + i + '" aria-label="削除">×</button></span>';
+        }).join('');
+        Array.prototype.forEach.call(listEl.querySelectorAll('button[data-idx]'), function (btn) {
+            btn.addEventListener('click', function () {
+                var idx = parseInt(btn.getAttribute('data-idx'), 10);
+                if (idx >= 0) { contactPendingAttachments.splice(idx, 1); renderContactPendingAttachments(); }
+            });
+        });
+    }
+
+    function uploadContactAttachment(file) {
+        if (!sessionId) return;
+        var fd = new FormData();
+        fd.append('session_id', sessionId);
+        fd.append('visitor_id', visitorId || '');
+        fd.append('uploaded_by', 'customer');
+        fd.append('file', file);
+        fetch(apiBase + '/attachment/upload.php', { method: 'POST', body: fd })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data.success && data.data) {
+                    contactPendingAttachments.push(data.data);
+                    renderContactPendingAttachments();
+                }
+            })
+            .catch(function () { /* アップロード失敗は無視 */ });
+    }
+
+    function sendContactMessage() {
+        var input = document.getElementById('chat-contact-input');
+        if (!input || !sessionId) return;
+        var text = input.value.trim();
+        var hasAttachments = contactPendingAttachments.length > 0;
+        if (!text && !hasAttachments) return;
+
+        var sentAttachments = contactPendingAttachments.slice();
+        var attachmentIds = sentAttachments.map(function (a) { return a.attachment_id; });
+        contactPendingAttachments = [];
+        renderContactPendingAttachments();
+
+        var storedText = text || '[ファイルを送信しました]';
+        pushContactMessage({ role: 'user', message: storedText, created_at: '', attachments: sentAttachments });
+        input.value = '';
+
+        var payload = { session_id: sessionId, visitor_id: visitorId, message: storedText, channel: 'contact' };
+        if (attachmentIds.length) payload.attachment_ids = attachmentIds;
+        fetch(apiBase + '/send.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).catch(function () { /* 送信失敗は次回ポーリングで整合 */ });
+    }
+
+    function bindContactHandlers() {
+        var sendB = document.getElementById('chat-contact-send');
+        var input = document.getElementById('chat-contact-input');
+        var attachB = document.getElementById('chat-contact-attach');
+        var fileI = document.getElementById('chat-contact-file');
+        if (sendB) sendB.addEventListener('click', function () { sendContactMessage(); });
+        if (input) input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendContactMessage(); }
+        });
+        if (attachB && fileI) {
+            attachB.addEventListener('click', function () { fileI.click(); });
+            fileI.addEventListener('change', function () {
+                if (fileI.files && fileI.files[0]) { uploadContactAttachment(fileI.files[0]); fileI.value = ''; }
+            });
+        }
+    }
+
+    function renderContactThread() {
+        if (!featurePanel) return;
+        featurePanel.hidden = false;
+        var listHtml = contactMessages.length
+            ? contactMessages.map(contactMsgHtml).join('')
+            : '<div class="chat-contact-empty">担当者へのご連絡はこちらから送信できます。担当者からの返信もこの画面に表示されます。</div>';
+        var html = '';
+        html += '<div class="chat-feature-toolbar"><button type="button" class="chat-feature-back" data-feature-back="1">← AI担当</button></div>';
+        html += '<div class="chat-contact-view">';
+        html += '<div class="chat-contact-head"><strong>担当連絡</strong><span>' + escapeHtml(agentName || '担当者') + '（担当者）と直接やり取りできます</span></div>';
+        html += '<div class="chat-contact-messages" id="chat-contact-messages">' + listHtml + '</div>';
+        html += '<div class="chat-contact-attach-list" id="chat-contact-attach-list"></div>';
+        html += '<div class="chat-contact-input-wrap">';
+        html += '<textarea id="chat-contact-input" class="chat-contact-input" rows="2" placeholder="担当者へのメッセージを入力..." maxlength="2000"></textarea>';
+        html += '<div class="chat-contact-input-actions">';
+        html += '<button type="button" id="chat-contact-attach" class="chat-widget-attach" aria-label="ファイルを添付" title="ファイルを添付"><span aria-hidden="true">＋</span></button>';
+        html += '<input type="file" id="chat-contact-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" hidden>';
+        html += '<button type="button" id="chat-contact-send" class="chat-widget-send" aria-label="送信"><span>送信</span></button>';
+        html += '</div></div></div>';
+        featurePanel.innerHTML = html;
+        renderContactPendingAttachments();
+        var msgsEl = document.getElementById('chat-contact-messages');
+        if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+        bindContactHandlers();
     }
 
     // ===== 担当連絡：担当からの新着ポーリング・通知・未読バッジ =====
@@ -1308,17 +1434,19 @@
             .then(function (data) {
                 if (!data.success || !data.data) return;
                 var msgs = data.data.messages || [];
+                var added = 0;
                 msgs.forEach(function (m) {
                     var mid = parseInt(m.id, 10) || 0;
                     if (mid <= lastAgentMsgId) return;
                     lastAgentMsgId = mid;
-                    appendAgentMessage(m.message || '', m.created_at || '', m.attachments || []);
+                    pushContactMessage({ id: mid, role: 'agent', message: m.message || '', created_at: m.created_at || '', attachments: m.attachments || [] });
                     notifyAgentMessage(m.message || '');
+                    added++;
                 });
-                if (msgs.length) {
-                    // 画面を見ていない（パネル非表示 or タブ非アクティブ）ときはバッジを増やす
-                    if (panel.hidden || document.hidden || activeChatTab !== 'ai') {
-                        agentUnreadCount += msgs.length;
+                if (added) {
+                    // 担当連絡タブを見ていないときは未読バッジを増やす
+                    if (panel.hidden || document.hidden || activeChatTab !== 'contact') {
+                        agentUnreadCount += added;
                         setContactTabBadge(agentUnreadCount);
                     }
                 }
@@ -1575,8 +1703,8 @@
     function setActiveChatTab(tab) {
         if (!tabBar) return;
         activeChatTab = tab || 'ai';
-        // AI担当タブ（担当の返信が表示される会話スレッド）を開いたら未読をクリア
-        if (activeChatTab === 'ai') {
+        // 担当連絡タブを開いたら担当からの未読をクリア
+        if (activeChatTab === 'contact') {
             agentUnreadCount = 0;
             setContactTabBadge(0);
         }
@@ -1844,20 +1972,6 @@
         renderFeaturePanel(html);
     }
 
-    function renderContactTab() {
-        var c = crmCase();
-        if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
-        var contact = c.contact || {};
-        var draft = (c.reply_draft && c.reply_draft.draft) ? c.reply_draft.draft : (contact.reply_draft || '');
-        var html = '<div class="chat-feature-head"><strong>担当連絡</strong><span>返信文ブラッシュアップ</span></div>';
-        html += '<label class="chat-feature-field"><input type="checkbox" name="auto_reply_enabled"' + (contact.auto_reply_enabled !== false ? ' checked' : '') + '> 自動返信を有効にする</label>';
-        html += '<label class="chat-feature-field">返信下書き<textarea name="reply_draft">' + crmFields(draft || '') + '</textarea></label>';
-        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-draft" data-draft-feature="contact">文面を作成</button><button type="button" class="chat-feature-save" data-save-feature="contact">保存</button></div>';
-        html += '<div class="chat-feature-summary"><strong>AI要約</strong><p>' + crmFields(c.ai_summary || '未作成') + '</p></div>';
-        html += '<div class="chat-feature-summary"><strong>条件</strong><p>' + crmFields(c.conditions_summary || '未整理') + '</p></div>';
-        renderFeaturePanel(html);
-    }
-
     function renderFeatureTab(tab) {
         if (!featurePanel) return;
         if (tab === 'ai') {
@@ -1866,6 +1980,11 @@
         }
         enterFeatureView(tab);
         featurePanel.hidden = false;
+        if (tab === 'contact') {
+            // 担当連絡は専用チャットUI。CRM状態のロードは不要。
+            renderContactThread();
+            return;
+        }
         if (!crmState) {
             renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
             if (!crmLoading) {
@@ -1882,7 +2001,6 @@
         else if (tab === 'property') renderPropertiesTab();
         else if (tab === 'tools') renderToolsTab();
         else if (tab === 'schedule') renderSchedulesTab();
-        else if (tab === 'contact') renderContactTab();
         else renderFeaturePanel('<div class="chat-feature-empty">準備中です。</div>');
     }
 
@@ -1992,37 +2110,6 @@
         };
     }
 
-    function collectContactPayload(draftText) {
-        var root = featurePanel;
-        return {
-            contact: {
-                auto_reply_enabled: !!(root.querySelector('[name="auto_reply_enabled"]') || {}).checked,
-                reply_draft: draftText || (root.querySelector('[name="reply_draft"]') || {}).value || '',
-                reply_history: crmArray((crmCase().contact || {}).reply_history)
-            },
-            reply_draft: {
-                source_message: (crmCase().reply_draft || {}).source_message || '',
-                draft: draftText || (root.querySelector('[name="reply_draft"]') || {}).value || '',
-                mode: 'manual',
-                updated_at: new Date().toISOString()
-            }
-        };
-    }
-
-    function draftReply(mode) {
-        var payload = { session_id: sessionId, message: inputEl.value.trim() || (crmCase().reply_draft || {}).source_message || '', mode: mode || 'polish' };
-        return fetch(apiBase.replace(/\/?$/, '') + '/reply-draft.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        }).then(function (res) { return res.json(); }).then(function (data) {
-            if (!data.success || !data.data || !data.data.draft) throw new Error(data.message || '下書きを作成できませんでした');
-            var el = featurePanel.querySelector('[name="reply_draft"]');
-            if (el) el.value = data.data.draft;
-            return saveCrmFeature('reply_draft', { reply_draft: { source_message: payload.message, draft: data.data.draft, mode: mode || 'polish', updated_at: new Date().toISOString() } });
-        });
-    }
-
     updateVoiceButtonState();
     if (!SpeechRecognition && voiceBtn) {
         voiceBtn.classList.add('is-unsupported');
@@ -2085,6 +2172,12 @@
                 exitFeatureView();
                 return;
             }
+            if (tab === 'contact') {
+                // 担当連絡は専用チャット。CRMロードを挟まず即表示。
+                enterFeatureView(tab);
+                renderContactThread();
+                return;
+            }
             enterFeatureView(tab);
             loadCrmState(false).then(function () {
                 renderFeatureTab(tab);
@@ -2102,7 +2195,6 @@
             var saveBtn = e.target.closest('[data-save-feature]');
             var syncBtn = e.target.closest('[data-sync-feature]');
             var addBtn = e.target.closest('[data-add-feature]');
-            var draftBtn = e.target.closest('[data-draft-feature]');
 
             if (syncBtn) {
                 var syncFeature = syncBtn.getAttribute('data-sync-feature');
@@ -2125,7 +2217,6 @@
                 else if (feature === 'progress') payload = collectProgressPayload();
                 else if (feature === 'properties') payload = collectPropertiesPayload();
                 else if (feature === 'schedules') payload = collectSchedulesPayload();
-                else if (feature === 'contact') payload = collectContactPayload();
                 if (!payload) return;
                 saveBtn.disabled = true;
                 saveCrmFeature(feature, payload).then(function () {
@@ -2133,7 +2224,6 @@
                     else if (feature === 'progress') renderProgressTab();
                     else if (feature === 'properties') renderPropertiesTab();
                     else if (feature === 'schedules') renderSchedulesTab();
-                    else if (feature === 'contact') renderContactTab();
                 }).catch(function () {
                     appendBotMessage('保存に失敗しました。');
                 }).finally(function () {
@@ -2157,16 +2247,6 @@
                     addBtn.disabled = false;
                 });
                 return;
-            }
-            if (draftBtn) {
-                draftBtn.disabled = true;
-                draftReply('polish').then(function () {
-                    renderContactTab();
-                }).catch(function () {
-                    appendBotMessage('返信文の作成に失敗しました。');
-                }).finally(function () {
-                    draftBtn.disabled = false;
-                });
             }
         });
     }

@@ -361,6 +361,76 @@
     overflow: auto;
     padding: 0.75rem 1rem;
 }
+/* 担当連絡（人間担当↔顧客）チャット */
+.chat-contact-view {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.chat-contact-head {
+    flex: 0 0 auto;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #eef2f7;
+    background: #fff;
+}
+.chat-contact-head strong {
+    display: block;
+    font-size: 0.9rem;
+    color: #0b4f9f;
+}
+.chat-contact-head span {
+    font-size: 0.74rem;
+    color: #6b7686;
+}
+.chat-contact-messages {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: #f3f7fc;
+}
+.chat-contact-empty {
+    margin: auto 0;
+    color: #5f6b7a;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    text-align: center;
+}
+.chat-contact-attach-list {
+    flex: 0 0 auto;
+    padding: 0 1rem;
+}
+.chat-contact-attach-list:empty {
+    padding: 0;
+}
+.chat-contact-input-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+    padding: 0.6rem 1rem 0.8rem;
+    border-top: 1px solid #e7edf8;
+    background: #f8fbff;
+}
+.chat-contact-input {
+    flex: 1 1 auto;
+    resize: none;
+    border: 1px solid #cdd8e6;
+    border-radius: 10px;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.85rem;
+    font-family: inherit;
+    line-height: 1.4;
+}
+.chat-contact-input-actions {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
 .chat-widget-default-prompt {
     flex-basis: 100%;
     color: #5f6b7a;

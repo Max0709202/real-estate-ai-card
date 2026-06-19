@@ -32,11 +32,12 @@ if (!function_exists('agentMsgInsertMessage')) {
     /**
      * メッセージを保存し、新しい message_id を返す。
      * $role: 'user' | 'agent' | 'bot' | 'system'
+     * $channel: 'ai'（AIチャット） | 'contact'（担当連絡）
      */
-    function agentMsgInsertMessage(PDO $db, string $sessionId, string $role, string $message, ?int $senderUserId = null): int
+    function agentMsgInsertMessage(PDO $db, string $sessionId, string $role, string $message, ?int $senderUserId = null, string $channel = 'contact'): int
     {
-        $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, sender_user_id, message) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$sessionId, $role, $senderUserId, $message]);
+        $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, channel, sender_user_id, message) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$sessionId, $role, $channel, $senderUserId, $message]);
         return (int)$db->lastInsertId();
     }
 }

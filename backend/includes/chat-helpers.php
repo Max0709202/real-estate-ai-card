@@ -65,9 +65,9 @@ function loadRecentChatMessagesForResume($db, $sessionId, $limit = 40) {
     $limit = max(1, min(100, (int)$limit));
     try {
         $stmt = $db->prepare("
-            SELECT id, role, message, created_at
+            SELECT id, role, channel, message, created_at
             FROM (
-                SELECT id, role, message, created_at
+                SELECT id, role, channel, message, created_at
                 FROM chat_messages
                 WHERE session_id = ?
                 ORDER BY id DESC
@@ -76,7 +76,16 @@ function loadRecentChatMessagesForResume($db, $sessionId, $limit = 40) {
             ORDER BY id ASC
         ");
         $stmt->execute([$sessionId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // 担当連絡チャネルの添付（画像/PDF等）も再開時に復元できるよう補完する。
+        if ($messages && function_exists('agentMsgLoadAttachments')) {
+            $attach = agentMsgLoadAttachments($db, array_column($messages, 'id'));
+            if ($attach) {
+                foreach ($messages as &$m) { $m['attachments'] = $attach[(int)$m['id']] ?? []; }
+                unset($m);
+            }
+        }
+        return $messages;
     } catch (Throwable $e) {
         error_log('Chat resume messages load error: ' . $e->getMessage());
         return [];
