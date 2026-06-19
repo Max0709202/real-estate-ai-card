@@ -586,6 +586,10 @@ $prefectures = [
                                         <span>宅地建物取引士</span>
                                     </label>
                                     <label class="checkbox-item">
+                                        <input type="checkbox" name="qualification_existing_home_advisor" value="1">
+                                        <span>既存住宅アドバイザー</span>
+                                    </label>
+                                    <label class="checkbox-item">
                                         <input type="checkbox" name="qualification_kenchikushi_1" value="1">
                                         <span>一級建築士</span>
                                     </label>

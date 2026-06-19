@@ -92,6 +92,13 @@ try {
 
     $kind = agentMsgKindFromMime($detectedMime, $file['name'] ?? '');
 
+    // 動画ファイルは保存しない（現時点では非対応・保存容量節約のため）。MIMEと拡張子の両面で明示的にブロックする。
+    $videoExts = ['mp4','mov','m4v','avi','wmv','flv','mkv','webm','3gp','3g2','mpeg','mpg','ts','m2ts','ogv'];
+    $uploadExt = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+    if (strpos($detectedMime, 'video/') === 0 || in_array($uploadExt, $videoExts, true)) {
+        sendErrorResponse('動画ファイルは保存できません。画像・PDF・Word・Excelのみご利用いただけます。', 400);
+    }
+
     // 許可判定
     $allowedDocMimes = [
         'application/pdf',

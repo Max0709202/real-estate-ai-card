@@ -1464,6 +1464,68 @@
     margin-left: 4px;
 }
 
+/* 送信前プレビュー（添付カード）。画像はサムネイル付き。 */
+.chat-widget-attach-list:not(:empty),
+.chat-contact-attach-list:not(:empty) {
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+.chat-pending-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid #d9e4f2;
+    border-radius: 10px;
+    padding: 5px 6px 5px 5px;
+    max-width: 240px;
+    box-shadow: 0 1px 3px rgba(18, 52, 99, 0.08);
+}
+.chat-pending-thumb {
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eef4fb;
+}
+.chat-pending-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.chat-pending-icon { font-size: 22px; line-height: 1; }
+.chat-pending-meta { display: flex; flex-direction: column; min-width: 0; }
+.chat-pending-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #1f2d3d;
+    max-width: 132px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.chat-pending-size { font-size: 0.68rem; color: #7a8699; }
+.chat-pending-x {
+    flex: 0 0 auto;
+    border: none;
+    background: #eef0f3;
+    color: #33415c;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-weight: 700;
+    line-height: 1;
+    transition: background 0.15s;
+}
+.chat-pending-x:hover { background: #dde3ec; }
+
+/* 送信済みメッセージ内の画像プレビューを少し大きく見やすく */
+.chat-msg-attach-image img {
+    border-radius: 10px;
+    border: 1px solid #e1e8f1;
+}
+
 .chat-widget-tab { position: relative; }
 .chat-tab-unread {
     position: absolute;

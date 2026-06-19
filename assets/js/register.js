@@ -748,6 +748,10 @@ function populateRegistrationForms(data) {
             const takkenCheckbox = document.querySelector('input[name="qualification_takken"]');
             if (takkenCheckbox) takkenCheckbox.checked = true;
         }
+        if (qualifications.includes('既存住宅アドバイザー')) {
+            const existingHomeAdvisorCheckbox = document.querySelector('input[name="qualification_existing_home_advisor"]');
+            if (existingHomeAdvisorCheckbox) existingHomeAdvisorCheckbox.checked = true;
+        }
         if (qualifications.includes('一級建築士')) {
             const kenchikushi1Checkbox = document.querySelector('input[name="qualification_kenchikushi_1"]');
             if (kenchikushi1Checkbox) kenchikushi1Checkbox.checked = true;
@@ -760,8 +764,8 @@ function populateRegistrationForms(data) {
             const kenchikushi3Checkbox = document.querySelector('input[name="qualification_kenchikushi_3"]');
             if (kenchikushi3Checkbox) kenchikushi3Checkbox.checked = true;
         }
-        // Filter out the 4 main qualifications to get "other" qualifications
-        const mainQuals = ['宅地建物取引士', '一級建築士', '二級建築士', '木造建築士'];
+        // Filter out the main qualifications to get "other" qualifications
+        const mainQuals = ['宅地建物取引士', '既存住宅アドバイザー', '一級建築士', '二級建築士', '木造建築士'];
         const otherQuals = qualifications.filter(q => !mainQuals.includes(q)).join('、');
         if (otherQuals) {
             const otherInput = document.querySelector('textarea[name="qualifications_other"]');
@@ -1056,6 +1060,9 @@ async function saveStepData(stepNumber) {
                 if (formData3.get('qualification_takken')) {
                     qualifications.push('宅地建物取引士');
                 }
+                if (formData3.get('qualification_existing_home_advisor')) {
+                    qualifications.push('既存住宅アドバイザー');
+                }
                 if (formData3.get('qualification_kenchikushi_1')) {
                     qualifications.push('一級建築士');
                 }
@@ -1070,6 +1077,7 @@ async function saveStepData(stepNumber) {
                 }
                 saveData.qualifications = qualifications.join('、');
                 delete saveData.qualification_takken;
+                delete saveData.qualification_existing_home_advisor;
                 delete saveData.qualification_kenchikushi_1;
                 delete saveData.qualification_kenchikushi_2;
                 delete saveData.qualification_kenchikushi_3;
@@ -2376,6 +2384,9 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
     if (formDataObj.get('qualification_takken')) {
         qualifications.push('宅地建物取引士');
     }
+    if (formDataObj.get('qualification_existing_home_advisor')) {
+        qualifications.push('既存住宅アドバイザー');
+    }
     if (formDataObj.get('qualification_kenchikushi_1')) {
         qualifications.push('一級建築士');
     }
@@ -2392,6 +2403,7 @@ document.getElementById('personal-info-form')?.addEventListener('submit', async 
     
     // Remove individual qualification fields
     delete data.qualification_takken;
+    delete data.qualification_existing_home_advisor;
     delete data.qualification_kenchikushi_1;
     delete data.qualification_kenchikushi_2;
     delete data.qualification_kenchikushi_3;

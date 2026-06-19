@@ -1240,6 +1240,51 @@
         return url + sep + 'session_id=' + encodeURIComponent(sessionId || '') + '&visitor_id=' + encodeURIComponent(visitorId || '');
     }
 
+    function chatFormatBytes(n) {
+        n = parseInt(n, 10) || 0;
+        if (n < 1024) return n + ' B';
+        if (n < 1048576) return Math.round(n / 1024) + ' KB';
+        return (n / 1048576).toFixed(1) + ' MB';
+    }
+
+    // 送信前プレビュー用カード（画像はサムネイル、その他はアイコン）。
+    function pendingAttachCardHtml(a, i) {
+        var thumb;
+        if (a.is_image && a.url) {
+            thumb = '<img src="' + escapeAttribute(appendVisitorToUrl(a.url)) + '" alt="">';
+        } else {
+            var icon = a.kind === 'pdf' ? '📄' : (a.kind === 'word' ? '📝' : (a.kind === 'excel' ? '📊' : '📎'));
+            thumb = '<span class="chat-pending-icon" aria-hidden="true">' + icon + '</span>';
+        }
+        return '<div class="chat-pending-card">'
+            + '<div class="chat-pending-thumb">' + thumb + '</div>'
+            + '<div class="chat-pending-meta"><span class="chat-pending-name">' + escapeHtml(a.original_name || 'ファイル') + '</span>'
+            + '<span class="chat-pending-size">' + chatFormatBytes(a.byte_size) + '</span></div>'
+            + '<button type="button" class="chat-pending-x" data-idx="' + i + '" aria-label="削除">×</button>'
+            + '</div>';
+    }
+
+    // クリップボードからの貼り付けでファイルを添付（Slackのように画像を貼り付け可能にする）。
+    function handlePasteToAttach(e, uploadFn) {
+        var cd = e.clipboardData || window.clipboardData;
+        if (!cd) return;
+        var items = cd.items || [];
+        var files = [];
+        for (var i = 0; i < items.length; i++) {
+            if (items[i].kind === 'file') {
+                var f = items[i].getAsFile();
+                if (f) files.push(f);
+            }
+        }
+        // items が取れない環境向けに files も確認
+        if (!files.length && cd.files && cd.files.length) {
+            for (var j = 0; j < cd.files.length; j++) files.push(cd.files[j]);
+        }
+        if (!files.length) return;
+        e.preventDefault();
+        files.forEach(function (f) { uploadFn(f); });
+    }
+
     function appendUserMessage(text, createdAt, attachments) {
         var wrap = document.createElement('div');
         wrap.className = 'chat-msg user';
@@ -1287,11 +1332,8 @@
         var listEl = document.getElementById('chat-contact-attach-list');
         if (!listEl) return;
         if (!contactPendingAttachments.length) { listEl.innerHTML = ''; return; }
-        listEl.innerHTML = contactPendingAttachments.map(function (a, i) {
-            return '<span class="chat-widget-pending">' + escapeHtml(a.original_name || 'ファイル')
-                + ' <button type="button" data-idx="' + i + '" aria-label="削除">×</button></span>';
-        }).join('');
-        Array.prototype.forEach.call(listEl.querySelectorAll('button[data-idx]'), function (btn) {
+        listEl.innerHTML = contactPendingAttachments.map(pendingAttachCardHtml).join('');
+        Array.prototype.forEach.call(listEl.querySelectorAll('.chat-pending-x'), function (btn) {
             btn.addEventListener('click', function () {
                 var idx = parseInt(btn.getAttribute('data-idx'), 10);
                 if (idx >= 0) { contactPendingAttachments.splice(idx, 1); renderContactPendingAttachments(); }
@@ -1348,9 +1390,12 @@
         var attachB = document.getElementById('chat-contact-attach');
         var fileI = document.getElementById('chat-contact-file');
         if (sendB) sendB.addEventListener('click', function () { sendContactMessage(); });
-        if (input) input.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendContactMessage(); }
-        });
+        if (input) {
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendContactMessage(); }
+            });
+            input.addEventListener('paste', function (e) { handlePasteToAttach(e, uploadContactAttachment); });
+        }
         if (attachB && fileI) {
             attachB.addEventListener('click', function () { fileI.click(); });
             fileI.addEventListener('change', function () {
@@ -1473,11 +1518,8 @@
     function renderPendingAttachments() {
         if (!attachListEl) return;
         if (!pendingAttachments.length) { attachListEl.innerHTML = ''; return; }
-        attachListEl.innerHTML = pendingAttachments.map(function (a, i) {
-            return '<span class="chat-widget-pending">' + escapeHtml(a.original_name || 'ファイル')
-                + ' <button type="button" data-idx="' + i + '" aria-label="削除">×</button></span>';
-        }).join('');
-        Array.prototype.forEach.call(attachListEl.querySelectorAll('button[data-idx]'), function (btn) {
+        attachListEl.innerHTML = pendingAttachments.map(pendingAttachCardHtml).join('');
+        Array.prototype.forEach.call(attachListEl.querySelectorAll('.chat-pending-x'), function (btn) {
             btn.addEventListener('click', function () {
                 var idx = parseInt(btn.getAttribute('data-idx'), 10);
                 if (idx >= 0) { pendingAttachments.splice(idx, 1); renderPendingAttachments(); }
@@ -2162,6 +2204,7 @@
             sendMessage(inputEl.value.trim());
         }
     });
+    inputEl.addEventListener('paste', function (e) { handlePasteToAttach(e, uploadCustomerAttachment); });
 
     if (tabBar) {
         tabBar.addEventListener('click', function (e) {

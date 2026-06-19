@@ -530,7 +530,7 @@ $defaultGreetings = [
     <link rel="icon" type="image/png" sizes="16x16" href="<?php echo rtrim(BASE_URL, '/'); ?>/favicon.php?size=16&v=2">
     <title>名刺編集 - 不動産AI名刺</title>
     <link rel="stylesheet" href="assets/css/style.css">
-    <link rel="stylesheet" href="assets/css/edit.css">
+    <link rel="stylesheet" href="assets/css/edit.css?v=<?php echo filemtime(__DIR__ . '/assets/css/edit.css'); ?>">
     <link rel="stylesheet" href="assets/css/register.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/modal.css">
@@ -1058,6 +1058,10 @@ $defaultGreetings = [
                                         <label class="checkbox-item">
                                             <input type="checkbox" name="qualification_takken" value="1">
                                             <span>宅地建物取引士</span>
+                                        </label>
+                                        <label class="checkbox-item">
+                                            <input type="checkbox" name="qualification_existing_home_advisor" value="1">
+                                            <span>既存住宅アドバイザー</span>
                                         </label>
                                         <label class="checkbox-item">
                                             <input type="checkbox" name="qualification_kenchikushi_1" value="1">
@@ -2807,6 +2811,9 @@ $defaultGreetings = [
                     if (formData.get('qualification_takken')) {
                         qualifications.push('宅地建物取引士');
                     }
+                    if (formData.get('qualification_existing_home_advisor')) {
+                        qualifications.push('既存住宅アドバイザー');
+                    }
                     if (formData.get('qualification_kenchikushi_1')) {
                         qualifications.push('一級建築士');
                     }
@@ -2821,6 +2828,7 @@ $defaultGreetings = [
                     }
                     data.qualifications = qualifications.join('、');
                     delete data.qualification_takken;
+                    delete data.qualification_existing_home_advisor;
                     delete data.qualification_kenchikushi_1;
                     delete data.qualification_kenchikushi_2;
                     delete data.qualification_kenchikushi_3;
@@ -3723,15 +3731,36 @@ $defaultGreetings = [
                 if (el) el.textContent = msg || '';
             }
 
+            function agentFormatBytes(n) {
+                n = parseInt(n, 10) || 0;
+                if (n < 1024) return n + ' B';
+                if (n < 1048576) return Math.round(n / 1024) + ' KB';
+                return (n / 1048576).toFixed(1) + ' MB';
+            }
+
+            // 送信前プレビュー用カード（画像はサムネイル、その他はアイコン）。担当はログイン認証済みのため url を直接参照可。
+            function agentPendingCardHtml(a, i) {
+                var thumb;
+                if (a.is_image && a.url) {
+                    thumb = '<img src="' + escapeHtml(a.url) + '" alt="">';
+                } else {
+                    var icon = a.kind === 'pdf' ? '📄' : (a.kind === 'word' ? '📝' : (a.kind === 'excel' ? '📊' : '📎'));
+                    thumb = '<span class="chat-pending-icon" aria-hidden="true">' + icon + '</span>';
+                }
+                return '<div class="chat-pending-card">'
+                    + '<div class="chat-pending-thumb">' + thumb + '</div>'
+                    + '<div class="chat-pending-meta"><span class="chat-pending-name">' + escapeHtml(a.original_name || 'ファイル') + '</span>'
+                    + '<span class="chat-pending-size">' + agentFormatBytes(a.byte_size) + '</span></div>'
+                    + '<button type="button" class="chat-pending-x" data-idx="' + i + '" aria-label="削除">×</button>'
+                    + '</div>';
+            }
+
             function renderPendingAttachments() {
                 var listEl = document.getElementById('agent-chat-attach-list');
                 if (!listEl) return;
                 if (!agentChatPendingAttachments.length) { listEl.innerHTML = ''; return; }
-                listEl.innerHTML = agentChatPendingAttachments.map(function(a, i) {
-                    return '<span class="chat-pending-attach">' + escapeHtml(a.original_name || 'ファイル')
-                        + ' <button type="button" data-idx="' + i + '" class="chat-pending-remove" aria-label="削除">×</button></span>';
-                }).join('');
-                listEl.querySelectorAll('.chat-pending-remove').forEach(function(btn) {
+                listEl.innerHTML = agentChatPendingAttachments.map(agentPendingCardHtml).join('');
+                listEl.querySelectorAll('.chat-pending-x').forEach(function(btn) {
                     btn.addEventListener('click', function() {
                         var idx = parseInt(btn.getAttribute('data-idx'), 10);
                         if (idx >= 0) { agentChatPendingAttachments.splice(idx, 1); renderPendingAttachments(); }
@@ -3871,6 +3900,23 @@ $defaultGreetings = [
                 if (sendBtn) sendBtn.addEventListener('click', function() { sendAgentMessage(sessionId); });
                 if (fileInput) fileInput.addEventListener('change', function() {
                     if (fileInput.files && fileInput.files[0]) { uploadAgentAttachment(fileInput.files[0], sessionId); fileInput.value = ''; }
+                });
+                var composeInput = document.getElementById('agent-chat-input');
+                if (composeInput) composeInput.addEventListener('paste', function(e) {
+                    // クリップボードからの貼り付けでファイルを添付（Slackのように画像を貼り付け可能に）。
+                    var cd = e.clipboardData || window.clipboardData;
+                    if (!cd) return;
+                    var items = cd.items || [];
+                    var files = [];
+                    for (var i = 0; i < items.length; i++) {
+                        if (items[i].kind === 'file') { var f = items[i].getAsFile(); if (f) files.push(f); }
+                    }
+                    if (!files.length && cd.files && cd.files.length) {
+                        for (var j = 0; j < cd.files.length; j++) files.push(cd.files[j]);
+                    }
+                    if (!files.length) return;
+                    e.preventDefault();
+                    files.forEach(function(f) { uploadAgentAttachment(f, sessionId); });
                 });
 
                 agentChatPollTimer = setInterval(function() {
