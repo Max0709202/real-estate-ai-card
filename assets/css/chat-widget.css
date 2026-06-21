@@ -1542,3 +1542,13 @@
     text-align: center;
     font-weight: 700;
 }
+
+/* 担当連絡：顧客側の「既読」表示（自分の発言に付く） */
+.chat-msg.user .chat-msg-time { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.chat-contact-read-wrap { display: inline-flex; }
+.chat-contact-read {
+    font-size: 0.68rem;
+    color: #06794a;
+    font-weight: 700;
+}
+.chat-contact-read[hidden] { display: none; }

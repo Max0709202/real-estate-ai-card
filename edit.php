@@ -3444,13 +3444,24 @@ $defaultGreetings = [
             var agentChatPendingAttachments = [];
             var agentChatBusy = false;
 
+            // 添付URLを現在のオリジンに揃える。サーバーは絶対URL（BASE_URL=www）を返すため、
+            // 担当者が別ホスト（www無しなど）でログインしていると、画像/リンクが別オリジン扱いになり
+            // ログインCookieが送られず download.php が 403（forbidden）→ 画像が壊れて alt の
+            // 「image.png」が表示される。同一オリジンに正規化してCookieを確実に送る。
+            function normalizeAttachUrl(url) {
+                if (!url) return '';
+                var idx = url.indexOf('/backend/api/');
+                return idx >= 0 ? (window.location.origin + url.slice(idx)) : url;
+            }
+
             function attachmentHtml(att) {
                 if (!att) return '';
+                var url = normalizeAttachUrl(att.url);
                 if (att.is_image) {
-                    return '<a class="chat-attach chat-attach-image" href="' + escapeHtml(att.url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(att.url) + '" alt="' + escapeHtml(att.original_name || '画像') + '"></a>';
+                    return '<a class="chat-attach chat-attach-image" href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(url) + '" alt="' + escapeHtml(att.original_name || '画像') + '" loading="lazy"></a>';
                 }
                 var icon = att.kind === 'pdf' ? '📄' : (att.kind === 'word' ? '📝' : (att.kind === 'excel' ? '📊' : '📎'));
-                return '<a class="chat-attach chat-attach-file" href="' + escapeHtml(att.url) + '" target="_blank" rel="noopener">' + icon + ' ' + escapeHtml(att.original_name || 'ファイル') + '</a>';
+                return '<a class="chat-attach chat-attach-file" href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + icon + ' ' + escapeHtml(att.original_name || 'ファイル') + '</a>';
             }
 
             function messageBubbleHtml(m) {
@@ -3742,7 +3753,7 @@ $defaultGreetings = [
             function agentPendingCardHtml(a, i) {
                 var thumb;
                 if (a.is_image && a.url) {
-                    thumb = '<img src="' + escapeHtml(a.url) + '" alt="">';
+                    thumb = '<img src="' + escapeHtml(normalizeAttachUrl(a.url)) + '" alt="">';
                 } else {
                     var icon = a.kind === 'pdf' ? '📄' : (a.kind === 'word' ? '📝' : (a.kind === 'excel' ? '📊' : '📎'));
                     thumb = '<span class="chat-pending-icon" aria-hidden="true">' + icon + '</span>';

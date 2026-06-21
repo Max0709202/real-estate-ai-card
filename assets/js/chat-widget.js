@@ -79,6 +79,8 @@
     // 担当連絡（人間担当↔顧客）チャネル。AI担当スレッドとは別に保持する。
     var contactMessages = [];
     var contactPendingAttachments = [];
+    // 顧客自身の発言のうち、担当者が既読にした最大ID（id <= これ の自分の発言は「既読」表示）。
+    var contactLastReadUserId = 0;
 
     function detectPageReload() {
         try {
@@ -1303,16 +1305,34 @@
     }
 
     // ===== 担当連絡（人間担当↔顧客）チャネルのチャットUI =====
+    function contactReadMarkHtml(m) {
+        var id = parseInt(m.id, 10) || 0;
+        var read = id > 0 && id <= contactLastReadUserId;
+        return '<span class="chat-contact-read"' + (read ? '' : ' hidden') + '>既読</span>';
+    }
+
     function contactMsgHtml(m) {
         var time = formatMessageTime(m.created_at || '');
         var atts = widgetAttachmentHtml(m.attachments || []);
         var body = (m.message && m.message !== '[ファイルを送信しました]') ? escapeHtml(m.message) : '';
+        var mid = parseInt(m.id, 10) || 0;
         if (m.role === 'agent') {
             var img = agentPhoto ? '<img class="chat-msg-avatar" src="' + escapeAttribute(agentPhoto) + '" alt="">' : '<div class="chat-msg-avatar"></div>';
-            return '<div class="chat-msg agent">' + img + '<div class="chat-msg-content"><div class="chat-msg-agent-label">' + escapeHtml(agentName || '担当者') + '</div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div></div>';
+            return '<div class="chat-msg agent" data-msg-id="' + mid + '">' + img + '<div class="chat-msg-content"><div class="chat-msg-agent-label">' + escapeHtml(agentName || '担当者') + '</div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div></div>';
         }
-        // 顧客（user）
-        return '<div class="chat-msg user"><div class="chat-msg-avatar"></div><div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div></div>';
+        // 顧客（user）。自分の発言には既読表示を付ける。
+        return '<div class="chat-msg user" data-msg-id="' + mid + '"><div class="chat-msg-avatar"></div><div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '<span class="chat-contact-read-wrap">' + contactReadMarkHtml(m) + '</span></div></div></div>';
+    }
+
+    // ポーリング結果（last_read_user_id）に応じて、自分の発言の「既読」表示を更新する。
+    function refreshContactReadMarks() {
+        var el = document.getElementById('chat-contact-messages');
+        if (!el) return;
+        Array.prototype.forEach.call(el.querySelectorAll('.chat-msg.user[data-msg-id]'), function (node) {
+            var id = parseInt(node.getAttribute('data-msg-id'), 10) || 0;
+            var mark = node.querySelector('.chat-contact-read');
+            if (mark && id > 0 && id <= contactLastReadUserId) mark.hidden = false;
+        });
     }
 
     function pushContactMessage(m) {
@@ -1372,7 +1392,8 @@
         renderContactPendingAttachments();
 
         var storedText = text || '[ファイルを送信しました]';
-        pushContactMessage({ role: 'user', message: storedText, created_at: '', attachments: sentAttachments });
+        var sentMsg = { id: 0, role: 'user', message: storedText, created_at: '', attachments: sentAttachments };
+        pushContactMessage(sentMsg);
         input.value = '';
 
         var payload = { session_id: sessionId, visitor_id: visitorId, message: storedText, channel: 'contact' };
@@ -1381,7 +1402,20 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-        }).catch(function () { /* 送信失敗は次回ポーリングで整合 */ });
+        })
+            .then(function (res) { return res.json().catch(function () { return null; }); })
+            .then(function (data) {
+                // 返ってきた message_id を、今送ったバブルに割り当てる（既読判定に使う）。
+                if (data && data.success && data.data && data.data.message_id) {
+                    sentMsg.id = parseInt(data.data.message_id, 10) || 0;
+                    var el = document.getElementById('chat-contact-messages');
+                    if (el) {
+                        var nodes = el.querySelectorAll('.chat-msg.user[data-msg-id="0"]');
+                        if (nodes.length) nodes[nodes.length - 1].setAttribute('data-msg-id', sentMsg.id);
+                    }
+                }
+            })
+            .catch(function () { /* 送信失敗は次回ポーリングで整合 */ });
     }
 
     function bindContactHandlers() {
@@ -1494,6 +1528,12 @@
                 var unread = parseInt(data.data.unread_count, 10);
                 agentUnreadCount = isNaN(unread) ? 0 : unread;
                 setContactTabBadge(agentUnreadCount);
+                // 担当者が自分の発言を既読にしたら「既読」表示を更新する。
+                var lru = parseInt(data.data.last_read_user_id, 10);
+                if (!isNaN(lru) && lru > contactLastReadUserId) {
+                    contactLastReadUserId = lru;
+                    refreshContactReadMarks();
+                }
             })
             .catch(function () { /* ネットワークエラーは無視して次回へ */ });
     }

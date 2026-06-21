@@ -74,6 +74,7 @@ try {
         sendSuccessResponse([
             'reply' => '',
             'agent_mode' => true,
+            'message_id' => $userMessageId,
             'sources' => [],
             'quick_replies' => [],
         ], '担当者にお伝えしました');

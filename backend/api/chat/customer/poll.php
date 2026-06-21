@@ -70,9 +70,16 @@ try {
     $stmt->execute([$sessionId]);
     $unread = (int)$stmt->fetchColumn();
 
+    // 顧客自身の発言（担当連絡）のうち、担当者が既読にした最大ID。
+    // 顧客側UIで「既読」を出すために返す（id <= last_read_user_id の自分の発言は既読扱い）。
+    $stmt = $db->prepare("SELECT COALESCE(MAX(id), 0) FROM chat_messages WHERE session_id = ? AND role = 'user' AND channel = 'contact' AND read_at IS NOT NULL");
+    $stmt->execute([$sessionId]);
+    $lastReadUserId = (int)$stmt->fetchColumn();
+
     sendSuccessResponse([
         'messages' => $newMessages,
         'unread_count' => $unread,
+        'last_read_user_id' => $lastReadUserId,
     ], 'OK');
 } catch (Exception $e) {
     error_log('customer poll error: ' . $e->getMessage());
