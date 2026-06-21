@@ -19,6 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit();
 $sessionId = trim($_GET['session_id'] ?? '');
 $visitorId = trim($_GET['visitor_id'] ?? '');
 $sinceId = isset($_GET['since_id']) ? (int)$_GET['since_id'] : 0;
+// 既読化は「顧客が担当連絡タブを実際に開いたとき」だけ行う（背景ポーリングでは既読にしない）。
+$markRead = !empty($_GET['mark_read']);
 
 if ($sessionId === '' || !preg_match('/^[A-Fa-f0-9-]{36}$/', $sessionId)) {
     sendErrorResponse('session_id is required', 400);
@@ -55,13 +57,16 @@ try {
         $attach = agentMsgLoadAttachments($db, array_column($newMessages, 'id'));
         foreach ($newMessages as &$m) { $m['attachments'] = $attach[(int)$m['id']] ?? []; }
         unset($m);
-        // 顧客が取得＝既読
+    }
+
+    // 顧客が担当連絡タブを開いたとき（mark_read）のみ既読化する。
+    if ($markRead) {
         agentMsgMarkRead($db, $sessionId, 'agent');
     }
 
-    // 未読件数（顧客にとっての担当発言の未読 = まだ取得していない分は既読化済みのため0だが、
-    // 別端末/別タブ向けに現時点の未読を返す）
-    $stmt = $db->prepare("SELECT COUNT(*) FROM chat_messages WHERE session_id = ? AND role = 'agent' AND read_at IS NULL");
+    // 現時点の未読件数（担当連絡チャネルの担当発言で read_at IS NULL のもの）。
+    // バッジはこの値（=本当の未読数）を表示する。
+    $stmt = $db->prepare("SELECT COUNT(*) FROM chat_messages WHERE session_id = ? AND role = 'agent' AND channel = 'contact' AND read_at IS NULL");
     $stmt->execute([$sessionId]);
     $unread = (int)$stmt->fetchColumn();
 

@@ -1471,30 +1471,29 @@
 
     function pollAgentMessages() {
         if (!sessionId) return;
+        // 顧客が担当連絡タブを実際に見ているときだけ既読化する。
+        var viewing = !panel.hidden && !document.hidden && activeChatTab === 'contact';
         var url = apiBase + '/customer/poll.php?session_id=' + encodeURIComponent(sessionId)
             + '&visitor_id=' + encodeURIComponent(visitorId || '')
-            + '&since_id=' + lastAgentMsgId;
+            + '&since_id=' + lastAgentMsgId
+            + (viewing ? '&mark_read=1' : '');
         fetch(url)
             .then(function (res) { return res.json().catch(function () { return { success: false }; }); })
             .then(function (data) {
                 if (!data.success || !data.data) return;
                 var msgs = data.data.messages || [];
-                var added = 0;
                 msgs.forEach(function (m) {
                     var mid = parseInt(m.id, 10) || 0;
                     if (mid <= lastAgentMsgId) return;
                     lastAgentMsgId = mid;
                     pushContactMessage({ id: mid, role: 'agent', message: m.message || '', created_at: m.created_at || '', attachments: m.attachments || [] });
                     notifyAgentMessage(m.message || '');
-                    added++;
                 });
-                if (added) {
-                    // 担当連絡タブを見ていないときは未読バッジを増やす
-                    if (panel.hidden || document.hidden || activeChatTab !== 'contact') {
-                        agentUnreadCount += added;
-                        setContactTabBadge(agentUnreadCount);
-                    }
-                }
+                // バッジはサーバーの「本当の未読件数」（read_at IS NULL）で表示する。
+                // 担当連絡タブを見ているときは mark_read 済みのため 0 が返る。
+                var unread = parseInt(data.data.unread_count, 10);
+                agentUnreadCount = isNaN(unread) ? 0 : unread;
+                setContactTabBadge(agentUnreadCount);
             })
             .catch(function () { /* ネットワークエラーは無視して次回へ */ });
     }
@@ -1745,10 +1744,11 @@
     function setActiveChatTab(tab) {
         if (!tabBar) return;
         activeChatTab = tab || 'ai';
-        // 担当連絡タブを開いたら担当からの未読をクリア
+        // 担当連絡タブを開いたら担当からの未読をクリア（サーバー側も既読化）
         if (activeChatTab === 'contact') {
             agentUnreadCount = 0;
             setContactTabBadge(0);
+            pollAgentMessages();
         }
         Array.prototype.forEach.call(tabBar.querySelectorAll('.chat-widget-tab'), function (btn) {
             var active = btn.getAttribute('data-chat-tab') === tab;
