@@ -430,6 +430,7 @@
     display: flex;
     gap: 0.4rem;
     align-items: center;
+    flex-direction: column;
 }
 .chat-widget-default-prompt {
     flex-basis: 100%;

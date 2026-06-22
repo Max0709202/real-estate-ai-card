@@ -3,6 +3,22 @@
  * - Starts session on first open, shows agent avatar/name, sends messages, displays replies.
  */
 (function () {
+    // 旧ブラウザ（IE11・一部の組込み/社内ブラウザ）向け Element.closest フォールバック。
+    // これが無いとイベント委譲（タブ・機能ボタン）のハンドラが closest 呼び出しで例外を投げ、
+    // AI担当以外のボタンが全て無反応になる。モダンブラウザには影響しない。
+    if (window.Element && !Element.prototype.closest) {
+        Element.prototype.closest = function (sel) {
+            var el = this;
+            var matches = el.matches || el.msMatchesSelector || el.webkitMatchesSelector;
+            if (!matches) return null;
+            while (el && el.nodeType === 1) {
+                if (matches.call(el, sel)) return el;
+                el = el.parentElement || el.parentNode;
+            }
+            return null;
+        };
+    }
+
     var root = document.getElementById('chat-widget-root');
     if (!root) return;
 
@@ -2247,23 +2263,29 @@
 
     if (tabBar) {
         tabBar.addEventListener('click', function (e) {
-            var btn = e.target.closest('.chat-widget-tab');
-            if (!btn) return;
-            var tab = btn.getAttribute('data-chat-tab') || 'ai';
-            if (tab === 'ai') {
-                exitFeatureView();
-                return;
-            }
-            if (tab === 'contact') {
-                // 担当連絡は専用チャット。CRMロードを挟まず即表示。
+            try {
+                var target = e.target && e.target.nodeType === 1 ? e.target : e.srcElement;
+                var btn = target && target.closest ? target.closest('.chat-widget-tab') : null;
+                if (!btn) return;
+                var tab = btn.getAttribute('data-chat-tab') || 'ai';
+                if (tab === 'ai') {
+                    exitFeatureView();
+                    return;
+                }
+                if (tab === 'contact') {
+                    // 担当連絡は専用チャット。CRMロードを挟まず即表示。
+                    enterFeatureView(tab);
+                    renderContactThread();
+                    return;
+                }
                 enterFeatureView(tab);
-                renderContactThread();
-                return;
+                loadCrmState(false).then(function () {
+                    renderFeatureTab(tab);
+                });
+            } catch (err) {
+                // 黙って死なせない：以降のクリックは生かしつつ原因をコンソールに残す。
+                if (window.console && console.error) console.error('[chat-widget] tab click failed:', err);
             }
-            enterFeatureView(tab);
-            loadCrmState(false).then(function () {
-                renderFeatureTab(tab);
-            });
         });
     }
 
