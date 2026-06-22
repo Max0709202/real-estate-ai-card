@@ -22,7 +22,41 @@ function ensureChatPublicDataCacheTable($db) {
 }
 
 function chatPublicDataShouldRun($message) {
+    // A message that contains a street-level address (even inside a sentence like
+    // "○○のハザードを教えて") has none of the keywords below but must still trigger
+    // the address-based zone/hazard report — otherwise it falls through to a
+    // マンション名検索 and is answered "該当物件が見つかりませんでした".
+    if (chatMessageContainsAddress($message)) return true;
     return (bool)preg_match('/(住所|所在地|駅|エリア|地域|周辺|公的|データ|国土交通|政府統計|統計|相場|取引価格|成約|地価|公示|地価調査|基準地価|鑑定|評価書|路線価|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|津波|高潮|地すべり|地滑り|急傾斜|崖|がけ|盛土|造成地|災害危険|被災|用途地域|建蔽率|建ぺい率|容積率|都市計画|区域区分|市街化|立地適正化|防火|地区計画|高度利用|再開発|交通|道路|インフラ|学校|小学校|中学校|高校|学区|病院|医療|クリニック|診療|図書館|公園|役所|役場|公民館|避難|保育|幼稚園|こども園|福祉|介護|老人ホーム|人口|世帯|高齢|子育て|子供|子ども|ファミリー|年収|昼夜|外国人|持ち家|人口集中|DID|将来人口|推計人口|マンション|物件|建物|基礎情報|基本情報|概要|詳細|築年月|築年数|竣工|総戸数|階建|最寄り|乗降|乗降客|乗降人員|利用者数|乗客|混雑)/u', (string)$message);
+}
+
+/**
+ * Extract the street-level address substring from a message, whether typed alone
+ * ("埼玉県川口市弥平2-20-3") or embedded in a sentence ("…のハザードを教えて"). The
+ * address is anchored to the 番地 tail (丁目/番地/号 or N-N), so trailing particles
+ * /words (の…を教えて) are not swallowed — the old prefecture-anchored regex grabbed
+ * the whole sentence and GSI could not geocode it. Returns null when no address is
+ * present. A 都道府県/市区町村 prefix is optional, so a bare 町名+番地 ("弥平2-20-3")
+ * is still recognised.
+ */
+function chatExtractAddressFromMessage($message) {
+    $message = (string)$message;
+    $num = '[0-9０-９]';
+    $ja  = '[一-龥ぁ-んァ-ンヶ々ー]';
+    $pref = '(?:北海道|東京都|京都府|大阪府|' . $ja . '{2,3}県)';
+    $banchi = '(?:' . $num . '+\s*丁目(?:\s*' . $num . '+\s*番地?)?(?:\s*' . $num . '+\s*号)?'
+            . '|' . $num . '+(?:[-－‐ー―]' . $num . '+){1,3}'
+            . '|' . $num . '+\s*番地?(?:\s*' . $num . '+\s*号)?)';
+    // Reject partial numbers / units so "予算10-20万円" or "10時20分" are not addresses.
+    $boundary = '(?![0-9０-９万円台人年月日時分秒度名個件部階室歳坪％%])';
+    $re = '/(' . $pref . '?' . $ja . '{1,24}' . $banchi . $boundary . ')/u';
+    if (preg_match($re, $message, $m)) return trim($m[1]);
+    return null;
+}
+
+/** True when the message contains a recognisable street-level address. */
+function chatMessageContainsAddress($message) {
+    return chatExtractAddressFromMessage($message) !== null;
 }
 
 function chatPublicDataSourceLabel($provider) {
@@ -903,12 +937,28 @@ function chatAddressGeocode($db, $query) {
     $result = chatPublicDataCachedGet($db, 'gsi_geocode', $url, [], 2592000, 6);
     $data = $result['data'];
     if (!is_array($data) || empty($data[0]['geometry']['coordinates'])) return null;
-    $c = $data[0]['geometry']['coordinates'];
+    $best = $data[0];
+    $c = $best['geometry']['coordinates'];
     if (!isset($c[0], $c[1])) return null;
+    $matchedTitle = (string)($best['properties']['title'] ?? '');
+    // Precision guard for non-existent addresses. GSI AddressSearch fuzzy-matches:
+    // for a street number that does not exist it does NOT fail — it returns the
+    // 市区町村/町丁目 centroid instead. That centroid lands on a reinfolib tile that
+    // may already be cached from an earlier (valid) lookup, so the previous fetch's
+    // data would be surfaced as if it were this address. When the query specifies a
+    // street-level address (丁目/番地/号 or an N-N number) but GSI only matched a
+    // coarser level (no 丁目 and no number in the matched title), treat it as a
+    // geocoding failure so the caller reports 0 件 instead of stale tile data.
+    $queryHasStreet = preg_match('/[0-9０-９]+\s*(?:丁目|番地?|号)/u', $q)
+        || preg_match('/[0-9０-９]+\s*[-－‐ー―]\s*[0-9０-９]+/u', $q);
+    if ($queryHasStreet && $matchedTitle !== '') {
+        $matchHasStreet = preg_match('/(?:丁目|[0-9０-９]+\s*(?:番|号)|[0-9０-９]+\s*[-－‐ー―]\s*[0-9０-９]+|[0-9０-９]+$)/u', $matchedTitle);
+        if (!$matchHasStreet) return null;
+    }
     return [
         'lon' => (float)$c[0],
         'lat' => (float)$c[1],
-        'title' => $data[0]['properties']['title'] ?? $q,
+        'title' => $matchedTitle !== '' ? $matchedTitle : $q,
         'prefecture' => null,
     ];
 }
@@ -931,13 +981,21 @@ function chatReinfoResolveLatLon($db, $area, $message) {
         $geo = chatStationGeocode($db, $area['station_name'], $area['prefecture_name'] ?? null);
         if ($geo) return $geo;
     }
-    if (preg_match('/((?:北海道|東京都|京都府|大阪府|.{2,3}県)[一-龥ぁ-んァ-ン0-9０-９\-－丁目番地号の\s]{3,80})/u', (string)$message, $m)) {
-        $geo = chatAddressGeocode($db, trim($m[1]));
-        if ($geo) return $geo;
-    }
-    $addr = trim(($area['prefecture_name'] ?? '') . ($area['city_name'] ?? ''));
-    if ($addr !== '') {
+    // Extract the precise street-level address from the message — works whether it
+    // was typed alone or inside a sentence ("…のハザードを教えて"). Resolve THAT
+    // address; if it cannot be geocoded, do NOT fall back to the 市区町村 centroid
+    // (which would point at an unrelated, often already-cached tile and surface it
+    // as this address's data — see chatAddressGeocode()'s precision guard).
+    $addr = chatExtractAddressFromMessage($message);
+    if ($addr !== null) {
         $geo = chatAddressGeocode($db, $addr);
+        return $geo ?: null;
+    }
+    // No street-level address present (e.g. a general "渋谷区の地価" question): use
+    // the 都道府県+市区町村 centroid extracted into $area.
+    $coarse = trim(($area['prefecture_name'] ?? '') . ($area['city_name'] ?? ''));
+    if ($coarse !== '') {
+        $geo = chatAddressGeocode($db, $coarse);
         if ($geo) return $geo;
     }
     return null;
@@ -952,7 +1010,8 @@ function chatHazardAddressReport($db, $address) {
         'address' => $address,
         'geocoded' => null,
         'items' => [],
-        'message' => '住所の座標を取得できませんでした。',
+        'record_count' => 0,
+        'message' => '住所の座標を取得できませんでした（取得件数0件）。実在しない住所の可能性があります。',
     ];
 
     $area = [
@@ -966,7 +1025,9 @@ function chatHazardAddressReport($db, $address) {
     foreach ($hazardKeys as $key) {
         if (!isset($catalog[$key])) continue;
         $item = chatReinfoCatalogContext($db, $key, $catalog[$key], $address . ' ハザード 災害 防災', $area);
-        if ($item) {
+        // The hazard map UI lists only layers the point actually falls inside;
+        // 区域外/該当なし/取得失敗 status items are for the chat answer, not this list.
+        if ($item && ($item['status'] ?? 'data') === 'data') {
             $item['code'] = $key;
             $items[] = $item;
         }
@@ -975,7 +1036,8 @@ function chatHazardAddressReport($db, $address) {
         'address' => $address,
         'geocoded' => $geo,
         'items' => $items,
-        'message' => empty($items) ? '指定住所周辺で取得できるハザードデータは見つかりませんでした。' : 'ハザード関連データを取得しました。',
+        'record_count' => count($items),
+        'message' => empty($items) ? '指定住所周辺で取得できるハザードデータは見つかりませんでした（取得件数0件）。' : 'ハザード関連データを取得しました。',
     ];
 }
 
@@ -1289,6 +1351,7 @@ function chatReinfoTileContext($db, $code, $def, $message, $area) {
     $features = [];
     $fetchedAt = null;
     $cached = true;
+    $anyOk = false;
     foreach ($offsets as $off) {
         $query = array_merge([
             'response_format' => 'geojson',
@@ -1300,7 +1363,15 @@ function chatReinfoTileContext($db, $code, $def, $message, $area) {
         $result = chatPublicDataCachedGet($db, 'reinfolib', $url, ['Ocp-Apim-Subscription-Key' => REINFOLIB_API_KEY], 2592000);
         $fetchedAt = $result['fetched_at'] ?? $fetchedAt;
         if (empty($result['cached'])) $cached = false;
-        if (!$result['ok'] || !is_array($result['data'])) continue;
+        if (!$result['ok'] || !is_array($result['data'])) {
+            // Genuine fetch FAILURE (transport/HTTP error) — distinct from a
+            // successful-but-empty response (= 該当なし/区域外). Log so it is visible
+            // in the error log; an empty 200 below is intentionally NOT logged.
+            error_log(sprintf('[reinfolib] %s tile z%d x%d y%d fetch error: status=%s error=%s',
+                $code, $z, $query['x'], $query['y'], $result['status'] ?? 'n/a', $result['error'] ?? ''));
+            continue;
+        }
+        $anyOk = true;
         $f = $result['data']['features'] ?? [];
         if (is_array($f) && !empty($f)) {
             $features = array_merge($features, $f);
@@ -1308,8 +1379,252 @@ function chatReinfoTileContext($db, $code, $def, $message, $area) {
             if (count($features) >= 60) break;  // bound the work for dense layers
         }
     }
-    if (empty($features)) return null;
 
+    $base = $geo['title'] ?? trim(($area['prefecture_name'] ?? '') . ($area['city_name'] ?? ''));
+
+    // Polygon zone / hazard layers: classify the OUTCOME so the chat can give a
+    // definitive answer instead of an ambiguous "確認できません". A successful-but-
+    // empty / out-of-zone response is NOT a failure — it means the point is not in
+    // such a designated area, which is a useful, accurate answer.
+    if ($geom === 'polygon') {
+        if (!$anyOk) {
+            return chatReinfoZoneStatusItem($code, $def, $base, 'error', $fetchedAt, $cached);
+        }
+        if (empty($features)) {
+            return chatReinfoZoneStatusItem($code, $def, $base, 'not_designated', $fetchedAt, $cached);
+        }
+        // Only features whose polygon actually contains the point count as a hit —
+        // no "nearest feature" fallback, which would wrongly report a neighbouring
+        // zone as if it applied to this exact location.
+        $matched = [];
+        foreach ($features as $f) {
+            if (chatGeoPointInFeature($geo['lon'], $geo['lat'], $f['geometry'] ?? null)) {
+                $p = (isset($f['properties']) && is_array($f['properties'])) ? $f['properties'] : null;
+                if ($p !== null) $matched[] = $p;
+            }
+        }
+        if (empty($matched)) {
+            return chatReinfoZoneStatusItem($code, $def, $base, 'out_of_area', $fetchedAt, $cached);
+        }
+        $rows = chatReinfoFormatRows($matched, $def, 8);
+        $note = ($def['note'] ?? 'これは指定地点を含む区域のGISデータです。')
+            . ' 取得した区域は基準点（' . $base . '）を含む区域です。';
+        return [
+            'provider' => 'reinfolib',
+            'status' => 'data',
+            'title' => $def['title'] . '（' . $code . '）',
+            'notice' => $base . 'の' . $def['title'] . 'を不動産情報ライブラリで確認します。',
+            'data' => $rows,
+            'record_count' => count($rows),
+            'total_count' => count($matched),
+            'scope_note' => trim($base . 'の' . $def['title']),
+            'count_note' => $note,
+            'fetched_at' => $fetchedAt ?: date('Y-m-d H:i:s'),
+            'cached' => $cached,
+        ];
+    }
+
+    // Point / line layers: nearest-feature behaviour. Empty stays null (do not
+    // claim "周辺に無い" — the search radius is only a few tiles).
+    if (empty($features)) return null;
+    $filtered = chatGeoFilterFeatures($features, $geo['lon'], $geo['lat'], $geom, 8);
+    $rows = chatReinfoFormatRows($filtered['rows'], $def, 8);
+    if (empty($rows)) return null;
+
+    $scope = trim($base . '周辺の' . $def['title']);
+    $note = ($def['note'] ?? 'これは指定地点周辺のGISデータです。')
+        . ' 基準点（' . $base . '）から近い順に表示しています。';
+    return [
+        'provider' => 'reinfolib',
+        'status' => 'data',
+        'title' => $def['title'] . '（' . $code . '）',
+        'notice' => $base . '周辺の' . $def['title'] . 'を不動産情報ライブラリで確認します。',
+        'data' => $rows,
+        'record_count' => count($rows),
+        'total_count' => (int)$filtered['total'],
+        'scope_note' => $scope,
+        'count_note' => $note,
+        'fetched_at' => $fetchedAt ?: date('Y-m-d H:i:s'),
+        'cached' => $cached,
+    ];
+}
+
+/** Whitelist + label the GeoJSON properties of up to $limit features for the prompt. */
+function chatReinfoFormatRows($propsList, $def, $limit = 8) {
+    $rows = [];
+    foreach (array_slice((array)$propsList, 0, $limit) as $props) {
+        if (!is_array($props)) continue;
+        if (!empty($def['fields'])) {
+            $row = [];
+            foreach ($def['fields'] as $key => $label) {
+                if (isset($props[$key]) && $props[$key] !== '') $row[$label] = $props[$key];
+            }
+            $rows[] = !empty($row) ? $row : $props;
+        } else {
+            $rows[] = $props;
+        }
+    }
+    return $rows;
+}
+
+/**
+ * Build a non-data outcome item for a polygon zone/hazard layer so the chat can
+ * answer definitively. $status is one of:
+ *   'not_designated' その区域の指定が無い（HTTP200・該当ポリゴンなし）   → 「該当なし」
+ *   'out_of_area'    近隣に区域はあるが地点は区域外（HTTP200）            → 「区域外」
+ *   'error'          取得失敗（API/通信エラー、該当の有無は不明）         → 「取得失敗」
+ * These carry record_count 0 plus an explicit instruction so the model phrases
+ * 該当なし・区域外 (a real answer) differently from 取得失敗 (retry).
+ */
+function chatReinfoZoneStatusItem($code, $def, $base, $status, $fetchedAt, $cached) {
+    $title = $def['title'];
+    if ($status === 'error') {
+        $notice = $base . 'の' . $title . 'は現在取得できませんでした。';
+        $note = '取得失敗（APIエラー・通信エラー）。この地点が' . $title . 'に該当するかは不明です。'
+            . 'ユーザーには「現在この情報を取得できませんでした。時間をおいて再度お試しください」と伝え、'
+            . '「該当しない」「区域外」とは断定しないでください。';
+        $label = '取得失敗';
+    } elseif ($status === 'out_of_area') {
+        $notice = $base . 'はこの' . $title . 'の区域外です。';
+        $note = 'APIは正常に取得完了（HTTP200）。近隣に' . $title . 'は存在しますが、この地点はその区域外です。'
+            . 'ユーザーには「この地点は' . $title . 'の区域外です（指定区域に含まれません）」と明確に伝えてください。'
+            . '「確認できません」「取得できませんでした」とは言わないでください。';
+        $label = '区域外';
+    } else { // not_designated
+        $notice = $base . 'は' . $title . 'に指定されていません。';
+        $note = 'APIは正常に取得完了（HTTP200）。この地点・周辺に' . $title . 'の指定はありません（該当なし）。'
+            . 'ユーザーには「' . $title . 'には指定されていません（該当なし）」と明確に伝えてください。'
+            . '「確認できません」「取得できませんでした」とは言わないでください。';
+        $label = '該当なし';
+    }
+    return [
+        'provider' => 'reinfolib',
+        'status' => $status,
+        'status_label' => $label,
+        'title' => $title . '（' . $code . '）',
+        'notice' => $notice,
+        'data' => [],
+        'record_count' => 0,
+        'total_count' => 0,
+        'count_note' => $note,
+        'fetched_at' => $fetchedAt ?: date('Y-m-d H:i:s'),
+        'cached' => $cached,
+    ];
+}
+
+/**
+ * Diagnostic counterpart of chatReinfoTileContext(): runs the SAME geocode →
+ * tile → fetch → spatial-filter pipeline but NEVER collapses to null. Returns a
+ * full per-API breakdown so a "確認できません" outcome can be classified, telling
+ * apart genuinely-no-data cases from transport failures:
+ *   - 'no_api_key'      APIキー未設定
+ *   - 'geocode_failed'  住所→緯度経度の変換に失敗
+ *   - 'http_error'      取得失敗（APIがHTTPエラー／通信エラー）          ← エラー
+ *   - 'not_designated'  該当なし（タイル内にその区域ポリゴンが存在しない）  ← 該当なし
+ *   - 'out_of_area'     区域外（近隣に区域はあるが地点はポリゴン外）        ← 区域外
+ *   - 'data'            データあり（地点が区域内／近接データ取得）
+ * Used by the address data-diagnostic endpoint; not part of the live chat path.
+ */
+function chatReinfoTileDiagnostic($db, $code, $def, $geo) {
+    $geom = $def['geom'] ?? 'polygon';
+    $out = [
+        'code' => $code,
+        'title' => $def['title'] ?? $code,
+        'geom' => $geom,
+        'requested_z' => null,
+        'tiles' => [],
+        'http_status' => null,
+        'error' => '',
+        'cached' => null,
+        'fetched_at' => null,
+        'tile_feature_count' => 0,
+        'point_in_zone' => false,
+        'matched_count' => 0,
+        'status' => 'error',
+        'status_label' => '',
+        'raw_sample' => '',
+        'rows' => [],
+    ];
+    if (!defined('REINFOLIB_API_KEY') || REINFOLIB_API_KEY === '') {
+        $out['status'] = 'no_api_key';
+        $out['status_label'] = 'APIキー未設定';
+        $out['error'] = 'REINFOLIB_API_KEY is not configured';
+        return $out;
+    }
+    if (!$geo) {
+        $out['status'] = 'geocode_failed';
+        $out['status_label'] = 'ジオコーディング失敗';
+        return $out;
+    }
+    $zmin = (int)($def['zmin'] ?? 11);
+    $zmax = (int)($def['zmax'] ?? 15);
+    $z = max($zmin, min($zmax, 14));
+    $out['requested_z'] = $z;
+    $center = chatGeoLatLonToTile($geo['lat'], $geo['lon'], $z);
+    $offsets = $geom === 'point'
+        ? [[0,0],[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]]
+        : [[0,0]];
+    $year = (int)date('Y');
+    $extra = [];
+    if (isset($def['params'])) {
+        $extra = is_callable($def['params']) ? ($def['params'])($year) : (array)$def['params'];
+    }
+    $features = [];
+    $anyOk = false;
+    $lastStatus = null;
+    $errMsg = '';
+    foreach ($offsets as $off) {
+        $tx = $center['x'] + $off[0];
+        $ty = $center['y'] + $off[1];
+        $query = array_merge(['response_format' => 'geojson', 'z' => $z, 'x' => $tx, 'y' => $ty], $extra);
+        $url = 'https://www.reinfolib.mlit.go.jp/ex-api/external/' . $code . '?' . http_build_query($query);
+        $result = chatPublicDataCachedGet($db, 'reinfolib', $url, ['Ocp-Apim-Subscription-Key' => REINFOLIB_API_KEY], 2592000);
+        $out['tiles'][] = ['x' => $tx, 'y' => $ty];
+        $lastStatus = $result['status'] ?? $lastStatus;
+        $out['cached'] = !empty($result['cached']);
+        $out['fetched_at'] = $result['fetched_at'] ?? $out['fetched_at'];
+        if (!empty($result['error'])) $errMsg = (string)$result['error'];
+        if (!$result['ok'] || !is_array($result['data'])) continue;
+        $anyOk = true;
+        $f = $result['data']['features'] ?? [];
+        if (is_array($f) && !empty($f)) {
+            if ($out['raw_sample'] === '') {
+                $out['raw_sample'] = mb_substr((string)json_encode($f[0], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0, 600);
+            }
+            $features = array_merge($features, $f);
+            if ($geom !== 'point') break;
+            if (count($features) >= 60) break;
+        } elseif ($out['raw_sample'] === '') {
+            // HTTP 200 but empty payload — record the shape (= 該当なし evidence, ⑦).
+            $out['raw_sample'] = mb_substr((string)json_encode($result['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0, 600);
+        }
+    }
+    $out['http_status'] = $lastStatus;
+    $out['error'] = $errMsg;
+    $out['tile_feature_count'] = count($features);
+
+    if (!$anyOk) {
+        $out['status'] = 'http_error';
+        $out['status_label'] = '取得失敗（APIエラー）';
+        return $out;
+    }
+    if (empty($features)) {
+        $out['status'] = 'not_designated';
+        $out['status_label'] = '該当なし（区域の指定なし）';
+        return $out;
+    }
+    if ($geom === 'polygon') {
+        $inZone = false;
+        foreach ($features as $f) {
+            if (chatGeoPointInFeature($geo['lon'], $geo['lat'], $f['geometry'] ?? null)) { $inZone = true; break; }
+        }
+        $out['point_in_zone'] = $inZone;
+        if (!$inZone) {
+            $out['status'] = 'out_of_area';
+            $out['status_label'] = '区域外（近隣に区域はあるが地点は対象外）';
+            return $out;
+        }
+    }
     $filtered = chatGeoFilterFeatures($features, $geo['lon'], $geo['lat'], $geom, 8);
     $rows = [];
     foreach ($filtered['rows'] as $props) {
@@ -1323,28 +1638,46 @@ function chatReinfoTileContext($db, $code, $def, $message, $area) {
             $rows[] = $props;
         }
     }
-    if (empty($rows)) return null;
+    $out['matched_count'] = count($rows);
+    $out['rows'] = array_slice($rows, 0, 3);
+    $out['status'] = 'data';
+    $out['status_label'] = 'データあり（区域内）';
+    return $out;
+}
 
-    $base = $geo['title'] ?? trim(($area['prefecture_name'] ?? '') . ($area['city_name'] ?? ''));
-    $scope = trim($base . '周辺の' . $def['title']);
-    $note = ($def['note'] ?? 'これは指定地点周辺のGISデータです。');
-    if ($geom === 'polygon') {
-        $note .= ' 取得した区域は基準点（' . $base . '）を含む/近接する区域です。';
-    } else {
-        $note .= ' 基準点（' . $base . '）から近い順に表示しています。';
-    }
-    return [
-        'provider' => 'reinfolib',
-        'title' => $def['title'] . '（' . $code . '）',
-        'notice' => $base . '周辺の' . $def['title'] . 'を不動産情報ライブラリで確認します。',
-        'data' => $rows,
-        'record_count' => count($rows),
-        'total_count' => (int)$filtered['total'],
-        'scope_note' => $scope,
-        'count_note' => $note,
-        'fetched_at' => $fetchedAt ?: date('Y-m-d H:i:s'),
-        'cached' => $cached,
+/**
+ * Address data diagnostic: geocode the address once, then run a fixed set of
+ * reinfolib GIS layers and report, per layer, whether the point has data / is
+ * outside the zone / the layer is not designated there / the API errored. Built
+ * to root-cause "確認できません" answers and to make 区域外・該当なし clearly
+ * distinguishable from 取得失敗・エラー. $codes defaults to 用途地域・防火・洪水・
+ * 土砂 plus neighbouring hazard layers.
+ */
+function chatAddressDataDiagnostic($db, $address, $codes = null) {
+    $address = trim((string)$address);
+    $result = [
+        'address' => $address,
+        'geocode' => null,
+        'layers' => [],
+        'generated_at' => date('Y-m-d H:i:s'),
     ];
+    if ($address === '') return $result;
+    $geo = chatAddressGeocode($db, $address);
+    $result['geocode'] = $geo
+        ? ['ok' => true, 'lat' => $geo['lat'], 'lon' => $geo['lon'], 'matched_title' => $geo['title'] ?? null]
+        : ['ok' => false, 'lat' => null, 'lon' => null, 'matched_title' => null,
+           'note' => 'GSI住所検索で座標を特定できませんでした（実在しない住所、または番地まで一致しなかった可能性）。'];
+
+    $catalog = chatReinfoApiCatalog();
+    if (!is_array($codes) || empty($codes)) {
+        $codes = ['XKT002', 'XKT014', 'XKT026', 'XKT029', 'XKT028', 'XKT027', 'XKT025', 'XKT022', 'XKT021'];
+    }
+    foreach ($codes as $code) {
+        $code = strtoupper(trim((string)$code));
+        if (!isset($catalog[$code])) continue;
+        $result['layers'][] = chatReinfoTileDiagnostic($db, $code, $catalog[$code], $geo);
+    }
+    return $result;
 }
 
 /**
@@ -1508,6 +1841,14 @@ function chatPublicDataRoute($db, $message, $area) {
     if (!empty($matched)) {
         return ['providers' => $matched, 'area' => $area, 'router' => 'keyword'];
     }
+    // A message containing a street-level address but no explicit topic → run the
+    // standard address report (用途地域・防火・洪水・土砂・液状化) for that exact
+    // point, instead of falling through to the LLM router / マンション名検索 which
+    // would answer "該当物件が見つかりませんでした". (Order = display priority; within
+    // the 5-provider fan-out cap.)
+    if (chatMessageContainsAddress($message)) {
+        return ['providers' => ['XKT002', 'XKT014', 'XKT026', 'XKT029', 'XKT025'], 'area' => $area, 'router' => 'address'];
+    }
     // Ambiguous: the global gate passed but no provider keyword matched. Ask the
     // cheap LLM router to classify (and extract a station name if relevant).
     $llm = chatPublicDataLlmRouter($message, $registry);
@@ -1545,21 +1886,36 @@ function chatBuildPublicDataContext($db, $message) {
         $label = chatPublicDataSourceLabel($item['provider']);
         $sources[] = $label;
         if (!empty($item['notice'])) $notices[] = $item['notice'];
+        $status = $item['status'] ?? 'data';
 
         $meta[] = [
             'provider' => $item['provider'],
             'label' => $label,
+            'title' => $item['title'] ?? null,
+            'status' => $status,
+            'status_label' => $item['status_label'] ?? null,
             'record_count' => isset($item['record_count']) ? (int)$item['record_count'] : null,
             'total_count' => array_key_exists('total_count', $item) && $item['total_count'] !== null ? (int)$item['total_count'] : null,
             'fetched_at' => $item['fetched_at'] ?? null,
             'cached' => !empty($item['cached']),
         ];
 
+        // Non-data outcomes (区域外 / 該当なし / 取得失敗): present the judgement and
+        // its instruction, with no data block — the count_note tells the model how to
+        // phrase it (a real "該当なし" answer vs. a retry-able "取得失敗").
+        if ($status !== 'data') {
+            $extra = '';
+            if (!empty($item['fetched_at'])) $extra = "\n取得日時: " . $item['fetched_at'];
+            if (!empty($item['count_note'])) $extra .= "\n" . $item['count_note'];
+            $parts[] = "\n【{$item['title']}】\n出典: {$label}\n判定: " . ($item['status_label'] ?? '該当なし') . $extra;
+            continue;
+        }
+
         $extra = '';
         if ($item['provider'] === 'estat') $extra .= "\n回答でこのデータを参照する場合は、該当箇所に『政府統計によると、』という前置きを入れてください。";
         $metaLine = '取得件数: ' . (isset($item['record_count']) ? (int)$item['record_count'] . '件' : '不明');
         if (array_key_exists('total_count', $item) && $item['total_count'] !== null) $metaLine .= ' / 該当総件数: ' . (int)$item['total_count'] . '件';
-        if (!empty($item['fetched_at'])) $metaLine .= ' / 取得日時: ' . $item['fetched_at'] . ($item['cached'] ? '（キャッシュ）' : '（最新取得）');
+        if (!empty($item['fetched_at'])) $metaLine .= ' / 取得日時: ' . $item['fetched_at'];
         $extra .= "\n" . $metaLine;
         if (!empty($item['count_note'])) $extra .= "\n" . $item['count_note'];
         if (!empty($item['caveat'])) $extra .= "\n注意: " . $item['caveat'];
@@ -1582,6 +1938,16 @@ function chatPublicDataTransparencyFooter($meta) {
         if (!is_array($m)) continue;
         $label = $m['label'] ?? '';
         if ($label === '') continue;
+        $status = $m['status'] ?? 'data';
+        if ($status !== 'data') {
+            // 区域外 / 該当なし / 取得失敗 — show the judgement, not a misleading "0 件".
+            $line = '・' . ($m['title'] ?? $label) . '：' . ($m['status_label'] ?? '該当なし');
+            if (!empty($m['fetched_at'])) {
+                $line .= '／取得 ' . mb_substr((string)$m['fetched_at'], 0, 16);
+            }
+            $lines[] = $line;
+            continue;
+        }
         $count = isset($m['record_count']) ? (int)$m['record_count'] : null;
         $total = array_key_exists('total_count', $m) && $m['total_count'] !== null ? (int)$m['total_count'] : null;
         $line = '・' . $label;
@@ -1593,7 +1959,7 @@ function chatPublicDataTransparencyFooter($meta) {
             $line .= '：' . $count . ' 件';
         }
         if (!empty($m['fetched_at'])) {
-            $line .= '／取得 ' . mb_substr((string)$m['fetched_at'], 0, 16) . ($m['cached'] ? '（キャッシュ）' : '');
+            $line .= '／取得 ' . mb_substr((string)$m['fetched_at'], 0, 16);
         }
         $lines[] = $line;
     }
@@ -1609,9 +1975,21 @@ function chatPublicDataSourcesForUi($sources, $meta = []) {
         '政府統計の総合窓口 e-Stat' => 'https://www.e-stat.go.jp/',
         '当社 全国マンションデータベース' => '',
     ];
+    // Several reinfolib layers share one source label. Keep the most informative
+    // entry per label (a layer WITH data beats a 該当なし/区域外/取得失敗 one) so the
+    // source chip's count is not clobbered to 0 by a no-data layer.
     $metaByLabel = [];
+    $metaScore = function ($x) {
+        $s = (($x['status'] ?? 'data') === 'data') ? 1000000 : 0;
+        $c = array_key_exists('total_count', $x) && $x['total_count'] !== null ? (int)$x['total_count'] : (int)($x['record_count'] ?? 0);
+        return $s + $c;
+    };
     foreach ((array)$meta as $m) {
-        if (is_array($m) && !empty($m['label'])) $metaByLabel[$m['label']] = $m;
+        if (!is_array($m) || empty($m['label'])) continue;
+        $lbl = $m['label'];
+        if (!isset($metaByLabel[$lbl]) || $metaScore($m) > $metaScore($metaByLabel[$lbl])) {
+            $metaByLabel[$lbl] = $m;
+        }
     }
     $items = [];
     foreach (array_values(array_unique(array_filter((array)$sources))) as $source) {

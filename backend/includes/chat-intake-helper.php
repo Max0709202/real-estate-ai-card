@@ -1728,7 +1728,8 @@ function chatIntakeApplyVerifiedPhoneRegistration($db, $sessionId, $businessCard
 function buildChatLeadContext($data) {
     if (!$data || !is_array($data)) return '';
     $labels = [
-        'customer_type' => '相談種別', 'temperature' => '温度感', 'preferred_area' => '希望エリア', 'preferred_station' => '希望駅', 'preferred_station_line' => '希望駅・沿線',
+        // 温度感（temperature）は営業内部メモ。顧客向けチャットのAI文脈には含めない（顧客へ復唱されるのを防ぐ）。
+        'customer_type' => '相談種別', 'preferred_area' => '希望エリア', 'preferred_station' => '希望駅', 'preferred_station_line' => '希望駅・沿線',
         'commute_destination' => '通勤・通学先', 'budget_min' => '予算下限', 'budget_max' => '予算上限',
         'competitor_viewing_status' => '他社内覧有無', 'viewed_property_count' => '内覧件数', 'preferred_area_size' => '希望㎡数',
         'layout' => '間取り', 'property_type' => '物件種別', 'purchase_timing' => '購入時期', 'selling_timing' => '売却時期', 'rent_timing' => '賃貸時期',

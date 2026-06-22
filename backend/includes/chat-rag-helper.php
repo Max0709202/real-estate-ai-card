@@ -1103,11 +1103,33 @@ function getChatResumeMessageForSession($db, $sessionId, $agentName = '担当者
     return chatMemoryHasContinuity($memory) ? chatBuildResumeMessage($memory, $agentName) : '';
 }
 
+/**
+ * 顧客向けに渡すテキストから、営業内部メモである「温度感／検討温度感」を必ず除去する。
+ * 温度感は営業（担当者）側CRMだけで扱う値で、顧客チャットのAI文脈に混ぜると
+ * AIがそのまま要約として顧客へ復唱してしまうため、顧客側へ流れる経路では落とす。
+ * 例: 「相談目的: 購入 / 温度感: high / 希望エリア: 中野区」→「相談目的: 購入 / 希望エリア: 中野区」
+ */
+function chatStripCustomerInternalNotes($text) {
+    if (!is_string($text) || $text === '') return $text;
+    // 「(検討)温度感: ...」を、次の区切り（ / 、改行、行末）まで除去。
+    $text = preg_replace('/(?:検討)?温度感\s*[:：][^\/\n\r]*/u', '', $text);
+    // 区切りだけ残った「温度感」見出し（値なし）も除去。
+    $text = preg_replace('/(?:検討)?温度感(?=\s*(?:\/|$|[\n\r]))/u', '', $text);
+    // 除去で生じた連続スラッシュ・先頭/末尾のスラッシュや余分な空白を整理。
+    $text = preg_replace('/\s*\/\s*(?:\/\s*)+/u', ' / ', $text);
+    $text = preg_replace('/^\s*\/\s*|\s*\/\s*$/u', '', $text);
+    $text = preg_replace('/[ \t]{2,}/u', ' ', $text);
+    return trim($text);
+}
+
 function buildChatMemoryContext($memory) {
     if (!$memory || !is_array($memory)) return '';
     $lines = [];
-    if (!empty($memory['last_summary'])) $lines[] = '前回までの要約: ' . $memory['last_summary'];
-    foreach (['intent' => '相談目的', 'property_type' => '物件種別', 'budget' => '予算/価格', 'income_range' => '年収帯', 'family' => '家族構成', 'preferred_area' => '希望エリア', 'loan_plan' => 'ローン利用', 'temperature' => '検討温度感'] as $key => $label) {
+    if (!empty($memory['last_summary'])) {
+        $cleanSummary = chatStripCustomerInternalNotes((string)$memory['last_summary']);
+        if ($cleanSummary !== '') $lines[] = '前回までの要約: ' . $cleanSummary;
+    }
+    foreach (['intent' => '相談目的', 'property_type' => '物件種別', 'budget' => '予算/価格', 'income_range' => '年収帯', 'family' => '家族構成', 'preferred_area' => '希望エリア', 'loan_plan' => 'ローン利用'] as $key => $label) {
         if (empty($memory[$key])) continue;
         $value = $key === 'intent' ? chatMemoryIntentLabel($memory[$key]) : $memory[$key];
         $lines[] = $label . ': ' . $value;
@@ -1115,7 +1137,7 @@ function buildChatMemoryContext($memory) {
     if (!empty($memory['child_rearing_household'])) $lines[] = '子育て世帯・若者夫婦世帯: 該当する可能性あり';
     if (!empty($memory['topics']) && is_array($memory['topics'])) $lines[] = '関心テーマ: ' . implode('、', array_slice($memory['topics'], 0, 8));
     if (!empty($memory['previous_suggestions']) && is_array($memory['previous_suggestions'])) $lines[] = '過去にAIが案内した内容: ' . implode(' / ', array_slice($memory['previous_suggestions'], 0, 2));
-    if (!empty($memory['recent_context'])) $lines[] = '直近の会話要点: ' . $memory['recent_context'];
+    if (!empty($memory['recent_context'])) $lines[] = '直近の会話要点: ' . chatStripCustomerInternalNotes((string)$memory['recent_context']);
     if (!empty($memory['missing_info']) && is_array($memory['missing_info'])) $lines[] = '未確認事項: ' . implode('、', array_slice($memory['missing_info'], 0, 10));
     if (empty($lines)) return '';
     return "【会話メモリー】\n" . implode("\n", $lines);

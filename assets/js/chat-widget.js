@@ -1124,7 +1124,6 @@
                 var bits = [];
                 if (typeof source.record_count === 'number') bits.push(source.record_count + '件');
                 if (source.fetched_at) bits.push(String(source.fetched_at).slice(0, 16) + '取得');
-                if (source.cached) bits.push('キャッシュ');
                 if (bits.length) meta = ' <span class="chat-msg-source-meta">(' + escapeHtml(bits.join('・')) + ')</span>';
             }
             if (!url) return '<span class="chat-msg-source-label">' + escapeHtml(title) + '</span>' + meta;
