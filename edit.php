@@ -3896,6 +3896,12 @@ $defaultGreetings = [
             function initAgentChat(sessionId) {
                 stopAgentChatPoll();
                 renderPendingAttachments();
+                // LINE同様、開いた直後は各スレッドの最新（最下部）を表示する。上スクロールで過去を遡れる。
+                if (typeof detailContent !== 'undefined' && detailContent) {
+                    Array.prototype.forEach.call(detailContent.querySelectorAll('.chat-thread'), function(thread) {
+                        thread.scrollTop = thread.scrollHeight;
+                    });
+                }
                 // 開いた時点で顧客発言を既読化
                 fetch(apiBase + '/agent/read.php', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
