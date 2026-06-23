@@ -1518,6 +1518,42 @@
         } catch (e) { /* noop */ }
     }
 
+    // 担当連絡タブを開いたときに、チャネルの全履歴（顧客の送信＋担当の返信）をサーバーから取得して
+    // スレッドを再構築する。これにより、入口フロー（おかえりなさい等）やリロード後でも、
+    // 顧客自身が送ったメッセージが必ず表示される（ポーリングは担当の新着しか取得しないため）。
+    function loadContactHistory() {
+        if (!sessionId) return;
+        var url = apiBase + '/customer/poll.php?session_id=' + encodeURIComponent(sessionId)
+            + '&visitor_id=' + encodeURIComponent(visitorId || '')
+            + '&history=1&mark_read=1';
+        fetch(url)
+            .then(function (res) { return res.json().catch(function () { return { success: false }; }); })
+            .then(function (data) {
+                if (!data.success || !data.data) return;
+                var msgs = data.data.messages || [];
+                contactMessages = msgs.map(function (m) {
+                    return {
+                        id: parseInt(m.id, 10) || 0,
+                        role: m.role === 'agent' ? 'agent' : 'user',
+                        message: m.message || '',
+                        created_at: m.created_at || '',
+                        attachments: m.attachments || []
+                    };
+                });
+                // ポーリングが既読済みの担当発言を再度追加しないよう、最大の担当発言IDを記録。
+                contactMessages.forEach(function (m) {
+                    if (m.role === 'agent' && m.id > lastAgentMsgId) lastAgentMsgId = m.id;
+                });
+                var lru = parseInt(data.data.last_read_user_id, 10);
+                if (!isNaN(lru) && lru > contactLastReadUserId) contactLastReadUserId = lru;
+                var unread = parseInt(data.data.unread_count, 10);
+                agentUnreadCount = isNaN(unread) ? 0 : unread;
+                setContactTabBadge(agentUnreadCount);
+                if (activeChatTab === 'contact') renderContactThread();
+            })
+            .catch(function () { /* 取得失敗時は既存表示を維持 */ });
+    }
+
     function pollAgentMessages() {
         if (!sessionId) return;
         // 顧客が担当連絡タブを実際に見ているときだけ既読化する。
@@ -2080,6 +2116,7 @@
         if (tab === 'contact') {
             // 担当連絡は専用チャットUI。CRM状態のロードは不要。
             renderContactThread();
+            loadContactHistory();
             return;
         }
         if (!crmState) {
@@ -2273,9 +2310,10 @@
                     return;
                 }
                 if (tab === 'contact') {
-                    // 担当連絡は専用チャット。CRMロードを挟まず即表示。
+                    // 担当連絡は専用チャット。CRMロードを挟まず即表示し、全履歴をサーバーから取得。
                     enterFeatureView(tab);
                     renderContactThread();
+                    loadContactHistory();
                     return;
                 }
                 enterFeatureView(tab);

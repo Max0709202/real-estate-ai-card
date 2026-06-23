@@ -1491,7 +1491,7 @@ $defaultGreetings = [
 
                 <!-- Chat history / Leads (My Page) -->
                 <div id="chat-history-section" class="edit-section<?php echo $isUtilizingUser ? ' active' : ''; ?>"<?php echo $isUtilizingUser ? '' : ' style="display: none;"'; ?>>
-                    <h2>チャット履歴・顧客一覧</h2>
+                    <h2>チャット履歴・顧客一覧（工事中）</h2>
                     <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。</p>
                     <div id="chat-history-list" class="chat-history-list">
                         <p class="chat-history-loading">読み込み中...</p>
@@ -1508,7 +1508,7 @@ $defaultGreetings = [
 
                 <!-- Agent training -->
                 <div id="agent-training-section" class="edit-section" style="display: none;">
-                    <h2>AI育成</h2>
+                    <h2>AI育成（工事中）</h2>
                     <p class="step-description">AI担当に覚えさせたい情報や、使わせたくない表現を登録できます。</p>
 
                     <div class="form-section">

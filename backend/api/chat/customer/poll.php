@@ -21,6 +21,9 @@ $visitorId = trim($_GET['visitor_id'] ?? '');
 $sinceId = isset($_GET['since_id']) ? (int)$_GET['since_id'] : 0;
 // 既読化は「顧客が担当連絡タブを実際に開いたとき」だけ行う（背景ポーリングでは既読にしない）。
 $markRead = !empty($_GET['mark_read']);
+// history=1: 担当連絡チャネルの全履歴（顧客の発言＋担当の発言）を返す。
+// 担当連絡タブを開いた時に、顧客自身の送信メッセージも含めて完全な会話を表示するため。
+$history = !empty($_GET['history']);
 
 if ($sessionId === '' || !preg_match('/^[A-Fa-f0-9-]{36}$/', $sessionId)) {
     sendErrorResponse('session_id is required', 400);
@@ -44,14 +47,25 @@ try {
         sendErrorResponse('セッションを確認できません', 403);
     }
 
-    // 担当の新着発言を取得（担当連絡チャネルの人間担当発言のみ）
-    $stmt = $db->prepare("
-        SELECT id, role, message, created_at
-        FROM chat_messages
-        WHERE session_id = ? AND role = 'agent' AND channel = 'contact' AND id > ?
-        ORDER BY id ASC LIMIT 200
-    ");
-    $stmt->execute([$sessionId, $sinceId]);
+    if ($history) {
+        // 担当連絡チャネルの全メッセージ（顧客=user / 担当=agent の両方）を時系列で取得。
+        $stmt = $db->prepare("
+            SELECT id, role, message, created_at
+            FROM chat_messages
+            WHERE session_id = ? AND channel = 'contact' AND role IN ('user','agent')
+            ORDER BY id ASC LIMIT 500
+        ");
+        $stmt->execute([$sessionId]);
+    } else {
+        // 担当の新着発言を取得（担当連絡チャネルの人間担当発言のみ）
+        $stmt = $db->prepare("
+            SELECT id, role, message, created_at
+            FROM chat_messages
+            WHERE session_id = ? AND role = 'agent' AND channel = 'contact' AND id > ?
+            ORDER BY id ASC LIMIT 200
+        ");
+        $stmt->execute([$sessionId, $sinceId]);
+    }
     $newMessages = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if ($newMessages) {
         $attach = agentMsgLoadAttachments($db, array_column($newMessages, 'id'));
