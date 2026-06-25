@@ -77,7 +77,9 @@ try {
         if ($found && !empty($found['session_id'])) {
             $sessionId = $found['session_id'];
             $matched = true;
-            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            // SMS本人確認済みの端末を現所有者に更新（NULL指定時のみ既存を保持）。
+            // 元所有者を保持すると端末側 visitor_id と食い違い poll/upload が 403 になる。
+            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(?, visitor_identifier), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$visitorId !== '' ? $visitorId : null, $sessionId]);
         } else {
             if ($currentSessionId !== '') {
@@ -88,7 +90,9 @@ try {
             if ($sessionId === '') {
                 $sessionId = chatCreateSessionForVerifiedPhone($db, $businessCardId, $visitorId);
             } else {
-                $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+                // SMS本人確認済みの端末を現所有者に更新（NULL指定時のみ既存を保持）。
+                // 元所有者を保持すると端末側 visitor_id と食い違い poll/upload が 403 になる。
+                $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(?, visitor_identifier), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
                 $stmt->execute([$visitorId !== '' ? $visitorId : null, $sessionId]);
             }
             $leadData = chatIntakeApplyVerifiedPhoneRegistration($db, $sessionId, $businessCardId, $phone);
@@ -102,7 +106,9 @@ try {
         $stmt->execute([$currentSessionId, $businessCardId]);
         $sessionId = (string)($stmt->fetchColumn() ?: '');
         if ($sessionId !== '') {
-            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            // SMS本人確認済みの端末を現所有者に更新（NULL指定時のみ既存を保持）。
+            // 元所有者を保持すると端末側 visitor_id と食い違い poll/upload が 403 になる。
+            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(?, visitor_identifier), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$visitorId !== '' ? $visitorId : null, $sessionId]);
             $leadData = chatIntakeApplyVerifiedPhoneRegistration($db, $sessionId, $businessCardId, $phone);
             $customerName = $leadData['customer_name'] ?? $customerName;
@@ -114,7 +120,9 @@ try {
         if ($found && !empty($found['session_id'])) {
             $sessionId = $found['session_id'];
             $matched = true;
-            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            // SMS本人確認済みの端末を現所有者に更新（NULL指定時のみ既存を保持）。
+            // 元所有者を保持すると端末側 visitor_id と食い違い poll/upload が 403 になる。
+            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(?, visitor_identifier), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$visitorId !== '' ? $visitorId : null, $sessionId]);
         } else {
             $sessionId = chatCreateSessionForVerifiedPhone($db, $businessCardId, $visitorId);

@@ -57,7 +57,8 @@ try {
         sendErrorResponse('セッションが見つかりません', 404);
     }
     if ($visitorId !== '') {
-        $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?) WHERE id = ?");
+        // 送信元の端末を現所有者に更新（poll/upload の visitor 突合と整合させる）。
+        $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ? WHERE id = ?");
         $stmt->execute([$visitorId, $sessionId]);
     }
 

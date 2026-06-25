@@ -76,7 +76,11 @@ try {
     if ($sessionId !== '') {
         $isResumed = true;
         if ($visitorId !== '') {
-            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            // 再開した端末を現所有者に更新する。COALESCE で元所有者を保持すると、
+            // 端末側 visitor_id とセッションの visitor_identifier が食い違い、
+            // poll/upload の突合で 403（セッションを確認できません）になるため。
+            // session_id（推測不能なUUID）を提示して再開できている時点で履歴閲覧権は付与済み。
+            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$visitorId, $sessionId]);
         } else {
             $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
