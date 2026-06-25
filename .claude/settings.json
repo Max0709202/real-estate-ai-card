@@ -33,7 +33,18 @@
       "Bash(php -l card.php)",
       "Bash(php -r 'var_dump\\(function_exists\\(\"opcache_get_status\"\\)\\);')",
       "Bash(php -i)",
-      "Bash(php -r 'if\\(function_exists\\(\"opcache_get_status\"\\)\\){$s=@opcache_get_status\\(false\\); echo $s? \"enabled\\(cli\\)\\\\n\":\"disabled-or-no-cli\\\\n\";} else echo \"no opcache ext\\\\n\";')"
+      "Bash(php -r 'if\\(function_exists\\(\"opcache_get_status\"\\)\\){$s=@opcache_get_status\\(false\\); echo $s? \"enabled\\(cli\\)\\\\n\":\"disabled-or-no-cli\\\\n\";} else echo \"no opcache ext\\\\n\";')",
+      "Bash(php -l backend/includes/chat-public-data-helper.php)",
+      "Bash(php -l backend/includes/openai-chat-helper.php)",
+      "Bash(php -l backend/api/chat/send.php)",
+      "Bash(php -r ' *)",
+      "Bash(php -r \"echo 'Imagick: '.\\(class_exists\\('Imagick'\\)?'YES':'NO'\\).PHP_EOL; echo 'GD: '.\\(function_exists\\('imagecreatetruecolor'\\)?'YES':'NO'\\).PHP_EOL;\")",
+      "Bash(php -r 'if\\(class_exists\\('\\\\''Imagick'\\\\''\\)\\){$f=\\(new Imagick\\(\\)\\)->queryFormats\\('\\\\''PDF'\\\\''\\); echo '\\\\''Imagick PDF formats: '\\\\''.implode\\('\\\\'','\\\\'',$f\\).PHP_EOL;}')",
+      "Bash(gs --version)",
+      "Bash(grep -n 'function propertyImagesFor\\\\|function propertySerialize\\\\|main_image\\\\|function propertyRasterizePdfFirstPage\\\\|$done = true;\\\\|category ENUM\\\\|display_order INT NOT NULL DEFAULT 0' backend/includes/property-helper.php)",
+      "Bash(php -l backend/includes/property-helper.php)",
+      "Bash(cat)",
+      "Bash(php /tmp/test_flyer.php)"
     ]
   }
 }

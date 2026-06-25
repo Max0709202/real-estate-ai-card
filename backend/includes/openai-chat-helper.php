@@ -481,7 +481,7 @@ function unifyAgentPersonaLanguage($reply, $agentName = '担当者') {
  * @param string $agentName Optional agent name for persona
  * @return array [ 'reply' => string, 'sources' => array, 'error' => string|null ]
  */
-function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentName = '担当者', $db = null, $sessionId = '') {
+function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentName = '担当者', $db = null, $sessionId = '', $geo = null) {
     $today  = date('Y-m-d');
     $leadData = [];
     $businessCardId = null;
@@ -526,7 +526,7 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
         if ($businessCardId) {
             $agentCustom = getAgentCustomContextForChat($db, $businessCardId, $userMessage, 5);
         }
-        $publicData = chatBuildPublicDataContext($db, $userMessage);
+        $publicData = chatBuildPublicDataContext($db, $userMessage, $geo);
     }
 
     $model = chatOpenAISelectModel('chat', $userMessage, $memory, $leadData);

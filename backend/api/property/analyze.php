@@ -92,6 +92,11 @@ try {
         $ocrError = 'PDFを画像化できなかったため自動抽出をスキップしました。手入力で編集してください。';
     }
 
+    // 販売図面ごとに、プレビュー生成＋AIマスク範囲提案（売主情報の自動非表示・§担当確認待ち）
+    foreach ($stored as $r) {
+        propertyFlyerProcessUploaded($db, (int)$r['id'], $r['abs_path'], !empty($r['is_pdf']), $cardId, $propertyId);
+    }
+
     $stmt = $db->prepare("SELECT * FROM properties WHERE id = ? LIMIT 1");
     $stmt->execute([$propertyId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);

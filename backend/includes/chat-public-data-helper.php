@@ -964,6 +964,82 @@ function chatAddressGeocode($db, $query) {
 }
 
 /**
+ * Load the GSI 市区町村コード master (maps.gsi.go.jp/js/muni.js) as a map of
+ * muniCd => ['pref' => 都道府県名, 'city' => 市区町村名]. Used to turn the muniCd
+ * returned by the reverse geocoder into a human-readable place name. The raw file
+ * is JavaScript (not JSON), so we fetch it directly, parse the lines once, and
+ * cache the PARSED map as JSON in chat_public_data_cache for 30 days.
+ */
+function chatGsiMuniMap($db) {
+    static $map = null;
+    if (is_array($map)) return $map;
+    $cacheKey = hash('sha256', 'gsi_muni_map|https://maps.gsi.go.jp/js/muni.js');
+    if ($db instanceof PDO) {
+        ensureChatPublicDataCacheTable($db);
+        $stmt = $db->prepare('SELECT response_json FROM chat_public_data_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1');
+        $stmt->execute([$cacheKey]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row && !empty($row['response_json'])) {
+            $decoded = json_decode($row['response_json'], true);
+            if (is_array($decoded)) { $map = $decoded; return $map; }
+        }
+    }
+    $map = [];
+    $res = chatPublicDataHttpGet('https://maps.gsi.go.jp/js/muni.js', [], 15);
+    $body = $res['body'] ?? '';
+    if ($body !== '' && preg_match_all('/MUNI_ARRAY\["(\d+)"\]\s*=\s*\'([^\']*)\'/u', $body, $ms, PREG_SET_ORDER)) {
+        foreach ($ms as $m) {
+            // value looks like: 11,埼玉県,11203,川口市  (都道府県コード,都道府県名,市区町村コード,市区町村名)
+            $parts = explode(',', $m[2]);
+            if (count($parts) >= 4) {
+                $map[$m[1]] = [
+                    'pref' => trim($parts[1]),
+                    'city' => trim(str_replace('　', '', $parts[3])),
+                ];
+            }
+        }
+    }
+    if ($db instanceof PDO && !empty($map)) {
+        $stmt = $db->prepare("INSERT INTO chat_public_data_cache (cache_key, provider, request_url, response_json, http_status, error_message, expires_at)
+            VALUES (?, 'gsi_muni_map', 'https://maps.gsi.go.jp/js/muni.js', ?, 200, NULL, DATE_ADD(NOW(), INTERVAL 2592000 SECOND))
+            ON DUPLICATE KEY UPDATE response_json = VALUES(response_json), expires_at = VALUES(expires_at), updated_at = CURRENT_TIMESTAMP");
+        $stmt->execute([$cacheKey, json_encode($map, JSON_UNESCAPED_UNICODE)]);
+    }
+    return $map;
+}
+
+/**
+ * Reverse-geocode a lat/lon to a Japanese place name using the GSI reverse
+ * geocoder (no key required). Returns ['lat','lon','title','prefecture','town']
+ * where title is 都道府県+市区町村+町丁目 (e.g. "埼玉県川口市本町三丁目"). The GPS
+ * point fixes the tile lookups; the title is only for display. Null on failure.
+ */
+function chatReverseGeocode($db, $lat, $lon) {
+    $lat = (float)$lat; $lon = (float)$lon;
+    $url = 'https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=' . rawurlencode((string)$lat) . '&lon=' . rawurlencode((string)$lon);
+    $res = chatPublicDataCachedGet($db, 'gsi_reverse', $url, [], 2592000, 8);
+    $data = $res['data'] ?? null;
+    if (!is_array($data) || empty($data['results'])) return null;
+    $muniCd = trim((string)($data['results']['muniCd'] ?? ''));
+    $town   = trim((string)($data['results']['lv01Nm'] ?? ''));
+    if ($town === '－' || $town === '-') $town = '';
+    $pref = ''; $city = '';
+    if ($muniCd !== '') {
+        $muniMap = chatGsiMuniMap($db);
+        $entry = $muniMap[$muniCd] ?? ($muniMap[ltrim($muniCd, '0')] ?? null);
+        if (is_array($entry)) { $pref = $entry['pref']; $city = $entry['city']; }
+    }
+    $title = $pref . $city . $town;
+    return [
+        'lat' => $lat,
+        'lon' => $lon,
+        'title' => $title !== '' ? $title : null,
+        'prefecture' => $pref !== '' ? $pref : null,
+        'town' => $town,
+    ];
+}
+
+/**
  * Resolve a lat/lon for the area a question is about: prefer a named station,
  * then fall back to GSI geocoding of 都道府県+市区町村. Used by every reinfolib
  * GIS tile API to address the right XYZ tile. Null when nothing is resolvable.
@@ -1859,15 +1935,38 @@ function chatPublicDataRoute($db, $message, $area) {
     return ['providers' => $llm['providers'], 'area' => $area, 'router' => 'llm'];
 }
 
-function chatBuildPublicDataContext($db, $message) {
-    if (!chatPublicDataShouldRun($message)) return ['context' => '', 'sources' => [], 'notices' => [], 'meta' => [], 'attempted' => false];
-    $area = chatPublicExtractArea($message);
-    $route = chatPublicDataRoute($db, $message, $area);
-    $area = $route['area'];
-    // Bound per-message fan-out: a broad question (e.g. "災害") can match many
-    // catalog APIs, each of which fetches one or more tiles. Cap to keep latency
-    // predictable; keyword/registry order keeps the highest-value APIs first.
-    $providers = array_slice($route['providers'], 0, 5);
+function chatBuildPublicDataContext($db, $message, $geo = null) {
+    // GPS path: the message came with the customer's current-location coordinates
+    // (緯度経度). We skip address extraction/geocoding entirely — the lat/lon fixes
+    // the tile lookups directly — and run the standard 土地情報 report (用途地域・
+    // 防火・洪水・土砂・液状化) for that exact point. A reverse geocode supplies a
+    // human-readable place name purely for display.
+    $geoArea = null;
+    if (is_array($geo) && isset($geo['lat'], $geo['lon']) && is_numeric($geo['lat']) && is_numeric($geo['lon'])) {
+        $rev = chatReverseGeocode($db, $geo['lat'], $geo['lon']);
+        $geoArea = [
+            'lat' => (float)$geo['lat'],
+            'lon' => (float)$geo['lon'],
+            'title' => ($rev['title'] ?? null) ?: sprintf('現在地（緯度%.5f／経度%.5f）', (float)$geo['lat'], (float)$geo['lon']),
+            'prefecture_name' => $rev['prefecture'] ?? null,
+        ];
+    }
+
+    if ($geoArea === null && !chatPublicDataShouldRun($message)) return ['context' => '', 'sources' => [], 'notices' => [], 'meta' => [], 'attempted' => false];
+
+    if ($geoArea !== null) {
+        $area = $geoArea;
+        // Same provider set as the address-based 土地情報 report (display priority order).
+        $providers = ['XKT002', 'XKT014', 'XKT026', 'XKT029', 'XKT025'];
+    } else {
+        $area = chatPublicExtractArea($message);
+        $route = chatPublicDataRoute($db, $message, $area);
+        $area = $route['area'];
+        // Bound per-message fan-out: a broad question (e.g. "災害") can match many
+        // catalog APIs, each of which fetches one or more tiles. Cap to keep latency
+        // predictable; keyword/registry order keeps the highest-value APIs first.
+        $providers = array_slice($route['providers'], 0, 5);
+    }
     $items = [];
     foreach ($providers as $providerKey) {
         $item = chatPublicDataInvokeProvider($db, $providerKey, $message, $area);
@@ -1923,6 +2022,10 @@ function chatBuildPublicDataContext($db, $message) {
     }
     $sources = array_values(array_unique($sources));
     $parts[] = "\n回答末尾の出典表記は、本文で実際にこの取得データを使った場合だけ付けてください。取得データを使わず一般知識のみで答えた場合は出典を付けないでください。";
+    if ($geoArea !== null) {
+        $locName = $geoArea['title'];
+        $parts[] = "\n【現在地レポートの回答ルール（厳守・最優先）】\nこれはお客様の現在地（GPS位置情報）からサーバーがAPIで取得した土地情報の照会です。次のルールを厳守し、他の口調・テンプレートより最優先してください。\n1. 挨拶・お礼・前置き（「ありがとうございます」「詳細な情報を提供いただき」等）は一切書かないでください。データはサーバーがAPIから取得したものであり、お客様から提供されたものではありません。\n2. 回答の1行目は、必ず次の文だけにしてください（他の語を足さない）：「{$locName}周辺の土地情報を確認しました。」\n3. 続けて、取得できたデータだけを【都市計画情報】と【ハザード情報】の2つの見出しに分け、各項目を「・項目：値」の形式で箇条書きにしてください。取得データに無い項目は推測せず、『指定なし』『該当なし』などデータが示す範囲だけで記載し、データが無い項目は『確認できず』としてください。\n4. 取得データから直接読み取れない内容は一切書かないでください。具体的には、土地利用の適否、購入・建築・投資の判断、商業利用や工場建設の可否、基礎工事の要否、メリット・デメリットの評価、おすすめ・助言・感想・推測を書いてはいけません。営業的な誘導文（「お問い合わせください」「ご相談ください」等）も書かないでください。\n5. 数値（建ぺい率・容積率・浸水深ランク等）は取得データの値をそのまま使い、創作・概算・補完をしないでください。\n6. 【コメント】や考察の見出しは付けないでください。回答は上記2つのデータ見出しと、最後の注意書きのみで構成してください。\n7. 回答の一番最後に、必ず次の一文をそのまま改行して記載してください：\nこの情報は公的データをもとにした参考情報です。重要事項説明や建築可否の判断には、必ず自治体・専門家へ確認してください。";
+    }
     return ['context' => implode("\n", $parts), 'sources' => $sources, 'notices' => array_values(array_unique($notices)), 'meta' => $meta, 'attempted' => true];
 }
 

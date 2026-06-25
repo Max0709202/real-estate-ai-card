@@ -61,6 +61,10 @@ try {
     foreach ($files as $f) {
         $r = propertyStoreUploadedFile($db, $f, $propertyId, $cardId, $category, $subcategory);
         if (!empty($r['error'])) { $errors[] = $r['error']; continue; }
+        // 販売図面は売主情報マスクのプレビュー生成＋AI提案を行う（担当の確認待ち）
+        if ($category === 'flyer') {
+            propertyFlyerProcessUploaded($db, (int)$r['id'], $r['abs_path'], !empty($r['is_pdf']), $cardId, $propertyId);
+        }
         unset($r['abs_path']);
         $saved[] = $r;
     }

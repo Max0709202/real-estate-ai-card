@@ -97,6 +97,11 @@ CREATE TABLE IF NOT EXISTS property_images (
   width INT NULL DEFAULT NULL,
   height INT NULL DEFAULT NULL,
   display_order INT NOT NULL DEFAULT 0,
+  -- 販売図面の売主情報マスク（顧客共有時に自動非表示）
+  preview_path VARCHAR(512) NULL DEFAULT NULL,   -- 編集・マスク用ラスタJPEG
+  masked_path VARCHAR(512) NULL DEFAULT NULL,     -- 顧客用マスク済PDF
+  mask_regions TEXT NULL DEFAULT NULL,            -- 正規化矩形 [{x,y,w,h}] JSON
+  mask_status ENUM('none','pending','masked') NOT NULL DEFAULT 'none',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
   INDEX idx_property_images_property (property_id, category, display_order)

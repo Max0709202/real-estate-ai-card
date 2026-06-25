@@ -137,6 +137,26 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-thumb__del { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 13px; line-height: 1; }
 .prop-flyer-view img { width: 100%; border-radius: 10px; border: 1px solid #e5e9f0; }
 
+/* ===== 販売図面マスク（売主情報の自動非表示） ===== */
+.prop-flyer-list { display: flex; flex-direction: column; gap: 10px; }
+.prop-flyer-row { display: flex; gap: 12px; align-items: flex-start; border: 1px solid #e5e9f0; border-radius: 12px; padding: 10px; background: #fff; }
+.prop-flyer-thumb { flex: 0 0 90px; width: 90px; height: 120px; border-radius: 8px; overflow: hidden; background: #eef1f6; display: flex; align-items: center; justify-content: center; }
+.prop-flyer-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.prop-flyer-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.prop-flyer-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.prop-flyer-actions .prop-btn { padding: 6px 10px; font-size: 12px; }
+.prop-mask-chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; align-self: flex-start; }
+.prop-mask-chip--ok { background: #e3f6ec; color: #1f9d57; }
+.prop-mask-chip--pending { background: #fff2e0; color: #d2820f; }
+.prop-mask-chip--none { background: #eef1f6; color: #6b7585; }
+
+.prop-mask-editor { margin: 8px 0; }
+.prop-mask-canvas { position: relative; display: inline-block; max-width: 100%; line-height: 0; touch-action: none; user-select: none; border: 1px solid #d6dde8; border-radius: 6px; overflow: hidden; }
+.prop-mask-canvas img { max-width: 100%; height: auto; display: block; pointer-events: none; }
+.prop-mask-rect { position: absolute; background: rgba(0,0,0,.78); border: 2px solid #2d6cdf; cursor: move; box-sizing: border-box; }
+.prop-mask-handle { position: absolute; right: -7px; bottom: -7px; width: 16px; height: 16px; background: #2d6cdf; border: 2px solid #fff; border-radius: 50%; cursor: se-resize; }
+.prop-mask-del { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; background: #e8384f; color: #fff; font-size: 13px; line-height: 1; cursor: pointer; }
+
 /* ライトボックス */
 .prop-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 100000; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .prop-lightbox img { max-width: 96vw; max-height: 92vh; border-radius: 8px; }

@@ -1738,6 +1738,46 @@
         }
     }
 
+    // 「現在地の土地情報を教えて」系の発話を検出する。現在地を指す語＋土地/情報系の語の
+    // 両方を含むときだけ true（「現在地」単独や雑談での誤発火を避ける）。
+    function isCurrentLocationLandIntent(text) {
+        if (!text) return false;
+        var t = String(text);
+        var hereWord = /(現在地|今いる場所|今の場所|ここの場所|この場所|今いるところ)/.test(t);
+        var landWord = /(土地|物件|情報|周辺|エリア|地域|用途地域|ハザード|災害|浸水|洪水|土砂|液状化|建ぺい率|建蔽率|容積率|都市計画|地価)/.test(t);
+        return hereWord && landWord;
+    }
+
+    // 位置情報の利用許可を得たあと、ブラウザのGPSで緯度経度を取得してサーバーへ送る。
+    function requestCurrentLocationLandInfo() {
+        if (!navigator.geolocation) {
+            appendBotMessage('お使いの端末・ブラウザでは位置情報を取得できませんでした。お手数ですが、調べたい住所（例：埼玉県川口市弥平2-20-3）を入力してください。');
+            return;
+        }
+        var waiting = appendBotMessage('位置情報を取得しています', true);
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                if (waiting) waiting.remove();
+                var lat = pos.coords.latitude;
+                var lon = pos.coords.longitude;
+                sendMessage('現在地の土地情報を教えてください', { geo: { lat: lat, lon: lon } });
+            },
+            function (err) {
+                if (waiting) waiting.remove();
+                var msg = '位置情報を取得できませんでした。';
+                if (err && err.code === 1) {
+                    msg = '位置情報の利用が許可されませんでした。ブラウザの設定で位置情報を許可いただくか、調べたい住所（例：埼玉県川口市弥平2-20-3）を入力してください。';
+                } else if (err && err.code === 3) {
+                    msg = '位置情報の取得がタイムアウトしました。電波の良い場所でもう一度お試しいただくか、調べたい住所を入力してください。';
+                } else {
+                    msg = '位置情報を取得できませんでした。お手数ですが、調べたい住所を入力してください。';
+                }
+                appendBotMessage(msg);
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+        );
+    }
+
     function sendMessage(text, options) {
         options = options || {};
         var hasAttachments = pendingAttachments.length > 0;
@@ -1750,6 +1790,23 @@
         if (!sessionId) {
             appendBotMessage('チャットの接続が完了してから送信してください。');
             if (!sessionStarting) startSession();
+            return;
+        }
+
+        // 現在地（GPS）からの土地情報照会。位置情報の取得はブラウザ側でしか行えないため、
+        // まず利用許可（はい／いいえ）を確認してから getCurrentPosition を呼ぶ。options.geo が
+        // 付いた送信（=許可後の本送信）は対象外にして無限ループを防ぐ。
+        if (!options.geo && isCurrentLocationLandIntent(text)) {
+            appendUserMessage(text, '', []);
+            inputEl.value = '';
+            appendBotMessage('現在地の土地情報をお調べします。位置情報（GPS）の利用を許可してください。', false, null, '', {
+                onComplete: function () {
+                    renderQuickReplies([
+                        { label: 'はい（位置情報を使う）', action: 'geo_consent_yes', value: 'geo_consent_yes' },
+                        { label: 'いいえ', action: 'geo_consent_no', value: 'geo_consent_no' }
+                    ]);
+                }
+            });
             return;
         }
 
@@ -1770,6 +1827,10 @@
         var payload = { session_id: sessionId, visitor_id: visitorId, message: text };
         if (attachmentIds.length) payload.attachment_ids = attachmentIds;
         if (options.buttonSelection) payload.button_selection = options.buttonSelection;
+        if (options.geo && isFinite(options.geo.lat) && isFinite(options.geo.lon)) {
+            payload.latitude = options.geo.lat;
+            payload.longitude = options.geo.lon;
+        }
 
         fetch(apiBase + '/send.php', {
             method: 'POST',
@@ -2555,6 +2616,18 @@
                 || replyLabel === 'もう一度SMS認証する';
             if (isSmsRegister) {
                 showSmsAuth('register');
+                return;
+            }
+            if (action === 'geo_consent_yes') {
+                renderQuickReplies([]);
+                appendUserMessage(replyLabel || 'はい', '', []);
+                requestCurrentLocationLandInfo();
+                return;
+            }
+            if (action === 'geo_consent_no') {
+                renderQuickReplies([]);
+                appendUserMessage(replyLabel || 'いいえ', '', []);
+                appendBotMessage('承知しました。位置情報は使用しません。調べたい場所の住所（例：埼玉県川口市弥平2-20-3）を入力いただければ、その土地の情報をお調べします。');
                 return;
             }
             if (replyLabel) {

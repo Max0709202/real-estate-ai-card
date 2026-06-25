@@ -241,7 +241,7 @@
       var isImg = !im.mime_type || im.mime_type.indexOf('image/') === 0;
       var inner = isImg
         ? '<img src="' + esc(url) + '" alt="" loading="lazy" data-full="' + esc(url) + '">'
-        : '<div class="prop-thumb__pdf" data-full="' + esc(url) + '">PDF</div>';
+        : '<a class="prop-thumb__pdf" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">PDF</a>';
       var del = opts.removable ? '<button type="button" class="prop-thumb__del" data-del-img="' + im.id + '">×</button>' : '';
       return '<div class="prop-thumb">' + inner + del + '</div>';
     }).join('') + '</div>';

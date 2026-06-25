@@ -287,16 +287,131 @@
     api('/get.php?id=' + p.id).then(function (res) {
       if (!res.success) return;
       var prop = res.data.property;
-      var imgs = category === 'flyer' ? prop.flyers : prop.photos;
-      body.innerHTML = UI.galleryHtml(imgs, { removable: true, emptyText: category === 'flyer' ? '販売図面はまだありません。' : '写真・資料はまだありません。' });
-      body.querySelectorAll('[data-del-img]').forEach(function (b) {
-        b.addEventListener('click', function (e) {
-          e.stopPropagation();
-          if (!confirm('この画像を削除しますか？')) return;
-          api('/image-delete.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_id: parseInt(b.getAttribute('data-del-img'), 10) }) })
-            .then(function (r) { if (r.success) refreshImages(p, category); else notify('error', r.message || '削除に失敗'); });
-        });
+      if (category === 'flyer') { renderFlyerList(p, body, prop.flyers || []); return; }
+      body.innerHTML = UI.galleryHtml(prop.photos, { removable: true, emptyText: '写真・資料はまだありません。' });
+      bindDeletes(body, p, category);
+    });
+  }
+  function bindDeletes(body, p, category) {
+    body.querySelectorAll('[data-del-img]').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (!confirm('この画像を削除しますか？')) return;
+        api('/image-delete.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_id: parseInt(b.getAttribute('data-del-img'), 10) }) })
+          .then(function (r) { if (r.success) refreshImages(p, category); else notify('error', r.message || '削除に失敗'); });
       });
+    });
+    UI.bindLightbox(body);
+  }
+
+  /* ===== 販売図面リスト（マスク状態つき・§売主情報の自動非表示） ===== */
+  function flyerStatusChip(st) {
+    if (st === 'masked') return '<span class="prop-mask-chip prop-mask-chip--ok">顧客共有OK（マスク済）</span>';
+    if (st === 'pending') return '<span class="prop-mask-chip prop-mask-chip--pending">マスク未確定（顧客非公開）</span>';
+    return '<span class="prop-mask-chip prop-mask-chip--none">マスク未設定（顧客非公開）</span>';
+  }
+  function renderFlyerList(p, body, flyers) {
+    if (!flyers.length) { body.innerHTML = '<div class="prop-empty">販売図面はまだありません。</div>'; return; }
+    body.innerHTML = '<div class="prop-msg prop-msg--info">アップロードした販売図面は、売主仲介会社情報（会社名・住所・電話・QR等）をマスクしてから顧客に共有されます。AIが範囲を提案します。</div>' +
+      '<div class="prop-flyer-list">' + flyers.map(function (f) {
+      var thumb = f.preview_url ? '<img src="' + UI.esc(f.preview_url) + '" alt="" loading="lazy">' : '<div class="prop-thumb__pdf">図面</div>';
+      var actions = '<button type="button" class="prop-btn prop-btn--primary" data-mask-edit="' + f.id + '">' + UI.icon('edit') + 'マスク編集</button>';
+      if (f.mask_status !== 'masked') actions += '<button type="button" class="prop-btn prop-btn--ghost" data-mask-quick="' + f.id + '">そのまま確定</button>';
+      if (f.masked_url) actions += '<a class="prop-btn prop-btn--ghost" href="' + UI.esc(f.masked_url) + '" target="_blank" rel="noopener noreferrer">顧客用PDFを確認</a>';
+      actions += '<button type="button" class="prop-btn prop-btn--danger" data-del-img="' + f.id + '">' + UI.icon('trash') + '削除</button>';
+      return '<div class="prop-flyer-row"><div class="prop-flyer-thumb">' + thumb + '</div>' +
+        '<div class="prop-flyer-main">' + flyerStatusChip(f.mask_status) +
+        '<div class="prop-flyer-actions">' + actions + '</div></div></div>';
+    }).join('') + '</div>';
+
+    body.querySelectorAll('[data-mask-edit]').forEach(function (b) {
+      b.addEventListener('click', function () { openMaskEditor(p, parseInt(b.getAttribute('data-mask-edit'), 10)); });
+    });
+    body.querySelectorAll('[data-mask-quick]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = parseInt(b.getAttribute('data-mask-quick'), 10);
+        var f = flyers.filter(function (x) { return x.id === id; })[0];
+        b.disabled = true; b.innerHTML = '<span class="prop-spinner"></span> 処理中...';
+        api('/flyer-mask.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_id: id, regions: (f && f.mask_regions) || [] }) })
+          .then(function (r) { if (r.success) { notify('ok', '顧客共有用に作成しました'); refreshImages(p, 'flyer'); } else { notify('error', r.message || '失敗しました'); refreshImages(p, 'flyer'); } });
+      });
+    });
+    bindDeletes(body, p, 'flyer');
+  }
+
+  /* ===== マスク編集モーダル（ドラッグで範囲修正・§③） ===== */
+  function openMaskEditor(p, imageId) {
+    var m = UI.modal('販売図面のマスク編集', '<div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div>');
+    api('/flyer-mask.php?image_id=' + imageId).then(function (res) {
+      if (!res.success || !res.data.preview_url) { m.body.innerHTML = '<div class="prop-msg prop-msg--err">プレビューを表示できませんでした。</div>'; return; }
+      var d = res.data;
+      var regions = (d.regions && d.regions.length) ? d.regions.slice() : [];
+      m.body.innerHTML =
+        '<div class="prop-msg prop-msg--info">黒く塗る範囲（売主情報）をドラッグで移動・隅で拡縮できます。「範囲を追加」で増やせます。9割の図面は下段が対象です。</div>' +
+        '<div class="prop-mask-editor"><div class="prop-mask-canvas" id="prop-mask-canvas">' +
+        '<img src="' + UI.esc(d.preview_url) + '" alt="" id="prop-mask-img" draggable="false"></div></div>' +
+        '<div class="prop-form-actions">' +
+        '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-add">' + UI.icon('plus') + '範囲を追加</button>' +
+        '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-cancel">キャンセル</button>' +
+        '<button type="button" class="prop-btn prop-btn--primary" id="prop-mask-save">この内容で確定</button></div>';
+      var canvas = m.body.querySelector('#prop-mask-canvas');
+      var img = m.body.querySelector('#prop-mask-img');
+      function draw() {
+        canvas.querySelectorAll('.prop-mask-rect').forEach(function (n) { n.remove(); });
+        regions.forEach(function (r, i) { canvas.appendChild(makeRect(r, i)); });
+      }
+      function makeRect(r, idx) {
+        var el = document.createElement('div');
+        el.className = 'prop-mask-rect';
+        el.style.left = (r.x * 100) + '%'; el.style.top = (r.y * 100) + '%';
+        el.style.width = (r.w * 100) + '%'; el.style.height = (r.h * 100) + '%';
+        el.innerHTML = '<button type="button" class="prop-mask-del" data-i="' + idx + '">×</button><span class="prop-mask-handle"></span>';
+        el.querySelector('.prop-mask-del').addEventListener('click', function (e) { e.stopPropagation(); regions.splice(idx, 1); draw(); });
+        el.addEventListener('pointerdown', function (e) {
+          if (e.target.classList.contains('prop-mask-del')) return;
+          var resize = e.target.classList.contains('prop-mask-handle');
+          startDrag(e, idx, resize);
+        });
+        return el;
+      }
+      var drag = null;
+      function startDrag(e, idx, resize) {
+        e.preventDefault();
+        var rect = canvas.getBoundingClientRect();
+        drag = { idx: idx, resize: resize, startX: e.clientX, startY: e.clientY, orig: Object.assign({}, regions[idx]), cw: rect.width, ch: rect.height };
+        canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+      }
+      canvas.addEventListener('pointermove', function (e) {
+        if (!drag) return;
+        var dx = (e.clientX - drag.startX) / drag.cw;
+        var dy = (e.clientY - drag.startY) / drag.ch;
+        var r = regions[drag.idx];
+        if (drag.resize) {
+          r.w = Math.max(0.03, Math.min(1 - drag.orig.x, drag.orig.w + dx));
+          r.h = Math.max(0.02, Math.min(1 - drag.orig.y, drag.orig.h + dy));
+        } else {
+          r.x = Math.max(0, Math.min(1 - r.w, drag.orig.x + dx));
+          r.y = Math.max(0, Math.min(1 - r.h, drag.orig.y + dy));
+        }
+        draw();
+      });
+      function endDrag() { drag = null; }
+      canvas.addEventListener('pointerup', endDrag);
+      canvas.addEventListener('pointercancel', endDrag);
+
+      m.body.querySelector('#prop-mask-add').addEventListener('click', function () {
+        regions.push({ x: 0.1, y: 0.4, w: 0.5, h: 0.12 }); draw();
+      });
+      m.body.querySelector('#prop-mask-cancel').addEventListener('click', m.close);
+      m.body.querySelector('#prop-mask-save').addEventListener('click', function () {
+        var btn = m.body.querySelector('#prop-mask-save'); btn.disabled = true; btn.innerHTML = '<span class="prop-spinner"></span> 作成中...';
+        api('/flyer-mask.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_id: imageId, regions: regions }) })
+          .then(function (r) {
+            if (!r.success) { notify('error', r.message || '失敗しました'); btn.disabled = false; return; }
+            m.close(); notify('ok', '顧客共有用のマスク済販売図面を作成しました'); refreshImages(p, 'flyer');
+          }).catch(function () { notify('error', '通信に失敗しました'); btn.disabled = false; });
+      });
+      if (img.complete) draw(); else img.addEventListener('load', draw);
     });
   }
 

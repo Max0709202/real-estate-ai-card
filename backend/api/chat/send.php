@@ -32,6 +32,16 @@ $message = trim($input['message'] ?? '');
 $visitorId = trim($input['visitor_id'] ?? '');
 $buttonSelection = isset($input['button_selection']) && is_array($input['button_selection']) ? $input['button_selection'] : null;
 $attachmentIds = isset($input['attachment_ids']) && is_array($input['attachment_ids']) ? $input['attachment_ids'] : [];
+// 現在地（GPS）からの土地情報照会。緯度経度が来た場合のみ有効。日本国内のおおよその
+// 範囲（緯度20〜46／経度122〜154）に収まる値だけ採用し、範囲外は通常メッセージ扱い。
+$geo = null;
+if (isset($input['latitude'], $input['longitude']) && is_numeric($input['latitude']) && is_numeric($input['longitude'])) {
+    $lat = (float)$input['latitude'];
+    $lon = (float)$input['longitude'];
+    if ($lat >= 20 && $lat <= 46 && $lon >= 122 && $lon <= 154) {
+        $geo = ['lat' => $lat, 'lon' => $lon];
+    }
+}
 // channel: 'ai'（AIチャット, 既定） | 'contact'（担当連絡＝人間担当へ）
 $channel = (($input['channel'] ?? '') === 'contact') ? 'contact' : 'ai';
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
@@ -119,6 +129,23 @@ try {
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $conversationHistory = array_reverse(array_map(function ($r) { return ['role' => $r['role'], 'channel' => $r['channel'], 'message' => $r['message']]; }, $rows));
 
+    $quickReplies = [];
+    $leadData = null;
+
+    if ($geo !== null) {
+        // 現在地（GPS）照会：intake／マンション名検索は通さず、緯度経度を土地情報の
+        // 公的データ取得にそのまま渡してAI回答を生成する。
+        $agentName = $card['name'] ?? '担当者';
+        $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName, $db, $sessionId, $geo);
+        if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
+            error_log('Chat OpenAI error (geo): ' . ($result['error'] ?? 'empty reply'));
+            $reply = getBotReplyPlaceholder($message);
+            $sources = [['url' => CHAT_BLOG_BASE_URL, 'title' => '戸建てリノベINFO']];
+        } else {
+            $reply = $result['reply'];
+            $sources = $result['sources'];
+        }
+    } else {
     $intake = processChatIntakeMessage($db, $sessionId, $card['id'], $message, [
         'from_button' => $buttonSelection !== null,
         'button_selection' => $buttonSelection,
@@ -151,6 +178,7 @@ try {
                 $sources = $result['sources'];
             }
         }
+    }
     }
 
     // Update lightweight conversation memory for future turns and reload continuity

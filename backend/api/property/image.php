@@ -1,8 +1,9 @@
 <?php
 /**
  * 物件画像の配信（認証付きプロキシ）。直リンク禁止。
- * GET ?id=<image_id>&session_id=&visitor_id=
- *  - 担当（ログイン＋名刺所有）または、当該物件のセッションの顧客のみ取得可能。
+ * GET ?id=<image_id>&session_id=&visitor_id=&variant=original|preview|masked
+ *  - 担当（ログイン＋名刺所有）: 既定で原本。variant=preview/masked も取得可。
+ *  - 顧客: 販売図面はマスク確定済（masked）のみ取得可能（売主情報の自動非表示）。写真等は原本。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -11,6 +12,7 @@ require_once __DIR__ . '/../../includes/functions.php';
 $imageId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $sessionId = trim($_GET['session_id'] ?? '');
 $visitorId = trim($_GET['visitor_id'] ?? '');
+$variant = trim($_GET['variant'] ?? '');
 if ($imageId <= 0) { http_response_code(400); echo 'bad request'; exit(); }
 
 try {
@@ -28,22 +30,45 @@ try {
     $img = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$img) { http_response_code(404); echo 'not found'; exit(); }
 
-    $authorized = false;
+    $isAgent = false;
+    $isCustomer = false;
     startSessionIfNotStarted();
     if (!empty($_SESSION['user_id']) && (int)$_SESSION['user_id'] === (int)$img['user_id']) {
-        $authorized = true;
+        $isAgent = true;
     }
-    if (!$authorized && $sessionId !== '' && $sessionId === $img['prop_session']) {
+    if (!$isAgent && $sessionId !== '' && $sessionId === $img['prop_session']) {
         if (empty($img['visitor_identifier']) || $visitorId === '' || $img['visitor_identifier'] === $visitorId) {
-            $authorized = true;
+            $isCustomer = true;
         }
     }
-    if (!$authorized) { http_response_code(403); echo 'forbidden'; exit(); }
+    if (!$isAgent && !$isCustomer) { http_response_code(403); echo 'forbidden'; exit(); }
 
-    $absPath = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($img['stored_path'], '/');
+    $isFlyer = ($img['category'] ?? '') === 'flyer';
+
+    // 配信するファイルと MIME を決定する。
+    $relPath = $img['stored_path'];
+    $mime = $img['mime_type'] ?: 'application/octet-stream';
+
+    if ($isCustomer && $isFlyer) {
+        // 顧客には売主情報をマスク済の販売図面（PDF）のみ。未確定なら配信しない。
+        if (($img['mask_status'] ?? 'none') !== 'masked' || empty($img['masked_path'])) {
+            http_response_code(403); echo 'forbidden'; exit();
+        }
+        $relPath = $img['masked_path'];
+        $mime = 'application/pdf';
+    } elseif ($isAgent && $variant === 'masked' && !empty($img['masked_path'])) {
+        $relPath = $img['masked_path'];
+        $mime = 'application/pdf';
+    } elseif ($variant === 'preview' && !empty($img['preview_path'])) {
+        // プレビュー（ラスタJPEG）は担当のマスク編集用。顧客には許可しない。
+        if (!$isAgent) { http_response_code(403); echo 'forbidden'; exit(); }
+        $relPath = $img['preview_path'];
+        $mime = 'image/jpeg';
+    }
+
+    $absPath = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($relPath, '/');
     if (!is_file($absPath)) { http_response_code(404); echo 'file missing'; exit(); }
 
-    $mime = $img['mime_type'] ?: 'application/octet-stream';
     $name = $img['original_name'] ?: ('file.' . pathinfo($absPath, PATHINFO_EXTENSION));
     header('Content-Type: ' . $mime);
     header('Content-Length: ' . filesize($absPath));
