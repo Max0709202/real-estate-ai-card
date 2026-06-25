@@ -12,7 +12,28 @@
       "Bash(identify /tmp/glyphband.png)",
       "Bash(convert \"AIチャット正式版1.1.png\" -crop 866x58+0+1627 +repage /tmp/glyphband2.png)",
       "Bash(convert \"AIチャット正式版1.1.png\" -crop 866x90+0+1538 +repage /tmp/submitarea.png)",
-      "Bash(identify /tmp/glyphband2.png /tmp/submitarea.png)"
+      "Bash(identify /tmp/glyphband2.png /tmp/submitarea.png)",
+      "Bash(php -v)",
+      "Bash(convert image6.png -resize 600 /tmp/img6_small.png)",
+      "Bash(identify image6.png)",
+      "Bash(identify image2.png)",
+      "Bash(convert image6.png -crop 78x78+325+12 +repage /tmp/i_customer.png)",
+      "Bash(convert image6.png -crop 78x78+312+133 +repage /tmp/i_brokerage.png)",
+      "Bash(convert image6.png -crop 78x78+312+382 +repage /tmp/i_notintro.png)",
+      "Bash(montage /tmp/i_customer.png /tmp/i_brokerage.png /tmp/i_notintro.png -tile 3x1 -geometry +3+3 -background white /tmp/icons6.png)",
+      "Bash(mkdir -p assets/images/property/reference)",
+      "Bash(cp /tmp/s5_1.png assets/images/property/reference/status-viewing-request.png)",
+      "Bash(cp /tmp/s5_2.png assets/images/property/reference/status-considering.png)",
+      "Bash(cp /tmp/s5_3.png assets/images/property/reference/status-passed.png)",
+      "Bash(cp /tmp/s5_4.png assets/images/property/reference/status-application.png)",
+      "Bash(node --check assets/js/property-core.js)",
+      "Bash(php -l backend/api/property/image-delete.php)",
+      "Bash(node --check assets/js/property-agent.js)",
+      "Bash(php -l edit.php)",
+      "Bash(php -l card.php)",
+      "Bash(php -r 'var_dump\\(function_exists\\(\"opcache_get_status\"\\)\\);')",
+      "Bash(php -i)",
+      "Bash(php -r 'if\\(function_exists\\(\"opcache_get_status\"\\)\\){$s=@opcache_get_status\\(false\\); echo $s? \"enabled\\(cli\\)\\\\n\":\"disabled-or-no-cli\\\\n\";} else echo \"no opcache ext\\\\n\";')"
     ]
   }
 }

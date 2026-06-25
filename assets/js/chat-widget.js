@@ -2024,29 +2024,124 @@
         renderFeaturePanel(html);
     }
 
+    // ===== 物件選定（顧客側・新API）=====
+    var PUI = window.PropertyUI;
+    function propApi(path, opts) {
+        opts = opts || {};
+        return fetch(siteBase + '/backend/api/property' + path, opts).then(function (r) { return r.json(); });
+    }
+    function propAuthQS() {
+        return 'session_id=' + encodeURIComponent(sessionId || '') + '&visitor_id=' + encodeURIComponent(visitorId || '');
+    }
+
     function renderPropertiesTab() {
-        var c = crmCase();
-        if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
-        var items = crmArray((c.properties || {}).items);
-        var html = '<div class="chat-feature-head"><strong>物件選定</strong><span>候補の管理</span></div>';
-        html += '<div class="chat-feature-list">';
-        items.forEach(function (item, idx) {
-            html += '<div class="chat-feature-card">';
-            html += '<div class="chat-feature-card-head"><strong>' + crmFields(item.name || ('物件 ' + (idx + 1))) + '</strong><span>' + crmFields(item.status || '検討中') + '</span></div>';
-            html += '<div class="chat-feature-small">' + crmFields(item.price || '') + ' / ' + crmFields(item.address || '') + '</div>';
-            html += '<p>' + crmFields(item.comment || '') + '</p></div>';
+        if (!PUI) { renderFeaturePanel('<div class="chat-feature-empty">読み込みに失敗しました。</div>'); return; }
+        if (!sessionId) {
+            renderFeaturePanel('<div class="chat-feature-empty">まず「AI担当」で会話を始めると、提案物件をここで確認できます。</div>');
+            return;
+        }
+        renderFeaturePanel('<div class="prop-wrap" id="prop-cust"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>');
+        propApi('/list.php?' + propAuthQS()).then(function (res) {
+            var box = featurePanel.querySelector('#prop-cust');
+            if (!box) return;
+            var html = '<div class="prop-toolbar"><h4>物件選定</h4></div>';
+            html += '<div class="prop-method" id="prop-cust-urlbtn" style="margin-bottom:12px">' +
+                '<span class="prop-method__icon prop-method__icon--url">' + PUI.icon('url') + '</span>' +
+                '<span class="prop-method__body"><span class="prop-method__title">物件URLを共有</span>' +
+                '<span class="prop-method__desc">SUUMO・HOME\'S・アットホーム等のURLを貼り付けて登録</span></span>' +
+                '<span class="prop-method__chev">' + PUI.icon('chev') + '</span></div>';
+            var items = (res.success && res.data.properties) ? res.data.properties : [];
+            if (!items.length) html += '<div class="prop-empty">提案された物件・共有した物件がここに表示されます。</div>';
+            else html += '<div class="prop-list">' + items.map(function (p) { return PUI.cardHtml(p, { fav: true, sessionId: sessionId, visitorId: visitorId }); }).join('') + '</div>';
+            box.innerHTML = html;
+            box.querySelector('#prop-cust-urlbtn').addEventListener('click', propOpenUrlShare);
+            box.querySelectorAll('.prop-card').forEach(function (c) {
+                c.addEventListener('click', function () { propOpenDetail(parseInt(c.getAttribute('data-prop-id'), 10)); });
+            });
         });
-        if (!items.length) html += '<div class="chat-feature-empty">候補物件はまだありません。</div>';
-        html += '</div>';
-        html += '<div class="chat-feature-grid">';
-        html += '<label>物件名<input name="property_name"></label>';
-        html += '<label>住所<input name="property_address"></label>';
-        html += '<label>価格<input name="property_price"></label>';
-        html += '<label>ステータス<select name="property_status"><option>購入希望</option><option>内見希望</option><option selected>検討中</option><option>候補外</option></select></label>';
-        html += '<label>コメント<textarea name="property_comment"></textarea></label>';
-        html += '</div>';
-        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-add" data-add-feature="property">追加</button><button type="button" class="chat-feature-save" data-save-feature="properties">保存</button></div>';
+    }
+
+    function propOpenUrlShare() {
+        var html = '<div class="prop-field full"><label>物件URL</label>' +
+            '<input type="url" id="prop-cust-url" placeholder="https://suumo.jp/..."></div>' +
+            '<div class="prop-msg prop-msg--info">URLを送ると担当者と共有され、物件情報が自動で登録されます。</div>' +
+            '<div class="prop-form-actions"><button type="button" class="prop-btn prop-btn--primary" id="prop-cust-url-go">共有して登録</button></div>';
+        var m = PUI.modal('物件URLを共有', html);
+        m.body.querySelector('#prop-cust-url-go').addEventListener('click', function () {
+            var url = m.body.querySelector('#prop-cust-url').value.trim();
+            if (!/^https?:\/\//i.test(url)) { alert('有効なURLを入力してください'); return; }
+            var btn = m.body.querySelector('#prop-cust-url-go'); btn.disabled = true; btn.innerHTML = '<span class="prop-spinner"></span> 登録中...';
+            propApi('/analyze-url.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sessionId, visitor_id: visitorId, url: url }) })
+                .then(function (res) {
+                    m.close();
+                    if (!res.success) { alert(res.message || '登録に失敗しました'); return; }
+                    renderPropertiesTab();
+                }).catch(function () { m.close(); alert('通信に失敗しました'); });
+        });
+    }
+
+    function propOpenDetail(id) {
+        renderFeaturePanel('<div class="prop-wrap" id="prop-cust"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>');
+        propApi('/get.php?id=' + id + '&' + propAuthQS()).then(function (res) {
+            if (!res.success) { featurePanel.querySelector('#prop-cust').innerHTML = '<div class="prop-empty">取得に失敗しました。</div>'; return; }
+            propRenderDetail(res.data.property);
+        });
+    }
+
+    function propRenderDetail(p) {
+        var statusChips = Object.keys(PUI.STATUS).filter(function (k) { return PUI.STATUS[k].role === 'customer'; }).map(function (k) {
+            var s = PUI.STATUS[k]; var on = p.status === k;
+            return '<button type="button" class="prop-status-opt' + (on ? ' is-selected' : '') + '" data-cust-status="' + k + '" style="color:' + s.color + '">' +
+                '<span class="prop-badge--icon" style="color:' + s.color + '">' + PUI.icon(s.icon) + '</span>' + PUI.esc(s.label) + '</button>';
+        }).join('');
+        var html = '<div class="prop-wrap" id="prop-cust">' +
+            '<div class="prop-toolbar"><button type="button" class="prop-btn prop-btn--ghost" id="prop-cust-back">← 物件一覧</button></div>' +
+            PUI.detailHeaderHtml(p) +
+            '<div class="prop-section-title">あなたの検討ステータス</div>' +
+            '<div class="prop-status-grid" id="prop-cust-status">' + statusChips + '</div>' +
+            '<div class="prop-tabs">' +
+                '<button class="prop-tab is-active" data-ctab="basic">基本情報</button>' +
+                '<button class="prop-tab" data-ctab="hazard">ハザード等情報</button>' +
+                '<button class="prop-tab" data-ctab="flyer">販売図面</button>' +
+                '<button class="prop-tab" data-ctab="photo">写真・資料</button>' +
+            '</div>' +
+            '<div class="prop-tabpane is-active" data-cpane="basic">' + PUI.basicInfoHtml(p, false) + '</div>' +
+            '<div class="prop-tabpane" data-cpane="hazard">' + PUI.hazardHtml(p.hazard, p.hazard_fetched_at) + '</div>' +
+            '<div class="prop-tabpane" data-cpane="flyer">' + PUI.galleryHtml(p.flyers, { sessionId: sessionId, visitorId: visitorId, emptyText: '販売図面はまだありません。' }) + '</div>' +
+            '<div class="prop-tabpane" data-cpane="photo">' + PUI.galleryHtml(p.photos, { sessionId: sessionId, visitorId: visitorId, emptyText: '写真・資料はまだありません。' }) + '</div>' +
+            '<div class="prop-form-actions" style="margin-top:16px"><button type="button" class="prop-btn prop-btn--primary" id="prop-cust-viewing">' + PUI.icon('calendar') + '内見予約を依頼する</button></div>' +
+        '</div>';
         renderFeaturePanel(html);
+        var box = featurePanel.querySelector('#prop-cust');
+        box.querySelector('#prop-cust-back').addEventListener('click', renderPropertiesTab);
+        PUI.bindLightbox(box);
+        box.querySelectorAll('[data-cust-status]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var st = b.getAttribute('data-cust-status');
+                if (p.status === st) st = '';
+                propApi('/status.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: p.id, status: st, visitor_id: visitorId }) })
+                    .then(function (res) { if (res.success) { p.status = res.data.property.status; propRenderDetail(p); } });
+            });
+        });
+        var tabs = box.querySelectorAll('.prop-tab');
+        tabs.forEach(function (t) {
+            t.addEventListener('click', function () {
+                tabs.forEach(function (x) { x.classList.remove('is-active'); });
+                box.querySelectorAll('.prop-tabpane').forEach(function (x) { x.classList.remove('is-active'); });
+                t.classList.add('is-active');
+                box.querySelector('[data-cpane="' + t.getAttribute('data-ctab') + '"]').classList.add('is-active');
+            });
+        });
+        box.querySelector('#prop-cust-viewing').addEventListener('click', function () {
+            var note = prompt('内見のご希望（日程・時間帯など）があればご記入ください（任意）', '');
+            if (note === null) return;
+            propApi('/viewing-request.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: p.id, session_id: sessionId, visitor_id: visitorId, note: note }) })
+                .then(function (res) {
+                    if (!res.success) { alert(res.message || '依頼に失敗しました'); return; }
+                    alert('内見予約を依頼しました。担当連絡をご確認ください。');
+                    if (typeof renderFeatureTab === 'function') { setActiveChatTab('contact'); renderFeatureTab('contact'); }
+                });
+        });
     }
 
     function renderToolsTab() {
@@ -2117,6 +2212,11 @@
             // 担当連絡は専用チャットUI。CRM状態のロードは不要。
             renderContactThread();
             loadContactHistory();
+            return;
+        }
+        if (tab === 'property') {
+            // 物件選定は専用API。CRM状態に依存しない。
+            renderPropertiesTab();
             return;
         }
         if (!crmState) {

@@ -308,6 +308,7 @@ if (!empty($card['profile_photo'])) {
     <link rel="stylesheet" href="assets/css/pwa.css">
     <?php if ($chatbotEnabled): ?>
     <link rel="stylesheet" href="assets/css/chat-widget.css?v=<?php echo filemtime(__DIR__ . '/assets/css/chat-widget.css'); ?>">
+    <link rel="stylesheet" href="assets/css/property.css?v=<?php echo filemtime(__DIR__ . '/assets/css/property.css'); ?>">
     <?php endif; ?>
     <?php if (!$chatOnly): ?>
     <script src="assets/js/pwa-a2hs.js" defer></script>
@@ -1352,6 +1353,7 @@ if (!empty($card['profile_photo'])) {
         </div>
     </div>
     <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
+    <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>" defer></script>
     <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>
     <?php elseif ($chatOnly): ?>
     <div class="chat-only-unavailable">

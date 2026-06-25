@@ -535,6 +535,7 @@ $defaultGreetings = [
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/modal.css">
     <link rel="stylesheet" href="assets/css/admin.css">
+    <link rel="stylesheet" href="assets/css/property.css?v=<?php echo filemtime(__DIR__ . '/assets/css/property.css'); ?>">
 
     <!-- Cropper.js CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
@@ -1717,6 +1718,8 @@ $defaultGreetings = [
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="assets/js/edit.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
+    <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>"></script>
+    <script src="assets/js/property-agent.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-agent.js'); ?>"></script>
     <script>
         // Direct Input button handler and mobile touch support
         document.addEventListener('DOMContentLoaded', function() {
@@ -3699,6 +3702,10 @@ $defaultGreetings = [
                             });
                             html += '</div>';
                         }
+                        // 物件選定（提案物件の一元管理）パネル（§1-§19）
+                        html += '<h4>物件選定</h4>';
+                        html += '<div id="property-panel" class="prop-wrap"></div>';
+
                         agentChatPendingAttachments = [];
                         var msgs = d.messages || [];
                         // AI担当（AIチャネル）と担当連絡（contactチャネル）を分けて表示する。
@@ -3731,6 +3738,7 @@ $defaultGreetings = [
 
                         detailContent.innerHTML = html;
                         initAgentChat(sessionId);
+                        if (window.PropertyAgent) { try { window.PropertyAgent.init(sessionId); } catch (e) { console.error(e); } }
                     })
                     .catch(function() {
                         detailContent.innerHTML = '<p>取得に失敗しました。</p>';
