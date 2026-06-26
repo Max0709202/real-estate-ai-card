@@ -60,6 +60,7 @@
 
     var visitorId = getOrCreateVisitorId();
     var sessionId = null;
+    var sessionGeo = null; // 同一セッションで再利用するGPS座標 {lat, lon}
     var canUseLoanSim = true;
     var sessionStarting = false;
     var sendingMessage = false;
@@ -1015,6 +1016,7 @@
     function startSession(reset, keepSavedSession) {
         if (reset) {
             sessionId = null;
+            sessionGeo = null;
             greetingShown = false;
             canUseLoanSim = true;
             crmState = null;
@@ -1738,44 +1740,82 @@
         }
     }
 
-    // 「現在地の土地情報を教えて」系の発話を検出する。現在地を指す語＋土地/情報系の語の
-    // 両方を含むときだけ true（「現在地」単独や雑談での誤発火を避ける）。
-    function isCurrentLocationLandIntent(text) {
+    // 現在位置を前提とした質問をすべて同一フローで捕捉する。土地/情報語の有無に関わらず、
+    // 「現在地」「ここはどこ」「この場所」「この土地」等は常にGPS取得フローへ回す（LLMには
+    // そのまま投げない）。現在地系の質問に対するAIの自由回答（「現在地は分かりません」等）を
+    // 防ぐのが目的。
+    function isCurrentLocationIntent(text) {
         if (!text) return false;
-        var t = String(text);
-        var hereWord = /(現在地|今いる場所|今の場所|ここの場所|この場所|今いるところ)/.test(t);
-        var landWord = /(土地|物件|情報|周辺|エリア|地域|用途地域|ハザード|災害|浸水|洪水|土砂|液状化|建ぺい率|建蔽率|容積率|都市計画|地価)/.test(t);
-        return hereWord && landWord;
+        var t = String(text).replace(/\s+/g, '');
+        return /(現在地|現在位置|現在の場所|今いる場所|今の場所|今いるところ|いまいる場所|ここはどこ|ここはどの|ここの(土地|場所|情報|住所|地域|エリア)|この場所|この土地|この付近|この周辺|ここら辺|この辺り|この辺|周辺の情報)/.test(t);
     }
 
-    // 位置情報の利用許可を得たあと、ブラウザのGPSで緯度経度を取得してサーバーへ送る。
-    function requestCurrentLocationLandInfo() {
-        if (!navigator.geolocation) {
-            appendBotMessage('お使いの端末・ブラウザでは位置情報を取得できませんでした。お手数ですが、調べたい住所（例：埼玉県川口市弥平2-20-3）を入力してください。');
+    // 2地点間の距離（メートル）。同一セッションでのGPS再利用＋100m移動判定に使う。
+    function geoDistanceMeters(a, b) {
+        if (!a || !b) return Infinity;
+        var R = 6371000;
+        var toRad = function (d) { return d * Math.PI / 180; };
+        var dLat = toRad(b.lat - a.lat);
+        var dLon = toRad(b.lon - a.lon);
+        var la1 = toRad(a.lat), la2 = toRad(b.lat);
+        var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+    }
+
+    // 現在地に関する質問の共通エントリ。GPS取得済みなら再許可を求めず即座に土地情報を取得し、
+    // 未取得なら許可ダイアログ（GPS取得）を起動する。
+    function startCurrentLocationFlow() {
+        if (sessionGeo) {
+            // 取得済み座標を再利用（毎回の許可要求をしない）。背景で100m以上の移動だけ反映する。
+            runCurrentLocationLandInfo(sessionGeo);
+            refreshSessionGeoIfMoved();
             return;
         }
-        var waiting = appendBotMessage('位置情報を取得しています', true);
+        if (!navigator.geolocation) {
+            appendBotMessage('現在地を取得できませんでした。位置情報を許可するか、住所をご入力ください。');
+            return;
+        }
+        appendBotMessage('現在地の情報を取得するため、位置情報（GPS）の利用を許可してください。');
+        var waiting = appendBotMessage('現在地を取得しています', true);
         navigator.geolocation.getCurrentPosition(
             function (pos) {
                 if (waiting) waiting.remove();
-                var lat = pos.coords.latitude;
-                var lon = pos.coords.longitude;
-                sendMessage('現在地の土地情報を教えてください', { geo: { lat: lat, lon: lon } });
+                sessionGeo = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                runCurrentLocationLandInfo(sessionGeo);
             },
-            function (err) {
+            function () {
                 if (waiting) waiting.remove();
-                var msg = '位置情報を取得できませんでした。';
-                if (err && err.code === 1) {
-                    msg = '位置情報の利用が許可されませんでした。ブラウザの設定で位置情報を許可いただくか、調べたい住所（例：埼玉県川口市弥平2-20-3）を入力してください。';
-                } else if (err && err.code === 3) {
-                    msg = '位置情報の取得がタイムアウトしました。電波の良い場所でもう一度お試しいただくか、調べたい住所を入力してください。';
-                } else {
-                    msg = '位置情報を取得できませんでした。お手数ですが、調べたい住所を入力してください。';
-                }
-                appendBotMessage(msg);
+                appendBotMessage('現在地を取得できませんでした。位置情報を許可するか、住所をご入力ください。');
             },
-            { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
         );
+    }
+
+    // 取得済み座標を使って土地情報を取得する。ユーザー発言は呼び出し側で既に表示済みのため、
+    // ここでは二重表示しない（skipUserEcho）。
+    function runCurrentLocationLandInfo(geo) {
+        sendMessage('現在地の土地情報を教えてください', { geo: geo, skipUserEcho: true });
+    }
+
+    // 許可済みのときだけ、背景で現在地を再取得し、100m以上移動していれば座標を更新する。
+    // 許可が「毎回確認」の場合に不意のダイアログを出さないよう、granted のときのみ実行する。
+    function refreshSessionGeoIfMoved() {
+        if (!sessionGeo || !navigator.geolocation) return;
+        var go = function () {
+            navigator.geolocation.getCurrentPosition(
+                function (pos) {
+                    var next = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                    if (geoDistanceMeters(sessionGeo, next) >= 100) sessionGeo = next;
+                },
+                function () {},
+                { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+            );
+        };
+        if (navigator.permissions && navigator.permissions.query) {
+            navigator.permissions.query({ name: 'geolocation' })
+                .then(function (st) { if (st && st.state === 'granted') go(); })
+                .catch(function () {});
+        }
     }
 
     function sendMessage(text, options) {
@@ -1793,20 +1833,13 @@
             return;
         }
 
-        // 現在地（GPS）からの土地情報照会。位置情報の取得はブラウザ側でしか行えないため、
-        // まず利用許可（はい／いいえ）を確認してから getCurrentPosition を呼ぶ。options.geo が
-        // 付いた送信（=許可後の本送信）は対象外にして無限ループを防ぐ。
-        if (!options.geo && isCurrentLocationLandIntent(text)) {
+        // 現在地に関する質問はLLMへ投げず、必ずアプリ側のGPS取得フローへ回す（決定的処理）。
+        // options.geo 付きの送信（=GPS取得後の本送信）は対象外にして無限ループを防ぐ。
+        if (!options.geo && isCurrentLocationIntent(text)) {
             appendUserMessage(text, '', []);
             inputEl.value = '';
-            appendBotMessage('現在地の土地情報をお調べします。位置情報（GPS）の利用を許可してください。', false, null, '', {
-                onComplete: function () {
-                    renderQuickReplies([
-                        { label: 'はい（位置情報を使う）', action: 'geo_consent_yes', value: 'geo_consent_yes' },
-                        { label: 'いいえ', action: 'geo_consent_no', value: 'geo_consent_no' }
-                    ]);
-                }
-            });
+            renderQuickReplies([]);
+            startCurrentLocationFlow();
             return;
         }
 
@@ -1820,9 +1853,10 @@
 
         sendingMessage = true;
         setInputEnabled(false);
-        appendUserMessage(text, '', sentAttachments);
+        // 現在地フロー（skipUserEcho）では呼び出し側で既にユーザー発言を表示済みのため重複表示しない。
+        if (!options.skipUserEcho) appendUserMessage(text, '', sentAttachments);
         inputEl.value = '';
-        var loadingRow = (agentMode || !text.trim()) ? null : appendBotMessage('回答を考えています', true);
+        var loadingRow = (agentMode || (!text.trim() && !options.geo)) ? null : appendBotMessage(options.geo ? '現在地の土地情報を取得しています' : '回答を考えています', true);
 
         var payload = { session_id: sessionId, visitor_id: visitorId, message: text };
         if (attachmentIds.length) payload.attachment_ids = attachmentIds;
@@ -2616,18 +2650,6 @@
                 || replyLabel === 'もう一度SMS認証する';
             if (isSmsRegister) {
                 showSmsAuth('register');
-                return;
-            }
-            if (action === 'geo_consent_yes') {
-                renderQuickReplies([]);
-                appendUserMessage(replyLabel || 'はい', '', []);
-                requestCurrentLocationLandInfo();
-                return;
-            }
-            if (action === 'geo_consent_no') {
-                renderQuickReplies([]);
-                appendUserMessage(replyLabel || 'いいえ', '', []);
-                appendBotMessage('承知しました。位置情報は使用しません。調べたい場所の住所（例：埼玉県川口市弥平2-20-3）を入力いただければ、その土地の情報をお調べします。');
                 return;
             }
             if (replyLabel) {

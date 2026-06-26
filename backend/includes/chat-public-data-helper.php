@@ -1008,11 +1008,35 @@ function chatGsiMuniMap($db) {
     return $map;
 }
 
+/** 漢数字（〜99）を算用数字に変換。"三"→3, "十"→10, "二十一"→21。失敗時 null。 */
+function chatKanjiNumToArabic($s) {
+    $s = (string)$s;
+    $map = ['〇'=>0,'一'=>1,'二'=>2,'三'=>3,'四'=>4,'五'=>5,'六'=>6,'七'=>7,'八'=>8,'九'=>9];
+    if (preg_match('/^([一二三四五六七八九]?)十([一二三四五六七八九]?)$/u', $s, $m)) {
+        $tens = $m[1] === '' ? 1 : $map[$m[1]];
+        $ones = $m[2] === '' ? 0 : $map[$m[2]];
+        return $tens * 10 + $ones;
+    }
+    if (mb_strlen($s) === 1 && isset($map[$s])) return $map[$s];
+    return null;
+}
+
+/** 町丁目の漢数字を算用数字に直す（"本町三丁目"→"本町3丁目"）。表示用。 */
+function chatChomeKanjiToArabic($town) {
+    return preg_replace_callback('/([〇一二三四五六七八九十]+)丁目/u', function ($m) {
+        $n = chatKanjiNumToArabic($m[1]);
+        return ($n === null ? $m[1] : $n) . '丁目';
+    }, (string)$town);
+}
+
 /**
  * Reverse-geocode a lat/lon to a Japanese place name using the GSI reverse
  * geocoder (no key required). Returns ['lat','lon','title','prefecture','town']
- * where title is 都道府県+市区町村+町丁目 (e.g. "埼玉県川口市本町三丁目"). The GPS
+ * where title is 都道府県+市区町村+町丁目 (e.g. "埼玉県川口市本町3丁目"). The GPS
  * point fixes the tile lookups; the title is only for display. Null on failure.
+ * NOTE: free reverse geocoding resolves only to 町丁目 level — 番地・号 is not
+ * available, so callers must treat the address as a 町丁目-level label and rely on
+ * the lat/lon (point-in-polygon) for the actual zone/hazard values.
  */
 function chatReverseGeocode($db, $lat, $lon) {
     $lat = (float)$lat; $lon = (float)$lon;
@@ -1023,6 +1047,7 @@ function chatReverseGeocode($db, $lat, $lon) {
     $muniCd = trim((string)($data['results']['muniCd'] ?? ''));
     $town   = trim((string)($data['results']['lv01Nm'] ?? ''));
     if ($town === '－' || $town === '-') $town = '';
+    if ($town !== '') $town = chatChomeKanjiToArabic($town);
     $pref = ''; $city = '';
     if ($muniCd !== '') {
         $muniMap = chatGsiMuniMap($db);
@@ -1239,6 +1264,9 @@ function chatReinfoApiCatalog() {
             'title' => '都市計画区域・区域区分', 'geom' => 'polygon',
             'keywords' => '都市計画区域|区域区分|市街化区域|市街化調整区域|非線引き',
             'description' => '都市計画区域および市街化区域・市街化調整区域の区分',
+            'fields' => [
+                'area_classification_ja' => '区域区分', 'city_name' => '市区町村', 'prefecture' => '都道府県',
+            ],
         ],
         'XKT002' => [
             'title' => '用途地域', 'geom' => 'polygon',
@@ -1258,6 +1286,9 @@ function chatReinfoApiCatalog() {
             'title' => '防火・準防火地域', 'geom' => 'polygon',
             'keywords' => '防火地域|準防火地域|防火',
             'description' => '防火地域・準防火地域（都市計画決定GISデータ）',
+            'fields' => [
+                'fire_prevention_ja' => '防火・準防火地域', 'city_name' => '市区町村', 'prefecture' => '都道府県',
+            ],
         ],
         'XKT023' => [
             'title' => '地区計画', 'geom' => 'polygon',
@@ -1956,8 +1987,12 @@ function chatBuildPublicDataContext($db, $message, $geo = null) {
 
     if ($geoArea !== null) {
         $area = $geoArea;
-        // Same provider set as the address-based 土地情報 report (display priority order).
-        $providers = ['XKT002', 'XKT014', 'XKT026', 'XKT029', 'XKT025'];
+        // 現在地レポート用の拡張セット。都市計画（区域区分・用途地域・防火・地区計画）と
+        // ハザード（洪水・高潮・津波・土砂・液状化・急傾斜）を点照会する。reinfolib に存在
+        // しない層（高度地区・日影規制・景観・埋蔵文化財・宅地造成・内水・揺れやすさ・火災
+        // 危険度）や点照会非対応の都市計画道路(XKT030)は含めない。該当なし/区域外もLLMへ
+        // 渡し、ハザードは「該当なし」と明示できるようにする。
+        $providers = ['XKT001', 'XKT002', 'XKT014', 'XKT023', 'XKT026', 'XKT027', 'XKT028', 'XKT029', 'XKT025', 'XKT022'];
     } else {
         $area = chatPublicExtractArea($message);
         $route = chatPublicDataRoute($db, $message, $area);
@@ -2024,7 +2059,9 @@ function chatBuildPublicDataContext($db, $message, $geo = null) {
     $parts[] = "\n回答末尾の出典表記は、本文で実際にこの取得データを使った場合だけ付けてください。取得データを使わず一般知識のみで答えた場合は出典を付けないでください。";
     if ($geoArea !== null) {
         $locName = $geoArea['title'];
-        $parts[] = "\n【現在地レポートの回答ルール（厳守・最優先）】\nこれはお客様の現在地（GPS位置情報）からサーバーがAPIで取得した土地情報の照会です。次のルールを厳守し、他の口調・テンプレートより最優先してください。\n1. 挨拶・お礼・前置き（「ありがとうございます」「詳細な情報を提供いただき」等）は一切書かないでください。データはサーバーがAPIから取得したものであり、お客様から提供されたものではありません。\n2. 回答の1行目は、必ず次の文だけにしてください（他の語を足さない）：「{$locName}周辺の土地情報を確認しました。」\n3. 続けて、取得できたデータだけを【都市計画情報】と【ハザード情報】の2つの見出しに分け、各項目を「・項目：値」の形式で箇条書きにしてください。取得データに無い項目は推測せず、『指定なし』『該当なし』などデータが示す範囲だけで記載し、データが無い項目は『確認できず』としてください。\n4. 取得データから直接読み取れない内容は一切書かないでください。具体的には、土地利用の適否、購入・建築・投資の判断、商業利用や工場建設の可否、基礎工事の要否、メリット・デメリットの評価、おすすめ・助言・感想・推測を書いてはいけません。営業的な誘導文（「お問い合わせください」「ご相談ください」等）も書かないでください。\n5. 数値（建ぺい率・容積率・浸水深ランク等）は取得データの値をそのまま使い、創作・概算・補完をしないでください。\n6. 【コメント】や考察の見出しは付けないでください。回答は上記2つのデータ見出しと、最後の注意書きのみで構成してください。\n7. 回答の一番最後に、必ず次の一文をそのまま改行して記載してください：\nこの情報は公的データをもとにした参考情報です。重要事項説明や建築可否の判断には、必ず自治体・専門家へ確認してください。";
+        $latStr = number_format((float)$geoArea['lat'], 5);
+        $lonStr = number_format((float)$geoArea['lon'], 5);
+        $parts[] = "\n【現在地レポートの回答ルール（厳守・最優先）】\nこれはお客様の現在地（GPS位置情報・緯度{$latStr}／経度{$lonStr}）からサーバーがAPIで取得した土地情報の照会です。次のルールを厳守し、他の口調・テンプレートより最優先してください。出力は下記の見出し構成のプレーンテキストとし、各項目は「・項目：値」の箇条書きで一覧しやすく整えてください。\n\n1. 挨拶・お礼・前置き（「ありがとうございます」「情報を提供いただき」等）は一切書かない。データはお客様提供ではなくAPI取得です。\n2. まず見出し【現在地】を付け、次の行に「{$locName}付近（測定地点：緯度{$latStr}／経度{$lonStr}）」と記載する。用途地域・建ぺい率・容積率は、この測定地点（GPS座標）を含む都市計画区域の値であり、丁目全体の代表値ではありません。\n3. 次の見出し【都市計画情報】を付け、取得できたデータがある項目だけを箇条書きにする：用途地域／建ぺい率／容積率／防火・準防火地域／区域区分（市街化区域・市街化調整区域等）／地区計画 など。取得データに無い項目（高度地区・日影規制・景観計画・埋蔵文化財包蔵地・宅地造成等工事規制区域・都市計画道路など）は推測せず、省略する（「不明」とも書かない）。\n4. 次の見出し【ハザード情報】を付け、取得できたデータを箇条書きにする：洪水浸水想定（対象河川・浸水深ランクを含む）／高潮／津波／土砂災害警戒区域・特別警戒区域／液状化／急傾斜地 など。ハザードは『該当なし』『区域外』のデータも、その旨を明記してよい（例：「・土砂災害警戒区域：該当なし」）。内水氾濫・地震時の揺れやすさ・火災危険度は取得データに無いため記載しない。\n5. 数値（建ぺい率・容積率・浸水深ランク等）は取得データの値をそのまま使い、創作・概算・補完をしない。\n6. 次の見出し【AIコメント】を付け、上で取得できたデータの内容だけに基づいて、用途地域から想定される街の特徴と、災害リスクの傾向（該当なし＝リスク低い等）を2〜4文でやさしく要約する。データから読み取れない購入・建築・投資の可否や具体的な工事の助言、営業的な誘導は書かない。最後に「実際の建築可否や詳細な法規制については、行政窓口等で最終確認してください。」と添える。\n7. 最後に見出し【出典】を付け、次の行だけを記載する：\n・国土交通省 不動産情報ライブラリ\n（自治体オープンデータを使った場合のみ次の行も加える）・各自治体オープンデータ\n8. 上記以外の見出し・分析・感想・出典表記は付けない。取得件数・取得日時・データセットID等の技術情報は表示しない。";
     }
     return ['context' => implode("\n", $parts), 'sources' => $sources, 'notices' => array_values(array_unique($notices)), 'meta' => $meta, 'attempted' => true];
 }

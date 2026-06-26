@@ -44,7 +44,8 @@
       "Bash(grep -n 'function propertyImagesFor\\\\|function propertySerialize\\\\|main_image\\\\|function propertyRasterizePdfFirstPage\\\\|$done = true;\\\\|category ENUM\\\\|display_order INT NOT NULL DEFAULT 0' backend/includes/property-helper.php)",
       "Bash(php -l backend/includes/property-helper.php)",
       "Bash(cat)",
-      "Bash(php /tmp/test_flyer.php)"
+      "Bash(php /tmp/test_flyer.php)",
+      "Bash(awk 'NR>=1240 && NR<=1430' backend/includes/chat-public-data-helper.php)"
     ]
   }
 }

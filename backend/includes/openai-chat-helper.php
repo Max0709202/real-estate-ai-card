@@ -779,16 +779,25 @@ PROMPT;
     // AIと担当者を同一人格として扱う（「担当者に相談」等を第一人称へ統一）。
     $safeReply = unifyAgentPersonaLanguage($safeReply, $agentName);
     $safeReply = applyAgentProhibitedWordsToReply($safeReply, $agentCustom['prohibited_words'] ?? []);
-    if (!empty($publicData['sources'])) {
+    // 現在地（GPS）レポートは、出典も含めてLLMが指定フォーマット（【出典】見出し）で
+    // 出力するため、PHP側の自動出典追記・📊データ取得情報フッターは付けない。技術情報
+    // （取得件数・取得日時・データセットID）は画面に出さず、開発ログ（chatLogPublicDataAccess）
+    // にのみ残す。
+    $isGeoReport = is_array($geo) && isset($geo['lat'], $geo['lon']) && is_numeric($geo['lat']) && is_numeric($geo['lon']);
+    if (!$isGeoReport && !empty($publicData['sources'])) {
         $safeReply = chatAppendPublicDataSourcesToReply($safeReply, $publicData['sources']);
     }
     // Make it explicit to the user when the answer is backed by real retrieved data:
     // append a small footer with source / record count / fetch time.
-    if (!empty($publicDataMeta)) {
+    if (!$isGeoReport && !empty($publicDataMeta)) {
         $transparencyFooter = chatPublicDataTransparencyFooter($publicDataMeta);
         if ($transparencyFooter !== '' && mb_strpos($safeReply, '📊 データ取得情報') === false) {
             $safeReply = rtrim($safeReply) . "\n\n" . $transparencyFooter;
         }
+    }
+    if ($isGeoReport && !empty($publicDataMeta)) {
+        // 取得件数・取得日時・データセット等は画面非表示。開発ログにのみ残す。
+        error_log('Geo land report data: ' . json_encode($publicDataMeta, JSON_UNESCAPED_UNICODE));
     }
     return ['reply' => $safeReply, 'sources' => array_merge($rag['sources'], $publicDataUiSources, $agentCustom['sources']), 'freshness' => $liveRefresh, 'error' => null, 'model' => $result['model'] ?? $model, 'usage' => $result['usage'] ?? null];
 }
