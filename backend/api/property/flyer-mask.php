@@ -53,8 +53,9 @@ try {
             $gi = @getimagesize($abs);
             if ($gi) $size = ['width' => (int)$gi[0], 'height' => (int)$gi[1]];
         }
-        $regions = !empty($img['mask_regions']) ? json_decode($img['mask_regions'], true) : [];
-        if (!is_array($regions)) $regions = [];
+        // 編集対象はページ1（index 0）。マスク領域はページ別に保持。
+        $byPage = propertyMaskRegionsByPage($img['mask_regions'] ?? null);
+        $regions = $byPage[0] ?? [];
 
         sendSuccessResponse([
             'image_id' => $imageId,
@@ -74,27 +75,26 @@ try {
         if ($imageId <= 0) sendErrorResponse('image_id is required', 400);
         $img = propertyFlyerVerifyAgentImage($db, $imageId, $userId);
 
-        // 範囲の正規化
+        // 編集されたページ1（index 0）の範囲を正規化
         $regions = [];
         foreach (($input['regions'] ?? []) as $r) {
             if (!is_array($r)) continue;
             $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0);
             if ($reg) $regions[] = $reg;
         }
-        // 範囲未指定なら下端帯を既定採用（ワンクリック）
-        if (empty($regions)) $regions = propertyFlyerBottomBandRegions();
 
-        // プレビュー確保
-        $previewRel = $img['preview_path'];
-        if (empty($previewRel)) {
-            $absOriginal = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($img['stored_path'], '/');
-            $isPdf = (strtolower((string)$img['mime_type']) === 'application/pdf')
-                || strtolower(pathinfo($absOriginal, PATHINFO_EXTENSION)) === 'pdf';
-            $preview = propertyFlyerMakePreview($absOriginal, $isPdf, (int)$img['business_card_id'], (int)$img['property_id']);
-            if (!$preview) sendErrorResponse('プレビューを生成できませんでした', 500);
-            $previewRel = $preview['rel'];
-        }
-        $previewAbs = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($previewRel, '/');
+        // ページ別マスクを更新（ページ1のみ手動上書き。他ページはアップロード時の自動検出を維持）
+        $byPage = propertyMaskRegionsByPage($img['mask_regions'] ?? null);
+        $byPage[0] = $regions;
+
+        // 元PDF/画像から全ページを再ラスタライズし、顧客用マスク済PDFを再生成
+        $absOriginal = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($img['stored_path'], '/');
+        $isPdf = (strtolower((string)$img['mime_type']) === 'application/pdf')
+            || strtolower(pathinfo($absOriginal, PATHINFO_EXTENSION)) === 'pdf';
+        $pg = propertyFlyerPageImages($absOriginal, $isPdf, 6);
+        $maskedRel = $pg['pages'] ? propertyFlyerBuildCustomerPdf($pg['pages'], $byPage, (int)$img['business_card_id'], (int)$img['property_id']) : null;
+        foreach ($pg['tmp'] as $f) { if (is_file($f)) @unlink($f); }
+        if (!$maskedRel) sendErrorResponse('マスク処理に失敗しました', 500);
 
         // 旧マスクPDFを削除
         if (!empty($img['masked_path'])) {
@@ -102,18 +102,15 @@ try {
             if (is_file($oldAbs)) @unlink($oldAbs);
         }
 
-        $masked = propertyFlyerApplyMask($previewAbs, $regions, (int)$img['business_card_id'], (int)$img['property_id']);
-        if (!$masked) sendErrorResponse('マスク処理に失敗しました', 500);
-
-        $db->prepare("UPDATE property_images SET preview_path = ?, masked_path = ?, mask_regions = ?, mask_status = 'masked' WHERE id = ?")
-           ->execute([$previewRel, $masked['rel_pdf'], json_encode($regions, JSON_UNESCAPED_UNICODE), $imageId]);
+        $db->prepare("UPDATE property_images SET masked_path = ?, mask_regions = ?, mask_status = 'masked' WHERE id = ?")
+           ->execute([$maskedRel, json_encode($byPage, JSON_UNESCAPED_UNICODE), $imageId]);
 
         sendSuccessResponse([
             'image_id' => $imageId,
             'mask_status' => 'masked',
             'regions' => $regions,
             'masked_url' => API_BASE_URL . '/property/image.php?id=' . $imageId . '&variant=masked',
-        ], '顧客共有用のマスク済販売図面を作成しました');
+        ], '顧客共有用のマスク済販売図面を更新しました');
     }
 
     sendErrorResponse('Method not allowed', 405);

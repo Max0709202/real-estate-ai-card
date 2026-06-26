@@ -251,33 +251,35 @@
     });
   }
 
-  /* 画像（§14 販売図面 / §15 写真・資料） */
+  /* 画像（§14 販売図面 / §15 写真・資料）
+     写真・資料は販売図面アップロード時にAIが自動抽出・分類して登録するため、ここでは閲覧のみ（手動追加/削除なし）。 */
   function loadImages(p, category) {
     var pane = P.querySelector('[data-pane="' + category + '"]');
-    var isPhoto = category === 'photo';
-    var sub = isPhoto ? '<select id="prop-img-sub" class="prop-field"><option value="">区分なし</option>' +
-      ['間取り図', '外観写真', '室内写真', 'その他資料'].map(function (s) { return '<option>' + s + '</option>'; }).join('') + '</select>' : '';
-    pane.innerHTML = '<div class="prop-toolbar" style="margin-top:8px">' + sub +
-      '<button type="button" class="prop-btn prop-btn--primary" id="prop-img-add">' + UI.icon('upload') +
-      (isPhoto ? '写真・資料を追加（最大10枚）' : '販売図面を追加') + '</button></div>' +
+    if (category === 'photo') {
+      pane.innerHTML = '<div class="prop-msg prop-msg--info" style="margin-top:8px">販売図面のアップロード時に、AIが建物外観・間取り図・室内・設備・地図を自動で抽出し登録します（最大10枚）。会社情報を含む画像は登録されません。</div>' +
+        '<div id="prop-img-body"><div class="prop-empty"><span class="prop-spinner"></span></div></div>';
+      refreshImages(p, category);
+      return;
+    }
+    // 販売図面の追加アップロード（OCR・AI解析・マスク生成まで自動実行）
+    pane.innerHTML = '<div class="prop-toolbar" style="margin-top:8px">' +
+      '<button type="button" class="prop-btn prop-btn--primary" id="prop-img-add">' + UI.icon('upload') + '販売図面を追加</button></div>' +
       '<div id="prop-img-body"><div class="prop-empty"><span class="prop-spinner"></span></div></div>';
     refreshImages(p, category);
     pane.querySelector('#prop-img-add').addEventListener('click', function () {
       var inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = isPhoto ? 'image/*' : 'image/*,application/pdf'; inp.multiple = true;
+      inp.type = 'file'; inp.accept = 'image/*,application/pdf'; inp.multiple = true;
       inp.addEventListener('change', function () {
         if (!inp.files.length) return;
         var fd = new FormData();
-        fd.append('property_id', p.id); fd.append('category', category);
-        var subEl = pane.querySelector('#prop-img-sub');
-        if (subEl && subEl.value) fd.append('subcategory', subEl.value);
+        fd.append('property_id', p.id); fd.append('category', 'flyer');
         for (var i = 0; i < inp.files.length; i++) fd.append('files[]', inp.files[i]);
         var body = pane.querySelector('#prop-img-body');
-        body.innerHTML = '<div class="prop-empty"><span class="prop-spinner"></span> アップロード中...</div>';
+        body.innerHTML = '<div class="prop-empty"><span class="prop-spinner"></span> アップロード・AI解析中...</div>';
         api('/image-upload.php', { method: 'POST', body: fd }).then(function (res) {
           if (!res.success) { notify('error', res.message || 'アップロードに失敗'); }
-          refreshImages(p, category);
-        }).catch(function () { notify('error', '通信に失敗しました'); refreshImages(p, category); });
+          refreshImages(p, 'flyer');
+        }).catch(function () { notify('error', '通信に失敗しました'); refreshImages(p, 'flyer'); });
       });
       inp.click();
     });
@@ -288,8 +290,15 @@
       if (!res.success) return;
       var prop = res.data.property;
       if (category === 'flyer') { renderFlyerList(p, body, prop.flyers || []); return; }
-      body.innerHTML = UI.galleryHtml(prop.photos, { removable: true, emptyText: '写真・資料はまだありません。' });
-      bindDeletes(body, p, category);
+      // 写真・資料: 閲覧のみ（分類ラベル付き）
+      var photos = prop.photos || [];
+      if (!photos.length) { body.innerHTML = '<div class="prop-empty">販売図面をアップロードすると、AIが抽出した写真・資料が自動で表示されます。</div>'; return; }
+      body.innerHTML = '<div class="prop-gallery">' + photos.map(function (im) {
+        var url = UI.addAuth(im.url, {});
+        var cap = im.subcategory ? '<span class="prop-photo-cap">' + UI.esc(im.subcategory) + '</span>' : '';
+        return '<div class="prop-thumb"><img src="' + UI.esc(url) + '" alt="" loading="lazy" data-full="' + UI.esc(url) + '">' + cap + '</div>';
+      }).join('') + '</div>';
+      UI.bindLightbox(body);
     });
   }
   function bindDeletes(body, p, category) {
@@ -312,12 +321,12 @@
   }
   function renderFlyerList(p, body, flyers) {
     if (!flyers.length) { body.innerHTML = '<div class="prop-empty">販売図面はまだありません。</div>'; return; }
-    body.innerHTML = '<div class="prop-msg prop-msg--info">アップロードした販売図面は、売主仲介会社情報（会社名・住所・電話・QR等）をマスクしてから顧客に共有されます。AIが範囲を提案します。</div>' +
+    body.innerHTML = '<div class="prop-msg prop-msg--info">アップロード時にAIが売主仲介会社情報（会社名・住所・電話・QR等）を検出し、顧客用PDFを自動でマスク生成します。範囲は「マスク編集」で修正できます。</div>' +
       '<div class="prop-flyer-list">' + flyers.map(function (f) {
       var thumb = f.preview_url ? '<img src="' + UI.esc(f.preview_url) + '" alt="" loading="lazy">' : '<div class="prop-thumb__pdf">図面</div>';
       var actions = '<button type="button" class="prop-btn prop-btn--primary" data-mask-edit="' + f.id + '">' + UI.icon('edit') + 'マスク編集</button>';
-      if (f.mask_status !== 'masked') actions += '<button type="button" class="prop-btn prop-btn--ghost" data-mask-quick="' + f.id + '">そのまま確定</button>';
       if (f.masked_url) actions += '<a class="prop-btn prop-btn--ghost" href="' + UI.esc(f.masked_url) + '" target="_blank" rel="noopener noreferrer">顧客用PDFを確認</a>';
+      actions += '<a class="prop-btn prop-btn--ghost" href="' + UI.esc(f.url) + '" target="_blank" rel="noopener noreferrer">元PDF</a>';
       actions += '<button type="button" class="prop-btn prop-btn--danger" data-del-img="' + f.id + '">' + UI.icon('trash') + '削除</button>';
       return '<div class="prop-flyer-row"><div class="prop-flyer-thumb">' + thumb + '</div>' +
         '<div class="prop-flyer-main">' + flyerStatusChip(f.mask_status) +
@@ -326,15 +335,6 @@
 
     body.querySelectorAll('[data-mask-edit]').forEach(function (b) {
       b.addEventListener('click', function () { openMaskEditor(p, parseInt(b.getAttribute('data-mask-edit'), 10)); });
-    });
-    body.querySelectorAll('[data-mask-quick]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var id = parseInt(b.getAttribute('data-mask-quick'), 10);
-        var f = flyers.filter(function (x) { return x.id === id; })[0];
-        b.disabled = true; b.innerHTML = '<span class="prop-spinner"></span> 処理中...';
-        api('/flyer-mask.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_id: id, regions: (f && f.mask_regions) || [] }) })
-          .then(function (r) { if (r.success) { notify('ok', '顧客共有用に作成しました'); refreshImages(p, 'flyer'); } else { notify('error', r.message || '失敗しました'); refreshImages(p, 'flyer'); } });
-      });
     });
     bindDeletes(body, p, 'flyer');
   }

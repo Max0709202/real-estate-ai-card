@@ -45,7 +45,13 @@
       "Bash(php -l backend/includes/property-helper.php)",
       "Bash(cat)",
       "Bash(php /tmp/test_flyer.php)",
-      "Bash(awk 'NR>=1240 && NR<=1430' backend/includes/chat-public-data-helper.php)"
+      "Bash(awk 'NR>=1240 && NR<=1430' backend/includes/chat-public-data-helper.php)",
+      "Bash(php -l backend/cron/cleanup-expired-properties.php)",
+      "Bash(php backend/cron/cleanup-expired-properties.php --dry-run)",
+      "Bash(grep -n 'imagecolorallocate\\($img, 0, 0, 0\\)\\\\|imagefilledrectangle\\\\|黒塗り\\\\|黒べた' backend/includes/property-helper.php)",
+      "Bash(sed -i 's/int\\(0.93\\\\*800\\)/\\(int\\)\\(0.93*800\\)/' /tmp/test_white.php)",
+      "Bash(php /tmp/test_white.php)",
+      "Bash(rm -f /tmp/f.jpg /tmp/masked.jpg)"
     ]
   }
 }

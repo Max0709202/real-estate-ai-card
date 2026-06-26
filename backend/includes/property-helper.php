@@ -62,9 +62,11 @@ if (!function_exists('propertyEnsureTables')) {
           seller_phone VARCHAR(64) NULL DEFAULT NULL,
           seller_remarks TEXT NULL DEFAULT NULL,
           main_image_path VARCHAR(512) NULL DEFAULT NULL,
+          thumbnail_image_id INT NULL DEFAULT NULL,
           ocr_status ENUM('none','draft','confirmed') NOT NULL DEFAULT 'none',
           hazard_json LONGTEXT NULL DEFAULT NULL,
           hazard_fetched_at TIMESTAMP NULL DEFAULT NULL,
+          expires_at TIMESTAMP NULL DEFAULT NULL,
           created_by ENUM('agent','customer') NOT NULL DEFAULT 'agent',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -91,10 +93,13 @@ if (!function_exists('propertyEnsureTables')) {
           masked_path VARCHAR(512) NULL DEFAULT NULL,
           mask_regions TEXT NULL DEFAULT NULL,
           mask_status ENUM('none','pending','masked') NOT NULL DEFAULT 'none',
+          expires_at TIMESTAMP NULL DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_property_images_property (property_id, category, display_order)
+          INDEX idx_property_images_property (property_id, category, display_order),
+          INDEX idx_property_images_expires (expires_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         propertyEnsureFlyerMaskColumns($db);
+        propertyEnsureRetentionColumns($db);
         $done = true;
     }
 }
@@ -118,6 +123,43 @@ if (!function_exists('propertyEnsureFlyerMaskColumns')) {
                 }
             } catch (Throwable $e) { /* 既に存在 / 権限不足は無視 */ }
         }
+    }
+}
+
+if (!function_exists('propertyEnsureRetentionColumns')) {
+    /** 保存期間・サムネイル用カラムを冪等に追加する（既存テーブル向け）。 */
+    function propertyEnsureRetentionColumns(PDO $db): void
+    {
+        $alters = [
+            ['properties', 'thumbnail_image_id', "ADD COLUMN thumbnail_image_id INT NULL DEFAULT NULL AFTER main_image_path"],
+            ['properties', 'expires_at', "ADD COLUMN expires_at TIMESTAMP NULL DEFAULT NULL AFTER hazard_fetched_at"],
+            ['property_images', 'expires_at', "ADD COLUMN expires_at TIMESTAMP NULL DEFAULT NULL AFTER mask_status"],
+        ];
+        foreach ($alters as [$table, $col, $ddl]) {
+            try {
+                $stmt = $db->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+                $stmt->execute([$table, $col]);
+                if ((int)$stmt->fetchColumn() === 0) {
+                    $db->exec("ALTER TABLE `$table` " . $ddl);
+                }
+            } catch (Throwable $e) { /* 無視 */ }
+        }
+    }
+}
+
+if (!function_exists('propertyRetentionMonths')) {
+    /** 保存期間（月）。デフォルト6か月。 */
+    function propertyRetentionMonths(): int
+    {
+        $v = (int)(getenv('PROPERTY_RETENTION_MONTHS') ?: 6);
+        return $v > 0 ? $v : 6;
+    }
+}
+if (!function_exists('propertyRetentionExpiresAt')) {
+    /** 現在時刻から保存期間後の 'Y-m-d H:i:s' を返す。 */
+    function propertyRetentionExpiresAt(): string
+    {
+        return date('Y-m-d H:i:s', strtotime('+' . propertyRetentionMonths() . ' months'));
     }
 }
 
@@ -355,13 +397,17 @@ if (!function_exists('propertySerialize')) {
             unset($fl);
         }
 
-        // メイン画像 URL（カードのサムネ）。
-        // 担当: 販売図面プレビュー(JPEG) → 写真。顧客: 写真のみ（マスク済販売図面はPDFのためサムネ不可）。
+        // メイン画像 URL（一覧サムネイル §4-§6）。
+        // アップロード時に選定した thumbnail_image_id（建物外観→間取り図）を最優先。無ければ写真の先頭。
+        // 担当のみ販売図面プレビュー(JPEG)へのフォールバックを許可（顧客はマスク済PDFのためサムネ不可）。
         $mainImageUrl = null;
-        if ($forAgent && !empty($flyers)) {
-            $mainImageUrl = $flyers[0]['preview_url'] ?? $flyers[0]['url'];
+        $thumbId = !empty($row['thumbnail_image_id']) ? (int)$row['thumbnail_image_id'] : 0;
+        if ($thumbId) {
+            // サムネイルは「写真・資料」（クリーンな画像）なので担当・顧客の双方で表示可能。
+            foreach ($photos as $ph) { if ((int)$ph['id'] === $thumbId) { $mainImageUrl = $ph['url']; break; } }
         }
-        if (!empty($photos)) $mainImageUrl = $photos[0]['url'];
+        if ($mainImageUrl === null && !empty($photos)) $mainImageUrl = $photos[0]['url'];
+        if ($mainImageUrl === null && $forAgent && !empty($flyers)) $mainImageUrl = $flyers[0]['preview_url'] ?? $flyers[0]['url'];
 
         $out = [
             'id' => (int)$row['id'],
@@ -946,6 +992,24 @@ if (!function_exists('propertyFlyerDetectRegions')) {
     }
 }
 
+if (!function_exists('propertyMaskRegionsByPage')) {
+    /** 保存済 mask_regions（旧:平坦配列 / 新:ページ別オブジェクト）を [pageIndex => [regions]] に正規化。 */
+    function propertyMaskRegionsByPage($stored): array
+    {
+        if (is_string($stored)) $stored = json_decode($stored, true);
+        if (!is_array($stored) || !$stored) return [];
+        $first = reset($stored);
+        if (is_array($first) && isset($first['x'])) { // 旧形式: 領域の平坦配列＝ページ0
+            return [0 => array_values(array_filter($stored, 'is_array'))];
+        }
+        $out = [];
+        foreach ($stored as $k => $v) {
+            if (is_array($v)) $out[(int)$k] = array_values(array_filter($v, 'is_array'));
+        }
+        return $out;
+    }
+}
+
 if (!function_exists('propertyClampRegion')) {
     /** 正規化矩形を 0..1 に丸め、極端に小さい矩形を除外。無効なら null。 */
     function propertyClampRegion($x, $y, $w, $h): ?array
@@ -970,7 +1034,7 @@ if (!function_exists('propertyFlyerApplyMask')) {
         $img = @imagecreatefromjpeg($previewAbsPath);
         if (!$img) return null;
         $w = imagesx($img); $h = imagesy($img);
-        $black = imagecolorallocate($img, 0, 0, 0);
+        $fill = imagecolorallocate($img, 255, 255, 255); // 白べた（塗りつぶし感を抑える）
         foreach ($regions as $r) {
             $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0);
             if (!$reg) continue;
@@ -978,7 +1042,7 @@ if (!function_exists('propertyFlyerApplyMask')) {
             $y0 = (int)round($reg['y'] * $h);
             $x1 = (int)round(($reg['x'] + $reg['w']) * $w);
             $y1 = (int)round(($reg['y'] + $reg['h']) * $h);
-            imagefilledrectangle($img, $x0, $y0, $x1, $y1, $black);
+            imagefilledrectangle($img, $x0, $y0, $x1, $y1, $fill);
         }
         $relDir = 'property/' . $businessCardId . '/' . $propertyId;
         $absDir = rtrim(UPLOAD_DIR, '/') . '/' . $relDir;
@@ -1003,63 +1067,718 @@ if (!function_exists('propertyJpegToPdf')) {
      * 1枚のJPEGを埋め込んだ単一ページPDFを生成する（外部ライブラリ不要・DCTDecodeで再エンコードなし）。
      * ページサイズ＝画像ピクセル相当（72dpi）。
      */
-    function propertyJpegToPdf(string $jpegPath, string $pdfPath, int $w, int $h): bool
+    function propertyJpegToPdf(string $jpegPath, string $pdfPath, int $w = 0, int $h = 0): bool
     {
-        $jpeg = @file_get_contents($jpegPath);
-        if ($jpeg === false || $jpeg === '') return false;
-        $info = @getimagesize($jpegPath);
-        $channels = isset($info['channels']) ? (int)$info['channels'] : 3;
-        $colorSpace = $channels === 4 ? '/DeviceCMYK' : ($channels === 1 ? '/DeviceGray' : '/DeviceRGB');
-        $bits = isset($info['bits']) ? (int)$info['bits'] : 8;
-        $len = strlen($jpeg);
-        $contentStream = "q\n{$w} 0 0 {$h} 0 0 cm\n/Im0 Do\nQ\n";
-        $clen = strlen($contentStream);
+        return propertyMultiJpegToPdf([$jpegPath], $pdfPath);
+    }
+}
 
-        $objs = [];
-        $objs[1] = "<< /Type /Catalog /Pages 2 0 R >>";
-        $objs[2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>";
-        $objs[3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {$w} {$h}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>";
-        $obj4Header = "<< /Type /XObject /Subtype /Image /Width {$w} /Height {$h} /ColorSpace {$colorSpace} /BitsPerComponent {$bits} /Filter /DCTDecode /Length {$len} >>";
-        $obj5 = "<< /Length {$clen} >>";
+if (!function_exists('propertyMultiJpegToPdf')) {
+    /**
+     * 複数のJPEGを各ページに埋め込んだ複数ページPDFを生成する（外部ライブラリ不要・DCTDecode）。
+     * ページサイズ＝各画像ピクセル相当（72dpi）。
+     */
+    function propertyMultiJpegToPdf(array $jpegPaths, string $pdfPath): bool
+    {
+        $pages = [];
+        foreach ($jpegPaths as $p) {
+            $data = @file_get_contents($p);
+            if ($data === false || $data === '') continue;
+            $info = @getimagesize($p);
+            if ($info === false) continue;
+            $channels = isset($info['channels']) ? (int)$info['channels'] : 3;
+            $pages[] = [
+                'data' => $data, 'w' => (int)$info[0], 'h' => (int)$info[1],
+                'cs' => $channels === 4 ? '/DeviceCMYK' : ($channels === 1 ? '/DeviceGray' : '/DeviceRGB'),
+                'bits' => isset($info['bits']) ? (int)$info['bits'] : 8,
+                'len' => strlen($data),
+            ];
+        }
+        if (!$pages) return false;
+        $n = count($pages);
+        $objCount = 2 + $n * 3;
+
+        // オブジェクト番号割当: 1=Catalog, 2=Pages, 以降 各ページ(img, content, page)
+        $num = 3; $perPage = []; $kidsNums = [];
+        foreach ($pages as $i => $_) {
+            $img = $num++; $content = $num++; $page = $num++;
+            $perPage[$i] = ['img' => $img, 'content' => $content, 'page' => $page];
+            $kidsNums[] = $page;
+        }
+        $kids = implode(' ', array_map(fn($k) => "$k 0 R", $kidsNums));
 
         $pdf = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
         $offsets = [];
-        // obj 1
-        $offsets[1] = strlen($pdf); $pdf .= "1 0 obj\n{$objs[1]}\nendobj\n";
-        $offsets[2] = strlen($pdf); $pdf .= "2 0 obj\n{$objs[2]}\nendobj\n";
-        $offsets[3] = strlen($pdf); $pdf .= "3 0 obj\n{$objs[3]}\nendobj\n";
-        $offsets[4] = strlen($pdf); $pdf .= "4 0 obj\n{$obj4Header}\nstream\n" . $jpeg . "\nendstream\nendobj\n";
-        $offsets[5] = strlen($pdf); $pdf .= "5 0 obj\n{$obj5}\nstream\n" . $contentStream . "endstream\nendobj\n";
+        $offsets[1] = strlen($pdf); $pdf .= "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
+        $offsets[2] = strlen($pdf); $pdf .= "2 0 obj\n<< /Type /Pages /Kids [$kids] /Count $n >>\nendobj\n";
+        foreach ($pages as $i => $pg) {
+            $pp = $perPage[$i];
+            $imgHeader = "<< /Type /XObject /Subtype /Image /Width {$pg['w']} /Height {$pg['h']} /ColorSpace {$pg['cs']} /BitsPerComponent {$pg['bits']} /Filter /DCTDecode /Length {$pg['len']} >>";
+            $offsets[$pp['img']] = strlen($pdf);
+            $pdf .= "{$pp['img']} 0 obj\n{$imgHeader}\nstream\n" . $pg['data'] . "\nendstream\nendobj\n";
+            $content = "q\n{$pg['w']} 0 0 {$pg['h']} 0 0 cm\n/Im0 Do\nQ\n";
+            $offsets[$pp['content']] = strlen($pdf);
+            $pdf .= "{$pp['content']} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n" . $content . "endstream\nendobj\n";
+            $pageBody = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {$pg['w']} {$pg['h']}] /Resources << /XObject << /Im0 {$pp['img']} 0 R >> >> /Contents {$pp['content']} 0 R >>";
+            $offsets[$pp['page']] = strlen($pdf);
+            $pdf .= "{$pp['page']} 0 obj\n{$pageBody}\nendobj\n";
+        }
 
         $xrefPos = strlen($pdf);
-        $count = 6; // 0..5
-        $xref = "xref\n0 {$count}\n0000000000 65535 f \n";
-        for ($i = 1; $i <= 5; $i++) {
-            $xref .= sprintf("%010d 00000 n \n", $offsets[$i]);
+        $size = $objCount + 1;
+        $xref = "xref\n0 {$size}\n0000000000 65535 f \n";
+        for ($i = 1; $i <= $objCount; $i++) {
+            $xref .= sprintf("%010d 00000 n \n", $offsets[$i] ?? 0);
         }
         $pdf .= $xref;
-        $pdf .= "trailer\n<< /Size {$count} /Root 1 0 R >>\nstartxref\n{$xrefPos}\n%%EOF";
-
+        $pdf .= "trailer\n<< /Size {$size} /Root 1 0 R >>\nstartxref\n{$xrefPos}\n%%EOF";
         return (bool)@file_put_contents($pdfPath, $pdf);
+    }
+}
+
+if (!function_exists('propertyApplyMaskToJpeg')) {
+    /** JPEGに正規化矩形を白べたで塗って $outPath に保存（GD）。成功で true。 */
+    function propertyApplyMaskToJpeg(string $srcJpeg, array $regions, string $outPath): bool
+    {
+        if (!function_exists('imagecreatefromjpeg')) return false;
+        $img = @imagecreatefromjpeg($srcJpeg);
+        if (!$img) return false;
+        $w = imagesx($img); $h = imagesy($img);
+        $fill = imagecolorallocate($img, 255, 255, 255); // 白べた（塗りつぶし感を抑える）
+        foreach ($regions as $r) {
+            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0);
+            if (!$reg) continue;
+            imagefilledrectangle($img,
+                (int)round($reg['x'] * $w), (int)round($reg['y'] * $h),
+                (int)round(($reg['x'] + $reg['w']) * $w), (int)round(($reg['y'] + $reg['h']) * $h), $fill);
+        }
+        $ok = imagejpeg($img, $outPath, 88);
+        imagedestroy($img);
+        return (bool)$ok;
+    }
+}
+
+if (!function_exists('propertyFlyerModel')) {
+    /** 販売図面解析に使うモデル（既定 GPT-4.5）。OPENAI_MODEL_FLYER で上書き可。 */
+    function propertyFlyerModel(): string
+    {
+        return getenv('OPENAI_MODEL_FLYER') ?: 'gpt-4.5-preview';
+    }
+}
+
+if (!function_exists('propertyFlyerSaveableCategories')) {
+    /** 「写真・資料」へ保存する分類（その他は売主情報を含む可能性があるため除外）。 */
+    function propertyFlyerSaveableCategories(): array
+    {
+        return ['建物外観', '間取り図', '室内写真', '設備写真', '地図'];
+    }
+}
+
+if (!function_exists('propertyRasterizePdfAllPages')) {
+    /** PDF全ページ（最大 $maxPages）を Ghostscript で JPEG にラスタライズ。ファイルパス配列を返す（呼び出し側で削除）。 */
+    function propertyRasterizePdfAllPages(string $pdfPath, int $maxPages = 6, int $dpi = 150): array
+    {
+        $gs = propertyGsBinary();
+        if (!$gs || !is_file($pdfPath)) return [];
+        $dir = rtrim(sys_get_temp_dir(), '/') . '/prop_pg_' . bin2hex(random_bytes(6));
+        if (!@mkdir($dir, 0700, true) && !is_dir($dir)) return [];
+        $out = $dir . '/page-%03d.jpg';
+        $cmd = escapeshellarg($gs) . ' -q -dSAFER -dBATCH -dNOPAUSE -dFirstPage=1 -dLastPage=' . (int)$maxPages
+            . ' -sDEVICE=jpeg -dJPEGQ=88 -r' . (int)$dpi . ' -dUseCropBox'
+            . ' -sOutputFile=' . escapeshellarg($out) . ' ' . escapeshellarg($pdfPath) . ' 2>/dev/null';
+        @shell_exec($cmd);
+        $files = glob($dir . '/page-*.jpg') ?: [];
+        sort($files);
+        return $files;
+    }
+}
+
+if (!function_exists('propertyCropRegionToJpeg')) {
+    /** ページ画像から正規化矩形領域を切り出し、長辺 $maxEdge のJPEGとして保存（GD）。 */
+    function propertyCropRegionToJpeg(string $pageAbs, array $region, string $outAbs, int $maxEdge = 1280): bool
+    {
+        if (!function_exists('imagecreatefromjpeg')) return false;
+        $src = @imagecreatefromjpeg($pageAbs);
+        if (!$src) return false;
+        $W = imagesx($src); $H = imagesy($src);
+        $pad = 0.008;
+        $x = max(0.0, ($region['x'] ?? 0) - $pad);
+        $y = max(0.0, ($region['y'] ?? 0) - $pad);
+        $w = min(1.0 - $x, ($region['w'] ?? 0) + 2 * $pad);
+        $h = min(1.0 - $y, ($region['h'] ?? 0) + 2 * $pad);
+        $px = (int)round($x * $W); $py = (int)round($y * $H);
+        $pw = (int)round($w * $W); $ph = (int)round($h * $H);
+        if ($pw < 16 || $ph < 16) { imagedestroy($src); return false; }
+        $scale = ($pw > $maxEdge || $ph > $maxEdge) ? ($maxEdge / max($pw, $ph)) : 1.0;
+        $nw = max(1, (int)round($pw * $scale)); $nh = max(1, (int)round($ph * $scale));
+        $dst = imagecreatetruecolor($nw, $nh);
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        imagefilledrectangle($dst, 0, 0, $nw, $nh, $white);
+        imagecopyresampled($dst, $src, 0, 0, $px, $py, $nw, $nh, $pw, $ph);
+        $ok = imagejpeg($dst, $outAbs, 85);
+        imagedestroy($src); imagedestroy($dst);
+        return (bool)$ok;
+    }
+}
+
+if (!function_exists('propertyFlyerAnalyzePage')) {
+    /**
+     * 販売図面の1ページ画像を GPT-4.5（Vision）で1回だけ解析し、
+     *  - 個々の写真・図版領域の分類（建物外観/間取り図/室内写真/設備写真/地図/その他）
+     *  - 顧客用PDFで黒塗りすべき売主仲介会社情報の領域（mask_regions）
+     * を返す。失敗時は gpt-4o-mini で再試行し、それも失敗なら items=[] / mask=下端帯。
+     * @return array ['items'=>[['category','x','y','w','h','thumbnail_candidate'],...], 'mask_regions'=>[['x','y','w','h'],...]]
+     */
+    function propertyFlyerAnalyzePage(string $pageAbsPath, array $options = []): array
+    {
+        $fallback = ['items' => [], 'mask_regions' => propertyFlyerBottomBandRegions()];
+        if (!is_file($pageAbsPath) || !function_exists('curl_init')) return $fallback;
+        $data = @file_get_contents($pageAbsPath);
+        if ($data === false) return $fallback;
+        $b64 = 'data:image/jpeg;base64,' . base64_encode($data);
+
+        $prompt = "あなたは日本の不動産販売図面（チラシ）画像を解析するアシスタントです。\n"
+            . "この画像に含まれる個々の写真・図版の領域を検出し、それぞれ次のいずれかに分類してください:\n"
+            . "建物外観 / 間取り図 / 室内写真 / 設備写真 / 地図 / その他\n"
+            . "「その他」= 会社ロゴ・QRコード・会社名・住所・電話/FAX番号・担当者情報・物件確認QR・アイコン・広告等（売主仲介会社情報を含む可能性のあるもの）。\n"
+            . "各領域は、画像左上を(0,0)・右下を(1,1)とした正規化矩形 {x,y,w,h}（x,y=左上, w,h=幅高さ, 0〜1の小数）で示してください。\n"
+            . "建物外観が複数ある場合は、建物全体が最も分かりやすい1枚にのみ thumbnail_candidate=true を付けてください。\n"
+            . "さらに、顧客に渡すPDFでマスク（非表示に）すべき『売主仲介会社情報』（会社名・住所・電話・FAX・QRコード・『物件確認はこちら』『お問い合わせ』等）の領域を mask_regions として返してください。\n"
+            . "出力はJSONのみ: {\"items\":[{\"category\":\"..\",\"x\":..,\"y\":..,\"w\":..,\"h\":..,\"thumbnail_candidate\":true}], \"mask_regions\":[{\"x\":..,\"y\":..,\"w\":..,\"h\":..}]}\n"
+            . "説明文やコードフェンスは付けないこと。";
+        $messages = [['role' => 'user', 'content' => [
+            ['type' => 'text', 'text' => $prompt],
+            ['type' => 'image_url', 'image_url' => ['url' => $b64]],
+        ]]];
+
+        $tryModels = [propertyFlyerModel(), 'gpt-4o-mini'];
+        $reply = null;
+        foreach ($tryModels as $model) {
+            $apiKey = chatOpenAIApiKeyForModel($model);
+            $res = callOpenAIChat($messages, $apiKey, $model, [
+                'purpose' => 'property_flyer_analyze', 'max_tokens' => 900, 'temperature' => 0.0, 'timeout' => 60,
+            ] + $options);
+            if (empty($res['error']) && !empty($res['reply'])) { $reply = $res['reply']; break; }
+            error_log('property flyer analyze model ' . $model . ' failed: ' . ($res['error'] ?? 'empty'));
+        }
+        if ($reply === null) return $fallback;
+
+        $reply = trim($reply);
+        $reply = preg_replace('/^```[a-zA-Z]*\s*/', '', $reply);
+        $reply = preg_replace('/```$/', '', trim($reply));
+        $s = strpos($reply, '{'); $e = strrpos($reply, '}');
+        if ($s === false || $e === false) return $fallback;
+        $parsed = json_decode(substr($reply, $s, $e - $s + 1), true);
+        if (!is_array($parsed)) return $fallback;
+
+        $valid = propertyFlyerSaveableCategories();
+        $items = [];
+        foreach (($parsed['items'] ?? []) as $it) {
+            if (!is_array($it)) continue;
+            $cat = trim((string)($it['category'] ?? ''));
+            $reg = propertyClampRegion($it['x'] ?? null, $it['y'] ?? null, $it['w'] ?? null, $it['h'] ?? null);
+            if (!$reg) continue;
+            $items[] = [
+                'category' => $cat,
+                'x' => $reg['x'], 'y' => $reg['y'], 'w' => $reg['w'], 'h' => $reg['h'],
+                'thumbnail_candidate' => !empty($it['thumbnail_candidate']),
+                'saveable' => in_array($cat, $valid, true),
+            ];
+        }
+        $mask = [];
+        foreach (($parsed['mask_regions'] ?? []) as $r) {
+            if (!is_array($r)) continue;
+            $reg = propertyClampRegion($r['x'] ?? null, $r['y'] ?? null, $r['w'] ?? null, $r['h'] ?? null);
+            if ($reg) $mask[] = $reg;
+        }
+        // 売主情報マスクが検出できなければ、その他領域＋下端帯を保険にする
+        if (empty($mask)) {
+            foreach ($items as $it) {
+                if (!$it['saveable']) $mask[] = ['x' => $it['x'], 'y' => $it['y'], 'w' => $it['w'], 'h' => $it['h']];
+            }
+            if (empty($mask)) $mask = propertyFlyerBottomBandRegions();
+        }
+        return ['items' => $items, 'mask_regions' => $mask];
+    }
+}
+
+if (!function_exists('propertyFlyerPageImages')) {
+    /**
+     * 販売図面（画像/PDF）からページ画像（JPEG絶対パス配列）と、その一時ディレクトリを返す。
+     * @return array ['pages'=>[abs,...], 'tmp'=>[削除対象パス...]]
+     */
+    function propertyFlyerPageImages(string $originalAbsPath, bool $isPdf, int $maxPages = 6): array
+    {
+        if ($isPdf) {
+            $pages = propertyRasterizePdfAllPages($originalAbsPath, $maxPages, 150);
+            return ['pages' => $pages, 'tmp' => $pages];
+        }
+        $tmp = tempnam(sys_get_temp_dir(), 'prop_pg_') . '.jpg';
+        if (!propertyRescaleAnyToJpeg($originalAbsPath, $tmp, 2000)) { @copy($originalAbsPath, $tmp); }
+        return ['pages' => [$tmp], 'tmp' => [$tmp]];
+    }
+}
+
+if (!function_exists('propertyFlyerBuildCustomerPdf')) {
+    /**
+     * ページ画像配列を、ページ毎の売主マスク領域で黒塗りし、複数ページの顧客用PDFを生成する。
+     * @param array $pageAbs  ページJPEG絶対パス配列
+     * @param array $maskByPage  [pageIndex => [{x,y,w,h},...]]
+     * @return string|null 相対パス（UPLOAD_DIR基準）/ 失敗時 null
+     */
+    function propertyFlyerBuildCustomerPdf(array $pageAbs, array $maskByPage, int $businessCardId, int $propertyId): ?string
+    {
+        $relDir = 'property/' . $businessCardId . '/' . $propertyId;
+        $absDir = rtrim(UPLOAD_DIR, '/') . '/' . $relDir;
+        if (!is_dir($absDir) && !@mkdir($absDir, 0755, true) && !is_dir($absDir)) return null;
+        $maskedPages = [];
+        foreach ($pageAbs as $i => $page) {
+            $regions = $maskByPage[$i] ?? [];
+            if (empty($regions) && $i === 0) $regions = propertyFlyerBottomBandRegions();
+            $mp = $absDir . '/maskpage_' . bin2hex(random_bytes(6)) . '.jpg';
+            if (propertyApplyMaskToJpeg($page, $regions, $mp)) $maskedPages[] = $mp;
+        }
+        if (!$maskedPages) return null;
+        $pdfName = 'masked_' . bin2hex(random_bytes(8)) . '.pdf';
+        $absPdf = $absDir . '/' . $pdfName;
+        $ok = propertyMultiJpegToPdf($maskedPages, $absPdf);
+        foreach ($maskedPages as $mp) @unlink($mp);
+        return $ok ? ($relDir . '/' . $pdfName) : null;
+    }
+}
+
+/* ──────────────────────────────────────────────────────────
+ * PDF埋め込み画像の直接抽出（poppler不要・純PHP）
+ *  - /DCTDecode（JPEG）はストリームをそのままJPEGとして保存（原寸・劣化なし）
+ *  - /FlateDecode（PNG系）はinflate＋PNGプレディクタ復元してGDで保存
+ * ────────────────────────────────────────────────────────── */
+if (!function_exists('propertyInflateStream')) {
+    /** zlib/raw/gzip いずれかで展開を試みる。失敗時 null。 */
+    function propertyInflateStream(string $data): ?string
+    {
+        $out = @gzuncompress($data); if ($out !== false && $out !== '') return $out; // zlib header
+        $out = @gzinflate($data);    if ($out !== false && $out !== '') return $out; // raw deflate
+        $out = @gzdecode($data);     if ($out !== false && $out !== '') return $out; // gzip
+        return null;
+    }
+}
+
+if (!function_exists('propertyPdfResolveLength')) {
+    /** 間接参照 /Length N 0 R の整数値を本文から解決。失敗時 null。 */
+    function propertyPdfResolveLength(string $raw, int $objNum): ?int
+    {
+        if (preg_match('/\b' . $objNum . '\s+0\s+obj\s+(\d+)/', $raw, $m)) return (int)$m[1];
+        return null;
+    }
+}
+
+if (!function_exists('propertyApplyPngPredictor')) {
+    /** PNGプレディクタ（filterタイプ各行先頭1byte）を復元。bpp=1ピクセルあたりバイト数。失敗時 null。 */
+    function propertyApplyPngPredictor(string $data, int $rowBytes, int $bpp): ?string
+    {
+        $stride = $rowBytes + 1;
+        if ($stride <= 1) return null;
+        $nrows = intdiv(strlen($data), $stride);
+        if ($nrows <= 0) return null;
+        $out = '';
+        $prev = str_repeat("\0", $rowBytes);
+        for ($r = 0; $r < $nrows; $r++) {
+            $off = $r * $stride;
+            $ft = ord($data[$off]);
+            $row = substr($data, $off + 1, $rowBytes);
+            if (strlen($row) < $rowBytes) $row = str_pad($row, $rowBytes, "\0");
+            $rec = '';
+            for ($i = 0; $i < $rowBytes; $i++) {
+                $x = ord($row[$i]);
+                $a = $i >= $bpp ? ord($rec[$i - $bpp]) : 0;
+                $b = ord($prev[$i]);
+                $c = $i >= $bpp ? ord($prev[$i - $bpp]) : 0;
+                switch ($ft) {
+                    case 0: $v = $x; break;
+                    case 1: $v = $x + $a; break;
+                    case 2: $v = $x + $b; break;
+                    case 3: $v = $x + intdiv($a + $b, 2); break;
+                    case 4:
+                        $p = $a + $b - $c; $pa = abs($p - $a); $pb = abs($p - $b); $pc = abs($p - $c);
+                        $pr = ($pa <= $pb && $pa <= $pc) ? $a : (($pb <= $pc) ? $b : $c);
+                        $v = $x + $pr; break;
+                    default: return null;
+                }
+                $rec .= chr($v & 0xFF);
+            }
+            $out .= $rec;
+            $prev = $rec;
+        }
+        return $out;
+    }
+}
+
+if (!function_exists('propertyBmp24FromRgb')) {
+    /** トップダウンRGB（1byte×3×W×H）から24bit BMPバイナリを生成（GD imagecreatefromstring用）。 */
+    function propertyBmp24FromRgb(string $rgb, int $W, int $H): string
+    {
+        $rowSize = $W * 3;
+        $pad = (4 - ($rowSize % 4)) % 4;
+        $padBytes = str_repeat("\0", $pad);
+        $pixels = '';
+        for ($y = $H - 1; $y >= 0; $y--) { // BMPは下から上
+            $base = $y * $rowSize;
+            $row = substr($rgb, $base, $rowSize);
+            // RGB -> BGR
+            $bgr = '';
+            for ($x = 0; $x < $rowSize; $x += 3) {
+                $bgr .= $row[$x + 2] . $row[$x + 1] . $row[$x];
+            }
+            $pixels .= $bgr . $padBytes;
+        }
+        $dataSize = strlen($pixels);
+        $fileSize = 14 + 40 + $dataSize;
+        $header = 'BM' . pack('VvvV', $fileSize, 0, 0, 54);
+        $dib = pack('VllvvVVllVV', 40, $W, $H, 1, 24, 0, $dataSize, 2835, 2835, 0, 0);
+        return $header . $dib . $pixels;
+    }
+}
+
+if (!function_exists('propertyPdfImageToFile')) {
+    /**
+     * FlateDecode の生サンプルを RGB 化して JPEG 保存する（DeviceRGB / DeviceGray / Indexed[RGB] を対応）。
+     * 失敗時 false。
+     */
+    function propertyPdfImageToFile(string $inflated, int $W, int $H, string $dict, string $raw, string $outPath): bool
+    {
+        // カラースペース判定
+        $colors = 0; $palette = null;
+        if (preg_match('#/ColorSpace\s*/DeviceRGB#', $dict)) { $colors = 3; }
+        elseif (preg_match('#/ColorSpace\s*/DeviceGray#', $dict)) { $colors = 1; }
+        elseif (preg_match('#/ColorSpace\s*\[\s*/Indexed\s*/DeviceRGB\s+(\d+)\s*([<(])#', $dict, $im)) {
+            // インライン パレット（<hex> もしくは (literal)）。間接参照は非対応。
+            $colors = 1;
+            if ($im[2] === '<') {
+                if (preg_match('#/Indexed\s*/DeviceRGB\s+\d+\s*<([0-9A-Fa-f\s]*)>#', $dict, $hx)) {
+                    $hex = preg_replace('/\s+/', '', $hx[1]);
+                    $bin = @hex2bin(strlen($hex) % 2 === 0 ? $hex : substr($hex, 0, -1));
+                    $palette = $bin !== false ? str_split($bin, 3) : null;
+                }
+            }
+            if ($palette === null) return false; // リテラルパレットは未対応
+        } else {
+            return false; // CMYK / ICCBased / 間接参照などは未対応
+        }
+
+        // プレディクタ
+        $predictor = preg_match('#/Predictor\s+(\d+)#', $dict, $pm) ? (int)$pm[1] : 1;
+        $pcolors = preg_match('#/DecodeParms[^>]*/Colors\s+(\d+)#', $dict, $cm) ? (int)$cm[1] : $colors;
+        $columns = preg_match('#/DecodeParms[^>]*/Columns\s+(\d+)#', $dict, $col) ? (int)$col[1] : $W;
+        if ($predictor >= 10) {
+            $bpp = max(1, $pcolors); // 8bit前提
+            $inflated = propertyApplyPngPredictor($inflated, $columns * $pcolors, $bpp);
+            if ($inflated === null) return false;
+        }
+
+        $rowBytes = $W * $colors;
+        if (strlen($inflated) < $rowBytes * $H) return false;
+
+        // RGB 化
+        $rgb = '';
+        if ($colors === 3) {
+            $rgb = substr($inflated, 0, $rowBytes * $H);
+        } elseif ($colors === 1 && $palette === null) { // gray
+            $px = $rowBytes * $H;
+            for ($i = 0; $i < $px; $i++) { $g = $inflated[$i]; $rgb .= $g . $g . $g; }
+        } else { // indexed
+            $px = $W * $H;
+            for ($i = 0; $i < $px; $i++) {
+                $idx = ord($inflated[$i]);
+                $c = $palette[$idx] ?? "\0\0\0";
+                $rgb .= str_pad($c, 3, "\0");
+            }
+        }
+
+        $bmp = propertyBmp24FromRgb($colors === 3 ? $rgb : $rgb, $W, $H);
+        $img = @imagecreatefromstring($bmp);
+        if (!$img) return false;
+        // 長辺1280へ縮小
+        $r = propertyRescaleGdToJpeg($img, $outPath, 1280, 85);
+        imagedestroy($img);
+        return $r;
+    }
+}
+
+if (!function_exists('propertyRescaleGdToJpeg')) {
+    /** GD画像を長辺 $maxEdge 以内のJPEGとして保存。 */
+    function propertyRescaleGdToJpeg($img, string $outPath, int $maxEdge, int $quality = 85): bool
+    {
+        $w = imagesx($img); $h = imagesy($img);
+        $scale = ($w > $maxEdge || $h > $maxEdge) ? ($maxEdge / max($w, $h)) : 1.0;
+        if ($scale < 1.0) {
+            $nw = max(1, (int)round($w * $scale)); $nh = max(1, (int)round($h * $scale));
+            $dst = imagecreatetruecolor($nw, $nh);
+            imagecopyresampled($dst, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            $ok = imagejpeg($dst, $outPath, $quality);
+            imagedestroy($dst);
+            return (bool)$ok;
+        }
+        return (bool)imagejpeg($img, $outPath, $quality);
+    }
+}
+
+if (!function_exists('propertyExtractPdfImages')) {
+    /**
+     * PDFから埋め込み画像を直接抽出してJPEG群を $outDir に保存し、パス配列を返す（poppler不要）。
+     * 小さすぎる画像（アイコン/ロゴ等）は除外。対応: DCTDecode / FlateDecode(8bit RGB/Gray/Indexed)。
+     */
+    function propertyExtractPdfImages(string $pdfAbs, string $outDir, int $minEdge = 200, int $maxImages = 40): array
+    {
+        $raw = @file_get_contents($pdfAbs);
+        if ($raw === false || strlen($raw) < 100 || strncmp($raw, '%PDF', 4) !== 0) return [];
+        if (!is_dir($outDir) && !@mkdir($outDir, 0700, true) && !is_dir($outDir)) return [];
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b/s', $raw, $mm, PREG_OFFSET_CAPTURE)) return [];
+        $n = count($mm[0]);
+        $saved = [];
+        for ($i = 0; $i < $n && count($saved) < $maxImages; $i++) {
+            $start = $mm[0][$i][1];
+            $end = ($i + 1 < $n) ? $mm[0][$i + 1][1] : strlen($raw);
+            $seg = substr($raw, $start, $end - $start);
+            if (strpos($seg, '/Image') === false || !preg_match('#/Subtype\s*/Image#', $seg)) continue;
+            if (preg_match('#/ImageMask\s+true#', $seg)) continue;
+            $sp = strpos($seg, 'stream');
+            if ($sp === false) continue;
+            $dict = substr($seg, 0, $sp);
+            if (!preg_match('#/Width\s+(\d+)#', $dict, $w) || !preg_match('#/Height\s+(\d+)#', $dict, $h)) continue;
+            $W = (int)$w[1]; $H = (int)$h[1];
+            if ($W < $minEdge || $H < $minEdge) continue; // 小さい画像（アイコン/ロゴ）は除外
+            $bpc = preg_match('#/BitsPerComponent\s+(\d+)#', $dict, $bb) ? (int)$bb[1] : 8;
+            $filter = preg_match('#/Filter\s*(/[A-Za-z0-9]+|\[[^\]]*\])#', $dict, $ff) ? $ff[1] : '';
+
+            // ストリームデータの開始位置（streamキーワード後のEOLをスキップ）
+            $dataStart = $sp + 6;
+            if (substr($seg, $dataStart, 2) === "\r\n") $dataStart += 2;
+            elseif (isset($seg[$dataStart]) && ($seg[$dataStart] === "\n" || $seg[$dataStart] === "\r")) $dataStart += 1;
+
+            $len = null;
+            if (preg_match('#/Length\s+(\d+)\s+(\d+)\s+R#', $dict, $lr)) $len = propertyPdfResolveLength($raw, (int)$lr[1]);
+            elseif (preg_match('#/Length\s+(\d+)#', $dict, $ll)) $len = (int)$ll[1];
+            $data = null;
+            if ($len !== null && $dataStart + $len <= strlen($seg)) {
+                $data = substr($seg, $dataStart, $len);
+            } else {
+                $es = strpos($seg, 'endstream', $dataStart);
+                if ($es !== false) $data = preg_replace('/\r?\n$/', '', substr($seg, $dataStart, $es - $dataStart));
+            }
+            if ($data === null || $data === '') continue;
+
+            $isDCT = stripos($filter, 'DCTDecode') !== false;
+            $isFlate = stripos($filter, 'FlateDecode') !== false;
+            $out = rtrim($outDir, '/') . '/img_' . bin2hex(random_bytes(6)) . '.jpg';
+
+            if ($isDCT) {
+                if ($isFlate) { $d = propertyInflateStream($data); if ($d !== null) $data = $d; }
+                if (@file_put_contents($out, $data) && ($gi = @getimagesize($out)) && $gi[0] >= $minEdge && $gi[1] >= $minEdge) {
+                    $saved[] = $out;
+                } else { @unlink($out); }
+            } elseif ($isFlate && $bpc === 8) {
+                $inf = propertyInflateStream($data);
+                if ($inf === null) continue;
+                if (propertyPdfImageToFile($inf, $W, $H, $dict, $raw, $out) && @getimagesize($out)) $saved[] = $out;
+                else @unlink($out);
+            }
+            // JPX/CCITT/JBIG2/16bit 等は非対応（スキップ）
+        }
+        return $saved;
+    }
+}
+
+if (!function_exists('propertyClassifyImages')) {
+    /**
+     * 抽出済み画像群を GPT-4.5 で一度に分類する（建物外観/間取り図/室内写真/設備写真/地図/その他）。
+     * @return array  index => ['category'=>..,'thumbnail_candidate'=>bool]
+     */
+    function propertyClassifyImages(array $imagePaths, array $options = []): array
+    {
+        $imagePaths = array_values($imagePaths);
+        if (!$imagePaths || !function_exists('curl_init')) return [];
+        $content = [[
+            'type' => 'text',
+            'text' => "これらは不動産販売図面から抽出した画像です。各画像を順番（0始まり）に、次のいずれかに分類してください:\n"
+                . "建物外観 / 間取り図 / 室内写真 / 設備写真 / 地図 / その他\n"
+                . "「その他」= 会社ロゴ・QRコード・地図以外のアイコン・広告・文字主体の画像など。\n"
+                . "建物外観が複数ある場合は、建物全体が最も分かりやすい1枚のみ thumbnail_candidate=true。\n"
+                . "出力はJSONのみ: {\"results\":[{\"index\":0,\"category\":\"..\",\"thumbnail_candidate\":true}, ...]}。説明やコードフェンスは不要。",
+        ]];
+        $max = min(count($imagePaths), 20);
+        for ($i = 0; $i < $max; $i++) {
+            $b = @file_get_contents($imagePaths[$i]);
+            if ($b === false) continue;
+            $content[] = ['type' => 'text', 'text' => '画像 index=' . $i];
+            $content[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . base64_encode($b)]];
+        }
+        $messages = [['role' => 'user', 'content' => $content]];
+        $reply = null;
+        foreach ([propertyFlyerModel(), 'gpt-4o-mini'] as $model) {
+            $res = callOpenAIChat($messages, chatOpenAIApiKeyForModel($model), $model, [
+                'purpose' => 'property_flyer_classify', 'max_tokens' => 900, 'temperature' => 0.0, 'timeout' => 60,
+            ] + $options);
+            if (empty($res['error']) && !empty($res['reply'])) { $reply = $res['reply']; break; }
+            error_log('property classify model ' . $model . ' failed: ' . ($res['error'] ?? 'empty'));
+        }
+        if ($reply === null) return [];
+        $reply = preg_replace('/^```[a-zA-Z]*\s*/', '', trim($reply));
+        $reply = preg_replace('/```$/', '', trim($reply));
+        $s = strpos($reply, '{'); $e = strrpos($reply, '}');
+        if ($s === false || $e === false) return [];
+        $parsed = json_decode(substr($reply, $s, $e - $s + 1), true);
+        if (!is_array($parsed)) return [];
+        $valid = propertyFlyerSaveableCategories();
+        $out = [];
+        foreach (($parsed['results'] ?? []) as $r) {
+            if (!is_array($r) || !isset($r['index'])) continue;
+            $cat = trim((string)($r['category'] ?? ''));
+            $out[(int)$r['index']] = [
+                'category' => $cat,
+                'saveable' => in_array($cat, $valid, true),
+                'thumbnail_candidate' => !empty($r['thumbnail_candidate']),
+            ];
+        }
+        return $out;
     }
 }
 
 if (!function_exists('propertyFlyerProcessUploaded')) {
     /**
-     * アップロード直後の販売図面に対して、プレビュー生成＋AIマスク範囲提案を行い、DBに保存する。
-     * mask_status='pending'（担当の確認待ち）にする。失敗しても致命的にはしない。
+     * アップロード直後の販売図面に対して、GPT-4.5で一度だけ解析し以下を生成・保存する（再表示時に再解析しない）:
+     *  ① 画像抽出: PDF埋め込み画像を純PHPで直接抽出（poppler不要。DCTDecode/FlateDecode）。
+     *     取得できない場合はGhostscriptのページラスタからAI領域検出でクロップ（フォールバック）。
+     *  ② 抽出画像をGPT-4.5で一括分類（建物外観/間取り図/室内/設備/地図/その他）
+     *  ③ 保存対象（その他以外）のみ「写真・資料」に自動登録（最大10枚・JPEG圧縮/リサイズ）
+     *  ④⑤⑥ サムネイル選定（建物外観→間取り図、無ければ未設定）
+     *  ⑧ 顧客用マスク済PDF生成（売主情報を黒塗り）
+     * すべてのデータに保存期間（既定6か月）を設定する。失敗しても致命的にはしない。
      */
     function propertyFlyerProcessUploaded(PDO $db, int $imageId, string $originalAbsPath, bool $isPdf, int $businessCardId, int $propertyId): void
     {
+        $tmpFiles = [];
         try {
-            $preview = propertyFlyerMakePreview($originalAbsPath, $isPdf, $businessCardId, $propertyId);
-            if (!$preview) return;
-            $detect = propertyFlyerDetectRegions($preview['abs']);
-            $regions = $detect['regions'] ?? propertyFlyerBottomBandRegions();
-            $stmt = $db->prepare("UPDATE property_images SET preview_path = ?, mask_regions = ?, mask_status = 'pending' WHERE id = ?");
-            $stmt->execute([$preview['rel'], json_encode($regions, JSON_UNESCAPED_UNICODE), $imageId]);
+            $expiresAt = propertyRetentionExpiresAt();
+
+            // ① ページ画像抽出（gs / 画像）
+            $pg = propertyFlyerPageImages($originalAbsPath, $isPdf, 6);
+            $pageAbs = $pg['pages'];
+            $tmpFiles = $pg['tmp'];
+
+            if (!$pageAbs) {
+                // ラスタライズ不可（gs不在等）: 最低限プレビュー＋下端帯マスクで顧客用PDFを試みる
+                $preview = propertyFlyerMakePreview($originalAbsPath, $isPdf, $businessCardId, $propertyId);
+                if ($preview) {
+                    $masked = propertyFlyerApplyMask($preview['abs'], propertyFlyerBottomBandRegions(), $businessCardId, $propertyId);
+                    $db->prepare("UPDATE property_images SET preview_path=?, masked_path=?, mask_regions=?, mask_status=?, expires_at=? WHERE id=?")
+                       ->execute([$preview['rel'], $masked['rel_pdf'] ?? null, json_encode(['0' => propertyFlyerBottomBandRegions()], JSON_UNESCAPED_UNICODE), $masked ? 'masked' : 'pending', $expiresAt, $imageId]);
+                }
+                $db->prepare("UPDATE properties SET expires_at=? WHERE id=?")->execute([$expiresAt, $propertyId]);
+                return;
+            }
+
+            $relDir = 'property/' . $businessCardId . '/' . $propertyId;
+            $absDir = rtrim(UPLOAD_DIR, '/') . '/' . $relDir;
+            if (!is_dir($absDir)) @mkdir($absDir, 0755, true);
+
+            // 編集用プレビュー（ページ1を流用・長辺1600pxへ縮小して永続化。gs再実行を避ける）
+            $previewRel = null;
+            $previewName = 'preview_' . bin2hex(random_bytes(8)) . '.jpg';
+            if (propertyRescaleAnyToJpeg($pageAbs[0], $absDir . '/' . $previewName, 1600)) {
+                $previewRel = $relDir . '/' . $previewName;
+            }
+
+            // 既存「写真・資料」枚数（最大10枚）
+            $stmt = $db->prepare("SELECT COUNT(*) FROM property_images WHERE property_id=? AND category='photo'");
+            $stmt->execute([$propertyId]);
+            $photoCount = (int)$stmt->fetchColumn();
+            $stmt = $db->prepare("SELECT COALESCE(MAX(display_order),0) FROM property_images WHERE property_id=? AND category='photo'");
+            $stmt->execute([$propertyId]);
+            $order = (int)$stmt->fetchColumn();
+
+            $maskByPage = [];
+            $pageItems = [];
+            $thumb = null; // ['id'=>, 'prio'=>]
+
+            // ② 各ページをGPT-4.5で解析（顧客PDF用の売主マスク領域を収集。items はフォールバック用）
+            foreach ($pageAbs as $pi => $page) {
+                $analysis = propertyFlyerAnalyzePage($page);
+                $maskByPage[$pi] = $analysis['mask_regions'] ?? [];
+                $pageItems[$pi] = $analysis['items'] ?? [];
+            }
+
+            // 「写真・資料」へ1枚保存するクロージャ（JPEG圧縮・リサイズ＋サムネイル選定）
+            $savePhoto = function (string $srcJpeg, string $category, bool $isThumbCand)
+                use (&$db, &$photoCount, &$order, &$thumb, $propertyId, $businessCardId, $relDir, $absDir, $expiresAt) {
+                if ($photoCount >= 10) return;                           // ⑦ 最大10枚
+                $name = 'photo_' . bin2hex(random_bytes(8)) . '.jpg';
+                $abs = $absDir . '/' . $name;
+                if (!propertyRescaleAnyToJpeg($srcJpeg, $abs, 1280)) return; // ⑦ JPEG圧縮・リサイズ
+                $sz = @getimagesize($abs);
+                $order++; $photoCount++;
+                $db->prepare("INSERT INTO property_images
+                    (property_id, business_card_id, category, subcategory, original_name, stored_path, mime_type, byte_size, width, height, display_order, expires_at)
+                    VALUES (?, ?, 'photo', ?, ?, ?, 'image/jpeg', ?, ?, ?, ?, ?)")
+                   ->execute([$propertyId, $businessCardId, $category, $category . '.jpg',
+                        $relDir . '/' . $name, filesize($abs) ?: 0, $sz[0] ?? null, $sz[1] ?? null, $order, $expiresAt]);
+                $pid = (int)$db->lastInsertId();
+                // ④⑤ サムネイル選定: 建物外観(候補)＞建物外観＞間取り図
+                $prio = $category === '建物外観' ? ($isThumbCand ? 1 : 2) : ($category === '間取り図' ? 3 : 9);
+                if ($prio <= 3 && ($thumb === null || $prio < $thumb['prio'])) $thumb = ['id' => $pid, 'prio' => $prio];
+            };
+
+            // ① 主たる方法: PDFから埋め込み画像を直接抽出 → ② GPT-4.5で一括分類 → ③ 保存対象のみ登録
+            $usedExtraction = false;
+            if ($isPdf) {
+                $exDir = rtrim(sys_get_temp_dir(), '/') . '/prop_ex_' . bin2hex(random_bytes(6));
+                $extracted = propertyExtractPdfImages($originalAbsPath, $exDir, 200, 40);
+                if ($extracted) {
+                    $cls = propertyClassifyImages($extracted);
+                    foreach ($extracted as $idx => $path) {
+                        $c = $cls[$idx] ?? null;
+                        if ($c === null || empty($c['saveable'])) continue; // その他/不明は保存しない（売主情報混入回避）
+                        if ($photoCount >= 10) break;
+                        $savePhoto($path, $c['category'], !empty($c['thumbnail_candidate']));
+                        $usedExtraction = true;
+                    }
+                    foreach ($extracted as $p) { if (is_file($p)) @unlink($p); }
+                    if (is_dir($exDir) && !glob($exDir . '/*')) @rmdir($exDir);
+                }
+            }
+
+            // フォールバック: 埋め込み抽出が無い場合は、ページラスタから領域を切り出して登録
+            if (!$usedExtraction) {
+                foreach ($pageAbs as $pi => $page) {
+                    foreach (($pageItems[$pi] ?? []) as $item) {
+                        if (empty($item['saveable'])) continue;
+                        if ($photoCount >= 10) break;
+                        $cropAbs = $absDir . '/crop_' . bin2hex(random_bytes(6)) . '.jpg';
+                        if (!propertyCropRegionToJpeg($page, $item, $cropAbs, 1280)) continue;
+                        $savePhoto($cropAbs, $item['category'], !empty($item['thumbnail_candidate']));
+                        @unlink($cropAbs);
+                    }
+                }
+            }
+
+            // ⑧ 顧客用マスク済PDF（全ページ・売主情報を黒塗り）
+            $maskedRel = propertyFlyerBuildCustomerPdf($pageAbs, $maskByPage, $businessCardId, $propertyId);
+
+            // 販売図面（flyer）行を更新
+            $db->prepare("UPDATE property_images SET preview_path=?, masked_path=?, mask_regions=?, mask_status=?, expires_at=? WHERE id=?")
+               ->execute([$previewRel, $maskedRel, json_encode($maskByPage, JSON_UNESCAPED_UNICODE), $maskedRel ? 'masked' : 'pending', $expiresAt, $imageId]);
+
+            // ⑥ サムネイル（建物外観・間取り図のどちらも無ければ未設定）
+            if ($thumb) {
+                $db->prepare("UPDATE properties SET thumbnail_image_id=?, expires_at=? WHERE id=?")->execute([$thumb['id'], $expiresAt, $propertyId]);
+            } else {
+                $db->prepare("UPDATE properties SET expires_at=? WHERE id=?")->execute([$expiresAt, $propertyId]);
+            }
         } catch (Throwable $e) {
             error_log('property flyer process error: ' . $e->getMessage());
+        } finally {
+            foreach ($tmpFiles as $f) { if (is_file($f)) @unlink($f); }
+            // 一時ページディレクトリの後始末
+            foreach ($tmpFiles as $f) { $d = dirname($f); if (strpos($d, sys_get_temp_dir()) === 0 && is_dir($d) && count(glob($d . '/*')) === 0) @rmdir($d); }
         }
     }
 }

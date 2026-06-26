@@ -62,6 +62,10 @@ CREATE TABLE IF NOT EXISTS properties (
 
   -- 物件カードのメイン画像（販売図面 or 写真の代表）
   main_image_path VARCHAR(512) NULL DEFAULT NULL,
+  -- 一覧サムネイル（建物外観→間取り図から自動選定した property_images.id）
+  thumbnail_image_id INT NULL DEFAULT NULL,
+  -- 保存期間（既定6か月）。経過後は cron で自動削除
+  expires_at TIMESTAMP NULL DEFAULT NULL,
 
   -- OCR確認フロー（§8）: none=手動 / draft=AI自動保存・未確認 / confirmed=エージェント確認済
   ocr_status ENUM('none','draft','confirmed') NOT NULL DEFAULT 'none',
@@ -100,9 +104,11 @@ CREATE TABLE IF NOT EXISTS property_images (
   -- 販売図面の売主情報マスク（顧客共有時に自動非表示）
   preview_path VARCHAR(512) NULL DEFAULT NULL,   -- 編集・マスク用ラスタJPEG
   masked_path VARCHAR(512) NULL DEFAULT NULL,     -- 顧客用マスク済PDF
-  mask_regions TEXT NULL DEFAULT NULL,            -- 正規化矩形 [{x,y,w,h}] JSON
+  mask_regions TEXT NULL DEFAULT NULL,            -- ページ別マスク領域 {pageIndex:[{x,y,w,h}]} JSON
   mask_status ENUM('none','pending','masked') NOT NULL DEFAULT 'none',
+  expires_at TIMESTAMP NULL DEFAULT NULL,         -- 保存期間（既定6か月）。経過後は cron で自動削除
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
-  INDEX idx_property_images_property (property_id, category, display_order)
+  INDEX idx_property_images_property (property_id, category, display_order),
+  INDEX idx_property_images_expires (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
