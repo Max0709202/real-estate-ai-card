@@ -581,7 +581,15 @@ function chatMansionTermLooksSpecific($terms, $message) {
     foreach ((array)$terms as $term) {
         $term = chatNormalizeMansionSearchTerm($term);
         if ($term === '') continue;
-        if (preg_match('/^[一-龥ぁ-んァ-ン]+(?:都|道|府|県|市|区|町|村)(?:の)?(?:マンション|物件|建物)?$/u', $term) && mb_strlen($term) <= 14) continue;
+        // A bare short place name like "福岡市"/"中野区" is not specific enough on its
+        // own. But a building name that merely ENDS in 道/町/区 (e.g. "グランドメゾン百道"
+        // — 百道 is a 福岡 district) is a real proper noun and IS specific. A ≥3-char
+        // カタカナ run is a reliable brand/building marker, so never treat such a term
+        // as a generic place name. (Previously "百道" → 末尾「道」を北海道扱いし誤って棄却。)
+        $hasKatakanaRun = (bool)preg_match('/[ァ-ヶ]{3,}/u', $term);
+        if (!$hasKatakanaRun
+            && preg_match('/^[一-龥ぁ-んァ-ン]+(?:都|道|府|県|市|区|町|村)(?:の)?(?:マンション|物件|建物)?$/u', $term)
+            && mb_strlen($term) <= 14) continue;
         if (mb_strlen($term) >= 3) return true;
     }
     return false;
@@ -711,7 +719,163 @@ function chatMansionDisambiguationAnswer($terms, $candidates) {
     ];
 }
 
-function chatMansionDbDirectAnswer($db, $message) {
+/**
+ * Debug logging for マンション検索・紹介生成 (req. ⑧). Active only when CHAT_MANSION_DEBUG
+ * is on, so production stays quiet. The GPT context and reply are logged in full
+ * because the whole point is to verify what was sent to / returned by the model.
+ */
+function chatMansionDebugLog($label, $value) {
+    if (!(defined('CHAT_MANSION_DEBUG') && CHAT_MANSION_DEBUG)) return;
+    if (is_array($value) || is_object($value)) {
+        $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+    error_log('[MansionRAG] ' . $label . ': ' . $value);
+}
+
+/**
+ * All transit options stored for a building (up to 14), not just the nearest one.
+ * Reads transports_json with a graceful fallback to the nearest_* columns. Each line
+ * is "路線 駅 徒歩N分" with the 駅 suffix normalized.
+ */
+function chatMansionTransitLines($row) {
+    $transports = [];
+    if (!empty($row['transports_json'])) {
+        $decoded = json_decode((string)$row['transports_json'], true);
+        if (is_array($decoded)) $transports = $decoded;
+    }
+    if (empty($transports)) {
+        $transports = [[
+            'line' => $row['nearest_line'] ?? '',
+            'station' => $row['nearest_station'] ?? '',
+            'method' => $row['nearest_access_method'] ?? '',
+            'minutes' => $row['nearest_minutes'] ?? null,
+        ]];
+    }
+    $lines = [];
+    foreach ($transports as $t) {
+        if (!is_array($t)) continue;
+        $line = trim((string)($t['line'] ?? ''));
+        $station = trim((string)($t['station'] ?? ''));
+        if ($line === '' && $station === '') continue;
+        if ($station !== '' && mb_substr($station, -1) !== '駅') $station .= '駅';
+        $method = trim((string)($t['method'] ?? ''));
+        $minutes = isset($t['minutes']) && $t['minutes'] !== null && $t['minutes'] !== '' ? (int)$t['minutes'] : null;
+        $access = '';
+        if ($minutes !== null) $access = ($method !== '' ? $method : '徒歩') . $minutes . '分';
+        elseif ($method !== '') $access = $method;
+        $parts = array_filter([$line, $station, $access], static function ($v) { return $v !== ''; });
+        if (!empty($parts)) $lines[] = implode(' ', $parts);
+    }
+    return array_values(array_unique($lines));
+}
+
+/**
+ * The real, DB-backed facts for one building as label => value pairs. ONLY columns
+ * that actually exist in mansion_buildings are returned — 売主/施工/管理/価格/坪単価/
+ * 共用施設/学区/ハザード等はDBに存在しないため絶対に含めない（捏造防止の核心）。
+ * Empty/unknown fields are omitted so the model is never tempted to fill a blank.
+ */
+function chatMansionGatherFacts($row) {
+    $facts = [];
+    $name = trim((string)($row['building_name'] ?? ''));
+    if ($name !== '') $facts['マンション名'] = $name;
+    if (!empty($row['full_address'])) $facts['所在地'] = trim((string)$row['full_address']);
+    $built = chatMansionBuiltAgeLabel($row['built_year_month'] ?? '');
+    if ($built !== '') $facts['築年月'] = $built;
+    if (!empty($row['structure'])) $facts['構造'] = trim((string)$row['structure']);
+    $floorParts = [];
+    if (!empty($row['floors_above'])) $floorParts[] = '地上' . (int)$row['floors_above'] . '階';
+    if (!empty($row['floors_below'])) $floorParts[] = '地下' . (int)$row['floors_below'] . '階';
+    if (!empty($floorParts)) $facts['階数'] = implode('・', $floorParts);
+    if (!empty($row['total_units'])) $facts['総戸数'] = (int)$row['total_units'] . '戸';
+    $transit = chatMansionTransitLines($row);
+    if (!empty($transit)) $facts['交通'] = $transit;
+    return $facts;
+}
+
+/**
+ * Compact "ラベル：値" context block for the GPT prompt, built ONLY from real facts.
+ * Kept small to control API cost (最終目標：必要十分な情報のみGPTへ渡す). Returns '' when
+ * there is nothing to describe.
+ */
+function chatMansionFactsToContext($facts) {
+    $lines = [];
+    foreach ((array)$facts as $key => $value) {
+        if (is_array($value)) {
+            if (empty($value)) continue;
+            $lines[] = $key . '：' . implode(' / ', $value);
+        } else {
+            $value = trim((string)$value);
+            if ($value === '') continue;
+            $lines[] = $key . '：' . $value;
+        }
+    }
+    return implode("\n", $lines);
+}
+
+/**
+ * Generate a natural, 営業担当者-style introduction for ONE building using GPT, from
+ * the DB facts only. Roles are strictly separated (役割分離): the 全国マンションDB
+ * supplies facts; GPT only rewrites them into readable prose. The system prompt
+ * forbids inventing any field the DB does not hold (売主/価格/共用施設/学区/ハザード等) —
+ * for those it must say they aren't registered, never guess. Returns the prose, or
+ * null on any failure so the caller falls back to the deterministic facts reply.
+ */
+function chatMansionGenerateIntroduction($facts, $agentName = '担当者') {
+    if (!function_exists('callOpenAIChat')) return null;
+    $context = chatMansionFactsToContext($facts);
+    if ($context === '') return null;
+    $model = function_exists('chatOpenAIModelMansion') ? chatOpenAIModelMansion()
+        : (defined('OPENAI_CHAT_MODEL') ? OPENAI_CHAT_MODEL : 'gpt-4o-mini');
+    $apiKey = function_exists('chatOpenAIApiKeyForModel') ? chatOpenAIApiKeyForModel($model)
+        : (defined('OPENAI_API_KEY') ? OPENAI_API_KEY : '');
+    if ($apiKey === '') return null;
+    $name = $facts['マンション名'] ?? 'このマンション';
+    $agentLabel = trim((string)$agentName) !== '' ? trim((string)$agentName) : '担当者';
+
+    $system = <<<SYS
+あなたは経験豊富な不動産営業担当者「{$agentLabel}」です。お客様へ、全国マンションデータベースから取得した下記の【物件データ】だけを使ってマンションを紹介してください。
+
+絶対ルール：
+- 【物件データ】に書かれている事実のみを使う。書かれていない項目（売主・施工会社・管理会社・管理方式・価格・坪単価・共用施設・学区・周辺施設・ハザード情報・リセール等）は推測・創作を一切しない。
+- それらの情報が無い場合、無理に章立てを埋めず、「当社データベースには登録がありません」と正直に伝え、必要なら私（{$agentLabel}）が個別にお調べします、と添える。
+- データの数値・固有名詞は変えない。築年数の概算（築○年目安）はそのまま使ってよい。
+- 専門用語の羅列ではなく、お客様が読みやすい自然な文章にする。丸写しではなく、立地・規模・築年・アクセスといった特徴や魅力が伝わるように説明する。
+- 出力は本文のみ。出典表記やデータ取得情報のフッターは付けない（システム側で付与する）。
+
+構成の目安（データがある項目だけ／全体で簡潔に）：
+1. 物件概要（所在地・築年月・構造・階数・総戸数）を自然な文章で。
+2. 交通アクセスの利便性。
+3. 営業担当者として、どのような方に向いているか等の一言。
+SYS;
+
+    $user = "【物件データ】\n" . $context . "\n\n上記の「{$name}」について、お客様向けの紹介文を作成してください。";
+    $messages = [
+        ['role' => 'system', 'content' => $system],
+        ['role' => 'user', 'content' => $user],
+    ];
+    chatMansionDebugLog('gpt_model', $model);
+    chatMansionDebugLog('gpt_context_chars', mb_strlen($context));
+    chatMansionDebugLog('gpt_context', $context);
+    $result = callOpenAIChat($messages, $apiKey, $model, [
+        'purpose' => 'mansion_intro',
+        'max_tokens' => 700,
+        'temperature' => 0.4,
+        'timeout' => 30,
+    ]);
+    if (!empty($result['error']) || empty($result['reply'])) {
+        chatMansionDebugLog('gpt_error', $result['error'] ?? 'empty reply');
+        return null;
+    }
+    $reply = $result['reply'];
+    if (function_exists('sanitizeChatReferralLanguage')) $reply = sanitizeChatReferralLanguage($reply, $agentLabel);
+    if (function_exists('unifyAgentPersonaLanguage')) $reply = unifyAgentPersonaLanguage($reply, $agentLabel);
+    $reply = trim($reply);
+    chatMansionDebugLog('gpt_reply', $reply);
+    return $reply !== '' ? $reply : null;
+}
+
+function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
     if (!$db instanceof PDO) return null;
     $hasKeyword = (bool)preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|築|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|住所|所在地|所在|アクセス|どこ|場所|について|教えて|調べて|知りたい|検索)/u', (string)$message);
     $isBareName = chatMansionLooksLikeBareName($message);
@@ -726,7 +890,10 @@ function chatMansionDbDirectAnswer($db, $message) {
     }
 
     try {
+        chatMansionDebugLog('extracted_terms', $terms);
+        chatMansionDebugLog('search_method', '完全一致→前方一致→トークンAND→部分一致(LIKE) を単一クエリで評価');
         $rows = chatMansionDbSearchRows($db, $terms, 5);
+        chatMansionDebugLog('hit_count', count($rows));
         if (empty($rows)) return null;
         // Only answer when a row genuinely matches the query (all tokens present in
         // its name+address). For a bare name we also require ≥2 tokens so an
@@ -750,12 +917,21 @@ function chatMansionDbDirectAnswer($db, $message) {
             if ($disambig !== null) return $disambig;
         }
         $row = reset($confident);
+        chatMansionDebugLog('chosen_building', ($row['building_name'] ?? '') . ' | ' . ($row['full_address'] ?? ''));
         $facts = chatMansionFormatFacts($row, $fields);
-        if (empty($facts)) return null;
 
         $source = chatPublicDataSourceLabel('mansion_db');
         $fetchedAt = date('Y-m-d H:i:s');
-        $reply = ($row['building_name'] ?? '該当マンション') . 'について、当社データベースでは次の内容を確認できます。' . "\n\n・" . implode("\n・", $facts);
+
+        // 役割分離：DB から取得した実在事実だけを GPT へ渡し、自然な紹介文を生成する。
+        // 生成失敗時は従来どおりの事実ベース定型回答へフォールバック（出典・件数は不変）。
+        $intro = chatMansionGenerateIntroduction(chatMansionGatherFacts($row), $agentName);
+        if ($intro !== null && $intro !== '') {
+            $reply = $intro;
+        } else {
+            if (empty($facts)) return null;
+            $reply = ($row['building_name'] ?? '該当マンション') . 'について、当社データベースでは次の内容を確認できます。' . "\n\n・" . implode("\n・", $facts);
+        }
         if (count($rows) > count($confident)) {
             $reply .= "\n\n※似た名称の候補が他にもあります。別の物件の場合は、住所やエリアを添えていただくと、より正確に絞り込めます。";
         }

@@ -51,7 +51,13 @@
       "Bash(grep -n 'imagecolorallocate\\($img, 0, 0, 0\\)\\\\|imagefilledrectangle\\\\|黒塗り\\\\|黒べた' backend/includes/property-helper.php)",
       "Bash(sed -i 's/int\\(0.93\\\\*800\\)/\\(int\\)\\(0.93*800\\)/' /tmp/test_white.php)",
       "Bash(php /tmp/test_white.php)",
-      "Bash(rm -f /tmp/f.jpg /tmp/masked.jpg)"
+      "Bash(rm -f /tmp/f.jpg /tmp/masked.jpg)",
+      "Bash(php -l includes/chat-public-data-helper.php)",
+      "Bash(php -l includes/openai-chat-helper.php)",
+      "Bash(php -l config/config.php)",
+      "Bash(php -l api/chat/send.php)",
+      "Bash(CHAT_MANSION_DEBUG=1 php -r ' *)",
+      "Bash(php -r 'require_once \"config/config.php\"; *)"
     ]
   }
 }

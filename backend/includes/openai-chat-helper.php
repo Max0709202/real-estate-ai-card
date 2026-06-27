@@ -140,6 +140,11 @@ function chatOpenAIModelSummary() {
     return getenv('OPENAI_MODEL_SUMMARY') ?: chatOpenAIModelLight();
 }
 
+function chatOpenAIModelMansion() {
+    if (defined('OPENAI_MODEL_MANSION') && OPENAI_MODEL_MANSION !== '') return OPENAI_MODEL_MANSION;
+    return getenv('OPENAI_MODEL_MANSION') ?: chatOpenAIModelSales();
+}
+
 function chatOpenAIModelKeyGroup($model) {
     $model = strtolower((string)$model);
     if (strpos($model, 'gpt-5') === 0 || strpos($model, 'gpt5') === 0 || $model === strtolower((string)chatOpenAIModelSales())) return 'sales';
@@ -291,14 +296,22 @@ function callOpenAIChat($messages, $apiKey, $model = 'gpt-4o-mini', $options = [
     $purpose = $options['purpose'] ?? 'chat';
     $defaultMaxTokens = $purpose === 'summary' ? 450 : ($purpose === 'chat_fallback' ? 700 : 850);
     $maxTokens = isset($options['max_tokens']) ? (int)$options['max_tokens'] : $defaultMaxTokens;
-    $maxTokens = max(128, min(1024, $maxTokens));
     $temperature = isset($options['temperature']) ? (float)$options['temperature'] : ($purpose === 'summary' ? 0.2 : 0.6);
+    // gpt-5 / o-series reasoning models reject `max_tokens` (require `max_completion_tokens`)
+    // and only accept the default temperature. They also spend part of the completion
+    // budget on hidden reasoning tokens, so the visible reply needs more headroom.
+    $modelLower = strtolower((string)$model);
+    $isReasoningModel = (bool)preg_match('/^(gpt-5|o1|o3|o4)/', $modelLower);
     $payload = [
         'model'    => $model,
         'messages' => $messages,
-        'max_tokens' => $maxTokens,
-        'temperature' => $temperature,
     ];
+    if ($isReasoningModel) {
+        $payload['max_completion_tokens'] = max(256, min(4096, $maxTokens + 1024));
+    } else {
+        $payload['max_tokens'] = max(128, min(1024, $maxTokens));
+        $payload['temperature'] = $temperature;
+    }
     $json = json_encode($payload);
     $ch = curl_init('https://api.openai.com/v1/chat/completions');
     curl_setopt_array($ch, [

@@ -158,7 +158,7 @@ try {
         $reply = $intake['reply'];
         $sources = [];
     } else {
-        $directMansionAnswer = chatMansionDbDirectAnswer($db, $message);
+        $directMansionAnswer = chatMansionDbDirectAnswer($db, $message, $card['name'] ?? '担当者');
         if ($directMansionAnswer !== null) {
             $reply = $directMansionAnswer['reply'];
             $sources = $directMansionAnswer['sources'];

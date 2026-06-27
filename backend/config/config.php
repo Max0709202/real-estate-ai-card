@@ -130,6 +130,15 @@ if (!defined('OPENAI_MODEL_SALES')) {
 if (!defined('OPENAI_MODEL_SUMMARY')) {
     define('OPENAI_MODEL_SUMMARY', getenv('OPENAI_MODEL_SUMMARY') ?: OPENAI_MODEL_LIGHT);
 }
+// マンション紹介文の生成に使うモデル（GPT-4.1 など。未設定時は営業モデルを流用）。
+if (!defined('OPENAI_MODEL_MANSION')) {
+    define('OPENAI_MODEL_MANSION', getenv('OPENAI_MODEL_MANSION') ?: OPENAI_MODEL_SALES);
+}
+// 開発環境でマンション検索・紹介生成の詳細ログ（抽出名/検索方法/件数/採用ID/
+// コンテキスト文字数・内容/GPT応答）をerror_logへ出すフラグ。
+if (!defined('CHAT_MANSION_DEBUG')) {
+    define('CHAT_MANSION_DEBUG', (getenv('CHAT_MANSION_DEBUG') === '1' || getenv('CHAT_MANSION_DEBUG') === 'true'));
+}
 if (!defined('CHAT_BLOG_BASE_URL')) {
     define('CHAT_BLOG_BASE_URL', 'https://smile.re-agent.info/blog/');
 }
