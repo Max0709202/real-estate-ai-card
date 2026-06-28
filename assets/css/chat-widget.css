@@ -1577,3 +1577,81 @@
     font-weight: 700;
 }
 .chat-contact-read[hidden] { display: none; }
+
+/* 担当連絡：メッセージの「編集」「取り消し」操作・編集フォーム・取り消し表示 */
+.chat-contact-msg-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 3px;
+}
+.chat-contact-msg-action {
+    border: none;
+    background: none;
+    padding: 0;
+    font: inherit;
+    font-size: 0.7rem;
+    color: #0b5394;
+    cursor: pointer;
+    text-decoration: underline;
+}
+.chat-contact-msg-action:hover { color: #08305c; }
+
+/* 「編集済み」マーク */
+.chat-msg-edited {
+    font-size: 0.66rem;
+    color: #98a2b3;
+}
+
+/* 取り消し済みの吹き出し（本文をマスクし、淡色のイタリックで表示） */
+.chat-msg-bubble-deleted {
+    background: #eef1f5 !important;
+    color: #8b96a8 !important;
+    font-style: italic;
+    border: 1px dashed #cdd6e2 !important;
+}
+
+/* インライン編集フォーム */
+.chat-contact-edit {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.chat-contact-edit-input {
+    width: 100%;
+    min-height: 60px;
+    resize: none;
+    border: 1px solid #cdd8e6;
+    border-radius: 10px;
+    padding: 0.5rem 0.65rem;
+    /* iOSの自動ズーム防止のため16px以上 */
+    font-size: 16px;
+    font-family: inherit;
+    line-height: 1.4;
+    box-sizing: border-box;
+}
+.chat-contact-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.chat-contact-edit-cancel,
+.chat-contact-edit-save {
+    border: 1px solid #0757d7;
+    border-radius: 999px;
+    padding: 0.28rem 0.85rem;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.chat-contact-edit-cancel {
+    background: #fff;
+    color: #0757d7;
+}
+.chat-contact-edit-save {
+    background: #0757d7;
+    color: #fff;
+}

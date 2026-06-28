@@ -44,12 +44,16 @@ try {
         sendErrorResponse('セッションが見つかりません', 404);
     }
 
-    $stmt = $db->prepare("SELECT id, role, channel, sender_user_id, message, read_at, created_at FROM chat_messages WHERE session_id = ? ORDER BY id ASC");
+    $stmt = $db->prepare("SELECT id, role, channel, sender_user_id, message, read_at, created_at, edited_at, deleted_at FROM chat_messages WHERE session_id = ? ORDER BY id ASC");
     $stmt->execute([$sessionId]);
     $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if ($messages) {
         $attach = agentMsgLoadAttachments($db, array_column($messages, 'id'));
-        foreach ($messages as &$mRow) { $mRow['attachments'] = $attach[(int)$mRow['id']] ?? []; }
+        foreach ($messages as &$mRow) {
+            $mRow['attachments'] = $attach[(int)$mRow['id']] ?? [];
+            // 顧客が取り消した発言は本文をプレースホルダに、編集済みはフラグを付ける（担当表示用）。
+            $mRow = agentMsgApplyEditState($mRow, false);
+        }
         unset($mRow);
     }
 

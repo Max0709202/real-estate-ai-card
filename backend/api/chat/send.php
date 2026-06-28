@@ -121,7 +121,7 @@ try {
     $historyLimit = $isRecapRequest ? 200 : 20;
     $stmt = $db->prepare("
         SELECT role, channel, message FROM chat_messages
-        WHERE session_id = ? AND id < (SELECT MAX(id) FROM chat_messages WHERE session_id = ?)
+        WHERE session_id = ? AND deleted_at IS NULL AND id < (SELECT MAX(id) FROM chat_messages WHERE session_id = ?)
         ORDER BY id DESC
         LIMIT " . (int)$historyLimit . "
     ");

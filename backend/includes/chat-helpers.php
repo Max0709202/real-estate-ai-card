@@ -65,9 +65,9 @@ function loadRecentChatMessagesForResume($db, $sessionId, $limit = 40) {
     $limit = max(1, min(100, (int)$limit));
     try {
         $stmt = $db->prepare("
-            SELECT id, role, channel, message, created_at
+            SELECT id, role, channel, message, created_at, edited_at, deleted_at
             FROM (
-                SELECT id, role, channel, message, created_at
+                SELECT id, role, channel, message, created_at, edited_at, deleted_at
                 FROM chat_messages
                 WHERE session_id = ?
                 ORDER BY id DESC
@@ -84,6 +84,11 @@ function loadRecentChatMessagesForResume($db, $sessionId, $limit = 40) {
                 foreach ($messages as &$m) { $m['attachments'] = $attach[(int)$m['id']] ?? []; }
                 unset($m);
             }
+        }
+        // 取り消し済みメッセージは本文をプレースホルダに、編集済みはフラグを付ける。
+        if ($messages && function_exists('agentMsgApplyEditState')) {
+            foreach ($messages as &$m) { $m = agentMsgApplyEditState($m, false); }
+            unset($m);
         }
         return $messages;
     } catch (Throwable $e) {

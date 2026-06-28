@@ -713,7 +713,7 @@ function chatCrmSyncFromChatSession($db, $sessionId, $businessCardId) {
         $conditions = $current['conditions'];
         $dealType = $current['deal_type'];
 
-        $stmt = $db->prepare("SELECT message FROM chat_messages WHERE session_id = ? AND role = 'user' ORDER BY id DESC LIMIT 20");
+        $stmt = $db->prepare("SELECT message FROM chat_messages WHERE session_id = ? AND role = 'user' AND deleted_at IS NULL ORDER BY id DESC LIMIT 20");
         $stmt->execute([$sessionId]);
         $recentMessages = array_reverse($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
         foreach ($recentMessages as $recentMessage) {

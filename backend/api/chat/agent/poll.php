@@ -50,7 +50,7 @@ try {
         agentMsgVerifyOwnedSession($db, $sessionId, (int)$userId);
         // 担当連絡チャネルの新着のみ（AIチャネルは担当のライブ表示に混ぜない）
         $stmt = $db->prepare("
-            SELECT id, role, channel, sender_user_id, message, read_at, created_at
+            SELECT id, role, channel, sender_user_id, message, read_at, created_at, edited_at, deleted_at
             FROM chat_messages
             WHERE session_id = ? AND channel = 'contact' AND id > ?
             ORDER BY id ASC LIMIT 200
@@ -59,7 +59,11 @@ try {
         $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
         if ($messages) {
             $attach = agentMsgLoadAttachments($db, array_column($messages, 'id'));
-            foreach ($messages as &$m) { $m['attachments'] = $attach[(int)$m['id']] ?? []; }
+            foreach ($messages as &$m) {
+                $m['attachments'] = $attach[(int)$m['id']] ?? [];
+                // 顧客が取り消した発言は本文をプレースホルダに、編集済みはフラグを付ける（担当表示用）。
+                $m = agentMsgApplyEditState($m, false);
+            }
             unset($m);
         }
     }

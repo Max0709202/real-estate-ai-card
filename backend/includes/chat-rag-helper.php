@@ -904,7 +904,7 @@ function chatBuildMissingInfo($memory) {
 function chatBuildRecentConversationNote($db, $sessionId) {
     if (!$db || $sessionId === '') return null;
     try {
-        $stmt = $db->prepare('SELECT role, message FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 8');
+        $stmt = $db->prepare('SELECT role, message FROM chat_messages WHERE session_id = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 8');
         $stmt->execute([$sessionId]);
         $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
         $parts = [];
@@ -969,7 +969,7 @@ function chatBuildAISessionSummary($db, $sessionId, $memory = []) {
     if ($apiKey === '' || $apiKey === 'YOUR_OPENAI_API_KEY_HERE') return '';
 
     try {
-        $stmt = $db->prepare('SELECT role, message FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 20');
+        $stmt = $db->prepare('SELECT role, message FROM chat_messages WHERE session_id = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 20');
         $stmt->execute([$sessionId]);
         $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
     } catch (Throwable $e) {

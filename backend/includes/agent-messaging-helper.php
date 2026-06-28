@@ -28,6 +28,55 @@ if (!function_exists('agentMsgVerifyOwnedSession')) {
     }
 }
 
+if (!function_exists('agentMsgVerifyVisitorSession')) {
+    /**
+     * 顧客（visitor）向けにセッションの存在と visitor_id の整合を検証する。
+     * poll.php と同じ緩めの突合（登録済み visitor がある場合のみ一致を要求）。
+     * 不正時は 403/404 で終了し、OKならセッション行を返す。
+     */
+    function agentMsgVerifyVisitorSession(PDO $db, string $sessionId, string $visitorId): array
+    {
+        $stmt = $db->prepare("SELECT id, visitor_identifier FROM chat_sessions WHERE id = ? LIMIT 1");
+        $stmt->execute([$sessionId]);
+        $session = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$session) {
+            sendErrorResponse('セッションが見つかりません', 404);
+        }
+        if (!empty($session['visitor_identifier']) && $visitorId !== '' && $session['visitor_identifier'] !== $visitorId) {
+            sendErrorResponse('セッションを確認できません', 403);
+        }
+        return $session;
+    }
+}
+
+if (!function_exists('agentMsgRetractedText')) {
+    /** 取り消し済みメッセージの表示用プレースホルダ。 */
+    function agentMsgRetractedText(): string
+    {
+        return '送信が取り消されました';
+    }
+}
+
+if (!function_exists('agentMsgApplyEditState')) {
+    /**
+     * メッセージ行に編集/取り消し状態のフラグを付与し、取り消し済みは本文・添付をマスクする。
+     * $forClient=true : 本文を空にして deleted/edited フラグでクライアントに描画させる（顧客widget用）。
+     * $forClient=false: 本文をプレースホルダ文字列へ置換（担当側の既存描画をそのまま使う用途）。
+     * 生のタイムスタンプ（edited_at/deleted_at）は返さず、フラグのみ公開する。
+     */
+    function agentMsgApplyEditState(array $m, bool $forClient = true): array
+    {
+        $m['edited'] = !empty($m['edited_at']) ? 1 : 0;
+        $m['deleted'] = !empty($m['deleted_at']) ? 1 : 0;
+        if ($m['deleted']) {
+            $m['message'] = $forClient ? '' : agentMsgRetractedText();
+            $m['attachments'] = [];
+        }
+        unset($m['edited_at'], $m['deleted_at']);
+        return $m;
+    }
+}
+
 if (!function_exists('agentMsgInsertMessage')) {
     /**
      * メッセージを保存し、新しい message_id を返す。

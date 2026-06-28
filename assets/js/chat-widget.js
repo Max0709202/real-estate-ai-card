@@ -1358,15 +1358,116 @@
 
     function contactMsgHtml(m) {
         var time = formatMessageTime(m.created_at || '');
-        var atts = widgetAttachmentHtml(m.attachments || []);
-        var body = (m.message && m.message !== '[ファイルを送信しました]') ? escapeHtml(m.message) : '';
         var mid = parseInt(m.id, 10) || 0;
+        var isDeleted = !!(m.deleted || m.deleted_at);
+        var isEdited = !!(m.edited || m.edited_at);
+        var editedMark = isEdited ? '<span class="chat-msg-edited">編集済み</span>' : '';
+
         if (m.role === 'agent') {
             var img = agentPhoto ? '<img class="chat-msg-avatar" src="' + escapeAttribute(agentPhoto) + '" alt="">' : '<div class="chat-msg-avatar"></div>';
-            return '<div class="chat-msg agent" data-msg-id="' + mid + '">' + img + '<div class="chat-msg-content"><div class="chat-msg-agent-label">' + escapeHtml(agentName || '担当者') + '</div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div></div>';
+            if (isDeleted) {
+                return '<div class="chat-msg agent" data-msg-id="' + mid + '">' + img + '<div class="chat-msg-content"><div class="chat-msg-agent-label">' + escapeHtml(agentName || '担当者') + '</div><div class="chat-msg-bubble chat-msg-bubble-deleted">送信が取り消されました</div><div class="chat-msg-time">' + time + '</div></div></div>';
+            }
+            var aBody = (m.message && m.message !== '[ファイルを送信しました]') ? escapeHtml(m.message) : '';
+            var aAtts = widgetAttachmentHtml(m.attachments || []);
+            return '<div class="chat-msg agent" data-msg-id="' + mid + '">' + img + '<div class="chat-msg-content"><div class="chat-msg-agent-label">' + escapeHtml(agentName || '担当者') + '</div>' + (aBody ? '<div class="chat-msg-bubble">' + aBody + '</div>' : '') + aAtts + '<div class="chat-msg-time">' + time + editedMark + '</div></div></div>';
         }
-        // 顧客（user）。自分の発言には既読表示を付ける。
-        return '<div class="chat-msg user" data-msg-id="' + mid + '"><div class="chat-msg-avatar"></div><div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '<span class="chat-contact-read-wrap">' + contactReadMarkHtml(m) + '</span></div></div></div>';
+
+        // 顧客（user）＝自分の発言。
+        if (isDeleted) {
+            return '<div class="chat-msg user" data-msg-id="' + mid + '"><div class="chat-msg-avatar"></div><div><div class="chat-msg-bubble chat-msg-bubble-deleted">送信を取り消しました</div><div class="chat-msg-time">' + time + '</div></div></div>';
+        }
+        var body = (m.message && m.message !== '[ファイルを送信しました]') ? escapeHtml(m.message) : '';
+        var atts = widgetAttachmentHtml(m.attachments || []);
+        // 確定IDがある自分の発言にだけ「編集」「取り消し」操作を付ける。
+        var actions = mid > 0
+            ? '<div class="chat-contact-msg-actions"><button type="button" class="chat-contact-msg-action" data-contact-edit="' + mid + '">編集</button><button type="button" class="chat-contact-msg-action" data-contact-del="' + mid + '">取り消し</button></div>'
+            : '';
+        return '<div class="chat-msg user" data-msg-id="' + mid + '"><div class="chat-msg-avatar"></div><div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + editedMark + '<span class="chat-contact-read-wrap">' + contactReadMarkHtml(m) + '</span></div>' + actions + '</div></div>';
+    }
+
+    // contactMessages から指定IDのメッセージを取得（Array.find非依存）。
+    function getContactMsg(mid) {
+        for (var i = 0; i < contactMessages.length; i++) {
+            if ((parseInt(contactMessages[i].id, 10) || 0) === mid) return contactMessages[i];
+        }
+        return null;
+    }
+
+    // ローカルモデルを更新して担当連絡スレッドを再描画する。
+    function patchContactMsg(mid, patch) {
+        var m = getContactMsg(mid);
+        if (!m) return;
+        for (var k in patch) { if (Object.prototype.hasOwnProperty.call(patch, k)) m[k] = patch[k]; }
+        if (activeChatTab === 'contact') renderContactThread();
+    }
+
+    // 自分の発言をインライン編集モードにする。
+    function enterContactEdit(mid) {
+        var m = getContactMsg(mid);
+        if (!m) return;
+        var el = document.getElementById('chat-contact-messages');
+        var node = el ? el.querySelector('.chat-msg.user[data-msg-id="' + mid + '"]') : null;
+        if (!node) return;
+        var current = (m.message && m.message !== '[ファイルを送信しました]') ? m.message : '';
+        node.innerHTML = '<div class="chat-msg-avatar"></div><div class="chat-contact-edit">'
+            + '<textarea class="chat-contact-edit-input" maxlength="2000"></textarea>'
+            + '<div class="chat-contact-edit-actions">'
+            + '<button type="button" class="chat-contact-edit-cancel" data-contact-edit-cancel="1">キャンセル</button>'
+            + '<button type="button" class="chat-contact-edit-save" data-contact-edit-save="' + mid + '">保存</button>'
+            + '</div></div>';
+        var ta = node.querySelector('.chat-contact-edit-input');
+        if (ta) {
+            ta.value = current;
+            ta.focus();
+            try { ta.selectionStart = ta.selectionEnd = ta.value.length; } catch (e) {}
+        }
+    }
+
+    // 編集を保存する。
+    function saveContactEdit(mid) {
+        if (!sessionId || mid <= 0) return;
+        var el = document.getElementById('chat-contact-messages');
+        var node = el ? el.querySelector('.chat-msg.user[data-msg-id="' + mid + '"]') : null;
+        var ta = node ? node.querySelector('.chat-contact-edit-input') : null;
+        if (!ta) return;
+        var text = ta.value.trim();
+        if (!text) { alert('メッセージを入力してください。'); return; }
+        fetch(apiBase + '/customer/edit.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, visitor_id: visitorId, message_id: mid, message: text })
+        })
+            .then(function (res) { return res.json().catch(function () { return null; }); })
+            .then(function (data) {
+                if (data && data.success) {
+                    patchContactMsg(mid, { message: text, edited: 1 });
+                } else {
+                    alert((data && data.message) || 'メッセージを編集できませんでした。');
+                    if (activeChatTab === 'contact') renderContactThread();
+                }
+            })
+            .catch(function () { alert('通信エラーが発生しました。'); if (activeChatTab === 'contact') renderContactThread(); });
+    }
+
+    // 自分の発言を取り消す（unsend）。
+    function deleteContactMessage(mid) {
+        if (!sessionId || mid <= 0) return;
+        if (!window.confirm('このメッセージの送信を取り消しますか？')) return;
+        fetch(apiBase + '/customer/delete.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, visitor_id: visitorId, message_id: mid })
+        })
+            .then(function (res) { return res.json().catch(function () { return null; }); })
+            .then(function (data) {
+                if (data && data.success) {
+                    patchContactMsg(mid, { deleted: 1, message: '', attachments: [] });
+                } else {
+                    alert((data && data.message) || 'メッセージを取り消せませんでした。');
+                }
+            })
+            .catch(function () { alert('通信エラーが発生しました。'); });
     }
 
     // ポーリング結果（last_read_user_id）に応じて、自分の発言の「既読」表示を更新する。
@@ -1490,6 +1591,22 @@
                 if (fileI.files && fileI.files[0]) { uploadContactAttachment(fileI.files[0]); fileI.value = ''; }
             });
         }
+        // 自分の発言の「編集」「取り消し」、編集フォームの保存/キャンセルをまとめて委譲。
+        var msgsEl = document.getElementById('chat-contact-messages');
+        if (msgsEl) {
+            msgsEl.addEventListener('click', function (e) {
+                var t = e.target;
+                if (!t || !t.closest) return;
+                var editBtn = t.closest('[data-contact-edit]');
+                if (editBtn) { enterContactEdit(parseInt(editBtn.getAttribute('data-contact-edit'), 10) || 0); return; }
+                var delBtn = t.closest('[data-contact-del]');
+                if (delBtn) { deleteContactMessage(parseInt(delBtn.getAttribute('data-contact-del'), 10) || 0); return; }
+                var saveBtn = t.closest('[data-contact-edit-save]');
+                if (saveBtn) { saveContactEdit(parseInt(saveBtn.getAttribute('data-contact-edit-save'), 10) || 0); return; }
+                var cancelBtn = t.closest('[data-contact-edit-cancel]');
+                if (cancelBtn) { if (activeChatTab === 'contact') renderContactThread(); return; }
+            });
+        }
     }
 
     function renderContactThread() {
@@ -1585,7 +1702,9 @@
                         role: m.role === 'agent' ? 'agent' : 'user',
                         message: m.message || '',
                         created_at: m.created_at || '',
-                        attachments: m.attachments || []
+                        attachments: m.attachments || [],
+                        edited: m.edited ? 1 : 0,
+                        deleted: m.deleted ? 1 : 0
                     };
                 });
                 // ポーリングが既読済みの担当発言を再度追加しないよう、最大の担当発言IDを記録。
@@ -1619,7 +1738,7 @@
                     var mid = parseInt(m.id, 10) || 0;
                     if (mid <= lastAgentMsgId) return;
                     lastAgentMsgId = mid;
-                    pushContactMessage({ id: mid, role: 'agent', message: m.message || '', created_at: m.created_at || '', attachments: m.attachments || [] });
+                    pushContactMessage({ id: mid, role: 'agent', message: m.message || '', created_at: m.created_at || '', attachments: m.attachments || [], edited: m.edited ? 1 : 0, deleted: m.deleted ? 1 : 0 });
                     notifyAgentMessage(m.message || '');
                 });
                 // バッジはサーバーの「本当の未読件数」（read_at IS NULL）で表示する。
