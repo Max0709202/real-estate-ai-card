@@ -45,7 +45,7 @@
     var quickActions = document.getElementById('chat-widget-quick-actions');
     var featurePanel = document.getElementById('chat-widget-feature-panel');
     var tabBar = document.querySelector('.chat-widget-tabbar');
-    var defaultPromptText = "不動産の購入・売却について、何でもお気軽にご質問ください。";
+    var defaultPromptText = "不動産のことなら、何でもお気軽にご相談ください。";
     var entryNoticeText = "こんにちは。\nAI{agent}です。\n\nこちらのAIエージェントでは、物件探しや進捗管理、私とのやり取りをスムーズに進めるために、ご相談内容を安全に保存し、スマートフォンの変更時や別の端末からアクセスした場合でも引き継げるよう、最初にSMS認証・メールアドレス・お名前の登録をお願いしています。\n\n最初にSMS認証を行います。電話番号を入力し、届いた認証コードを入力してください。";
     var firstConsultationNoticeText = "気になることを、そのまま文章で送ってください。\n\nまだ具体的に決まっていなくても大丈夫です。会話の流れの中で、必要なことだけ少しずつ確認します。\n\n※右下のマイクボタンから音声入力もご利用いただけます。\n\n※AIによるサービスのため、回答内容に誤りが含まれる場合があります。";
     var previousConfirmedNoticeText = "ありがとうございます。前回のご相談内容を確認しました。\n前回の内容をもとに、このまま続きからご案内できます。";
@@ -78,6 +78,9 @@
     var isListening = false;
     var finalVoiceTranscript = '';
     var voiceHadError = false;
+    // 現在音声入力中の対象（null = AI担当の入力欄）。担当連絡でも音声入力を使うため、
+    // 音声エンジンを入力欄ごとに切り替えられるようにする。
+    var voiceTarget = null;
     var pageWasReloaded = detectPageReload();
     var reloadNoticeShown = false;
     var quickActionsAwaitingBottomScroll = false;
@@ -183,32 +186,57 @@
     }
 
     function setVoiceStatus(message) {
-        if (!voiceStatusEl) return;
+        var el = (voiceTarget && voiceTarget.statusEl) || voiceStatusEl;
+        if (!el) return;
         if (!message) {
-            voiceStatusEl.hidden = true;
-            voiceStatusEl.textContent = '';
+            el.hidden = true;
+            el.textContent = '';
             return;
         }
-        voiceStatusEl.textContent = message;
-        voiceStatusEl.hidden = false;
+        el.textContent = message;
+        el.hidden = false;
     }
 
     function updateVoiceButtonState() {
-        if (!voiceBtn) return;
-        var canListen = !!SpeechRecognition && !sendingMessage && !sessionStarting && !inputEl.disabled;
-        voiceBtn.disabled = !canListen;
-        voiceBtn.classList.toggle('is-listening', isListening);
-        voiceBtn.setAttribute('aria-pressed', isListening ? 'true' : 'false');
+        var btn = (voiceTarget && voiceTarget.btn) || voiceBtn;
+        var inp = (voiceTarget && voiceTarget.input) || inputEl;
+        if (!btn) return;
+        var canListen = !!SpeechRecognition && !sendingMessage && !sessionStarting && !inp.disabled;
+        btn.disabled = !canListen;
+        btn.classList.toggle('is-listening', isListening);
+        btn.setAttribute('aria-pressed', isListening ? 'true' : 'false');
         if (!SpeechRecognition) {
-            voiceBtn.title = 'このブラウザは音声入力に対応していません';
-            voiceBtn.setAttribute('aria-label', '音声入力は未対応です');
+            btn.title = 'このブラウザは音声入力に対応していません';
+            btn.setAttribute('aria-label', '音声入力は未対応です');
         } else if (isListening) {
-            voiceBtn.title = '音声入力を停止';
-            voiceBtn.setAttribute('aria-label', '音声入力を停止');
+            btn.title = '音声入力を停止';
+            btn.setAttribute('aria-label', '音声入力を停止');
         } else {
-            voiceBtn.title = '音声で入力';
-            voiceBtn.setAttribute('aria-label', '音声で入力');
+            btn.title = '音声で入力';
+            btn.setAttribute('aria-label', '音声で入力');
         }
+    }
+
+    // 音声入力の対象記述子。AI担当と担当連絡で同じ音声エンジンを使い回す。
+    function aiVoiceTarget() {
+        return {
+            input: inputEl,
+            btn: voiceBtn,
+            statusEl: voiceStatusEl,
+            send: function (text) { sendMessage(text); }
+        };
+    }
+    function contactVoiceTarget() {
+        return {
+            input: document.getElementById('chat-contact-input'),
+            btn: document.getElementById('chat-contact-voice'),
+            statusEl: document.getElementById('chat-contact-voice-status'),
+            send: function (text) {
+                var ci = document.getElementById('chat-contact-input');
+                if (ci) ci.value = text;
+                sendContactMessage();
+            }
+        };
     }
 
     function syncAgentHeader() {
@@ -1440,7 +1468,16 @@
         var input = document.getElementById('chat-contact-input');
         var attachB = document.getElementById('chat-contact-attach');
         var fileI = document.getElementById('chat-contact-file');
+        var voiceB = document.getElementById('chat-contact-voice');
         if (sendB) sendB.addEventListener('click', function () { sendContactMessage(); });
+        if (voiceB) {
+            voiceB.addEventListener('click', function () { startVoiceInput(contactVoiceTarget()); });
+            if (!SpeechRecognition) {
+                voiceB.disabled = true;
+                voiceB.title = 'このブラウザは音声入力に対応していません';
+                voiceB.setAttribute('aria-label', '音声入力は未対応です');
+            }
+        }
         if (input) {
             input.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendContactMessage(); }
@@ -1467,12 +1504,21 @@
         html += '<div class="chat-contact-head"><strong>担当連絡</strong><span>' + escapeHtml(agentName || '担当者') + '（担当者）と直接やり取りできます</span></div>';
         html += '<div class="chat-contact-messages" id="chat-contact-messages">' + listHtml + '</div>';
         html += '<div class="chat-contact-attach-list" id="chat-contact-attach-list"></div>';
-        html += '<div class="chat-contact-input-wrap">';
-        html += '<textarea id="chat-contact-input" class="chat-contact-input" rows="2" placeholder="担当者へのメッセージを入力..." maxlength="2000"></textarea>';
-        html += '<div class="chat-contact-input-actions">';
+        html += '<div id="chat-contact-voice-status" class="chat-widget-voice-status" aria-live="polite" hidden></div>';
+        // 入力欄はAI担当とまったく同じ見た目・構成にするため、AI担当と同じクラスを使う
+        // （テキスト＋音声＋添付＋送信）。IDのみ担当連絡用に分ける。
+        // 送信ボタンのアイコンはAI担当の送信ボタンから流用し、画像パスを揃える。
+        var aiSendIcon = document.querySelector('#chat-widget-send .chat-widget-send-icon');
+        var sendIconHtml = aiSendIcon ? aiSendIcon.outerHTML : '';
+        html += '<div class="chat-widget-input-wrap">';
+        html += '<textarea id="chat-contact-input" class="chat-widget-input" rows="2" placeholder="担当者へのメッセージを入力..." maxlength="2000"></textarea>';
+        html += '<div class="chat-widget-input-actions">';
+        html += '<div style="display:flex; gap:10px">'
+        html += '<button type="button" id="chat-contact-voice" class="chat-widget-voice" aria-label="音声で入力" title="音声で入力" aria-pressed="false"><span class="chat-widget-voice-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false" role="img"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"></path><path d="M17.3 11c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.42 2.72 6.23 6.1 6.65V21h1.8v-3.35c3.38-.42 6.1-3.23 6.1-6.65h-1.7z"></path></svg></span></button>';
         html += '<button type="button" id="chat-contact-attach" class="chat-widget-attach" aria-label="ファイルを添付" title="ファイルを添付"><span aria-hidden="true">＋</span></button>';
         html += '<input type="file" id="chat-contact-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" hidden>';
-        html += '<button type="button" id="chat-contact-send" class="chat-widget-send" aria-label="送信"><span>送信</span></button>';
+        html += '</div>'
+        html += '<button type="button" id="chat-contact-send" class="chat-widget-send" aria-label="送信"><span>送信</span>' + sendIconHtml + '</button>';
         html += '</div></div></div>';
         featurePanel.innerHTML = html;
         renderContactPendingAttachments();
@@ -1680,13 +1726,16 @@
         try { recognition.stop(); } catch (e) {}
     }
 
-    function startVoiceInput() {
-        if (!SpeechRecognition || !voiceBtn || sendingMessage || sessionStarting || inputEl.disabled) return;
+    function startVoiceInput(target) {
+        // クリックイベント等が渡ってきた場合（target.input を持たない）はAI担当を既定とする。
+        var t = (target && target.input) ? target : aiVoiceTarget();
+        if (!SpeechRecognition || !t.btn || !t.input || sendingMessage || sessionStarting || t.input.disabled) return;
         if (isListening) {
             stopVoiceInput();
             return;
         }
 
+        voiceTarget = t;
         recognition = new SpeechRecognition();
         recognition.lang = 'ja-JP';
         recognition.interimResults = true;
@@ -1708,7 +1757,7 @@
                 }
             }
             var combined = (finalVoiceTranscript + interim).trim();
-            if (combined) inputEl.value = combined;
+            if (combined && t.input) t.input.value = combined;
         };
 
         recognition.onerror = function (event) {
@@ -1725,10 +1774,12 @@
             var text = finalVoiceTranscript.trim();
             if (text && !voiceHadError) {
                 setVoiceStatus('音声を認識しました。送信します。');
-                sendMessage(text);
+                t.send(text);
             } else if (SpeechRecognition && !voiceHadError) {
                 setVoiceStatus('音声入力を終了しました。');
             }
+            // 次回の状態更新がAI担当ボタンに戻るよう、対象をリセットする。
+            voiceTarget = null;
         };
 
         try {
@@ -1737,6 +1788,7 @@
             isListening = false;
             updateVoiceButtonState();
             setVoiceStatus('音声入力を開始できませんでした。もう一度お試しください。');
+            voiceTarget = null;
         }
     }
 
@@ -1958,7 +2010,9 @@
             featurePanel.innerHTML = '';
         }
         panel.classList.remove('is-feature-view');
-        if (!panel.hidden) inputEl.focus();
+        // AI担当タブに戻ったときは、担当連絡と同様にキーボードを開かず、
+        // 直近の会話（最新メッセージ）を表示する。自動フォーカスはしない。
+        if (!panel.hidden) scrollMessagesToBottom();
     }
 
     function enterFeatureView(tab) {

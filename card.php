@@ -1324,17 +1324,19 @@ if (!empty($card['profile_photo'])) {
             <div class="chat-widget-input-wrap">
                 <textarea id="chat-widget-input" class="chat-widget-input" rows="2" placeholder="メッセージを入力..." maxlength="2000"></textarea>
                 <div class="chat-widget-input-actions">
-                    <button type="button" id="chat-widget-voice" class="chat-widget-voice" aria-label="音声で入力" title="音声で入力" aria-pressed="false">
-                        <span class="chat-widget-voice-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" focusable="false" role="img">
-                                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"></path>
-                                <path d="M17.3 11c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.42 2.72 6.23 6.1 6.65V21h1.8v-3.35c3.38-.42 6.1-3.23 6.1-6.65h-1.7z"></path>
-                            </svg>
-                        </span>
-                    </button>
-                    <button type="button" id="chat-widget-attach" class="chat-widget-attach" aria-label="ファイルを添付" title="ファイルを添付">
-                        <span aria-hidden="true">＋</span>
-                    </button>
+                    <div style="display : flex; gap : 10px;">
+                        <button type="button" id="chat-widget-voice" class="chat-widget-voice" aria-label="音声で入力" title="音声で入力" aria-pressed="false">
+                            <span class="chat-widget-voice-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" focusable="false" role="img">
+                                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"></path>
+                                    <path d="M17.3 11c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.42 2.72 6.23 6.1 6.65V21h1.8v-3.35c3.38-.42 6.1-3.23 6.1-6.65h-1.7z"></path>
+                                </svg>
+                            </span>
+                        </button>
+                        <button type="button" id="chat-widget-attach" class="chat-widget-attach" aria-label="ファイルを添付" title="ファイルを添付">
+                            <span aria-hidden="true">＋</span>
+                        </button>
+                    </div>
                     <input type="file" id="chat-widget-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" hidden>
                     <button type="button" id="chat-widget-send" class="chat-widget-send" aria-label="送信"><span>送信</span><img src="<?php echo BASE_URL; ?>/assets/images/icons/chat/send.png" alt="" class="chat-widget-send-icon" aria-hidden="true"></button>
                 </div>
