@@ -1824,10 +1824,15 @@
         'g'
     );
 
+    // Prefix each address with a red pin that links to Google Maps. Only the pin
+    // is a link; the address text itself stays plain (per spec). 'addr' has
+    // already been HTML-escaped by formatBotMessageHtml, so escape it again for
+    // the aria-label/title attribute to neutralise any stray double quotes.
     function linkifyAddresses(html) {
         return html.replace(ADDRESS_RE, function (addr) {
             var href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr);
-            return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" class="chat-msg-address-link">' + addr + '</a>';
+            var label = escapeAttribute(addr);
+            return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" class="chat-msg-address-pin" aria-label="Googleマップで開く: ' + label + '" title="Googleマップで開く: ' + label + '">📍</a>' + addr;
         });
     }
 

@@ -292,15 +292,16 @@
     font-weight: 400;
 }
 
-.chat-msg-address-link {
-    color: #0052a3;
-    text-decoration: underline;
-    overflow-wrap: anywhere;
-}
-.chat-msg-address-link::before {
-    content: "\1F4CD";
-    margin-right: 2px;
+/* Red pin that links to Google Maps. Only the pin is clickable; the address
+   text that follows it stays plain (no link, no underline). */
+.chat-msg-address-pin {
     text-decoration: none;
+    margin-right: 2px;
+    cursor: pointer;
+    line-height: 1;
+}
+.chat-msg-address-pin:hover {
+    opacity: 0.8;
 }
 
 .chat-widget-quick-actions {
