@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../includes/openai-chat-helper.php';
 require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../includes/chat-crm-helper.php';
 require_once __DIR__ . '/../../includes/agent-messaging-helper.php';
+require_once __DIR__ . '/../../includes/notification-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -82,6 +83,8 @@ try {
         }
         $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$sessionId]);
+        // 担当営業へメール通知（60秒バッチ・未読中は抑制）。失敗は握りつぶす。
+        notifyEnqueue($db, $sessionId, 'contact');
         sendSuccessResponse([
             'reply' => '',
             'agent_mode' => true,

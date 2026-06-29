@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../../includes/chat-rag-helper.php';
 require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../../includes/chat-crm-helper.php';
+require_once __DIR__ . '/../../../includes/notification-helper.php';
 require_once __DIR__ . '/../../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -33,6 +34,11 @@ try {
     $session = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$session) {
         sendErrorResponse('セッションが見つかりません', 404);
+    }
+
+    // 担当営業（名刺所有者）が日程調整画面を開いた → メール通知の未読解除。
+    if (!empty($_SESSION['user_id']) && (int)$_SESSION['user_id'] === (int)$session['user_id']) {
+        notifyMarkRead($db, $sessionId, 'schedule');
     }
 
     $case = chatCrmLoadCase($db, $sessionId, (int)$session['business_card_id']);

@@ -18,7 +18,7 @@ function requireAdminAuth($requiredRole = null) {
         header('Content-Type: application/json; charset=UTF-8');
         echo json_encode([
             'success' => false,
-            'message' => '認証が必要です',
+            'message' => '再ログインをお願いします',
             'redirect' => BASE_URL . '/admin/login.php'
         ]);
         exit();

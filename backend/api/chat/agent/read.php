@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
+require_once __DIR__ . '/../../../includes/notification-helper.php';
 require_once __DIR__ . '/../../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -31,6 +32,8 @@ try {
     agentMsgVerifyOwnedSession($db, $sessionId, (int)$userId);
 
     $marked = agentMsgMarkRead($db, $sessionId, 'user');
+    // 担当連絡画面を開いた → メール通知の未読解除（以降の新規操作で再通知）。
+    notifyMarkRead($db, $sessionId, 'contact');
     if ($handoff === 'bot' || $handoff === 'agent') {
         agentMsgSetHandoff($db, $sessionId, $handoff);
     }

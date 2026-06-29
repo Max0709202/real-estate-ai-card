@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/property-helper.php';
+require_once __DIR__ . '/../../includes/notification-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -54,6 +55,11 @@ try {
 
     $db->prepare("UPDATE properties SET status = ? WHERE id = ?")
        ->execute([$status === '' ? null : $status, $propertyId]);
+
+    // 顧客の物件選定操作 → 担当営業へメール通知（営業自身の操作は対象外）。
+    if ($role === 'customer' && !empty($row['session_id'])) {
+        notifyEnqueue($db, (string)$row['session_id'], 'property');
+    }
 
     $stmt->execute([$propertyId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);

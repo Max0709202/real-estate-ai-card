@@ -9,7 +9,7 @@ startSessionIfNotStarted();
 
 function requireAuth() {
     if (empty($_SESSION['user_id'])) {
-        sendErrorResponse('認証が必要です', 401);
+        sendErrorResponse('再ログインをお願いします', 401);
     }
     return $_SESSION['user_id'];
 }

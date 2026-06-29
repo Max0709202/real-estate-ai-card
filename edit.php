@@ -4071,6 +4071,37 @@ $defaultGreetings = [
             setInterval(function() { if (!document.hidden) updateNavUnreadBadge(); }, 15000);
 
             loadSessions();
+
+            // メール通知リンクからのディープリンク（?focus=contact|property|schedule&session=<id>）。
+            // 該当顧客の詳細を自動で開く。担当連絡・物件選定の未読は詳細表示の副作用
+            // （read.php / property/list.php 呼び出し）で解除される。日程調整は専用UIが
+            // 詳細内に無いため crm/get.php を明示的に叩いて未読解除する。
+            (function handleNotificationDeepLink() {
+                try {
+                    var params = new URLSearchParams(window.location.search);
+                    var session = params.get('session') || '';
+                    var focus = params.get('focus') || '';
+                    if (!session) return;
+                    if (['contact', 'property', 'schedule'].indexOf(focus) === -1) focus = 'contact';
+                    if (navChat) navChat.click();
+                    setTimeout(function() {
+                        showDetail(session);
+                        if (focus === 'schedule') {
+                            fetch(apiBase + '/crm/get.php?id=' + encodeURIComponent(session), { credentials: 'include' }).catch(function() {});
+                        }
+                        setTimeout(function() {
+                            var label = focus === 'property' ? '物件選定' : (focus === 'schedule' ? '日程' : '担当連絡');
+                            var heads = detailContent ? detailContent.querySelectorAll('h4') : [];
+                            for (var i = 0; i < heads.length; i++) {
+                                if ((heads[i].textContent || '').indexOf(label) !== -1) {
+                                    heads[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    break;
+                                }
+                            }
+                        }, 900);
+                    }, 500);
+                } catch (e) { console.error(e); }
+            })();
         })();
 
     </script>

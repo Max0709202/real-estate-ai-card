@@ -57,7 +57,12 @@
       "Bash(php -l config/config.php)",
       "Bash(php -l api/chat/send.php)",
       "Bash(CHAT_MANSION_DEBUG=1 php -r ' *)",
-      "Bash(php -r 'require_once \"config/config.php\"; *)"
+      "Bash(php -r 'require_once \"config/config.php\"; *)",
+      "Bash(mysql --version)",
+      "Bash(mysql -u xs013436_nishio -prenewal4329 xs013436_realestatecard)",
+      "Bash(mysql -u xs013436_nishio -prenewal4329 xs013436_realestatecard -e \"DESCRIBE chat_notification_jobs;\")",
+      "Bash(php backend/api/cron/process-notification-queue.php)",
+      "Bash(php -l backend/api/cron/process-notification-queue.php)"
     ]
   }
 }

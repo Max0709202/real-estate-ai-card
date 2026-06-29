@@ -19,11 +19,26 @@ if ($invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
 $redirectPage = $_GET['redirect'] ?? '';
 $prefillEmail = $_GET['email'] ?? '';
 
-// 既にログイン済みの場合はダッシュボードへ
-// if (!empty($_SESSION['user_id'])) {
-//     header('Location: index.php');
-//     exit();
-// }
+// redirect は同一サイト内の許可ページ（相対パス）のみ受け付ける（オープンリダイレクト対策）。
+// メール通知のリンク（login.php?redirect=edit.php?...）からの該当画面遷移に使用。
+$safeRedirect = '';
+if ($redirectPage !== '') {
+    $page = strtolower(strtok($redirectPage, '?'));
+    if ($redirectPage[0] !== '/'
+        && strpos($redirectPage, '://') === false
+        && strpos($redirectPage, '..') === false
+        && strpos($redirectPage, '\\') === false
+        && preg_match('#^[A-Za-z0-9_./?=&%\\-]+$#', $redirectPage) === 1
+        && in_array($page, ['edit.php'], true)) {
+        $safeRedirect = $redirectPage;
+    }
+}
+
+// 既にログイン済みで遷移先が指定されていれば、ログインを挟まず直接その画面へ。
+if ($safeRedirect !== '' && !empty($_SESSION['user_id'])) {
+    header('Location: ' . $safeRedirect);
+    exit();
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -207,6 +222,12 @@ $prefillEmail = $_GET['email'] ?? '';
                     if (result.data.is_admin && result.data.redirect) {
                         window.location.href = result.data.redirect;
                     } else {
+                        // メール通知リンク等で安全な遷移先が指定されていれば最優先で従う。
+                        const safeRedirect = <?php echo json_encode($safeRedirect); ?>;
+                        if (safeRedirect) {
+                            window.location.href = safeRedirect;
+                            return;
+                        }
                         // Check user_type from login response - always include type=existing for existing users
                         const actualUserType = result.data.user_type;
                         const urlUserType = <?php echo json_encode($userType); ?>;

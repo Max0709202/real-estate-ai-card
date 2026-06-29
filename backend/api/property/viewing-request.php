@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../includes/property-helper.php';
+require_once __DIR__ . '/../../includes/notification-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit(); }
@@ -49,6 +50,9 @@ try {
 
     // 物件ステータスを内見希望に
     $db->prepare("UPDATE properties SET status = 'viewing_request' WHERE id = ?")->execute([$propertyId]);
+
+    // 顧客の物件共有（内見依頼）→ 担当営業へメール通知。
+    notifyEnqueue($db, $sessionId, 'property');
 
     sendSuccessResponse(['message_id' => $messageId], '内見予約を依頼しました。担当連絡をご確認ください。');
 } catch (Exception $e) {

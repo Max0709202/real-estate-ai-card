@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/property-helper.php';
+require_once __DIR__ . '/../../includes/notification-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -30,6 +31,8 @@ try {
         $userId = requireAuth();
         propertyVerifyAgentSession($db, $sessionId, $userId);
         $forAgent = true;
+        // 担当営業が物件選定画面を開いた → メール通知の未読解除。
+        notifyMarkRead($db, $sessionId, 'property');
     }
 
     $stmt = $db->prepare("SELECT * FROM properties WHERE session_id = ? ORDER BY created_at DESC, id DESC");

@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../../includes/chat-rag-helper.php';
 require_once __DIR__ . '/../../../includes/chat-crm-helper.php';
+require_once __DIR__ . '/../../../includes/notification-helper.php';
 require_once __DIR__ . '/../../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -99,6 +100,16 @@ try {
         $case['progress']['updated_at'] = chatCrmNowIso();
         $case['updated_at'] = chatCrmNowIso();
         chatCrmUpsertCase($db, $sessionId, (int)$session['business_card_id'], $case);
+
+        // 日程調整: 顧客の操作のみ担当営業へメール通知（営業自身の編集は除外）。
+        if ($feature === 'schedules') {
+            startSessionIfNotStarted();
+            $isOwnerAgent = !empty($_SESSION['user_id'])
+                && (int)$_SESSION['user_id'] === (int)$session['user_id'];
+            if (!$isOwnerAgent) {
+                notifyEnqueue($db, $sessionId, 'schedule');
+            }
+        }
     }
 
     $fresh = chatCrmLoadCase($db, $sessionId, (int)$session['business_card_id']);
