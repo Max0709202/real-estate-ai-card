@@ -114,9 +114,25 @@
       '<option value="agent"' + (prop.source === 'customer' ? '' : ' selected') + '>エージェント提案</option>' +
       '<option value="customer"' + (prop.source === 'customer' ? ' selected' : '') + '>お客様から共有</option></select></div>';
 
+    // 取引態様の選択肢（販売図面に記載があればそのまま採用、無ければプルダウン＋「その他」自由入力）
+    var TT_OPTS = ['売主', '代理', '一般媒介', '専任媒介', '専属専任媒介', '媒介'];
+    function transactionControl(v) {
+      v = v || '';
+      var isStd = TT_OPTS.indexOf(v) >= 0;
+      var isOther = (v !== '' && !isStd);
+      var opts = '<option value="">選択してください</option>' +
+        TT_OPTS.map(function (o) { return '<option value="' + esc(o) + '"' + (v === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') +
+        '<option value="その他"' + (isOther ? ' selected' : '') + '>その他</option>';
+      return '<div class="prop-field full"><label>取引態様</label>' +
+        '<select data-tt-select>' + opts + '</select>' +
+        '<input type="text" data-tt-other placeholder="取引態様を入力" value="' + (isOther ? esc(v) : '') + '" style="margin-top:6px;' + (isOther ? '' : 'display:none') + '">' +
+        '</div>';
+    }
+
     function inputFor(f) {
       var key = f[0], label = f[1], group = f[2];
       var v = prop[key] != null ? String(prop[key]) : '';
+      if (key === 'transaction_type') return transactionControl(v);
       var full = (key === 'remarks' || key === 'seller_remarks' || key === 'address' || key === 'transport') ? ' full' : '';
       var ctrl;
       if (key === 'remarks' || key === 'seller_remarks') ctrl = '<textarea data-f="' + key + '" rows="2">' + esc(v) + '</textarea>';
@@ -127,8 +143,20 @@
     var basicInputs = fields.filter(function (f) { return f[2] === 'basic'; }).map(inputFor).join('');
     var sellerInputs = fields.filter(function (f) { return f[2] === 'seller'; }).map(inputFor).join('');
 
-    var html = '<form class="prop-form" id="prop-edit-form">' +
-      (isOcrDraft ? '<div class="prop-msg prop-msg--info full">AIが読み取った内容です。誤りを修正して「確認して保存」してください（修正できるのはエージェントのみ）。</div>' : '') +
+    // 販売図面プレビュー（OCR内容を見ながら確認・訂正する。クリック/タップで拡大）
+    var flyerList = (prop.flyers && prop.flyers.length) ? prop.flyers : [];
+    var hasFlyer = flyerList.length > 0;
+    var flyerPane = '';
+    if (hasFlyer) {
+      flyerPane = '<div class="prop-edit-flyer"><div class="prop-edit-flyer__label">販売図面（クリック／タップで拡大）</div>' +
+        flyerList.map(function (f) {
+          var u = f.preview_url || f.url;
+          return '<img class="prop-edit-flyer__img" src="' + esc(u) + '" alt="販売図面" loading="lazy" data-full="' + esc(u) + '">';
+        }).join('') + '</div>';
+    }
+
+    var formHtml = '<form class="prop-form" id="prop-edit-form">' +
+      (isOcrDraft ? '<div class="prop-msg prop-msg--info full">AIが読み取った内容です。販売図面と照らし合わせ、誤りを修正して「確認して保存」してください（修正できるのはエージェントのみ）。</div>' : '') +
       typeSel + srcSel +
       '<div class="prop-field full"><label>掲載媒体</label><input type="text" data-f="source_media" value="' + esc(prop.source_media || 'manual') + '"></div>' +
       '<div class="prop-field full"><label>元URL</label><input type="url" data-f="source_url" value="' + esc(prop.source_url || '') + '"></div>' +
@@ -140,8 +168,24 @@
         '<button type="submit" class="prop-btn prop-btn--primary">' + (isOcrDraft ? '確認して保存' : '保存') + '</button>' +
       '</div></form>';
 
+    var html = '<div class="prop-edit-wrap' + (hasFlyer ? ' has-flyer' : '') + '">' + flyerPane + formHtml + '</div>';
+
     var m = UI.modal(prop.id ? (isOcrDraft ? 'AI読取結果の確認' : '物件情報の編集') : '物件を手入力で登録', html);
+    if (hasFlyer) {
+      var modalEl = m.overlay.querySelector('.prop-modal');
+      if (modalEl) modalEl.classList.add('prop-modal--wide');
+      UI.bindLightbox(m.body); // 販売図面プレビューのクリックで拡大ビューアを開く
+    }
     if (m.body.querySelector('#prop-edit-cancel')) m.body.querySelector('#prop-edit-cancel').addEventListener('click', m.close);
+    // 取引態様: 「その他」選択時のみ自由入力を表示
+    var ttSel = m.body.querySelector('[data-tt-select]');
+    var ttOther = m.body.querySelector('[data-tt-other]');
+    if (ttSel && ttOther) {
+      ttSel.addEventListener('change', function () {
+        if (ttSel.value === 'その他') { ttOther.style.display = ''; ttOther.focus(); }
+        else { ttOther.style.display = 'none'; }
+      });
+    }
     m.body.querySelector('#prop-edit-form').addEventListener('submit', function (e) {
       e.preventDefault();
       var payload = { fields: {} };
@@ -150,6 +194,10 @@
         if (k === 'source' || k === 'source_media' || k === 'source_url') payload[k] = el.value.trim();
         else payload.fields[k] = el.value;
       });
+      // 取引態様（プルダウン＋その他自由入力）
+      if (ttSel) {
+        payload.fields.transaction_type = (ttSel.value === 'その他') ? (ttOther ? ttOther.value.trim() : '') : ttSel.value;
+      }
       if (prop.id) payload.property_id = prop.id;
       else payload.session_id = SID;
       if (isOcrDraft) payload.confirm_ocr = true;

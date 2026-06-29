@@ -91,6 +91,7 @@ if (!function_exists('propertyEnsureTables')) {
           display_order INT NOT NULL DEFAULT 0,
           preview_path VARCHAR(512) NULL DEFAULT NULL,
           masked_path VARCHAR(512) NULL DEFAULT NULL,
+          masked_thumb_path VARCHAR(512) NULL DEFAULT NULL,
           mask_regions TEXT NULL DEFAULT NULL,
           mask_status ENUM('none','pending','masked') NOT NULL DEFAULT 'none',
           customer_visible TINYINT(1) NOT NULL DEFAULT 0,
@@ -116,6 +117,8 @@ if (!function_exists('propertyEnsureFlyerMaskColumns')) {
             'mask_status'  => "ADD COLUMN mask_status ENUM('none','pending','masked') NOT NULL DEFAULT 'none' AFTER mask_regions",
             // 顧客への公開可否（担当が編集・確認を完了して初めて 1。既定 0 = 非公開）
             'customer_visible' => "ADD COLUMN customer_visible TINYINT(1) NOT NULL DEFAULT 0 AFTER mask_status",
+            // 顧客用マスク済販売図面のラスタ画像（サムネイル＆ビューア用・1ページ目）
+            'masked_thumb_path' => "ADD COLUMN masked_thumb_path VARCHAR(512) NULL DEFAULT NULL AFTER masked_path",
         ];
         foreach ($cols as $name => $ddl) {
             try {
@@ -236,8 +239,8 @@ if (!function_exists('propertyFieldDefs')) {
     {
         return [
             // key, label, group, types(空=全), agent_only
-            ['property_name',      '物件名',           'basic',  [], false],
-            ['building_name',      'マンション名',     'basic',  [], false],
+            // 物件名は building_name に一本化（マンション=名称 / 戸建・土地=住所から「川口市弥平戸建て」等）
+            ['building_name',      '物件名',           'basic',  [], false],
             ['price_text',         '価格',             'basic',  [], false],
             ['address',            '所在地',           'basic',  [], false],
             ['transport',          '交通',             'basic',  [], false],
@@ -259,7 +262,6 @@ if (!function_exists('propertyFieldDefs')) {
             ['other_fees',         'その他費用',       'basic',  [], false],
             ['current_status',     '現況',             'basic',  [], false],
             ['delivery',           '引渡',             'basic',  [], false],
-            ['transaction_type',   '取引態様',         'basic',  [], false],
             ['rent',               '賃料',             'basic',  [], false],
             ['yield_rate',         '利回り',           'basic',  [], false],
             ['remarks',            '備考',             'basic',  [], false],
@@ -269,6 +271,7 @@ if (!function_exists('propertyFieldDefs')) {
             ['seller_person',      '担当者名',         'seller', [], true],
             ['seller_email',       'メールアドレス',   'seller', [], true],
             ['seller_phone',       '販売会社電話番号', 'seller', [], true],
+            ['transaction_type',   '取引態様',         'seller', [], true],
             ['seller_remarks',     '備考',             'seller', [], true],
         ];
     }
@@ -347,7 +350,7 @@ if (!function_exists('propertyImagesFor')) {
     function propertyImagesFor(PDO $db, int $propertyId, ?string $category = null): array
     {
         $sql = "SELECT id, category, subcategory, original_name, mime_type, width, height, display_order,
-                       preview_path, masked_path, mask_regions, mask_status, customer_visible
+                       preview_path, masked_path, masked_thumb_path, mask_regions, mask_status, customer_visible
                 FROM property_images WHERE property_id = ?";
         $params = [$propertyId];
         if ($category) { $sql .= " AND category = ?"; $params[] = $category; }
@@ -361,10 +364,12 @@ if (!function_exists('propertyImagesFor')) {
             $r['url'] = $base . $id;                                  // 既定（担当=原本 / 顧客=マスク済）
             $r['preview_url'] = $base . $id . '&variant=preview';     // 編集用ラスタ
             $r['masked_url'] = !empty($r['masked_path']) ? $base . $id . '&variant=masked' : null;
+            // サムネイルは masked_thumb_path が無くても masked_path があれば配信時に遅延生成する
+            $r['masked_thumb_url'] = (!empty($r['masked_thumb_path']) || !empty($r['masked_path'])) ? $base . $id . '&variant=masked_thumb' : null;
             $r['mask_status'] = $r['mask_status'] ?? 'none';
             $r['customer_visible'] = (int)($r['customer_visible'] ?? 0);
             $r['mask_regions'] = !empty($r['mask_regions']) ? json_decode($r['mask_regions'], true) : [];
-            unset($r['preview_path'], $r['masked_path']);
+            unset($r['preview_path'], $r['masked_path'], $r['masked_thumb_path']);
             $out[] = $r;
         }
         return $out;
@@ -399,6 +404,8 @@ if (!function_exists('propertySerialize')) {
             foreach ($flyers as &$fl) {
                 $fl['mime_type'] = 'application/pdf';
                 if (!empty($fl['masked_url'])) $fl['url'] = $fl['masked_url'];
+                // 顧客サムネイル＆ビューア用のラスタ画像（白抜き適用後の1ページ目）
+                $fl['thumb_url'] = $fl['masked_thumb_url'] ?? null;
                 unset($fl['mask_regions']);
             }
             unset($fl);
@@ -503,7 +510,10 @@ if (!function_exists('propertyExtractionPrompt')) {
             . "与えられた資料から以下のJSONキーの値を抽出してください。\n"
             . "推測や創作は厳禁です。資料に記載が無い項目は空文字 \"\" にしてください（特に部屋番号・担当者名・管理会社・バルコニー面積・賃料・利回りは無ければ空）。\n"
             . "物件種別 property_type は \"mansion\"(マンション) / \"house\"(一戸建て) / \"land\"(土地) のいずれか。\n"
-            . "土地・戸建ての building_name は「川口市弥平2戸建て」「川口市弥平土地」の様に地名＋種別で表記してください。\n"
+            . "building_name（物件名）は次の規則で1つだけ設定してください:\n"
+            . "  - マンションの場合: マンションの正式名称（例: コスモ東高円寺ロイヤルフォルム）。\n"
+            . "  - 一戸建ての場合: 所在地から「市区町村＋町名＋戸建て」（例: 川口市弥平戸建て）。丁目・番地の数字は付けない。\n"
+            . "  - 土地の場合: 所在地から「市区町村＋町名＋土地」（例: 川口市弥平土地）。丁目・番地の数字は付けない。\n"
             . "price_text は「5,800万円」の様に表示用文字列で。\n"
             . "出力は JSON オブジェクトのみ。前後に説明文やコードフェンスを付けないこと。\n"
             . "キー: property_type, " . implode(', ', $fields);
@@ -1332,16 +1342,17 @@ if (!function_exists('propertyFlyerPageImages')) {
 
 if (!function_exists('propertyFlyerBuildCustomerPdf')) {
     /**
-     * ページ画像配列を、ページ毎の売主マスク領域で黒塗りし、複数ページの顧客用PDFを生成する。
+     * ページ画像配列を、ページ毎の売主マスク領域で白塗りし、複数ページの顧客用PDFを生成する。
+     * 併せて1ページ目のマスク済ラスタ画像（顧客サムネイル＆ビューア用）を永続保存する。
      * @param array $pageAbs  ページJPEG絶対パス配列
      * @param array $maskByPage  [pageIndex => [{x,y,w,h},...]]
-     * @return string|null 相対パス（UPLOAD_DIR基準）/ 失敗時 null
+     * @return array  ['pdf'=>相対パス|null, 'thumb'=>相対パス|null]
      */
-    function propertyFlyerBuildCustomerPdf(array $pageAbs, array $maskByPage, int $businessCardId, int $propertyId): ?string
+    function propertyFlyerBuildCustomerPdf(array $pageAbs, array $maskByPage, int $businessCardId, int $propertyId): array
     {
         $relDir = 'property/' . $businessCardId . '/' . $propertyId;
         $absDir = rtrim(UPLOAD_DIR, '/') . '/' . $relDir;
-        if (!is_dir($absDir) && !@mkdir($absDir, 0755, true) && !is_dir($absDir)) return null;
+        if (!is_dir($absDir) && !@mkdir($absDir, 0755, true) && !is_dir($absDir)) return ['pdf' => null, 'thumb' => null];
         $maskedPages = [];
         foreach ($pageAbs as $i => $page) {
             $regions = $maskByPage[$i] ?? [];
@@ -1349,12 +1360,20 @@ if (!function_exists('propertyFlyerBuildCustomerPdf')) {
             $mp = $absDir . '/maskpage_' . bin2hex(random_bytes(6)) . '.jpg';
             if (propertyApplyMaskToJpeg($page, $regions, $mp)) $maskedPages[] = $mp;
         }
-        if (!$maskedPages) return null;
+        if (!$maskedPages) return ['pdf' => null, 'thumb' => null];
+
+        // 顧客サムネイル＆ビューア用に1ページ目のマスク済画像を永続保存（長辺1400pxへ）
+        $thumbRel = null;
+        $thumbName = 'maskedthumb_' . bin2hex(random_bytes(8)) . '.jpg';
+        if (propertyRescaleAnyToJpeg($maskedPages[0], $absDir . '/' . $thumbName, 1400, 85)) {
+            $thumbRel = $relDir . '/' . $thumbName;
+        }
+
         $pdfName = 'masked_' . bin2hex(random_bytes(8)) . '.pdf';
         $absPdf = $absDir . '/' . $pdfName;
         $ok = propertyMultiJpegToPdf($maskedPages, $absPdf);
         foreach ($maskedPages as $mp) @unlink($mp);
-        return $ok ? ($relDir . '/' . $pdfName) : null;
+        return ['pdf' => $ok ? ($relDir . '/' . $pdfName) : null, 'thumb' => $thumbRel];
     }
 }
 
@@ -1774,12 +1793,14 @@ if (!function_exists('propertyFlyerProcessUploaded')) {
                 }
             }
 
-            // ⑧ 顧客用マスク済PDF（全ページ・売主情報を黒塗り）
-            $maskedRel = propertyFlyerBuildCustomerPdf($pageAbs, $maskByPage, $businessCardId, $propertyId);
+            // ⑧ 顧客用マスク済PDF（全ページ・売主情報を白塗り）＋サムネイル画像（下書き。公開は担当の確定後）
+            $built = propertyFlyerBuildCustomerPdf($pageAbs, $maskByPage, $businessCardId, $propertyId);
+            $maskedRel = $built['pdf'];
+            $maskedThumbRel = $built['thumb'];
 
             // 販売図面（flyer）行を更新
-            $db->prepare("UPDATE property_images SET preview_path=?, masked_path=?, mask_regions=?, mask_status=?, expires_at=? WHERE id=?")
-               ->execute([$previewRel, $maskedRel, json_encode($maskByPage, JSON_UNESCAPED_UNICODE), $maskedRel ? 'masked' : 'pending', $expiresAt, $imageId]);
+            $db->prepare("UPDATE property_images SET preview_path=?, masked_path=?, masked_thumb_path=?, mask_regions=?, mask_status=?, expires_at=? WHERE id=?")
+               ->execute([$previewRel, $maskedRel, $maskedThumbRel, json_encode($maskByPage, JSON_UNESCAPED_UNICODE), $maskedRel ? 'masked' : 'pending', $expiresAt, $imageId]);
 
             // ⑥ サムネイル（建物外観・間取り図のどちらも無ければ未設定）
             if ($thumb) {
@@ -1794,6 +1815,30 @@ if (!function_exists('propertyFlyerProcessUploaded')) {
             // 一時ページディレクトリの後始末
             foreach ($tmpFiles as $f) { $d = dirname($f); if (strpos($d, sys_get_temp_dir()) === 0 && is_dir($d) && count(glob($d . '/*')) === 0) @rmdir($d); }
         }
+    }
+}
+
+if (!function_exists('propertyMaskedThumbEnsure')) {
+    /**
+     * マスク済PDF（masked_path）はあるがサムネイル画像（masked_thumb_path）が無い販売図面に対し、
+     * PDF1ページ目をラスタライズしてサムネイルを遅延生成・保存し、相対パスを返す（旧データのバックフィル）。
+     */
+    function propertyMaskedThumbEnsure(PDO $db, int $imageId, string $maskedRel, int $businessCardId, int $propertyId): ?string
+    {
+        $absPdf = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($maskedRel, '/');
+        if (!is_file($absPdf)) return null;
+        $tmp = propertyRasterizePdfFirstPage($absPdf);
+        if (!$tmp) return null;
+        $relDir = 'property/' . $businessCardId . '/' . $propertyId;
+        $absDir = rtrim(UPLOAD_DIR, '/') . '/' . $relDir;
+        if (!is_dir($absDir) && !@mkdir($absDir, 0755, true) && !is_dir($absDir)) { @unlink($tmp); return null; }
+        $name = 'maskedthumb_' . bin2hex(random_bytes(8)) . '.jpg';
+        $ok = propertyRescaleAnyToJpeg($tmp, $absDir . '/' . $name, 1400, 85);
+        @unlink($tmp);
+        if (!$ok) return null;
+        $rel = $relDir . '/' . $name;
+        $db->prepare("UPDATE property_images SET masked_thumb_path = ? WHERE id = ?")->execute([$rel, $imageId]);
+        return $rel;
     }
 }
 

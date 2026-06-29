@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS property_images (
   -- 販売図面の売主情報マスク（顧客共有時に自動非表示）
   preview_path VARCHAR(512) NULL DEFAULT NULL,   -- 編集・マスク用ラスタJPEG
   masked_path VARCHAR(512) NULL DEFAULT NULL,     -- 顧客用マスク済PDF
+  masked_thumb_path VARCHAR(512) NULL DEFAULT NULL, -- 顧客用サムネイル＆ビューア画像（白抜き適用後の1ページ目）
   mask_regions TEXT NULL DEFAULT NULL,            -- ページ別マスク領域 {pageIndex:[{x,y,w,h}]} JSON
   mask_status ENUM('none','pending','masked') NOT NULL DEFAULT 'none',
   customer_visible TINYINT(1) NOT NULL DEFAULT 0, -- 担当が編集・確認を完了して公開した販売図面のみ顧客に表示

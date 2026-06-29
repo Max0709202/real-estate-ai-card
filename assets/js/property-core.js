@@ -24,8 +24,7 @@
   /* 基本情報フィールド定義（PHP propertyFieldDefs と一致）
      [key, label, group, types(空=全), agentOnly] */
   var FIELDS = [
-    ['property_name', '物件名', 'basic', [], false],
-    ['building_name', 'マンション名', 'basic', [], false],
+    ['building_name', '物件名', 'basic', [], false],
     ['price_text', '価格', 'basic', [], false],
     ['address', '所在地', 'basic', [], false],
     ['transport', '交通', 'basic', [], false],
@@ -47,7 +46,6 @@
     ['other_fees', 'その他費用', 'basic', [], false],
     ['current_status', '現況', 'basic', [], false],
     ['delivery', '引渡', 'basic', [], false],
-    ['transaction_type', '取引態様', 'basic', [], false],
     ['rent', '賃料', 'basic', [], false],
     ['yield_rate', '利回り', 'basic', [], false],
     ['remarks', '備考', 'basic', [], false],
@@ -56,6 +54,7 @@
     ['seller_person', '担当者名', 'seller', [], true],
     ['seller_email', 'メールアドレス', 'seller', [], true],
     ['seller_phone', '販売会社電話番号', 'seller', [], true],
+    ['transaction_type', '取引態様', 'seller', [], true],
     ['seller_remarks', '備考', 'seller', [], true]
   ];
 
@@ -118,10 +117,33 @@
     return 'rgba(' + r + ',' + g + ',' + b + ',0.12)';
   }
 
+  /* 住所から戸建/土地の物件名を推定（例: 埼玉県川口市弥平2丁目 → 川口市弥平戸建て）。building_name 未取得時のフォールバック。 */
+  function deriveNameFromAddress(p) {
+    var a = (p.address || '').trim();
+    if (!a) return '';
+    a = a.replace(/^(北海道|東京都|京都府|大阪府|.{2,3}県)/, '');     // 都道府県を除去
+    a = a.replace(/[0-9０-９一二三四五六七八九十]+\s*(丁目|番地|番|号).*$/, ''); // 丁目・番地以降を除去
+    a = a.replace(/[0-9０-９][\-－0-9０-９\s].*$/, '');                // 末尾の番地数字を除去
+    a = a.replace(/[\s　]+$/, '').trim();
+    if (!a) return '';
+    return a + (p.property_type === 'land' ? '土地' : '戸建て');
+  }
+
+  /* 物件名: building_name（マンション=名称）優先。戸建/土地で未取得なら住所から推定。 */
+  function displayName(p) {
+    if (p.building_name && String(p.building_name).trim() !== '') return String(p.building_name);
+    if (p.property_type === 'house' || p.property_type === 'land') {
+      var d = deriveNameFromAddress(p);
+      if (d) return d;
+    }
+    if (p.property_name && String(p.property_name).trim() !== '') return String(p.property_name); // 旧データ互換
+    return '（名称未取得）';
+  }
+
   /* ===== 物件カード（§1 / §4） ===== */
   function cardHtml(p, opts) {
     opts = opts || {};
-    var name = esc(p.building_name || p.property_name || '（名称未取得）');
+    var name = esc(displayName(p));
     var thumb = p.main_image_url
       ? '<div class="prop-card__thumb" style="background-image:url(' + esc(addAuth(p.main_image_url, opts)) + ')"></div>'
       : '<div class="prop-card__thumb prop-card__thumb--empty">No Image</div>';
@@ -160,7 +182,7 @@
 
   /* ===== 詳細ヘッダ（§9） ===== */
   function detailHeaderHtml(p) {
-    var name = esc(p.building_name || p.property_name || '（名称未取得）');
+    var name = esc(displayName(p));
     var sub = [];
     if (p.layout) sub.push(esc(p.layout));
     if (p.exclusive_area) sub.push(esc(p.exclusive_area));
@@ -239,25 +261,69 @@
     return '<div class="prop-gallery">' + images.map(function (im) {
       var url = addAuth(im.url, opts);
       var isImg = !im.mime_type || im.mime_type.indexOf('image/') === 0;
-      var inner = isImg
-        ? '<img src="' + esc(url) + '" alt="" loading="lazy" data-full="' + esc(url) + '">'
-        : '<a class="prop-thumb__pdf" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">PDF</a>';
+      var inner;
+      if (isImg) {
+        inner = '<img src="' + esc(url) + '" alt="" loading="lazy" data-full="' + esc(url) + '">';
+      } else if (im.thumb_url) {
+        // 販売図面PDF: マスク済みの縮小画像をサムネイル表示。タップでビューア（戻るボタン付き）。
+        var t = addAuth(im.thumb_url, opts);
+        inner = '<img src="' + esc(t) + '" alt="販売図面" loading="lazy" data-pdf="' + esc(url) + '" data-img="' + esc(t) + '"><span class="prop-thumb__badge">販売図面</span>';
+      } else {
+        inner = '<a class="prop-thumb__pdf" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">PDF</a>';
+      }
       var del = opts.removable ? '<button type="button" class="prop-thumb__del" data-del-img="' + im.id + '">×</button>' : '';
       return '<div class="prop-thumb">' + inner + del + '</div>';
     }).join('') + '</div>';
   }
 
+  /* 画像の拡大ビューア。＋/−（およびタップ）でズーム、スクロールで移動。PC・スマホ対応。 */
   function lightbox(url) {
+    var scale = 1;
     var ov = document.createElement('div');
     ov.className = 'prop-lightbox';
-    ov.innerHTML = '<button class="prop-lightbox__close">×</button><img src="' + esc(url) + '" alt="">';
-    ov.addEventListener('click', function () { document.body.removeChild(ov); });
+    ov.innerHTML =
+      '<div class="prop-lightbox__bar">' +
+        '<button type="button" class="prop-lb-btn" data-lb="out" aria-label="縮小">−</button>' +
+        '<button type="button" class="prop-lb-btn" data-lb="in" aria-label="拡大">＋</button>' +
+        '<button type="button" class="prop-lb-btn prop-lightbox__close" aria-label="閉じる">×</button>' +
+      '</div>' +
+      '<div class="prop-lightbox__body"><img src="' + esc(url) + '" alt=""></div>';
+    var img = ov.querySelector('img');
+    var body = ov.querySelector('.prop-lightbox__body');
+    function apply() { img.style.width = (scale * 100) + '%'; }
+    function close() { if (ov.parentNode) ov.parentNode.removeChild(ov); }
+    ov.querySelector('.prop-lightbox__close').addEventListener('click', close);
+    ov.querySelector('[data-lb="in"]').addEventListener('click', function (e) { e.stopPropagation(); scale = Math.min(6, scale + 0.5); apply(); });
+    ov.querySelector('[data-lb="out"]').addEventListener('click', function (e) { e.stopPropagation(); scale = Math.max(1, scale - 0.5); apply(); });
+    img.addEventListener('click', function (e) { e.stopPropagation(); scale = scale > 1 ? 1 : 2; apply(); });
+    body.addEventListener('click', function (e) { if (e.target === body) close(); });
     document.body.appendChild(ov);
   }
 
-  /* クリックで拡大（イベント委譲のヘルパ） */
+  /* 販売図面ビューア（戻る／×ボタン付き）。マスク済み画像を表示し、PDFを開くリンクも提供。 */
+  function pdfViewer(pdfUrl, imgUrl) {
+    var ov = document.createElement('div');
+    ov.className = 'prop-pdfviewer';
+    ov.innerHTML =
+      '<div class="prop-pdfviewer__bar">' +
+        '<button type="button" class="prop-pdfviewer__back" aria-label="戻る">← 戻る</button>' +
+        '<span class="prop-pdfviewer__title">販売図面</span>' +
+        (pdfUrl ? '<a class="prop-pdfviewer__open" href="' + esc(pdfUrl) + '" target="_blank" rel="noopener noreferrer">PDFを開く</a>' : '<span></span>') +
+        '<button type="button" class="prop-pdfviewer__close" aria-label="閉じる">×</button>' +
+      '</div>' +
+      '<div class="prop-pdfviewer__body">' + (imgUrl ? '<img src="' + esc(imgUrl) + '" alt="販売図面">' : '') + '</div>';
+    function close() { if (ov.parentNode) ov.parentNode.removeChild(ov); }
+    ov.querySelector('.prop-pdfviewer__back').addEventListener('click', close);
+    ov.querySelector('.prop-pdfviewer__close').addEventListener('click', close);
+    ov.querySelector('.prop-pdfviewer__body').addEventListener('click', function (e) { if (e.target === this) close(); });
+    document.body.appendChild(ov);
+  }
+
+  /* クリックで拡大／ビューア表示（イベント委譲のヘルパ） */
   function bindLightbox(container) {
     container.addEventListener('click', function (e) {
+      var pdf = e.target.closest('[data-pdf]');
+      if (pdf) { pdfViewer(pdf.getAttribute('data-pdf'), pdf.getAttribute('data-img')); return; }
       var t = e.target.closest('[data-full]');
       if (t) lightbox(t.getAttribute('data-full'));
     });
@@ -283,7 +349,7 @@
     esc: esc, icon: icon, STATUS: STATUS, FIELDS: FIELDS, TYPES: TYPES,
     sourceHtml: sourceHtml, statusBadgeHtml: statusBadgeHtml, cardHtml: cardHtml,
     detailHeaderHtml: detailHeaderHtml, basicInfoHtml: basicInfoHtml, hazardHtml: hazardHtml,
-    galleryHtml: galleryHtml, lightbox: lightbox, bindLightbox: bindLightbox, modal: modal,
+    galleryHtml: galleryHtml, lightbox: lightbox, pdfViewer: pdfViewer, bindLightbox: bindLightbox, modal: modal,
     addAuth: addAuth, hexToTint: hexToTint
   };
 })(window);

@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/property-helper.php';
 
 $imageId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $sessionId = trim($_GET['session_id'] ?? '');
@@ -50,15 +51,31 @@ try {
     $mime = $img['mime_type'] ?: 'application/octet-stream';
 
     if ($isCustomer && $isFlyer) {
-        // 顧客には、担当が編集・確認を完了して公開した（customer_visible=1）マスク済PDFのみ配信する。
-        // 編集未完了は配信しない（売主情報の漏えい防止）。
-        if (($img['mask_status'] ?? 'none') !== 'masked'
-            || (int)($img['customer_visible'] ?? 0) !== 1
-            || empty($img['masked_path'])) {
+        // 顧客には、担当が編集・確認を完了して公開した（customer_visible=1）販売図面のみ配信する。
+        // 編集未完了は配信しない（売主情報の漏えい防止）。マスク済PDF または マスク済サムネイル画像。
+        if (($img['mask_status'] ?? 'none') !== 'masked' || (int)($img['customer_visible'] ?? 0) !== 1) {
             http_response_code(403); echo 'forbidden'; exit();
         }
-        $relPath = $img['masked_path'];
-        $mime = 'application/pdf';
+        if ($variant === 'masked_thumb') {
+            $thumb = $img['masked_thumb_path'] ?? null;
+            if (empty($thumb) && !empty($img['masked_path'])) {
+                $thumb = propertyMaskedThumbEnsure($db, $imageId, $img['masked_path'], (int)$img['business_card_id'], (int)$img['property_id']);
+            }
+            if (empty($thumb)) { http_response_code(404); echo 'no thumb'; exit(); }
+            $relPath = $thumb; $mime = 'image/jpeg';
+        } elseif (!empty($img['masked_path'])) {
+            $relPath = $img['masked_path'];
+            $mime = 'application/pdf';
+        } else {
+            http_response_code(403); echo 'forbidden'; exit();
+        }
+    } elseif ($isAgent && $variant === 'masked_thumb') {
+        $thumb = $img['masked_thumb_path'] ?? null;
+        if (empty($thumb) && !empty($img['masked_path'])) {
+            $thumb = propertyMaskedThumbEnsure($db, $imageId, $img['masked_path'], (int)$img['business_card_id'], (int)$img['property_id']);
+        }
+        if (empty($thumb)) { http_response_code(404); echo 'no thumb'; exit(); }
+        $relPath = $thumb; $mime = 'image/jpeg';
     } elseif ($isAgent && $variant === 'masked' && !empty($img['masked_path'])) {
         $relPath = $img['masked_path'];
         $mime = 'application/pdf';

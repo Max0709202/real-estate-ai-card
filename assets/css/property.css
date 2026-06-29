@@ -120,6 +120,15 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-field input:focus, .prop-field select:focus, .prop-field textarea:focus { outline: 2px solid #bcd4ff; border-color: #2d6cdf; }
 .prop-form-actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
 
+/* OCR確認/編集モーダル: 販売図面プレビューを横に並べる（PC）／上下（スマホ） */
+.prop-edit-wrap { display: block; }
+.prop-edit-flyer__label { font-size: 12px; color: #6b7585; font-weight: 600; margin-bottom: 4px; }
+.prop-edit-flyer__img { width: 100%; border: 1px solid #e5e9f0; border-radius: 8px; cursor: zoom-in; display: block; margin-bottom: 8px; }
+@media (min-width: 760px) {
+  .prop-edit-wrap.has-flyer { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+  .prop-edit-wrap.has-flyer .prop-edit-flyer { position: sticky; top: 0; max-height: 78vh; overflow: auto; }
+}
+
 /* ===== ハザード（§12 / §13） ===== */
 .prop-hazard-list { display: flex; flex-direction: column; gap: 2px; }
 .prop-hazard-row { display: flex; align-items: center; gap: 10px; padding: 10px 6px; border-bottom: 1px solid #f0f2f6; }
@@ -134,6 +143,18 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-thumb { position: relative; aspect-ratio: 1/1; border-radius: 10px; overflow: hidden; background: #eef1f6; cursor: pointer; border: 1px solid #e5e9f0; }
 .prop-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .prop-thumb__pdf { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: #c0392b; font-weight: 700; font-size: 12px; text-decoration: none; }
+.prop-thumb__badge { position: absolute; left: 4px; top: 4px; background: rgba(45,108,223,.9); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; pointer-events: none; }
+
+/* 販売図面ビューア（戻る／×ボタン付き・全画面） */
+.prop-pdfviewer { position: fixed; inset: 0; z-index: 100001; background: rgba(15,23,40,.92); display: flex; flex-direction: column; }
+.prop-pdfviewer__bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #14223a; color: #fff; }
+.prop-pdfviewer__title { flex: 1 1 auto; text-align: center; font-weight: 700; font-size: 14px; }
+.prop-pdfviewer__back { background: rgba(255,255,255,.16); color: #fff; border: none; border-radius: 8px; padding: 8px 12px; font-weight: 700; font-size: 13px; cursor: pointer; }
+.prop-pdfviewer__back:hover { background: rgba(255,255,255,.28); }
+.prop-pdfviewer__open { color: #cfe0ff; font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.prop-pdfviewer__close { background: none; border: none; color: #fff; font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.prop-pdfviewer__body { flex: 1 1 auto; overflow: auto; -webkit-overflow-scrolling: touch; display: flex; align-items: flex-start; justify-content: center; padding: 12px; }
+.prop-pdfviewer__body img { max-width: 100%; height: auto; border-radius: 4px; background: #fff; }
 .prop-photo-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; padding: 2px 4px; text-align: center; }
 .prop-thumb__del { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 13px; line-height: 1; }
 .prop-flyer-view img { width: 100%; border-radius: 10px; border: 1px solid #e5e9f0; }
@@ -162,9 +183,13 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-mask-del { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; background: #e8384f; color: #fff; font-size: 13px; line-height: 1; cursor: pointer; }
 
 /* ライトボックス */
-.prop-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 100000; display: flex; align-items: center; justify-content: center; padding: 20px; }
-.prop-lightbox img { max-width: 96vw; max-height: 92vh; border-radius: 8px; }
-.prop-lightbox__close { position: absolute; top: 16px; right: 20px; color: #fff; font-size: 30px; cursor: pointer; background: none; border: none; }
+.prop-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 100000; display: flex; flex-direction: column; }
+.prop-lightbox__bar { display: flex; gap: 8px; justify-content: flex-end; padding: 10px 14px; }
+.prop-lb-btn { width: 40px; height: 40px; border-radius: 8px; border: none; background: rgba(255,255,255,.16); color: #fff; font-size: 20px; line-height: 1; cursor: pointer; }
+.prop-lb-btn:hover { background: rgba(255,255,255,.3); }
+.prop-lightbox__close { font-size: 24px; }
+.prop-lightbox__body { flex: 1 1 auto; overflow: auto; -webkit-overflow-scrolling: touch; padding: 0 12px 16px; text-align: center; }
+.prop-lightbox__body img { width: 100%; max-width: 1200px; height: auto; border-radius: 6px; background: #fff; cursor: zoom-in; transition: width .12s; }
 
 /* ===== ステータス選択シート（顧客 §5） ===== */
 .prop-status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

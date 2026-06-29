@@ -92,19 +92,23 @@ try {
         $isPdf = (strtolower((string)$img['mime_type']) === 'application/pdf')
             || strtolower(pathinfo($absOriginal, PATHINFO_EXTENSION)) === 'pdf';
         $pg = propertyFlyerPageImages($absOriginal, $isPdf, 6);
-        $maskedRel = $pg['pages'] ? propertyFlyerBuildCustomerPdf($pg['pages'], $byPage, (int)$img['business_card_id'], (int)$img['property_id']) : null;
+        $built = $pg['pages'] ? propertyFlyerBuildCustomerPdf($pg['pages'], $byPage, (int)$img['business_card_id'], (int)$img['property_id']) : ['pdf' => null, 'thumb' => null];
+        $maskedRel = $built['pdf'];
+        $maskedThumbRel = $built['thumb'];
         foreach ($pg['tmp'] as $f) { if (is_file($f)) @unlink($f); }
         if (!$maskedRel) sendErrorResponse('マスク処理に失敗しました', 500);
 
-        // 旧マスクPDFを削除
-        if (!empty($img['masked_path'])) {
-            $oldAbs = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($img['masked_path'], '/');
-            if (is_file($oldAbs)) @unlink($oldAbs);
+        // 旧マスクPDF・旧サムネイルを削除
+        foreach (['masked_path', 'masked_thumb_path'] as $oldKey) {
+            if (!empty($img[$oldKey])) {
+                $oldAbs = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($img[$oldKey], '/');
+                if (is_file($oldAbs)) @unlink($oldAbs);
+            }
         }
 
         // 担当が編集・確認を完了 → 顧客に公開（customer_visible=1）
-        $db->prepare("UPDATE property_images SET masked_path = ?, mask_regions = ?, mask_status = 'masked', customer_visible = 1 WHERE id = ?")
-           ->execute([$maskedRel, json_encode($byPage, JSON_UNESCAPED_UNICODE), $imageId]);
+        $db->prepare("UPDATE property_images SET masked_path = ?, masked_thumb_path = ?, mask_regions = ?, mask_status = 'masked', customer_visible = 1 WHERE id = ?")
+           ->execute([$maskedRel, $maskedThumbRel, json_encode($byPage, JSON_UNESCAPED_UNICODE), $imageId]);
 
         sendSuccessResponse([
             'image_id' => $imageId,

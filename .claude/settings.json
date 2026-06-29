@@ -57,12 +57,11 @@
       "Bash(php -l config/config.php)",
       "Bash(php -l api/chat/send.php)",
       "Bash(CHAT_MANSION_DEBUG=1 php -r ' *)",
-      "Bash(php -r 'require_once \"config/config.php\"; *)",
-      "Bash(mysql --version)",
-      "Bash(mysql -u xs013436_nishio -prenewal4329 xs013436_realestatecard)",
-      "Bash(mysql -u xs013436_nishio -prenewal4329 xs013436_realestatecard -e \"DESCRIBE chat_notification_jobs;\")",
-      "Bash(php backend/api/cron/process-notification-queue.php)",
-      "Bash(php -l backend/api/cron/process-notification-queue.php)"
+      "Bash(php -l backend/api/property/image.php)",
+      "Bash(php -l backend/api/property/flyer-mask.php)",
+      "Bash(php -r 'require \"backend/config/config.php\"; require \"backend/config/database.php\"; require \"backend/includes/property-helper.php\"; $db=\\(new Database\\(\\)\\)->getConnection\\(\\); propertyEnsureTables\\($db\\); $c=$db->query\\(\"SELECT COUNT\\(*\\) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE\\(\\) AND TABLE_NAME=\\\\\"property_images\\\\\" AND COLUMN_NAME=\\\\\"masked_thumb_path\\\\\"\"\\)->fetchColumn\\(\\); echo \"masked_thumb_path exists: $c\\\\n\";')",
+      "Bash(php /tmp/t2.php)",
+      "Bash(rm -f /tmp/t2.php)"
     ]
   }
 }
