@@ -102,15 +102,17 @@ try {
             if (is_file($oldAbs)) @unlink($oldAbs);
         }
 
-        $db->prepare("UPDATE property_images SET masked_path = ?, mask_regions = ?, mask_status = 'masked' WHERE id = ?")
+        // 担当が編集・確認を完了 → 顧客に公開（customer_visible=1）
+        $db->prepare("UPDATE property_images SET masked_path = ?, mask_regions = ?, mask_status = 'masked', customer_visible = 1 WHERE id = ?")
            ->execute([$maskedRel, json_encode($byPage, JSON_UNESCAPED_UNICODE), $imageId]);
 
         sendSuccessResponse([
             'image_id' => $imageId,
             'mask_status' => 'masked',
+            'customer_visible' => 1,
             'regions' => $regions,
             'masked_url' => API_BASE_URL . '/property/image.php?id=' . $imageId . '&variant=masked',
-        ], '顧客共有用のマスク済販売図面を更新しました');
+        ], '顧客共有用のマスク済販売図面を保存し、顧客に公開しました');
     }
 
     sendErrorResponse('Method not allowed', 405);

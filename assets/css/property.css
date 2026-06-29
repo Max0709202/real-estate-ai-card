@@ -154,8 +154,10 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-mask-editor { margin: 8px 0; }
 .prop-mask-canvas { position: relative; display: inline-block; max-width: 100%; line-height: 0; touch-action: none; user-select: none; border: 1px solid #d6dde8; border-radius: 6px; overflow: hidden; }
 .prop-mask-canvas img { max-width: 100%; height: auto; display: block; pointer-events: none; }
-/* 編集用の領域インジケータ（実際の出力は白べた）。視認できるよう半透明の白＋青破線枠で表示。 */
-.prop-mask-rect { position: absolute; background: rgba(255,255,255,.78); border: 2px dashed #2d6cdf; cursor: move; box-sizing: border-box; box-shadow: 0 0 0 1px rgba(45,108,223,.35) inset; }
+/* 編集用の領域インジケータ。白抜きを透明度10%程度（不透明度90%）で表示し、下地が少し見えるようにする。
+   実際の顧客用出力は白べた（不透明）。青破線枠で領域を視認しやすくする。 */
+.prop-mask-rect { position: absolute; background: rgba(255,255,255,.9); border: 2px dashed #2d6cdf; cursor: move; box-sizing: border-box; box-shadow: 0 0 0 1px rgba(45,108,223,.35) inset; }
+.prop-preview-canvas { max-width: 100%; height: auto; display: block; border: 1px solid #d6dde8; border-radius: 6px; margin: 0 auto; }
 .prop-mask-handle { position: absolute; right: -7px; bottom: -7px; width: 16px; height: 16px; background: #2d6cdf; border: 2px solid #fff; border-radius: 50%; cursor: se-resize; }
 .prop-mask-del { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; background: #e8384f; color: #fff; font-size: 13px; line-height: 1; cursor: pointer; }
 
@@ -172,6 +174,7 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 /* ===== モーダル ===== */
 .prop-modal-overlay { position: fixed; inset: 0; background: rgba(15,23,40,.55); z-index: 99990; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .prop-modal { background: #fff; border-radius: 16px; width: 100%; max-width: 480px; max-height: 90vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.prop-modal.prop-modal--wide { max-width: 760px; }
 .prop-modal__head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #eef1f6; position: sticky; top: 0; background: #fff; }
 .prop-modal__head h3 { margin: 0; font-size: 16px; }
 .prop-modal__close { background: none; border: none; font-size: 22px; cursor: pointer; color: #8a93a2; line-height: 1; }

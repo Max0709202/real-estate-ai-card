@@ -93,6 +93,7 @@ if (!function_exists('propertyEnsureTables')) {
           masked_path VARCHAR(512) NULL DEFAULT NULL,
           mask_regions TEXT NULL DEFAULT NULL,
           mask_status ENUM('none','pending','masked') NOT NULL DEFAULT 'none',
+          customer_visible TINYINT(1) NOT NULL DEFAULT 0,
           expires_at TIMESTAMP NULL DEFAULT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX idx_property_images_property (property_id, category, display_order),
@@ -113,6 +114,8 @@ if (!function_exists('propertyEnsureFlyerMaskColumns')) {
             'masked_path'  => "ADD COLUMN masked_path VARCHAR(512) NULL DEFAULT NULL AFTER preview_path",
             'mask_regions' => "ADD COLUMN mask_regions TEXT NULL DEFAULT NULL AFTER masked_path",
             'mask_status'  => "ADD COLUMN mask_status ENUM('none','pending','masked') NOT NULL DEFAULT 'none' AFTER mask_regions",
+            // 顧客への公開可否（担当が編集・確認を完了して初めて 1。既定 0 = 非公開）
+            'customer_visible' => "ADD COLUMN customer_visible TINYINT(1) NOT NULL DEFAULT 0 AFTER mask_status",
         ];
         foreach ($cols as $name => $ddl) {
             try {
@@ -344,7 +347,7 @@ if (!function_exists('propertyImagesFor')) {
     function propertyImagesFor(PDO $db, int $propertyId, ?string $category = null): array
     {
         $sql = "SELECT id, category, subcategory, original_name, mime_type, width, height, display_order,
-                       preview_path, masked_path, mask_regions, mask_status
+                       preview_path, masked_path, mask_regions, mask_status, customer_visible
                 FROM property_images WHERE property_id = ?";
         $params = [$propertyId];
         if ($category) { $sql .= " AND category = ?"; $params[] = $category; }
@@ -359,6 +362,7 @@ if (!function_exists('propertyImagesFor')) {
             $r['preview_url'] = $base . $id . '&variant=preview';     // 編集用ラスタ
             $r['masked_url'] = !empty($r['masked_path']) ? $base . $id . '&variant=masked' : null;
             $r['mask_status'] = $r['mask_status'] ?? 'none';
+            $r['customer_visible'] = (int)($r['customer_visible'] ?? 0);
             $r['mask_regions'] = !empty($r['mask_regions']) ? json_decode($r['mask_regions'], true) : [];
             unset($r['preview_path'], $r['masked_path']);
             $out[] = $r;
@@ -385,10 +389,13 @@ if (!function_exists('propertySerialize')) {
         $flyers = array_values(array_filter($images, fn($i) => $i['category'] === 'flyer'));
         $photos = array_values(array_filter($images, fn($i) => $i['category'] === 'photo'));
 
-        // 顧客向けには「マスク確定済（masked）」の販売図面のみ公開し、配信は常にマスク済PDFにする
-        // （§4/§5 売主情報の自動非表示・⑤ 顧客画面では加工済PDFのみ表示）。
+        // 顧客向けには「担当が編集・確認を完了して公開した（customer_visible=1）」販売図面のみ公開する。
+        // 編集未完了のものは絶対に出さない（売主仲介会社情報の漏えい防止）。配信は常にマスク済PDF。
         if (!$forAgent) {
-            $flyers = array_values(array_filter($flyers, fn($i) => ($i['mask_status'] ?? 'none') === 'masked'));
+            $flyers = array_values(array_filter($flyers, fn($i) =>
+                ($i['mask_status'] ?? 'none') === 'masked'
+                && (int)($i['customer_visible'] ?? 0) === 1
+                && !empty($i['masked_url'])));
             foreach ($flyers as &$fl) {
                 $fl['mime_type'] = 'application/pdf';
                 if (!empty($fl['masked_url'])) $fl['url'] = $fl['masked_url'];
@@ -859,11 +866,14 @@ if (!function_exists('propertyRasterizePdfFirstPage')) {
  * ────────────────────────────────────────────────────────── */
 
 if (!function_exists('propertyFlyerBottomBandRegions')) {
-    /** 既定の提案マスク範囲。販売図面の約9割は下段に売主情報があるため、下端の帯を返す。 */
+    /**
+     * 既定の提案マスク範囲。販売図面の多くは A4横（297×210mm）で、下段に売主情報がある。
+     * A4横の下3cm = 30/210 ≈ 14.3% を全幅でデフォルト白抜きにする。
+     */
     function propertyFlyerBottomBandRegions(): array
     {
-        // 正規化座標（左上原点, 0..1）。下端18%・全幅。
-        return [['x' => 0.0, 'y' => 0.82, 'w' => 1.0, 'h' => 0.18]];
+        // 正規化座標（左上原点, 0..1）。下端 約14.3%（A4横の下3cm相当）・全幅。
+        return [['x' => 0.0, 'y' => 0.857, 'w' => 1.0, 'h' => 0.143]];
     }
 }
 
@@ -1289,12 +1299,13 @@ if (!function_exists('propertyFlyerAnalyzePage')) {
         foreach (($parsed['mask_regions'] ?? []) as $r) {
             if (!is_array($r)) continue;
             $reg = propertyClampRegion($r['x'] ?? null, $r['y'] ?? null, $r['w'] ?? null, $r['h'] ?? null);
-            if ($reg) $mask[] = $reg;
+            // 図面の大半を覆う領域（誤検出）は除外。売主情報は通常ページの一部のみ。
+            if ($reg && ($reg['w'] * $reg['h']) <= 0.7) $mask[] = $reg;
         }
         // 売主情報マスクが検出できなければ、その他領域＋下端帯を保険にする
         if (empty($mask)) {
             foreach ($items as $it) {
-                if (!$it['saveable']) $mask[] = ['x' => $it['x'], 'y' => $it['y'], 'w' => $it['w'], 'h' => $it['h']];
+                if (!$it['saveable'] && ($it['w'] * $it['h']) <= 0.7) $mask[] = ['x' => $it['x'], 'y' => $it['y'], 'w' => $it['w'], 'h' => $it['h']];
             }
             if (empty($mask)) $mask = propertyFlyerBottomBandRegions();
         }
@@ -1700,10 +1711,13 @@ if (!function_exists('propertyFlyerProcessUploaded')) {
             $pageItems = [];
             $thumb = null; // ['id'=>, 'prio'=>]
 
-            // ② 各ページをGPT-4.5で解析（顧客PDF用の売主マスク領域を収集。items はフォールバック用）
+            // ② 各ページをGPT-4.5で解析（写真抽出のフォールバック用 items を取得）。
+            //    マスクの既定は「A4横の下3cm（全幅）」に統一する（担当が編集画面で調整・確定する）。
+            //    確定するまで顧客には公開されない（customer_visible=0）。
+            $defaultBand = propertyFlyerBottomBandRegions();
             foreach ($pageAbs as $pi => $page) {
                 $analysis = propertyFlyerAnalyzePage($page);
-                $maskByPage[$pi] = $analysis['mask_regions'] ?? [];
+                $maskByPage[$pi] = $defaultBand;
                 $pageItems[$pi] = $analysis['items'] ?? [];
             }
 

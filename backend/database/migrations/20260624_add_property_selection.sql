@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS property_images (
   masked_path VARCHAR(512) NULL DEFAULT NULL,     -- 顧客用マスク済PDF
   mask_regions TEXT NULL DEFAULT NULL,            -- ページ別マスク領域 {pageIndex:[{x,y,w,h}]} JSON
   mask_status ENUM('none','pending','masked') NOT NULL DEFAULT 'none',
+  customer_visible TINYINT(1) NOT NULL DEFAULT 0, -- 担当が編集・確認を完了して公開した販売図面のみ顧客に表示
   expires_at TIMESTAMP NULL DEFAULT NULL,         -- 保存期間（既定6か月）。経過後は cron で自動削除
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,

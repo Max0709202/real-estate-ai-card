@@ -50,8 +50,11 @@ try {
     $mime = $img['mime_type'] ?: 'application/octet-stream';
 
     if ($isCustomer && $isFlyer) {
-        // 顧客には売主情報をマスク済の販売図面（PDF）のみ。未確定なら配信しない。
-        if (($img['mask_status'] ?? 'none') !== 'masked' || empty($img['masked_path'])) {
+        // 顧客には、担当が編集・確認を完了して公開した（customer_visible=1）マスク済PDFのみ配信する。
+        // 編集未完了は配信しない（売主情報の漏えい防止）。
+        if (($img['mask_status'] ?? 'none') !== 'masked'
+            || (int)($img['customer_visible'] ?? 0) !== 1
+            || empty($img['masked_path'])) {
             http_response_code(403); echo 'forbidden'; exit();
         }
         $relPath = $img['masked_path'];
