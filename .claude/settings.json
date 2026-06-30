@@ -78,7 +78,8 @@
       "Bash(grep -n 'API_BASE_URL.*image.php\\\\|API_BASE_URL . '\\\\''/property\\\\|$base = ' backend/includes/property-helper.php)",
       "Bash(php -r 'require \"backend/config/config.php\"; require \"backend/includes/property-helper.php\"; echo \"base=\".propertyImageBaseUrl\\(\\).\"\\\\n\";')",
       "Bash(sed -n '/function propertyFlyerModel/,/^    }/p' backend/includes/property-helper.php)",
-      "Bash(grep -n 'propertyExtractFromImages\\\\|model = '\\\\''gpt\\\\|$model =\\\\|callOpenAIChat\\\\|chatOpenAIApiKeyForModel' backend/includes/property-helper.php)"
+      "Bash(grep -n 'propertyExtractFromImages\\\\|model = '\\\\''gpt\\\\|$model =\\\\|callOpenAIChat\\\\|chatOpenAIApiKeyForModel' backend/includes/property-helper.php)",
+      "Bash(node -c assets/js/property-agent.js)"
     ]
   }
 }

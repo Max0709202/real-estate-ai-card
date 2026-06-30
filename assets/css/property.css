@@ -156,7 +156,9 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-pdfviewer__body { flex: 1 1 auto; overflow: auto; -webkit-overflow-scrolling: touch; display: flex; align-items: flex-start; justify-content: center; padding: 12px; }
 .prop-pdfviewer__body img { max-width: 100%; height: auto; border-radius: 4px; background: #fff; }
 .prop-photo-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; padding: 2px 4px; text-align: center; }
-.prop-thumb__del { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 13px; line-height: 1; }
+.prop-thumb__del { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; z-index: 2; }
+.prop-thumb__del:hover { background: #e8384f; }
+.prop-thumb__del svg { width: 14px; height: 14px; }
 .prop-flyer-view img { width: 100%; border-radius: 10px; border: 1px solid #e5e9f0; }
 
 /* ===== 販売図面マスク（売主情報の自動非表示） ===== */

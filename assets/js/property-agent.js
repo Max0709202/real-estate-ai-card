@@ -300,11 +300,12 @@
   }
 
   /* 画像（§14 販売図面 / §15 写真・資料）
-     写真・資料は販売図面アップロード時にAIが自動抽出・分類して登録するため、ここでは閲覧のみ（手動追加/削除なし）。 */
+     写真・資料は販売図面アップロード時にAIが自動抽出・分類して登録する（手動追加は不可）。
+     誤抽出された写真は、各写真の削除ボタンで個別に削除できる。 */
   function loadImages(p, category) {
     var pane = P.querySelector('[data-pane="' + category + '"]');
     if (category === 'photo') {
-      pane.innerHTML = '<div class="prop-msg prop-msg--info" style="margin-top:8px">販売図面のアップロード時に、AIが建物外観・間取り図・室内・設備・地図を自動で抽出し登録します（最大10枚）。会社情報を含む画像は登録されません。</div>' +
+      pane.innerHTML = '<div class="prop-msg prop-msg--info" style="margin-top:8px">販売図面のアップロード時に、AIが建物外観・間取り図・室内・設備・地図を自動で抽出し登録します（最大10枚）。会社情報を含む画像は登録されません。建物外観の写真が無い場合は抽出されません。誤って抽出された写真は、各写真の削除ボタンで削除できます。</div>' +
         '<div id="prop-img-body"><div class="prop-empty"><span class="prop-spinner"></span></div></div>';
       refreshImages(p, category);
       return;
@@ -338,15 +339,16 @@
       if (!res.success) return;
       var prop = res.data.property;
       if (category === 'flyer') { renderFlyerList(p, body, prop.flyers || []); return; }
-      // 写真・資料: 閲覧のみ（分類ラベル付き）
+      // 写真・資料: 分類ラベル付き。誤抽出時は写真ごとに削除できる。
       var photos = prop.photos || [];
       if (!photos.length) { body.innerHTML = '<div class="prop-empty">販売図面をアップロードすると、AIが抽出した写真・資料が自動で表示されます。</div>'; return; }
       body.innerHTML = '<div class="prop-gallery">' + photos.map(function (im) {
         var url = UI.addAuth(im.url, {});
         var cap = im.subcategory ? '<span class="prop-photo-cap">' + UI.esc(im.subcategory) + '</span>' : '';
-        return '<div class="prop-thumb"><img src="' + UI.esc(url) + '" alt="" loading="lazy" data-full="' + UI.esc(url) + '">' + cap + '</div>';
+        return '<div class="prop-thumb"><img src="' + UI.esc(url) + '" alt="" loading="lazy" data-full="' + UI.esc(url) + '">' + cap +
+          '<button type="button" class="prop-thumb__del" data-del-img="' + im.id + '" aria-label="この写真を削除" title="この写真を削除">' + UI.icon('trash') + '</button></div>';
       }).join('') + '</div>';
-      UI.bindLightbox(body);
+      bindDeletes(body, p, category);
     });
   }
   function bindDeletes(body, p, category) {

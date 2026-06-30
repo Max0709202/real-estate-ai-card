@@ -27,7 +27,8 @@ try {
 
     // 所有検証（画像→物件→名刺→user）
     $stmt = $db->prepare("
-        SELECT pi.id, pi.stored_path, pi.thumb_path
+        SELECT pi.id, pi.property_id, pi.stored_path, pi.thumb_path,
+               pi.preview_path, pi.masked_path, pi.masked_thumb_path
         FROM property_images pi
         JOIN properties p ON p.id = pi.property_id
         JOIN business_cards bc ON bc.id = pi.business_card_id
@@ -37,13 +38,19 @@ try {
     $img = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$img) sendErrorResponse('画像が見つかりません', 404);
 
-    foreach (['stored_path', 'thumb_path'] as $k) {
+    // 関連ファイル（原本・サムネ・プレビュー・顧客用マスクPDF・マスクサムネ）をすべて削除
+    foreach (['stored_path', 'thumb_path', 'preview_path', 'masked_path', 'masked_thumb_path'] as $k) {
         if (!empty($img[$k])) {
             $abs = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($img[$k], '/');
             if (is_file($abs)) @unlink($abs);
         }
     }
     $db->prepare("DELETE FROM property_images WHERE id = ?")->execute([$imageId]);
+
+    // 一覧サムネイルに使われていた写真なら参照を解除する
+    $db->prepare("UPDATE properties SET thumbnail_image_id = NULL WHERE id = ? AND thumbnail_image_id = ?")
+       ->execute([(int)$img['property_id'], $imageId]);
+
     sendSuccessResponse([], '削除しました');
 } catch (Exception $e) {
     error_log('property image-delete error: ' . $e->getMessage());
