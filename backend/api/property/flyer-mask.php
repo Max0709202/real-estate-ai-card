@@ -59,12 +59,12 @@ try {
 
         sendSuccessResponse([
             'image_id' => $imageId,
-            'preview_url' => !empty($img['preview_path']) ? (API_BASE_URL . '/property/image.php?id=' . $imageId . '&variant=preview') : null,
+            'preview_url' => !empty($img['preview_path']) ? (propertyImageBaseUrl() . $imageId . '&variant=preview') : null,
             'width' => $size['width'] ?? null,
             'height' => $size['height'] ?? null,
             'regions' => $regions,
             'mask_status' => $img['mask_status'] ?? 'none',
-            'masked_url' => !empty($img['masked_path']) ? (API_BASE_URL . '/property/image.php?id=' . $imageId . '&variant=masked') : null,
+            'masked_url' => !empty($img['masked_path']) ? (propertyImageBaseUrl() . $imageId . '&variant=masked') : null,
         ], 'OK');
     }
 
@@ -115,7 +115,7 @@ try {
             'mask_status' => 'masked',
             'customer_visible' => 1,
             'regions' => $regions,
-            'masked_url' => API_BASE_URL . '/property/image.php?id=' . $imageId . '&variant=masked',
+            'masked_url' => propertyImageBaseUrl() . $imageId . '&variant=masked',
         ], '顧客共有用のマスク済販売図面を保存し、顧客に公開しました');
     }
 

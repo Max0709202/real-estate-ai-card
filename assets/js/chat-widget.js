@@ -1810,17 +1810,22 @@
 
     // Turn Japanese addresses into Google Maps links. Matches text that starts
     // with a prefecture name, followed by one or more 市/区/町/村/郡 segments and
-    // an optional 番地 part. This requires an administrative unit (so "東京都心の
-    // 物件" / "東京都の人口" do not match) and stops cleanly at the end of the
-    // address rather than running into surrounding prose. '県' is excluded from
-    // the inner character class so a match cannot bleed into a following
-    // prefecture (e.g. "...港区と神奈川県川崎市" stays two separate links).
+    // a REQUIRED full 番地 (street/lot number). This requires an administrative
+    // unit (so "東京都心の物件" / "東京都の人口" do not match) and stops cleanly at
+    // the end of the address rather than running into surrounding prose. '県' is
+    // excluded from the inner character class so a match cannot bleed into a
+    // following prefecture (e.g. "...港区と神奈川県川崎市" stays two separate links).
+    //
+    // The 番地 must contain at least two number groups joined by a hyphen or a
+    // 丁目/番/号/条 separator (e.g. "弥平2-20-3" or "弥平2丁目20番3号"). A bare 丁目
+    // number such as "弥平2" is not a pinpoint location, so it no longer matches
+    // and gets no red pin / link. This rule is applied uniformly to every address.
     var ADDRESS_DELIM = '\\s\\n、。，,「」『』（）()【】\\[\\]＜＞<>＆&"！!？?…：:；;／/';
     var ADDRESS_INNER = '[^' + ADDRESS_DELIM + '県]';
     var ADDRESS_RE = new RegExp(
         '((?:' + ADDRESS_PREFECTURES + ')' +
         '(?:' + ADDRESS_INNER + '{0,6}?(?:市|区|町|村|郡)){1,4}' +
-        '(?:' + ADDRESS_INNER + '*?[0-9０-９][0-9０-９条丁目番地号西東南北\\-‐―ー－]*)?)',
+        ADDRESS_INNER + '*?[0-9０-９]+(?:[条丁目番地号西東南北\\-‐―ー－]+[0-9０-９]+)+[条丁目番地号]*)',
         'g'
     );
 

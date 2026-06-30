@@ -61,7 +61,22 @@
       "Bash(php -l backend/api/property/flyer-mask.php)",
       "Bash(php -r 'require \"backend/config/config.php\"; require \"backend/config/database.php\"; require \"backend/includes/property-helper.php\"; $db=\\(new Database\\(\\)\\)->getConnection\\(\\); propertyEnsureTables\\($db\\); $c=$db->query\\(\"SELECT COUNT\\(*\\) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE\\(\\) AND TABLE_NAME=\\\\\"property_images\\\\\" AND COLUMN_NAME=\\\\\"masked_thumb_path\\\\\"\"\\)->fetchColumn\\(\\); echo \"masked_thumb_path exists: $c\\\\n\";')",
       "Bash(php /tmp/t2.php)",
-      "Bash(rm -f /tmp/t2.php)"
+      "Bash(rm -f /tmp/t2.php)",
+      "Bash(node -e ' *)",
+      "Bash(php -r 'echo \"disable_functions=[\".ini_get\\(\"disable_functions\"\\).\"]\\\\n\"; echo \"shell_exec: \".\\(function_exists\\(\"shell_exec\"\\)?\"yes\":\"NO\"\\).\"\\\\n\"; echo \"exec: \".\\(function_exists\\(\"exec\"\\)?\"yes\":\"NO\"\\).\"\\\\n\"; echo \"proc_open: \".\\(function_exists\\(\"proc_open\"\\)?\"yes\":\"NO\"\\).\"\\\\n\";')",
+      "Bash(php /tmp/diag.php)",
+      "Bash(rm -f /tmp/diag.php)",
+      "Bash(php /tmp/imgtest.php)",
+      "Bash(rm -f /tmp/imgtest.php)",
+      "Bash(sed -n '/function startSessionIfNotStarted/,/^}/p' backend/includes/functions.php)",
+      "Bash(grep -n 'session_start\\\\|session_name\\\\|startSessionIfNotStarted\\\\|$_SESSION\\\\['\\\\''user_id'\\\\''\\\\]\\\\|session_set_cookie' edit.php)",
+      "Bash(grep -n 'startSessionIfNotStarted\\\\|session_name\\\\|$_SESSION\\\\['\\\\''user_id'\\\\''\\\\]' backend/api/chat/attachment/download.php)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}  type=%{content_type}  size=%{size_download}\\\\n\" \"https://www.ai-fcard.com/backend/api/property/image.php?id=134\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}  type=%{content_type}  size=%{size_download}\\\\n\" \"https://www.ai-fcard.com/backend/api/property/image.php?id=133&variant=preview\")",
+      "Bash(curl -s \"https://www.ai-fcard.com/backend/api/property/image.php?id=134\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://www.ai-fcard.com/backend/api/property/get.php?id=55\")",
+      "Bash(grep -n 'API_BASE_URL.*image.php\\\\|API_BASE_URL . '\\\\''/property\\\\|$base = ' backend/includes/property-helper.php)",
+      "Bash(php -r 'require \"backend/config/config.php\"; require \"backend/includes/property-helper.php\"; echo \"base=\".propertyImageBaseUrl\\(\\).\"\\\\n\";')"
     ]
   }
 }

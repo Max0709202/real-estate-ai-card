@@ -346,6 +346,19 @@ if (!function_exists('propertyVerifyAgentProperty')) {
 /* ──────────────────────────────────────────────────────────
  * 取得・整形
  * ────────────────────────────────────────────────────────── */
+if (!function_exists('propertyImageBaseUrl')) {
+    /**
+     * 物件画像配信URLのベース（相対パス）。
+     * 同一オリジンで配信するため絶対URL（www固定）ではなく相対パスにする。
+     * www/非www 等オリジンが異なるとセッションCookieが送られず担当の画像が403になるため。
+     */
+    function propertyImageBaseUrl(): string
+    {
+        $path = parse_url(API_BASE_URL, PHP_URL_PATH);
+        return ($path ?: '/backend/api') . '/property/image.php?id=';
+    }
+}
+
 if (!function_exists('propertyImagesFor')) {
     function propertyImagesFor(PDO $db, int $propertyId, ?string $category = null): array
     {
@@ -357,7 +370,7 @@ if (!function_exists('propertyImagesFor')) {
         $sql .= " ORDER BY display_order ASC, id ASC";
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
-        $base = API_BASE_URL . '/property/image.php?id=';
+        $base = propertyImageBaseUrl();
         $out = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $id = (int)$r['id'];
@@ -515,6 +528,7 @@ if (!function_exists('propertyExtractionPrompt')) {
             . "  - 一戸建ての場合: 所在地から「市区町村＋町名＋戸建て」（例: 川口市弥平戸建て）。丁目・番地の数字は付けない。\n"
             . "  - 土地の場合: 所在地から「市区町村＋町名＋土地」（例: 川口市弥平土地）。丁目・番地の数字は付けない。\n"
             . "price_text は「5,800万円」の様に表示用文字列で。\n"
+            . "取引態様 transaction_type は『売主／代理／一般媒介／専任媒介／専属専任媒介／媒介』等の記載が図面にあれば、必ずそのまま取得してください。\n"
             . "出力は JSON オブジェクトのみ。前後に説明文やコードフェンスを付けないこと。\n"
             . "キー: property_type, " . implode(', ', $fields);
     }
@@ -812,7 +826,7 @@ if (!function_exists('propertyStoreUploadedFile')) {
             'id' => $id, 'category' => $category, 'subcategory' => $subcategory,
             'original_name' => $origName, 'mime_type' => $mime, 'width' => $width, 'height' => $height,
             'stored_path' => $relPath, 'abs_path' => $absPath, 'is_image' => $isImage ? 1 : 0, 'is_pdf' => $isPdf ? 1 : 0,
-            'url' => API_BASE_URL . '/property/image.php?id=' . $id,
+            'url' => propertyImageBaseUrl() . $id,
         ];
     }
 }
