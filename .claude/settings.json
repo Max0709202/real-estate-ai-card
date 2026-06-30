@@ -76,7 +76,9 @@
       "Bash(curl -s \"https://www.ai-fcard.com/backend/api/property/image.php?id=134\")",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://www.ai-fcard.com/backend/api/property/get.php?id=55\")",
       "Bash(grep -n 'API_BASE_URL.*image.php\\\\|API_BASE_URL . '\\\\''/property\\\\|$base = ' backend/includes/property-helper.php)",
-      "Bash(php -r 'require \"backend/config/config.php\"; require \"backend/includes/property-helper.php\"; echo \"base=\".propertyImageBaseUrl\\(\\).\"\\\\n\";')"
+      "Bash(php -r 'require \"backend/config/config.php\"; require \"backend/includes/property-helper.php\"; echo \"base=\".propertyImageBaseUrl\\(\\).\"\\\\n\";')",
+      "Bash(sed -n '/function propertyFlyerModel/,/^    }/p' backend/includes/property-helper.php)",
+      "Bash(grep -n 'propertyExtractFromImages\\\\|model = '\\\\''gpt\\\\|$model =\\\\|callOpenAIChat\\\\|chatOpenAIApiKeyForModel' backend/includes/property-helper.php)"
     ]
   }
 }
