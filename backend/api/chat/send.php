@@ -56,6 +56,12 @@ if ($message === '' && !empty($attachmentIds)) {
     $message = '[ファイルを送信しました]';
 }
 
+// 「土地/ハザード情報を確認」ボタン：選択値(住所)で土地情報フローを実行する通常メッセージへ変換。
+if ($buttonSelection !== null && ($buttonSelection['field'] ?? '') === 'land_hazard' && !empty($buttonSelection['value'])) {
+    $message = trim((string)$buttonSelection['value']) . ' の土地情報・ハザード情報（用途地域・建ぺい率・容積率・都市計画・浸水／土砂／液状化など）を教えてください';
+    $buttonSelection = null;
+}
+
 try {
     $database = new Database();
     $db = $database->getConnection();
@@ -161,16 +167,22 @@ try {
         $reply = $intake['reply'];
         $sources = [];
     } else {
-        $directMansionAnswer = chatMansionDbDirectAnswer($db, $message, $card['name'] ?? '担当者');
+        $agentName = $card['name'] ?? '担当者';
+        // マンション名での土地/ハザード照会 → DBから住所を解決し、住所入りクエリで
+        // 標準の土地情報フロー（用途地域・建ぺい率・容積率・ハザード等）を実行する。
+        $mansionLand = chatMansionLandQueryAddress($db, $message);
+        $directMansionAnswer = $mansionLand === null ? chatMansionDbDirectAnswer($db, $message, $agentName) : null;
         if ($directMansionAnswer !== null) {
             $reply = $directMansionAnswer['reply'];
             $sources = $directMansionAnswer['sources'];
+            // マンション名・住所を表示したので「土地/ハザード情報を確認」ボタンを添える。
+            if (!empty($directMansionAnswer['quick_replies'])) $quickReplies = $directMansionAnswer['quick_replies'];
             if (!empty($directMansionAnswer['meta'])) {
                 chatLogPublicDataAccess($db, $sessionId, (int)$card['id'], $message, $directMansionAnswer['meta']);
             }
         } else {
-            $agentName = $card['name'] ?? '担当者';
-            $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName, $db, $sessionId);
+            $landMessage = $mansionLand !== null ? $mansionLand['query'] : $message;
+            $result = getBotReplyWithOpenAI($landMessage, $conversationHistory, $agentName, $db, $sessionId);
 
             if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
                 error_log('Chat OpenAI error: ' . ($result['error'] ?? 'empty reply'));
@@ -179,6 +191,10 @@ try {
             } else {
                 $reply = $result['reply'];
                 $sources = $result['sources'];
+                // マンション名から住所を解決して回答した場合、対象物件・住所を先頭に明示する。
+                if ($mansionLand !== null) {
+                    $reply = $mansionLand['building_name'] . '（' . $mansionLand['full_address'] . '）の土地情報です。' . "\n\n" . $reply;
+                }
             }
         }
     }

@@ -59,6 +59,15 @@
     if (!toggleBtn || !panel || !messagesContainer || !inputEl || !sendBtn) return;
 
     var visitorId = getOrCreateVisitorId();
+    // メール通知のリンク（card.php?...&open=contact|property）から開いた場合、
+    // セッション復帰後に該当タブを自動表示する。
+    var deepLinkTab = (function () {
+        try {
+            var v = new URLSearchParams(window.location.search).get('open');
+            return (v === 'contact' || v === 'property') ? v : null;
+        } catch (e) { return null; }
+    })();
+    var deepLinkHandled = false;
     var sessionId = null;
     var sessionGeo = null; // 同一セッションで再利用するGPS座標 {lat, lon}
     var canUseLoanSim = true;
@@ -1113,6 +1122,11 @@
                     if (!canUseLoanSim && quickActions) quickActions.style.display = 'none';
                     startAgentPoll();
                     maybeRequestNotificationPermission();
+                    // メール通知リンク（&open=contact|property）から開いた場合、該当タブを自動表示。
+                    if (deepLinkTab && !deepLinkHandled) {
+                        deepLinkHandled = true;
+                        try { renderFeatureTab(deepLinkTab); } catch (e) {}
+                    }
                 } else {
                     appendBotMessage(data.message || '申し訳ございません。いまチャットをご利用いただけません。');
                     setInputEnabled(false);
@@ -2854,6 +2868,9 @@
         });
     }
     if (chatOnly) {
+        showPanel();
+    } else if (deepLinkTab) {
+        // メール通知のリンクから来訪 → パネルを自動で開く（セッション復帰後に該当タブを表示）。
         showPanel();
     }
 })();

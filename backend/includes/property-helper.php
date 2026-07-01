@@ -1895,6 +1895,19 @@ if (!function_exists('propertyCreate')) {
         ]);
         $id = (int)$db->lastInsertId();
         if ($fields) propertyApplyFields($db, $id, $fields);
+
+        // 担当が物件を追加 → 顧客へメール通知（60秒バッチ・未読中は抑制）。
+        // 顧客のメール未登録・失敗は内部で握りつぶす（業務処理は壊さない）。
+        if (($meta['created_by'] ?? 'agent') === 'agent') {
+            try {
+                require_once __DIR__ . '/customer-notification-helper.php';
+                if (function_exists('customerNotifyEnqueue')) {
+                    customerNotifyEnqueue($db, (string)$meta['session_id'], 'property');
+                }
+            } catch (Throwable $e) {
+                error_log('property create notify error: ' . $e->getMessage());
+            }
+        }
         return $id;
     }
 }

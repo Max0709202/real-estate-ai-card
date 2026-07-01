@@ -154,7 +154,11 @@ function chatPublicDataCachedPostJson($db, $provider, $url, $payload, $headers =
             is_array($result['data']) ? json_encode($result['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : ($result['body'] ?? ''),
             $result['status'] ?? null,
             $result['error'] ?? null,
-            !empty($result['ok']) ? max(60, (int)$ttlSeconds) : 300,
+            // 成功応答は通常TTLでキャッシュ。取得失敗（タイムアウト・通信エラー等）は
+            // 長くキャッシュすると「一度失敗すると同じ住所でしばらく失敗し続ける」不安定さの
+            // 原因になるため、ごく短時間（20秒）だけにして次回リクエストで必ず再取得させる。
+            // ※HTTP 200 で中身が空（＝該当なし/区域外）は ok=true 扱いのため通常TTLで保持する。
+            !empty($result['ok']) ? max(60, (int)$ttlSeconds) : 20,
         ]);
     }
     return $result;
@@ -193,7 +197,11 @@ function chatPublicDataCachedGet($db, $provider, $url, $headers = [], $ttlSecond
             is_array($result['data']) ? json_encode($result['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : ($result['body'] ?? ''),
             $result['status'] ?? null,
             $result['error'] ?? null,
-            !empty($result['ok']) ? max(60, (int)$ttlSeconds) : 300,
+            // 成功応答は通常TTLでキャッシュ。取得失敗（タイムアウト・通信エラー等）は
+            // 長くキャッシュすると「一度失敗すると同じ住所でしばらく失敗し続ける」不安定さの
+            // 原因になるため、ごく短時間（20秒）だけにして次回リクエストで必ず再取得させる。
+            // ※HTTP 200 で中身が空（＝該当なし/区域外）は ok=true 扱いのため通常TTLで保持する。
+            !empty($result['ok']) ? max(60, (int)$ttlSeconds) : 20,
         ]);
     }
     return $result;
@@ -733,6 +741,108 @@ function chatMansionDebugLog($label, $value) {
 }
 
 /**
+ * 土地情報取得のデバッグログ。入力住所・正規化住所・ジオコーディング結果・各API
+ * リクエスト/レスポンス・最終的な取得方法などを追跡できるようにする。
+ * CHAT_LAND_DEBUG または CHAT_MANSION_DEBUG が有効なときだけ出力する。
+ */
+function chatLandDebugLog($label, $value = '') {
+    $on = (defined('CHAT_LAND_DEBUG') && CHAT_LAND_DEBUG) || (defined('CHAT_MANSION_DEBUG') && CHAT_MANSION_DEBUG);
+    if (!$on) return;
+    if (is_array($value) || is_object($value)) {
+        $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+    error_log('[LandInfo] ' . $label . ': ' . $value);
+}
+
+/**
+ * 日本の住所を検索・ジオコーディング用に正規化する。
+ *  - 郵便番号（〒123-4567 / 123-4567）を除去
+ *  - 全角英数・スペースを半角へ
+ *  - 丁目の漢数字を算用数字へ（"三丁目"→"3丁目"）
+ *  - 「N丁目M番地L号」等を「N-M-L」のハイフン形式へ統一
+ *  - ダッシュ類（－‐ー―等）を半角ハイフンへ
+ * 変換に失敗しても元の住所を壊さないよう、可能な範囲で整えて返す。
+ */
+function chatNormalizeJapaneseAddress($addr) {
+    $s = trim((string)$addr);
+    if ($s === '') return '';
+    if (class_exists('Normalizer')) {
+        $n = Normalizer::normalize($s, Normalizer::FORM_KC);
+        if (is_string($n) && $n !== '') $s = $n;
+    }
+    // 全角英数字→半角、全角スペース→半角
+    $s = mb_convert_kana($s, 'as');
+    // 郵便番号を除去（〒付き / 数字のみ 3-4桁）
+    $s = preg_replace('/〒\s*/u', '', $s);
+    $s = preg_replace('/\b\d{3}[-－]?\d{4}\b/u', ' ', $s);
+    // 丁目の漢数字→算用数字
+    $s = chatChomeKanjiToArabic($s);
+    // ダッシュ類を半角ハイフンへ統一
+    $s = preg_replace('/[－‐ー―—\x{2010}-\x{2015}\x{2212}\x{FF0D}]/u', '-', $s);
+    // 「N丁目」「N番地」「N番」→「N-」、「N号」→「N」
+    $s = preg_replace('/(\d+)\s*丁目/u', '$1-', $s);
+    $s = preg_replace('/(\d+)\s*番地/u', '$1-', $s);
+    $s = preg_replace('/(\d+)\s*番/u', '$1-', $s);
+    $s = preg_replace('/(\d+)\s*号/u', '$1', $s);
+    // ハイフン周りの空白を除去し、連続ハイフンをまとめる
+    $s = preg_replace('/\s*-\s*/u', '-', $s);
+    $s = preg_replace('/-{2,}/u', '-', $s);
+    // 末尾の余分なハイフンを除去
+    $s = preg_replace('/-+$/u', '', $s);
+    // 余分な空白を除去
+    $s = preg_replace('/\s{2,}/u', ' ', $s);
+    return trim($s);
+}
+
+/**
+ * 住所を段階的にジオコーディングして緯度経度を得る（安定化のための多段リトライ）。
+ *   ① 入力住所そのままで検索
+ *   ② 正規化住所で検索
+ *   ③ さらに末尾の号・番地を落とした粗い住所（町丁目レベル）で検索
+ * 取得できた時点でその結果を返し、どの方法で取得したかを 'method' に格納する。
+ * すべて失敗したら null。各段階をデバッグログへ出力する。
+ */
+function chatGeocodeAddressRobust($db, $address) {
+    $raw = trim((string)$address);
+    if ($raw === '') return null;
+    chatLandDebugLog('geocode_input', $raw);
+
+    // ① 入力住所そのまま
+    $geo = chatAddressGeocode($db, $raw);
+    if ($geo) {
+        $geo['method'] = 'address_raw';
+        chatLandDebugLog('geocode_success', ['method' => 'address_raw', 'lat' => $geo['lat'], 'lon' => $geo['lon'], 'title' => $geo['title'] ?? '']);
+        return $geo;
+    }
+
+    // ② 正規化住所
+    $norm = chatNormalizeJapaneseAddress($raw);
+    chatLandDebugLog('geocode_normalized', $norm);
+    if ($norm !== '' && $norm !== $raw) {
+        $geo = chatAddressGeocode($db, $norm);
+        if ($geo) {
+            $geo['method'] = 'address_normalized';
+            chatLandDebugLog('geocode_success', ['method' => 'address_normalized', 'lat' => $geo['lat'], 'lon' => $geo['lon'], 'title' => $geo['title'] ?? '']);
+            return $geo;
+        }
+    }
+
+    // ③ 号・番地を落とした粗い住所（町丁目レベル）— 精度ガードを避けて座標だけでも取得
+    $coarse = preg_replace('/-\d+$/u', '', $norm);
+    if ($coarse !== '' && $coarse !== $norm) {
+        $geo = chatAddressGeocode($db, $coarse);
+        if ($geo) {
+            $geo['method'] = 'address_coarse';
+            chatLandDebugLog('geocode_success', ['method' => 'address_coarse', 'lat' => $geo['lat'], 'lon' => $geo['lon'], 'title' => $geo['title'] ?? '']);
+            return $geo;
+        }
+    }
+
+    chatLandDebugLog('geocode_failed', ['raw' => $raw, 'normalized' => $norm]);
+    return null;
+}
+
+/**
  * All transit options stored for a building (up to 14), not just the nearest one.
  * Reads transports_json with a graceful fallback to the nearest_* columns. Each line
  * is "路線 駅 徒歩N分" with the 駅 suffix normalized.
@@ -840,6 +950,7 @@ function chatMansionGenerateIntroduction($facts, $agentName = '担当者') {
 - 【物件データ】に書かれている事実のみを使う。書かれていない項目（売主・施工会社・管理会社・管理方式・価格・坪単価・共用施設・学区・周辺施設・ハザード情報・リセール等）は推測・創作を一切しない。
 - それらの情報が無い場合、無理に章立てを埋めず、「当社データベースには登録がありません」と正直に伝え、必要なら私（{$agentLabel}）が個別にお調べします、と添える。
 - データの数値・固有名詞は変えない。築年数の概算（築○年目安）はそのまま使ってよい。
+- 所在地（住所）は【物件データ】の表記を、丁目・番地・号まで一字一句省略せずそのまま記載する（「○丁目」などに短縮しない）。
 - 専門用語の羅列ではなく、お客様が読みやすい自然な文章にする。丸写しではなく、立地・規模・築年・アクセスといった特徴や魅力が伝わるように説明する。
 - 出力は本文のみ。出典表記やデータ取得情報のフッターは付けない（システム側で付与する）。
 
@@ -932,6 +1043,17 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
             if (empty($facts)) return null;
             $reply = ($row['building_name'] ?? '該当マンション') . 'について、当社データベースでは次の内容を確認できます。' . "\n\n・" . implode("\n・", $facts);
         }
+        // 所在地（住所）は必ず正確な全文（丁目・番地・号まで）を表示する。GPTが自然文化の
+        // 過程で「○丁目」までに省略することがあるため、本文に全文が含まれていなければ
+        // 末尾に正確な所在地を補う（実データのみ・創作なし）。
+        $fullAddr = trim((string)($row['full_address'] ?? ''));
+        if ($fullAddr !== '') {
+            $normReply = chatMansionNormalizeText($reply);
+            $normAddr = chatMansionNormalizeText($fullAddr);
+            if ($normAddr !== '' && mb_strpos($normReply, $normAddr) === false) {
+                $reply .= "\n\n所在地：" . $fullAddr;
+            }
+        }
         if (count($rows) > count($confident)) {
             $reply .= "\n\n※似た名称の候補が他にもあります。別の物件の場合は、住所やエリアを添えていただくと、より正確に絞り込めます。";
         }
@@ -946,17 +1068,85 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
         ]];
         $footer = chatPublicDataTransparencyFooter($meta);
         if ($footer !== '') $reply .= "\n\n" . $footer;
+        // マンション名／住所が表示されたので、ワンタップで土地・ハザード情報を確認できる
+        // 選択肢ボタンを添える（タップ時は住所で土地情報フローを実行する）。
+        $qrTarget = $fullAddr !== '' ? $fullAddr : trim((string)($row['building_name'] ?? ''));
+        $quickReplies = $qrTarget !== '' ? [[
+            'label' => '土地/ハザード情報を確認',
+            'value' => $qrTarget,
+            'field' => 'land_hazard',
+        ]] : [];
         return [
             'reply' => $reply,
             'sources' => chatPublicDataSourcesForUi([$source], $meta),
             'row' => $row,
             'meta' => $meta,
+            'quick_replies' => $quickReplies,
         ];
     } catch (Throwable $e) {
         error_log('Mansion DB direct answer error: ' . $e->getMessage());
     }
 
     return null;
+}
+
+/** 土地/ハザード情報の照会意図があるか（用途地域・建ぺい率・浸水・災害 等）。 */
+function chatMessageAsksLandInfo($message) {
+    return (bool)preg_match('/(土地情報|土地の情報|土地|ハザード|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|津波|高潮|急傾斜|都市計画|用途地域|建ぺい率|建蔽率|容積率|区域区分|市街化|防火|地区計画)/u', (string)$message);
+}
+
+/**
+ * メッセージ中のマンション名を全国マンションDBで解決し、正式な住所を返す。
+ * 「土地」「ハザード」等の照会語を除去してから建物名を抽出するため、
+ * 「エルザタワー55の土地情報」からでも建物を特定できる。
+ * @return array|null ['building_name','full_address','row'] または null
+ */
+function chatResolveMansionAddress($db, $message) {
+    if (!$db instanceof PDO) return null;
+    // 土地/ハザード等の照会語を除去（建物名抽出のノイズになるため）。
+    $clean = preg_replace('/(土地の個別情報|土地情報|土地|ハザード(?:情報|マップ)?|災害|防災|浸水|洪水|水害|土砂災害|土砂|地盤|液状化|津波|高潮|急傾斜地?|都市計画|用途地域|建ぺい率|建蔽率|容積率|区域区分|市街化(?:調整)?区域|市街化|防火(?:・準防火)?地域|防火|地区計画)/u', ' ', (string)$message);
+    try {
+        $terms = chatExtractMansionSearchTerms($clean);
+        if (empty($terms) || !chatMansionTermLooksSpecific($terms, $clean)) return null;
+        $rows = chatMansionDbSearchRows($db, $terms, 5);
+        if (empty($rows)) return null;
+        foreach ($rows as $r) {
+            if (chatMansionRowConfident($r, $terms, false) && !empty($r['full_address'])) {
+                return [
+                    'building_name' => trim((string)($r['building_name'] ?? '')),
+                    'full_address'  => trim((string)$r['full_address']),
+                    'row' => $r,
+                ];
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('chatResolveMansionAddress error: ' . $e->getMessage());
+    }
+    return null;
+}
+
+/**
+ * 「マンション名＋土地/ハザード照会」を検出し、DBから住所を解決して
+ * 標準の土地情報フローに渡せるクエリ（住所入り）を組み立てる。
+ * 既に住所が含まれている場合や、マンションを特定できない場合は null（＝通常処理）。
+ * @return array|null ['building_name','full_address','query']
+ */
+function chatMansionLandQueryAddress($db, $message) {
+    $message = (string)$message;
+    if (!chatMessageAsksLandInfo($message)) return null;
+    // 住所が既に入力されている場合は、通常の土地情報フローがそのまま扱える。
+    if (chatMessageContainsAddress($message)) return null;
+    $resolved = chatResolveMansionAddress($db, $message);
+    if ($resolved === null) return null;
+    $addr = $resolved['full_address'];
+    // 住所＋土地キーワードを含むクエリにして、公的データ取得ゲート・ルーターを通す。
+    $query = $addr . ' の土地情報・ハザード情報（用途地域・建ぺい率・容積率・都市計画・浸水／土砂／液状化など）を教えてください';
+    chatLandDebugLog('mansion_land_resolved', ['building' => $resolved['building_name'], 'address' => $addr]);
+    return [
+        'building_name' => $resolved['building_name'],
+        'full_address'  => $addr,
+        'query' => $query,
+    ];
 }
 
 function chatPublicDataTrimForPrompt($data, $maxLength = 4000) {
@@ -1265,7 +1455,8 @@ function chatReinfoResolveLatLon($db, $area, $message) {
     // as this address's data — see chatAddressGeocode()'s precision guard).
     $addr = chatExtractAddressFromMessage($message);
     if ($addr !== null) {
-        $geo = chatAddressGeocode($db, $addr);
+        // 住所の正規化＋多段リトライで、同じ住所でも安定して座標を取得できるようにする。
+        $geo = chatGeocodeAddressRobust($db, $addr);
         return $geo ?: null;
     }
     // No street-level address present (e.g. a general "渋谷区の地価" question): use
@@ -1643,9 +1834,11 @@ function chatReinfoTileContext($db, $code, $def, $message, $area) {
             'y' => $center['y'] + $off[1],
         ], $extra);
         $url = 'https://www.reinfolib.mlit.go.jp/ex-api/external/' . $code . '?' . http_build_query($query);
+        chatLandDebugLog('api_request', ['provider' => $code, 'z' => $query['z'], 'x' => $query['x'], 'y' => $query['y'], 'url' => chatPublicDataRedactUrl($url)]);
         $result = chatPublicDataCachedGet($db, 'reinfolib', $url, ['Ocp-Apim-Subscription-Key' => REINFOLIB_API_KEY], 2592000);
         $fetchedAt = $result['fetched_at'] ?? $fetchedAt;
         if (empty($result['cached'])) $cached = false;
+        chatLandDebugLog('api_response', ['provider' => $code, 'x' => $query['x'], 'y' => $query['y'], 'ok' => !empty($result['ok']), 'status' => $result['status'] ?? null, 'cached' => !empty($result['cached']), 'features' => is_array($result['data']) ? count($result['data']['features'] ?? []) : 0, 'error' => $result['error'] ?? '']);
         if (!$result['ok'] || !is_array($result['data'])) {
             // Genuine fetch FAILURE (transport/HTTP error) — distinct from a
             // successful-but-empty response (= 該当なし/区域外). Log so it is visible

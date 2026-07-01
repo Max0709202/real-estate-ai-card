@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
+require_once __DIR__ . '/../../../includes/customer-notification-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -81,6 +82,8 @@ try {
     // 顧客が担当連絡タブを開いたとき（mark_read）のみ既読化する。
     if ($markRead) {
         agentMsgMarkRead($db, $sessionId, 'agent');
+        // 顧客向けメール通知（担当連絡）の未読解除（送信前ならキャンセル）。
+        customerNotifyMarkRead($db, $sessionId, 'contact');
     }
 
     // 現時点の未読件数（担当連絡チャネルの担当発言で read_at IS NULL のもの）。

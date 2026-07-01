@@ -79,7 +79,12 @@
       "Bash(php -r 'require \"backend/config/config.php\"; require \"backend/includes/property-helper.php\"; echo \"base=\".propertyImageBaseUrl\\(\\).\"\\\\n\";')",
       "Bash(sed -n '/function propertyFlyerModel/,/^    }/p' backend/includes/property-helper.php)",
       "Bash(grep -n 'propertyExtractFromImages\\\\|model = '\\\\''gpt\\\\|$model =\\\\|callOpenAIChat\\\\|chatOpenAIApiKeyForModel' backend/includes/property-helper.php)",
-      "Bash(node -c assets/js/property-agent.js)"
+      "Bash(node -c assets/js/property-agent.js)",
+      "Bash(grep -n 'slug\\\\|session\\\\|focus\\\\|visitor\\\\|$_GET' card.php)",
+      "Bash(grep -n \"toggleBtn.addEventListener\\\\|}\\)\\(.*\\);*$\\\\|}\\(\\)\\);\\\\|^}\\)\\(\\);\" assets/js/chat-widget.js)",
+      "Bash(grep -n 'markRead\\\\|mark_read\\\\|$markRead\\\\|MarkRead\\\\|require_once' backend/api/chat/customer/poll.php)",
+      "Bash(php -l backend/includes/customer-notification-helper.php)",
+      "Bash(node -c assets/js/chat-widget.js)"
     ]
   }
 }

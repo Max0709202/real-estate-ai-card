@@ -16,14 +16,19 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/notification-helper.php';
+require_once __DIR__ . '/../../includes/customer-notification-helper.php';
 
 // 1回の実行で送る上限（SMTP負荷・取りこぼし防止のバランス）。
 $maxPerRun = (int)(getenv('NOTIFY_MAX_PER_RUN') ?: 50);
 
 try {
     $db = (new Database())->getConnection();
+    // 担当（営業）向け通知
     $result = notifyFlushDue($db, $maxPerRun);
-    echo "Notification flush: {$result['sent']} sent, {$result['failed']} failed\n";
+    echo "Notification flush (agent): {$result['sent']} sent, {$result['failed']} failed\n";
+    // 顧客向け通知（物件追加 / 担当連絡）
+    $cust = customerNotifyFlushDue($db, $maxPerRun);
+    echo "Notification flush (customer): {$cust['sent']} sent, {$cust['failed']} failed\n";
     exit(0);
 } catch (Exception $e) {
     error_log('Notification Queue Processor Error: ' . $e->getMessage());
