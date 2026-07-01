@@ -3891,7 +3891,7 @@ $defaultGreetings = [
                             fetch(apiBase + '/agent/read.php', {
                                 method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
                                 body: JSON.stringify({ session_id: sessionId })
-                            });
+                            }).then(function() { notifyUnreadChanged(); }).catch(function() {});
                         }
                     })
                     .catch(function() {});
@@ -3914,7 +3914,7 @@ $defaultGreetings = [
                 fetch(apiBase + '/agent/read.php', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
                     body: JSON.stringify({ session_id: sessionId })
-                }).catch(function() {});
+                }).then(function() { notifyUnreadChanged(); }).catch(function() {});
 
                 var autoBtn = document.getElementById('agent-chat-auto');
                 var polishBtn = document.getElementById('agent-chat-polish');
@@ -4069,6 +4069,12 @@ $defaultGreetings = [
             }
             updateNavUnreadBadge();
             setInterval(function() { if (!document.hidden) updateNavUnreadBadge(); }, 15000);
+
+            // 既読化などで未読数が変わった時に、ナビ／ホームアイコン両方のバッジを即時更新する。
+            function notifyUnreadChanged() {
+                try { updateNavUnreadBadge(); } catch (e) {}
+                try { window.dispatchEvent(new Event('chat:unread-changed')); } catch (e) {}
+            }
 
             loadSessions();
 

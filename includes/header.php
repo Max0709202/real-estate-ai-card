@@ -134,8 +134,10 @@ if ($isLoggedIn) {
     <div class="container">
         <div class="header-content">
             <div class="logo">
-                <a href="index.php<?php echo htmlspecialchars($existingNavSuffix); ?>">
+                <a href="index.php<?php echo htmlspecialchars($existingNavSuffix); ?>" style="position: relative; display: inline-block;">
                     <img src="assets/images/logo.png" alt="不動産AI名刺">
+                    <!-- 未読通知バッジ（担当連絡の未読件数）。ログイン中のみJSで表示。 -->
+                    <span id="home-notify-badge" class="home-notify-badge" style="display:none;position:absolute;top:-6px;right:-10px;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;background:#e53935;color:#fff;border-radius:9px;font-size:11px;line-height:18px;text-align:center;font-weight:bold;box-shadow:0 0 0 2px #fff;">0</span>
                 </a>
             </div>
             <?php if ($isEraMember): ?>
@@ -638,6 +640,45 @@ if ($isLoggedIn) {
 </script>
 
 
+
+<?php if ($isLoggedIn): ?>
+<!-- ホームアイコン（ロゴ）上の未読通知バッジ。担当連絡の未読件数を全ページで表示する。 -->
+<script>
+(function() {
+  function initHomeNotifyBadge() {
+    var badge = document.getElementById('home-notify-badge');
+    if (!badge) return;
+    var pollUrl = <?php echo json_encode(rtrim(BASE_URL, '/') . '/backend/api/chat/agent/poll.php'); ?>;
+    function refresh() {
+      fetch(pollUrl, { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (!res || !res.success || !res.data) return;
+          var n = parseInt(res.data.total_unread, 10) || 0;
+          if (n > 0) {
+            badge.textContent = n > 99 ? '99+' : String(n);
+            badge.style.display = '';
+          } else {
+            badge.style.display = 'none';
+          }
+        })
+        .catch(function() {});
+    }
+    refresh();
+    // 30秒毎に更新（タブが非表示の間はスキップ）。
+    setInterval(function() { if (!document.hidden) refresh(); }, 30000);
+    // 既読などで未読数が変わった時に即時反映（マイページ等が発火）。
+    window.refreshHomeNotifyBadge = refresh;
+    window.addEventListener('chat:unread-changed', refresh);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initHomeNotifyBadge);
+  } else {
+    initHomeNotifyBadge();
+  }
+})();
+</script>
+<?php endif; ?>
 
 <!-- Mobile Menu Script -->
 <script src="assets/js/mobile-menu.js"></script>

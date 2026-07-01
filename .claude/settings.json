@@ -84,7 +84,8 @@
       "Bash(grep -n \"toggleBtn.addEventListener\\\\|}\\)\\(.*\\);*$\\\\|}\\(\\)\\);\\\\|^}\\)\\(\\);\" assets/js/chat-widget.js)",
       "Bash(grep -n 'markRead\\\\|mark_read\\\\|$markRead\\\\|MarkRead\\\\|require_once' backend/api/chat/customer/poll.php)",
       "Bash(php -l backend/includes/customer-notification-helper.php)",
-      "Bash(node -c assets/js/chat-widget.js)"
+      "Bash(node -c assets/js/chat-widget.js)",
+      "Bash(php -l includes/header.php)"
     ]
   }
 }
