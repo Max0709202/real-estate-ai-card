@@ -1357,6 +1357,17 @@ if (!empty($card['profile_photo'])) {
     <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
     <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>" defer></script>
     <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>
+    <?php $vapidPublicKey = getenv('VAPID_PUBLIC_KEY') ?: ''; if ($vapidPublicKey !== ''): ?>
+    <!-- ホーム画面アイコンのアプリバッジ（Web Push / PWA） -->
+    <script>
+      window.__PUSH_CFG__ = {
+        vapidPublicKey: <?php echo json_encode($vapidPublicKey); ?>,
+        swUrl: <?php echo json_encode(rtrim(BASE_URL, '/') . '/push-sw.js'); ?>,
+        subscribeUrl: <?php echo json_encode(rtrim(BASE_URL, '/') . '/backend/api/push/subscribe.php'); ?>
+      };
+    </script>
+    <script src="assets/js/push-badge.js?v=<?php echo filemtime(__DIR__ . '/assets/js/push-badge.js'); ?>" defer></script>
+    <?php endif; ?>
     <?php elseif ($chatOnly): ?>
     <div class="chat-only-unavailable">
         <div class="chat-only-unavailable-box">

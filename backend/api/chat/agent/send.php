@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../../includes/chat-crm-helper.php';
 require_once __DIR__ . '/../../../includes/customer-notification-helper.php';
+require_once __DIR__ . '/../../../includes/push-helper.php';
 require_once __DIR__ . '/../../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -52,6 +53,10 @@ try {
 
     // 顧客へメール通知（60秒バッチ・未読中は抑制）。メール未登録・失敗は握りつぶす。
     customerNotifyEnqueue($db, $sessionId, 'contact');
+
+    // ホーム画面アイコンのアプリバッジ用に、顧客端末へ空Push（tickle）を送る。
+    // 受信側SWが未読数を取得して setAppBadge する。購読が無ければ何もしない。
+    pushSendToSession($db, $sessionId);
 
     // 担当連絡とAI担当は独立したチャネルのため、AIの自動応答は止めない。
 

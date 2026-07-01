@@ -105,6 +105,11 @@
     var agentPollTimer = null;
     var agentUnreadCount = 0;
     var pendingAttachments = [];
+    // Web Push（ホーム画面アイコンのバッジ）連携用に現在のセッション情報を公開する。
+    window.__aiFcardChat = window.__aiFcardChat || {};
+    window.__aiFcardChat.getSession = function () {
+        return sessionId ? { sessionId: sessionId, visitorId: visitorId || '', apiBase: apiBase } : null;
+    };
     // 担当連絡（人間担当↔顧客）チャネル。AI担当スレッドとは別に保持する。
     var contactMessages = [];
     var contactPendingAttachments = [];
@@ -1594,9 +1599,7 @@
             }
         }
         if (input) {
-            input.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendContactMessage(); }
-            });
+            // Enterでは送信しない（改行を入力）。送信は送信ボタン、または音声で「送信」と発話した時のみ。
             input.addEventListener('paste', function (e) { handlePasteToAttach(e, uploadContactAttachment); });
         }
         if (attachB && fileI) {
@@ -1660,6 +1663,8 @@
 
     // ===== 担当連絡：担当からの新着ポーリング・通知・未読バッジ =====
     function setContactTabBadge(count) {
+        // ホーム画面アイコンのアプリバッジ（PWA）にも未読数を反映（対応環境のみ）。
+        if (window.PushBadge && window.PushBadge.setBadge) { try { window.PushBadge.setBadge(count); } catch (e) {} }
         if (!tabBar) return;
         var btn = tabBar.querySelector('.chat-widget-tab[data-chat-tab="contact"]');
         if (!btn) return;
@@ -1869,6 +1874,18 @@
         try { recognition.stop(); } catch (e) {}
     }
 
+    // 音声入力の末尾に含まれる「送信」コマンドを検出する。
+    // 返り値 { send: 送信コマンドを含むか, body: コマンド語を除いた送信本文 }
+    function detectSendCommand(text) {
+        // 末尾の句読点・空白を除いた上で、単独の「送信」/「そうしん」で終わる場合のみコマンドとみなす。
+        // 「送信してください」等は本文とみなし誤送信を防ぐ（ユーザーは末尾で「送信」と発話する運用）。
+        var raw = (text || '').replace(/[\s、。．，！？!?…]+$/g, '');
+        var m = raw.match(/(送信|そうしん)$/);
+        if (!m) return { send: false, body: (text || '').trim() };
+        var body = raw.slice(0, m.index).replace(/[\s、。．，]+$/g, '').trim();
+        return { send: true, body: body };
+    }
+
     function startVoiceInput(target) {
         // クリックイベント等が渡ってきた場合（target.input を持たない）はAI担当を既定とする。
         var t = (target && target.input) ? target : aiVoiceTarget();
@@ -1879,6 +1896,8 @@
         }
 
         voiceTarget = t;
+        // 音声開始前の入力内容を保持（「送信」だけ発話された場合に既存内容を送るため）。
+        var voicePreValue = (t.input && typeof t.input.value === 'string') ? t.input.value : '';
         recognition = new SpeechRecognition();
         recognition.lang = 'ja-JP';
         recognition.interimResults = true;
@@ -1887,7 +1906,7 @@
         voiceHadError = false;
         isListening = true;
         updateVoiceButtonState();
-        setVoiceStatus('聞き取り中です。話し終えると自動で送信します。');
+        setVoiceStatus('聞き取り中です。最後に「送信」とお話しになると送信します。');
 
         recognition.onresult = function (event) {
             var interim = '';
@@ -1914,15 +1933,29 @@
         recognition.onend = function () {
             isListening = false;
             updateVoiceButtonState();
-            var text = finalVoiceTranscript.trim();
-            if (text && !voiceHadError) {
-                setVoiceStatus('音声を認識しました。送信します。');
-                t.send(text);
-            } else if (SpeechRecognition && !voiceHadError) {
-                setVoiceStatus('音声入力を終了しました。');
-            }
             // 次回の状態更新がAI担当ボタンに戻るよう、対象をリセットする。
             voiceTarget = null;
+            if (voiceHadError) return;
+            var text = finalVoiceTranscript.trim();
+            if (!text) { setVoiceStatus('音声入力を終了しました。'); return; }
+
+            var cmd = detectSendCommand(text);
+            if (cmd.send) {
+                // 末尾に「送信」を検出 → 本文を送信（本文が無ければ音声開始前の入力内容を送信）。
+                var body = cmd.body || voicePreValue.trim();
+                if (body) {
+                    if (t.input) t.input.value = body;
+                    setVoiceStatus('「送信」を認識しました。送信します。');
+                    t.send(body);
+                } else {
+                    if (t.input) t.input.value = voicePreValue;
+                    setVoiceStatus('送信する内容が聞き取れませんでした。');
+                }
+            } else {
+                // 「送信」が無ければ送信せず、認識テキストを入力欄に残して待機する。
+                if (t.input) t.input.value = text;
+                setVoiceStatus('入力しました。送信ボタンを押すか、最後に「送信」とお話しください。');
+            }
         };
 
         try {
@@ -2682,12 +2715,8 @@
             }
         });
     }
-    inputEl.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage(inputEl.value.trim());
-        }
-    });
+    // Enterでは送信しない（テキストエリアなので改行が入る）。送信は送信ボタン、
+    // または音声入力で最後に「送信」と発話した時のみ。
     inputEl.addEventListener('paste', function (e) { handlePasteToAttach(e, uploadCustomerAttachment); });
 
     if (tabBar) {

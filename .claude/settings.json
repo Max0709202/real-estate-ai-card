@@ -85,7 +85,12 @@
       "Bash(grep -n 'markRead\\\\|mark_read\\\\|$markRead\\\\|MarkRead\\\\|require_once' backend/api/chat/customer/poll.php)",
       "Bash(php -l backend/includes/customer-notification-helper.php)",
       "Bash(node -c assets/js/chat-widget.js)",
-      "Bash(php -l includes/header.php)"
+      "Bash(php -l includes/header.php)",
+      "Bash(php -r \"echo function_exists\\('openssl_sign'\\)?'openssl_sign OK':'no openssl'; echo PHP_EOL; echo defined\\('OPENSSL_KEYTYPE_EC'\\)?'EC OK':'no EC'; echo PHP_EOL;\")",
+      "Bash(composer --version)",
+      "Bash(git check-ignore *)",
+      "Bash(mysql -u xs013436_nishio -prenewal4329 xs013436_realestatecard)",
+      "Bash(mysql -u xs013436_nishio -prenewal4329 xs013436_realestatecard -e \"DESCRIBE push_subscriptions;\")"
     ]
   }
 }
