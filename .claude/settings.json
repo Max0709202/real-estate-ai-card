@@ -90,7 +90,15 @@
       "Bash(composer --version)",
       "Bash(git check-ignore *)",
       "Bash(mysql -u xs013436_nishio -prenewal4329 xs013436_realestatecard)",
-      "Bash(mysql -u xs013436_nishio -prenewal4329 xs013436_realestatecard -e \"DESCRIBE push_subscriptions;\")"
+      "Bash(mysql -u xs013436_nishio -prenewal4329 xs013436_realestatecard -e \"DESCRIBE push_subscriptions;\")",
+      "Bash(grep -E \"\\\\.\\(php|js\\)$\")",
+      "Bash(grep -n 'recentMessages\\\\|chatCrmExtractConditionsFromText\\\\|structured\\\\['\\\\''customer_type'\\\\''\\\\]\\\\|$conditions = $current\\\\|$dealType = $current' backend/includes/chat-crm-helper.php)",
+      "Bash(php -l backend/includes/chat-crm-helper.php)",
+      "Bash(php -l backend/api/chat/crm/save.php)",
+      "Bash(php -l backend/config/config.php)",
+      "Bash(php -l backend/config/secrets.php)",
+      "Bash(curl -s \"https://maps.googleapis.com/maps/api/geocode/json?latlng=35.69384,139.66551&language=ja&region=jp&key=AIzaSyCjOx90oWFNsixsoeB-ShrVGjxti_ou6os\")",
+      "Bash(php -r '$d=json_decode\\(stream_get_contents\\(STDIN\\),true\\); echo \"status: \".$d[\"status\"].\"\\\\n\"; if\\(!empty\\($d[\"results\"]\\)\\) echo \"formatted: \".$d[\"results\"][0][\"formatted_address\"].\"\\\\n\"; if\\(!empty\\($d[\"error_message\"]\\)\\) echo \"error: \".$d[\"error_message\"].\"\\\\n\";')"
     ]
   }
 }

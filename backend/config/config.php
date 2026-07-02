@@ -170,3 +170,8 @@ if (!defined('MLIT_DPF_BASE_URL')) {
 if (!defined('ESTAT_APP_ID')) {
     define('ESTAT_APP_ID', getenv('ESTAT_APP_ID') ?: '');
 }
+// Google Maps Platform Geocoding API（現在地の逆ジオコーディング）。サーバー側からのみ
+// 呼び出し、ブラウザには絶対に露出させない。未設定時は従来のGSI逆ジオコーダにフォールバック。
+if (!defined('GOOGLE_GEOCODING_API_KEY')) {
+    define('GOOGLE_GEOCODING_API_KEY', getenv('GOOGLE_GEOCODING_API_KEY') ?: '');
+}

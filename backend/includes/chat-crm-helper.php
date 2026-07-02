@@ -15,7 +15,7 @@ function ensureChatCrmCasesTable($db) {
         id INT AUTO_INCREMENT PRIMARY KEY,
         session_id CHAR(36) NOT NULL UNIQUE,
         business_card_id INT NOT NULL,
-        deal_type ENUM('purchase', 'sale', 'both') NOT NULL DEFAULT 'purchase',
+        deal_type ENUM('purchase', 'sale', 'both', 'rent') NOT NULL DEFAULT 'purchase',
         customer_name VARCHAR(255) NULL,
         ai_summary TEXT NULL,
         conditions_json JSON NULL,
@@ -33,6 +33,12 @@ function ensureChatCrmCasesTable($db) {
         INDEX idx_chat_crm_cases_deal_type (deal_type),
         INDEX idx_chat_crm_cases_updated (updated_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    // 既存テーブルには 'rent'（賃貸）が無いため、ENUM を後方互換で拡張する。
+    try {
+        $db->exec("ALTER TABLE chat_crm_cases MODIFY deal_type ENUM('purchase', 'sale', 'both', 'rent') NOT NULL DEFAULT 'purchase'");
+    } catch (Throwable $e) {
+        // 既に拡張済みか、権限が無い場合は黙って続行（新規CREATE側で担保）。
+    }
 }
 
 function chatCrmDecodeJsonValue($value, $fallback) {
@@ -156,6 +162,9 @@ function chatCrmLoadToolsForCard($db, $businessCardId) {
 
 function chatCrmDefaultConditions($dealType = 'purchase') {
     $isSale = $dealType === 'sale';
+    $activeSection = 'buyer';
+    if ($dealType === 'sale') $activeSection = 'seller';
+    elseif ($dealType === 'rent') $activeSection = 'renter';
     return [
         'deal_type' => $dealType,
         'buyer' => [
@@ -185,9 +194,24 @@ function chatCrmDefaultConditions($dealType = 'purchase') {
             'viewing_availability' => null,
             'appeal_points' => [],
         ],
+        'renter' => [
+            'move_in_timing' => null,
+            'move_date' => null,
+            'rent_max' => null,
+            'areas' => [],
+            'station_lines' => [],
+            'stations' => [],
+            'walk_minutes' => null,
+            'property_type' => null,
+            'layouts' => [],
+            'area_min' => null,
+            'building_age' => null,
+            'features' => [],
+            'move_reason' => null,
+        ],
         'notes' => '',
         'updated_at' => chatCrmNowIso(),
-        'active_section' => $isSale ? 'seller' : 'buyer',
+        'active_section' => $activeSection,
     ];
 }
 
@@ -232,7 +256,7 @@ function chatCrmDefaultContact() {
 
 function chatCrmNormalizeDealType($value) {
     $value = strtolower(trim((string)$value));
-    if (in_array($value, ['sale', 'both'], true)) return $value;
+    if (in_array($value, ['sale', 'both', 'rent'], true)) return $value;
     return 'purchase';
 }
 
@@ -346,38 +370,75 @@ function chatCrmProgressPercent($stages, $targetDate) {
     return (int)round(($done / max(1, $total)) * 100);
 }
 
+function chatCrmSummarizeSellerParts($seller) {
+    $parts = [];
+    if (!empty($seller['sale_reason'])) $parts[] = '売却理由: ' . $seller['sale_reason'];
+    if (!empty($seller['sale_timing'])) $parts[] = '売却希望時期: ' . $seller['sale_timing'];
+    if (!empty($seller['closing_date'])) $parts[] = '決済希望日: ' . $seller['closing_date'];
+    if (!empty($seller['sale_price'])) $parts[] = '希望価格: ' . $seller['sale_price'];
+    if (!empty($seller['minimum_price'])) $parts[] = '最低価格: ' . $seller['minimum_price'];
+    if (!empty($seller['loan_balance'])) $parts[] = 'ローン残債: ' . $seller['loan_balance'];
+    if (!empty($seller['relocation_plan'])) $parts[] = '住み替え予定: ' . $seller['relocation_plan'];
+    if (!empty($seller['post_sale_home'])) $parts[] = '売却後の住まい: ' . $seller['post_sale_home'];
+    if (!empty($seller['viewing_availability'])) $parts[] = '内覧対応: ' . $seller['viewing_availability'];
+    return $parts;
+}
+
+function chatCrmSummarizeBuyerParts($buyer) {
+    $parts = [];
+    if (!empty($buyer['purchase_timing'])) $parts[] = '購入時期: ' . $buyer['purchase_timing'];
+    if (!empty($buyer['move_in_date'])) $parts[] = '引越希望日: ' . $buyer['move_in_date'];
+    if (!empty($buyer['budget_max'])) $parts[] = '予算: ' . $buyer['budget_max'];
+    if (!empty($buyer['areas'])) $parts[] = 'エリア: ' . implode('・', array_filter((array)$buyer['areas']));
+    if (!empty($buyer['station_lines'])) $parts[] = '沿線: ' . implode('・', array_filter((array)$buyer['station_lines']));
+    if (!empty($buyer['stations'])) $parts[] = '駅: ' . implode('・', array_filter((array)$buyer['stations']));
+    if (!empty($buyer['walk_minutes'])) $parts[] = '駅徒歩: ' . $buyer['walk_minutes'];
+    if (!empty($buyer['property_type'])) $parts[] = '種別: ' . $buyer['property_type'];
+    if (!empty($buyer['layout'])) $parts[] = '間取り: ' . $buyer['layout'];
+    if (!empty($buyer['area_min'])) $parts[] = '面積: ' . $buyer['area_min'];
+    if (!empty($buyer['building_age'])) $parts[] = '築年数: ' . $buyer['building_age'];
+    if (!empty($buyer['renovation_preference'])) $parts[] = 'リノベーション希望: ' . $buyer['renovation_preference'];
+    if (!empty($buyer['purchase_reason'])) $parts[] = '購入理由: ' . $buyer['purchase_reason'];
+    return $parts;
+}
+
+function chatCrmSummarizeRenterParts($renter) {
+    $parts = [];
+    if (!empty($renter['move_in_timing'])) $parts[] = '入居希望時期: ' . $renter['move_in_timing'];
+    if (!empty($renter['move_date'])) $parts[] = '引越希望日: ' . $renter['move_date'];
+    if (!empty($renter['rent_max'])) $parts[] = '家賃上限: ' . $renter['rent_max'];
+    if (!empty($renter['areas'])) $parts[] = 'エリア: ' . implode('・', array_filter((array)$renter['areas']));
+    if (!empty($renter['station_lines'])) $parts[] = '沿線: ' . implode('・', array_filter((array)$renter['station_lines']));
+    if (!empty($renter['stations'])) $parts[] = '駅: ' . implode('・', array_filter((array)$renter['stations']));
+    if (!empty($renter['walk_minutes'])) $parts[] = '駅徒歩: ' . $renter['walk_minutes'];
+    if (!empty($renter['property_type'])) $parts[] = '種別: ' . $renter['property_type'];
+    if (!empty($renter['layouts'])) $parts[] = '間取り: ' . implode('・', array_filter((array)$renter['layouts']));
+    if (!empty($renter['area_min'])) $parts[] = '専有面積: ' . $renter['area_min'];
+    if (!empty($renter['building_age'])) $parts[] = '築年数: ' . $renter['building_age'];
+    if (!empty($renter['features'])) $parts[] = 'こだわり条件: ' . implode('・', array_filter((array)$renter['features']));
+    if (!empty($renter['move_reason'])) $parts[] = '引越し理由: ' . $renter['move_reason'];
+    return $parts;
+}
+
 function chatCrmSummarizeConditions($caseData) {
     $conditions = $caseData['conditions'] ?? [];
     $dealType = $caseData['deal_type'] ?? 'purchase';
-    $parts = [];
-    if ($dealType === 'sale' || $dealType === 'both') {
-        $seller = $conditions['seller'] ?? [];
-        if (!empty($seller['sale_reason'])) $parts[] = '売却理由: ' . $seller['sale_reason'];
-        if (!empty($seller['sale_timing'])) $parts[] = '売却希望時期: ' . $seller['sale_timing'];
-        if (!empty($seller['closing_date'])) $parts[] = '決済希望日: ' . $seller['closing_date'];
-        if (!empty($seller['sale_price'])) $parts[] = '希望価格: ' . $seller['sale_price'];
-        if (!empty($seller['minimum_price'])) $parts[] = '最低価格: ' . $seller['minimum_price'];
-        if (!empty($seller['loan_balance'])) $parts[] = 'ローン残債: ' . $seller['loan_balance'];
-        if (!empty($seller['relocation_plan'])) $parts[] = '住み替え予定: ' . $seller['relocation_plan'];
-        if (!empty($seller['post_sale_home'])) $parts[] = '売却後の住まい: ' . $seller['post_sale_home'];
-        if (!empty($seller['viewing_availability'])) $parts[] = '内覧対応: ' . $seller['viewing_availability'];
-    } else {
-        $buyer = $conditions['buyer'] ?? [];
-        if (!empty($buyer['purchase_timing'])) $parts[] = '購入時期: ' . $buyer['purchase_timing'];
-        if (!empty($buyer['move_in_date'])) $parts[] = '引越希望日: ' . $buyer['move_in_date'];
-        if (!empty($buyer['budget_max'])) $parts[] = '予算: ' . $buyer['budget_max'];
-        if (!empty($buyer['areas'])) $parts[] = 'エリア: ' . implode('・', array_filter((array)$buyer['areas']));
-        if (!empty($buyer['station_lines'])) $parts[] = '沿線: ' . implode('・', array_filter((array)$buyer['station_lines']));
-        if (!empty($buyer['stations'])) $parts[] = '駅: ' . implode('・', array_filter((array)$buyer['stations']));
-        if (!empty($buyer['walk_minutes'])) $parts[] = '駅徒歩: ' . $buyer['walk_minutes'];
-        if (!empty($buyer['property_type'])) $parts[] = '種別: ' . $buyer['property_type'];
-        if (!empty($buyer['layout'])) $parts[] = '間取り: ' . $buyer['layout'];
-        if (!empty($buyer['area_min'])) $parts[] = '面積: ' . $buyer['area_min'];
-        if (!empty($buyer['building_age'])) $parts[] = '築年数: ' . $buyer['building_age'];
-        if (!empty($buyer['renovation_preference'])) $parts[] = 'リノベーション希望: ' . $buyer['renovation_preference'];
-        if (!empty($buyer['purchase_reason'])) $parts[] = '購入理由: ' . $buyer['purchase_reason'];
+    if ($dealType === 'rent') {
+        return implode(' / ', chatCrmSummarizeRenterParts($conditions['renter'] ?? []));
     }
-    return implode(' / ', $parts);
+    if ($dealType === 'sale') {
+        return implode(' / ', chatCrmSummarizeSellerParts($conditions['seller'] ?? []));
+    }
+    if ($dealType === 'both') {
+        // 買い替え: 売却条件（上）と購入条件（下）の両方を整理結果に含める。
+        $sellerParts = chatCrmSummarizeSellerParts($conditions['seller'] ?? []);
+        $buyerParts = chatCrmSummarizeBuyerParts($conditions['buyer'] ?? []);
+        $sections = [];
+        if (!empty($sellerParts)) $sections[] = '【売却】' . implode(' / ', $sellerParts);
+        if (!empty($buyerParts)) $sections[] = '【購入】' . implode(' / ', $buyerParts);
+        return implode(' ／ ', $sections);
+    }
+    return implode(' / ', chatCrmSummarizeBuyerParts($conditions['buyer'] ?? []));
 }
 
 function chatCrmSplitListText($value) {
@@ -517,6 +578,57 @@ function chatCrmConditionReminderDue($caseData) {
     $lastTs = strtotime((string)$last);
     if ($lastTs === false) return true;
     return $lastTs <= strtotime('-3 days');
+}
+
+function chatCrmDealTypeLabel($dealType) {
+    switch ($dealType) {
+        case 'sale': return '売却';
+        case 'both': return '買い替え';
+        case 'rent': return '賃貸';
+        default: return '購入';
+    }
+}
+
+/**
+ * 顧客が「条件整理」に直接入力した希望条件を、顧客向けAIチャットへ最優先の前提として渡す文脈を作る。
+ * ここに含まれるのは本人が入力（または回答）した希望であり、会話の自由発言よりも優先して扱う。
+ */
+function chatCrmBuildManualPriorityContext($db, $sessionId, $businessCardId) {
+    if (!$db instanceof PDO || (int)$businessCardId <= 0) return '';
+    if (!preg_match('/^[A-Fa-f0-9-]{36}$/', (string)$sessionId)) return '';
+    try {
+        $case = chatCrmLoadCase($db, $sessionId, (int)$businessCardId);
+        if (!$case) return '';
+        $dealType = $case['deal_type'] ?? 'purchase';
+        $conditions = $case['conditions'] ?? [];
+        $sections = [];
+        if ($dealType === 'rent') {
+            $sections[] = ['賃貸希望条件', chatCrmSummarizeRenterParts($conditions['renter'] ?? [])];
+        } elseif ($dealType === 'sale') {
+            $sections[] = ['売却条件', chatCrmSummarizeSellerParts($conditions['seller'] ?? [])];
+        } elseif ($dealType === 'both') {
+            $sections[] = ['売却条件', chatCrmSummarizeSellerParts($conditions['seller'] ?? [])];
+            $sections[] = ['購入条件', chatCrmSummarizeBuyerParts($conditions['buyer'] ?? [])];
+        } else {
+            $sections[] = ['購入条件', chatCrmSummarizeBuyerParts($conditions['buyer'] ?? [])];
+        }
+        $lines = [];
+        foreach ($sections as $section) {
+            if (empty($section[1])) continue;
+            $lines[] = '■ ' . $section[0];
+            foreach ($section[1] as $part) {
+                $lines[] = '・' . $part;
+            }
+        }
+        if (empty($lines)) return '';
+        return "【お客様が条件整理に直接入力された希望条件（最優先）】\n"
+            . "相談種別：" . chatCrmDealTypeLabel($dealType) . "\n"
+            . implode("\n", $lines) . "\n"
+            . "上記はお客様ご自身が入力・確認された最優先の希望条件です。会話中の他の発言と食い違う場合は、原則この入力内容を最優先の前提として扱ってください。ただし会話の中でお客様が明確に変更を申し出た場合は、その最新の希望を優先してください。";
+    } catch (Throwable $e) {
+        error_log('chat CRM manual priority context error: ' . $e->getMessage());
+        return '';
+    }
 }
 
 function chatCrmBuildConditionReminder($caseData) {
@@ -713,67 +825,68 @@ function chatCrmSyncFromChatSession($db, $sessionId, $businessCardId) {
         $conditions = $current['conditions'];
         $dealType = $current['deal_type'];
 
-        $stmt = $db->prepare("SELECT message FROM chat_messages WHERE session_id = ? AND role = 'user' AND deleted_at IS NULL ORDER BY id DESC LIMIT 20");
-        $stmt->execute([$sessionId]);
-        $recentMessages = array_reverse($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
-        foreach ($recentMessages as $recentMessage) {
-            $extracted = chatCrmExtractConditionsFromText($recentMessage);
-            if (!empty($extracted['deal_type'])) $dealType = $extracted['deal_type'];
-            foreach (($extracted['buyer'] ?? []) as $key => $value) {
-                if (in_array($key, ['areas', 'station_lines', 'stations'], true)) {
-                    $conditions['buyer'][$key] = chatCrmMergeUnique($conditions['buyer'][$key] ?? [], $value);
-                } elseif ($value !== '' && $value !== null) {
-                    $conditions['buyer'][$key] = $value;
-                }
-            }
-            foreach (($extracted['seller'] ?? []) as $key => $value) {
-                if ($key === 'appeal_points') {
-                    $conditions['seller'][$key] = chatCrmMergeUnique($conditions['seller'][$key] ?? [], $value);
-                } elseif ($value !== '' && $value !== null) {
-                    $conditions['seller'][$key] = $value;
-                }
-            }
-        }
+        // 【自動取込ポリシー】
+        // 条件整理へ自動反映するのは「チャット側から質問して回答された内容（＝structured_data）」のみ。
+        // 会話中の自由発言テキストからは取り込まない（＝以前の chat_messages 全文抽出は廃止）。
+        // また、条件整理に手入力された値は本人の最優先希望とみなし、上書きしない（fill-only）。
+        $fill = function ($current, $incoming) {
+            if ($current !== null && $current !== '' && $current !== []) return $current;
+            if ($incoming === null || $incoming === '') return $current;
+            return $incoming;
+        };
 
-        if (($structured['customer_type'] ?? '') === 'sale' || !empty($structured['selling_timing']) || !empty($structured['loan_balance'])) {
-            $dealType = 'sale';
-            $conditions['seller']['sale_reason'] = $structured['selling_reason'] ?? $conditions['seller']['sale_reason'];
-            $conditions['seller']['sale_timing'] = $structured['selling_timing'] ?? $conditions['seller']['sale_timing'];
-            $conditions['seller']['closing_date'] = $structured['move_date'] ?? $conditions['seller']['closing_date'];
-            $conditions['seller']['sale_price'] = $structured['desired_sale_price'] ?? $conditions['seller']['sale_price'];
-            $conditions['seller']['minimum_price'] = $structured['minimum_price'] ?? $conditions['seller']['minimum_price'];
-            $conditions['seller']['loan_balance'] = $structured['loan_balance'] ?? $conditions['seller']['loan_balance'];
-            $conditions['seller']['relocation_plan'] = $structured['replacement_plan'] ?? $conditions['seller']['relocation_plan'];
-            $conditions['seller']['post_sale_home'] = $structured['temporary_housing'] ?? $conditions['seller']['post_sale_home'];
-            $conditions['seller']['appeal_points'] = $structured['appeal_points'] ?? $conditions['seller']['appeal_points'];
-        } else {
-            $dealType = 'purchase';
-            $conditions['buyer']['purchase_timing'] = $structured['purchase_timing'] ?? $conditions['buyer']['purchase_timing'];
-            $conditions['buyer']['move_in_date'] = $structured['move_date'] ?? $conditions['buyer']['move_in_date'];
-            $conditions['buyer']['budget_max'] = $structured['budget_max'] ?? ($structured['desired_loan_amount'] ?? $conditions['buyer']['budget_max']);
-            $structuredAreas = [];
-            $structuredStations = (array)($structured['preferred_station'] ?? []);
-            $structuredLines = array_merge((array)($structured['preferred_station_line'] ?? []), (array)($structured['preferred_line'] ?? []));
-            foreach ((array)($structured['preferred_area'] ?? []) as $areaValue) {
-                $areaValue = trim((string)$areaValue);
-                if ($areaValue === '') continue;
-                if (preg_match('/駅$/u', $areaValue)) $structuredStations[] = $areaValue;
-                elseif (preg_match('/線$/u', $areaValue)) $structuredLines[] = $areaValue;
-                else $structuredAreas[] = $areaValue;
+        // 賃貸は現状チャット側の質問フローが未対応のため、structured取込はスキップし手入力を保持する。
+        if ($dealType !== 'rent') {
+            $structuredIsSale = ($structured['customer_type'] ?? '') === 'sale'
+                || !empty($structured['selling_timing'])
+                || !empty($structured['loan_balance']);
+            // 相談種別は手入力を優先。デフォルト（purchase）のままで、チャット回答が売却を示す場合のみ切替。
+            if ($dealType === 'purchase' && $structuredIsSale) {
+                $dealType = 'sale';
             }
-            $conditions['buyer']['areas'] = chatCrmMergeUnique($conditions['buyer']['areas'] ?? [], $structuredAreas);
-            $conditions['buyer']['station_lines'] = chatCrmMergeUnique($conditions['buyer']['station_lines'] ?? [], $structuredLines);
-            $conditions['buyer']['stations'] = chatCrmMergeUnique($conditions['buyer']['stations'] ?? [], $structuredStations);
-            $conditions['buyer']['areas'] = array_values(array_filter((array)($conditions['buyer']['areas'] ?? []), function ($value) {
-                return !preg_match('/(?:駅|線)$/u', (string)$value);
-            }));
-            $conditions['buyer']['walk_minutes'] = $structured['station_walk_minutes'] ?? $conditions['buyer']['walk_minutes'];
-            $conditions['buyer']['property_type'] = $structured['property_type'][0] ?? ($structured['property_type'] ?? $conditions['buyer']['property_type']);
-            $conditions['buyer']['layout'] = $structured['layout'] ?? $conditions['buyer']['layout'];
-            $conditions['buyer']['area_min'] = $structured['preferred_area_size'] ?? $conditions['buyer']['area_min'];
-            $conditions['buyer']['building_age'] = $structured['building_age'] ?? $conditions['buyer']['building_age'];
-            $conditions['buyer']['renovation_preference'] = $structured['renovation_preference'] ?? $conditions['buyer']['renovation_preference'];
-            $conditions['buyer']['purchase_reason'] = $structured['reason_for_move'] ?? $conditions['buyer']['purchase_reason'];
+
+            if ($dealType === 'sale' || $dealType === 'both') {
+                $conditions['seller']['sale_reason'] = $fill($conditions['seller']['sale_reason'] ?? '', $structured['selling_reason'] ?? '');
+                $conditions['seller']['sale_timing'] = $fill($conditions['seller']['sale_timing'] ?? '', $structured['selling_timing'] ?? '');
+                $conditions['seller']['closing_date'] = $fill($conditions['seller']['closing_date'] ?? '', $structured['move_date'] ?? '');
+                $conditions['seller']['sale_price'] = $fill($conditions['seller']['sale_price'] ?? '', $structured['desired_sale_price'] ?? '');
+                $conditions['seller']['minimum_price'] = $fill($conditions['seller']['minimum_price'] ?? '', $structured['minimum_price'] ?? '');
+                $conditions['seller']['loan_balance'] = $fill($conditions['seller']['loan_balance'] ?? '', $structured['loan_balance'] ?? '');
+                $conditions['seller']['relocation_plan'] = $fill($conditions['seller']['relocation_plan'] ?? '', $structured['replacement_plan'] ?? '');
+                $conditions['seller']['post_sale_home'] = $fill($conditions['seller']['post_sale_home'] ?? '', $structured['temporary_housing'] ?? '');
+                if (empty($conditions['seller']['appeal_points']) && !empty($structured['appeal_points'])) {
+                    $conditions['seller']['appeal_points'] = $structured['appeal_points'];
+                }
+            }
+
+            if ($dealType === 'purchase' || $dealType === 'both') {
+                $conditions['buyer']['purchase_timing'] = $fill($conditions['buyer']['purchase_timing'] ?? '', $structured['purchase_timing'] ?? '');
+                $conditions['buyer']['move_in_date'] = $fill($conditions['buyer']['move_in_date'] ?? '', $structured['move_date'] ?? '');
+                $conditions['buyer']['budget_max'] = $fill($conditions['buyer']['budget_max'] ?? '', $structured['budget_max'] ?? ($structured['desired_loan_amount'] ?? ''));
+                $structuredAreas = [];
+                $structuredStations = (array)($structured['preferred_station'] ?? []);
+                $structuredLines = array_merge((array)($structured['preferred_station_line'] ?? []), (array)($structured['preferred_line'] ?? []));
+                foreach ((array)($structured['preferred_area'] ?? []) as $areaValue) {
+                    $areaValue = trim((string)$areaValue);
+                    if ($areaValue === '') continue;
+                    if (preg_match('/駅$/u', $areaValue)) $structuredStations[] = $areaValue;
+                    elseif (preg_match('/線$/u', $areaValue)) $structuredLines[] = $areaValue;
+                    else $structuredAreas[] = $areaValue;
+                }
+                $conditions['buyer']['areas'] = chatCrmMergeUnique($conditions['buyer']['areas'] ?? [], $structuredAreas);
+                $conditions['buyer']['station_lines'] = chatCrmMergeUnique($conditions['buyer']['station_lines'] ?? [], $structuredLines);
+                $conditions['buyer']['stations'] = chatCrmMergeUnique($conditions['buyer']['stations'] ?? [], $structuredStations);
+                $conditions['buyer']['areas'] = array_values(array_filter((array)($conditions['buyer']['areas'] ?? []), function ($value) {
+                    return !preg_match('/(?:駅|線)$/u', (string)$value);
+                }));
+                $conditions['buyer']['walk_minutes'] = $fill($conditions['buyer']['walk_minutes'] ?? '', $structured['station_walk_minutes'] ?? '');
+                $conditions['buyer']['property_type'] = $fill($conditions['buyer']['property_type'] ?? '', $structured['property_type'][0] ?? ($structured['property_type'] ?? ''));
+                $conditions['buyer']['layout'] = $fill($conditions['buyer']['layout'] ?? '', $structured['layout'] ?? '');
+                $conditions['buyer']['area_min'] = $fill($conditions['buyer']['area_min'] ?? '', $structured['preferred_area_size'] ?? '');
+                $conditions['buyer']['building_age'] = $fill($conditions['buyer']['building_age'] ?? '', $structured['building_age'] ?? '');
+                $conditions['buyer']['renovation_preference'] = $fill($conditions['buyer']['renovation_preference'] ?? '', $structured['renovation_preference'] ?? '');
+                $conditions['buyer']['purchase_reason'] = $fill($conditions['buyer']['purchase_reason'] ?? '', $structured['reason_for_move'] ?? '');
+            }
         }
 
         $summary = trim((string)($current['ai_summary'] ?? ''));
@@ -787,10 +900,13 @@ function chatCrmSyncFromChatSession($db, $sessionId, $businessCardId) {
         $progress['deal_type'] = $dealType;
         if ($dealType === 'sale' && !empty($conditions['seller']['closing_date'])) {
             $progress['target_date'] = $conditions['seller']['closing_date'];
-        } elseif ($dealType !== 'sale' && !empty($conditions['buyer']['move_in_date'])) {
+        } elseif ($dealType !== 'sale' && $dealType !== 'rent' && !empty($conditions['buyer']['move_in_date'])) {
             $progress['target_date'] = $conditions['buyer']['move_in_date'];
         }
-        if ($dealType === 'sale') {
+        if ($dealType === 'rent') {
+            // 賃貸は購入/売却スケジュールの対象外。進捗ステージは持たない。
+            $progress['stages'] = [];
+        } elseif ($dealType === 'sale') {
             $progress['stages'] = chatCrmCalculateSaleStages($progress['target_date'] ?? null, $progress['manual_overrides'] ?? []);
         } else {
             $progress['stages'] = chatCrmCalculatePurchaseStages($progress['target_date'] ?? null, $progress['manual_overrides'] ?? []);

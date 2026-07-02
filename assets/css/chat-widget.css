@@ -699,6 +699,16 @@
     font-size: 0.82rem;
     color: #1d2b3a;
 }
+
+.chat-feature-field select {
+    border: 1px solid #cdd8e6;
+    border-radius: 4px;
+    padding: 0.08rem 0.3rem;
+    box-sizing: border-box;
+    font: inherit;
+    background: #fff;
+}
+
 .chat-feature-field input,
 .chat-feature-field textarea,
 .chat-feature-grid input,
@@ -717,6 +727,89 @@
 .chat-feature-grid textarea {
     min-height: 68px;
     resize: vertical;
+}
+/* 相談種別で1セクションのみ表示（購入/売却/賃貸単独）のときは全幅にする。 */
+.chat-feature-grid section:only-child {
+    grid-column: 1 / -1;
+}
+.chat-feature-checkgroup {
+    margin-top: 0.45rem;
+}
+.chat-feature-checklabel {
+    display: block;
+    font-size: 0.8rem;
+    color: #1d2b3a;
+    margin-bottom: 0.3rem;
+}
+.chat-feature-checksub {
+    font-size: 0.72rem;
+    color: #5a6b7f;
+    margin: 0.4rem 0 0.2rem;
+}
+.chat-feature-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.6rem;
+}
+.chat-feature-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.78rem;
+    margin: 0;
+}
+.chat-feature-check input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    flex: none;
+}
+/* 相談種別の変更確認モーダル */
+.chat-confirm-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 30, 50, 0.45);
+}
+.chat-confirm-box {
+    width: min(92%, 360px);
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+    padding: 1.1rem 1.1rem 1rem;
+    box-sizing: border-box;
+}
+.chat-confirm-message {
+    margin: 0 0 0.9rem;
+    font-size: 0.86rem;
+    line-height: 1.6;
+    color: #1d2b3a;
+}
+.chat-confirm-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.chat-confirm-yes,
+.chat-confirm-no {
+    border: none;
+    border-radius: 9px;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.chat-confirm-yes {
+    color: #fff;
+    background: #c0392b;
+}
+.chat-confirm-no {
+    color: #1d2b3a;
+    background: #eef2f8;
+    border: 1px solid #d3ddea;
 }
 .chat-feature-actions {
     display: flex;

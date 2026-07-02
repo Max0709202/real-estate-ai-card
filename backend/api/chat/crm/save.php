@@ -61,7 +61,7 @@ try {
         $case['customer_name'] = trim((string)($payload['customer_name'] ?? $case['customer_name']));
         if ($case['deal_type'] === 'sale' && !empty($case['conditions']['seller']['closing_date'])) {
             $case['progress']['target_date'] = $case['conditions']['seller']['closing_date'];
-        } elseif (!empty($case['conditions']['buyer']['move_in_date'])) {
+        } elseif ($case['deal_type'] !== 'rent' && !empty($case['conditions']['buyer']['move_in_date'])) {
             $case['progress']['target_date'] = $case['conditions']['buyer']['move_in_date'];
         }
     } elseif ($feature === 'progress') {
@@ -90,7 +90,9 @@ try {
     if ($feature !== 'sync') {
         $case['progress']['deal_type'] = $case['deal_type'];
         $manualOverrides = $case['progress']['manual_overrides'] ?? [];
-        if ($case['deal_type'] === 'sale') {
+        if ($case['deal_type'] === 'rent') {
+            $case['progress']['stages'] = [];
+        } elseif ($case['deal_type'] === 'sale') {
             $case['progress']['stages'] = chatCrmCalculateSaleStages($case['progress']['target_date'] ?? null, $manualOverrides);
         } else {
             $case['progress']['stages'] = chatCrmCalculatePurchaseStages($case['progress']['target_date'] ?? null, $manualOverrides);

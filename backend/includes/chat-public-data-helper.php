@@ -1427,6 +1427,67 @@ function chatReverseGeocode($db, $lat, $lon) {
         'title' => $title !== '' ? $title : null,
         'prefecture' => $pref !== '' ? $pref : null,
         'town' => $town,
+        'precise' => false,
+    ];
+}
+
+/**
+ * Reverse-geocode a lat/lon to a precise Japanese street address using the
+ * Google Maps Platform Geocoding API (Reverse Geocoding). Unlike the free GSI
+ * reverse geocoder (chatReverseGeocode, 町丁目 level only), Google resolves down
+ * to 番地・号 — e.g. "東京都中野区本町6丁目27-14" instead of "…本町6丁目". Returns
+ * ['lat','lon','title','prefecture','town','precise'=>true] with title cleaned of
+ * the "日本"/郵便番号 prefix. Null when the key is unset or the API fails, so the
+ * caller falls back to chatReverseGeocode(). The API key is used strictly
+ * server-side — it is never sent to the browser (this call runs in PHP).
+ */
+function chatGoogleReverseGeocode($db, $lat, $lon) {
+    if (!defined('GOOGLE_GEOCODING_API_KEY') || GOOGLE_GEOCODING_API_KEY === '') return null;
+    $lat = (float)$lat; $lon = (float)$lon;
+    $url = 'https://maps.googleapis.com/maps/api/geocode/json'
+        . '?latlng=' . rawurlencode($lat . ',' . $lon)
+        . '&language=ja&region=jp'
+        . '&key=' . rawurlencode(GOOGLE_GEOCODING_API_KEY);
+    $res = chatPublicDataCachedGet($db, 'google_reverse', $url, [], 2592000, 8);
+    $data = $res['data'] ?? null;
+    if (!is_array($data) || ($data['status'] ?? '') !== 'OK' || empty($data['results'])) return null;
+
+    // Prefer a clean 番地・号 result (street_address / premise) over results[0],
+    // which can be a nearby POI/公園名など. Fall back to results[0] otherwise. The
+    // formatted_address is "日本、〒164-0012 東京都中野区本町6丁目27−14" style; strip
+    // the country name and postal code so only the readable address remains.
+    $best = $data['results'][0];
+    foreach ($data['results'] as $r) {
+        $types = $r['types'] ?? [];
+        if (in_array('street_address', $types, true) || in_array('premise', $types, true)) {
+            $best = $r;
+            break;
+        }
+    }
+    $formatted = trim((string)($best['formatted_address'] ?? ''));
+    $formatted = preg_replace('/^日本[、,\s]*/u', '', $formatted);
+    $formatted = preg_replace('/〒?\d{3}-?\d{4}\s*/u', '', $formatted);
+    $formatted = mb_convert_kana(trim($formatted), 'n'); // 全角数字→半角（6丁目27-14 の見栄え）
+    if ($formatted === '') return null;
+
+    // 都道府県名は administrative_area_level_1 から拾う（下流の prefecture_name 用）。
+    $pref = null;
+    foreach ($data['results'] as $r) {
+        foreach (($r['address_components'] ?? []) as $c) {
+            if (in_array('administrative_area_level_1', $c['types'] ?? [], true)) {
+                $pref = $c['long_name'] ?? null;
+                break 2;
+            }
+        }
+    }
+
+    return [
+        'lat' => $lat,
+        'lon' => $lon,
+        'title' => $formatted,
+        'prefecture' => $pref,
+        'town' => $formatted,
+        'precise' => true,
     ];
 }
 
@@ -2343,7 +2404,10 @@ function chatBuildPublicDataContext($db, $message, $geo = null) {
     // human-readable place name purely for display.
     $geoArea = null;
     if (is_array($geo) && isset($geo['lat'], $geo['lon']) && is_numeric($geo['lat']) && is_numeric($geo['lon'])) {
-        $rev = chatReverseGeocode($db, $geo['lat'], $geo['lon']);
+        // Google Reverse Geocoding で番地・号レベルの正確な住所を優先取得。キー未設定や
+        // APIエラー時は従来のGSI逆ジオコーダ（町丁目レベル）へ自動フォールバックする。
+        $rev = chatGoogleReverseGeocode($db, $geo['lat'], $geo['lon']);
+        if ($rev === null) $rev = chatReverseGeocode($db, $geo['lat'], $geo['lon']);
         $geoArea = [
             'lat' => (float)$geo['lat'],
             'lon' => (float)$geo['lon'],
@@ -2430,7 +2494,7 @@ function chatBuildPublicDataContext($db, $message, $geo = null) {
         $locName = $geoArea['title'];
         $latStr = number_format((float)$geoArea['lat'], 5);
         $lonStr = number_format((float)$geoArea['lon'], 5);
-        $parts[] = "\n【現在地レポートの回答ルール（厳守・最優先）】\nこれはお客様の現在地（GPS位置情報・緯度{$latStr}／経度{$lonStr}）からサーバーがAPIで取得した土地情報の照会です。次のルールを厳守し、他の口調・テンプレートより最優先してください。出力は下記の見出し構成のプレーンテキストとし、各項目は「・項目：値」の箇条書きで一覧しやすく整えてください。\n\n1. 挨拶・お礼・前置き（「ありがとうございます」「情報を提供いただき」等）は一切書かない。データはお客様提供ではなくAPI取得です。\n2. まず見出し【現在地】を付け、次の行に「{$locName}付近（測定地点：緯度{$latStr}／経度{$lonStr}）」と記載する。用途地域・建ぺい率・容積率は、この測定地点（GPS座標）を含む都市計画区域の値であり、丁目全体の代表値ではありません。\n3. 次の見出し【都市計画情報】を付け、取得できたデータがある項目だけを箇条書きにする：用途地域／建ぺい率／容積率／防火・準防火地域／区域区分（市街化区域・市街化調整区域等）／地区計画 など。取得データに無い項目（高度地区・日影規制・景観計画・埋蔵文化財包蔵地・宅地造成等工事規制区域・都市計画道路など）は推測せず、省略する（「不明」とも書かない）。\n4. 次の見出し【ハザード情報】を付け、取得できたデータを箇条書きにする：洪水浸水想定（対象河川・浸水深ランクを含む）／高潮／津波／土砂災害警戒区域・特別警戒区域／液状化／急傾斜地 など。ハザードは『該当なし』『区域外』のデータも、その旨を明記してよい（例：「・土砂災害警戒区域：該当なし」）。内水氾濫・地震時の揺れやすさ・火災危険度は取得データに無いため記載しない。\n5. 数値（建ぺい率・容積率・浸水深ランク等）は取得データの値をそのまま使い、創作・概算・補完をしない。\n6. 次の見出し【AIコメント】を付け、上で取得できたデータの内容だけに基づいて、用途地域から想定される街の特徴と、災害リスクの傾向（該当なし＝リスク低い等）を2〜4文でやさしく要約する。データから読み取れない購入・建築・投資の可否や具体的な工事の助言、営業的な誘導は書かない。最後に「実際の建築可否や詳細な法規制については、行政窓口等で最終確認してください。」と添える。\n7. 最後に見出し【出典】を付け、次の行だけを記載する：\n・国土交通省 不動産情報ライブラリ\n（自治体オープンデータを使った場合のみ次の行も加える）・各自治体オープンデータ\n8. 上記以外の見出し・分析・感想・出典表記は付けない。取得件数・取得日時・データセットID等の技術情報は表示しない。";
+        $parts[] = "\n【現在地レポートの回答ルール（厳守・最優先）】\nこれはお客様の現在地（GPS位置情報・緯度{$latStr}／経度{$lonStr}）からサーバーがAPIで取得した土地情報の照会です。次のルールを厳守し、他の口調・テンプレートより最優先してください。出力は下記の見出し構成のプレーンテキストとし、各項目は「・項目：値」の箇条書きで一覧しやすく整えてください。\n\n1. 挨拶・お礼・前置き（「ありがとうございます」「情報を提供いただき」等）は一切書かない。データはお客様提供ではなくAPI取得です。\n2. まず見出し【現在地】を付け、次の行に「{$locName}付近（測定地点：緯度{$latStr}／経度{$lonStr}）」と記載し、その次の行に必ず「※GPSの測位誤差により、実際の位置と多少異なる場合があります。」と添える。この住所・緯度経度はサーバーが取得した値をそのまま使い、番地・号などを創作・補完しない。用途地域・建ぺい率・容積率は、この測定地点（GPS座標）を含む都市計画区域の値であり、丁目全体の代表値ではありません。\n3. 次の見出し【都市計画情報】を付け、取得できたデータがある項目だけを箇条書きにする：用途地域／建ぺい率／容積率／防火・準防火地域／区域区分（市街化区域・市街化調整区域等）／地区計画 など。取得データに無い項目（高度地区・日影規制・景観計画・埋蔵文化財包蔵地・宅地造成等工事規制区域・都市計画道路など）は推測せず、省略する（「不明」とも書かない）。\n4. 次の見出し【ハザード情報】を付け、取得できたデータを箇条書きにする：洪水浸水想定（対象河川・浸水深ランクを含む）／高潮／津波／土砂災害警戒区域・特別警戒区域／液状化／急傾斜地 など。ハザードは『該当なし』『区域外』のデータも、その旨を明記してよい（例：「・土砂災害警戒区域：該当なし」）。内水氾濫・地震時の揺れやすさ・火災危険度は取得データに無いため記載しない。\n5. 数値（建ぺい率・容積率・浸水深ランク等）は取得データの値をそのまま使い、創作・概算・補完をしない。\n6. 次の見出し【AIコメント】を付け、上で取得できたデータの内容だけに基づいて、用途地域から想定される街の特徴と、災害リスクの傾向（該当なし＝リスク低い等）を2〜4文でやさしく要約する。データから読み取れない購入・建築・投資の可否や具体的な工事の助言、営業的な誘導は書かない。最後に「実際の建築可否や詳細な法規制については、行政窓口等で最終確認してください。」と添える。\n7. 最後に見出し【出典】を付け、次の行だけを記載する：\n・国土交通省 不動産情報ライブラリ\n（自治体オープンデータを使った場合のみ次の行も加える）・各自治体オープンデータ\n8. 上記以外の見出し・分析・感想・出典表記は付けない。取得件数・取得日時・データセットID等の技術情報は表示しない。";
     }
     return ['context' => implode("\n", $parts), 'sources' => $sources, 'notices' => array_values(array_unique($notices)), 'meta' => $meta, 'attempted' => true];
 }
