@@ -193,10 +193,30 @@
         safeStorageSet('ai_fcard_chat_visitor_id', visitorId);
     }
 
+    // ユーザー認識（接続→SMS認証などの本人特定）が済むまでは、AI担当以外の機能タブを
+    // 触らせない。認識前に別タブへ遷移すると処理がスタックし、誰の履歴か分からないまま
+    // 操作が進んでしまうため。準備完了 = セッション確立済み かつ 挨拶表示済み かつ
+    // 接続中/入口選択待ち/本人情報登録中 のいずれでもない状態。
+    function chatFeaturesReady() {
+        return !!sessionId && greetingShown && !sessionStarting && !entryAwaitingChoice && !registrationFlow;
+    }
+
+    function updateTabLockState() {
+        if (!tabBar) return;
+        var locked = !chatFeaturesReady();
+        Array.prototype.forEach.call(tabBar.querySelectorAll('.chat-widget-tab'), function (btn) {
+            var isAi = btn.getAttribute('data-chat-tab') === 'ai';
+            var lock = locked && !isAi;
+            btn.classList.toggle('is-locked', lock);
+            btn.setAttribute('aria-disabled', lock ? 'true' : 'false');
+        });
+    }
+
     function setInputEnabled(enabled) {
         inputEl.disabled = !enabled;
         sendBtn.disabled = !enabled;
         updateVoiceButtonState();
+        updateTabLockState();
     }
 
     function setVoiceStatus(message) {
@@ -565,12 +585,19 @@
     }
 
     function showReturningDeviceEntry(data) {
+        startupData = data || startupData;
+        var customerLabel = customerLabelWithSuffix(startupData, '様');
+        // 本人を特定できない（お名前を解決できない）状態では「おかえりなさい／このまま
+        // 相談する」を出さない。誰か分からないまま相談を続けると身元不明の履歴が残るため、
+        // 必ずSMS認証（ユーザー認識）からやり直す。
+        if (customerLabel === 'お客様') {
+            showFirstTimeEntry(startupData);
+            return;
+        }
         entryAwaitingChoice = false;
         greetingShown = true;
-        startupData = data || startupData;
         messagesContainer.innerHTML = '';
         showReloadNoticeIfNeeded();
-        var customerLabel = customerLabelWithSuffix(startupData, '様');
         var differentPersonLabel = customerLabel === 'お客様' ? '別の方' : customerLabel + '以外の方';
         // ヒアリングで相談内容が溜まっている場合のみ、「今までのご相談内容を表示しますか？」を会話の入口として出す。
         var hasConsultationSummary = !!(startupData && startupData.has_consultation_summary);
@@ -1084,7 +1111,7 @@
 
         sessionStarting = true;
         setInputEnabled(false);
-        var loadingRow = appendBotMessage('チャットを接続しています', true);
+        var loadingRow = appendBotMessage('AIエージェントに接続中です', true);
         var savedSessionId = (reset && !keepSavedSession) ? '' : getSavedSessionId();
 
         fetch(apiBase + '/session/start.php', {
@@ -1115,8 +1142,11 @@
                     saveCustomerName(data.data.customer_name);
                 }
                 if (!greetingShown) {
-                    // 同じ端末で登録済み（電話・氏名・メール入力済み）なら、リロードしても再入力は求めない。
-                    if (data.data.is_resumed) {
+                    // ユーザー認識（本人特定）を最優先する。端末に過去セッションが
+                    // 残っていても、SMS認証＋氏名＋メールの登録が完了していない＝誰の
+                    // 履歴か確定できない場合は「おかえりなさい／このまま相談する」を
+                    // 出さず、必ずSMS認証から始める（誰か分からないまま相談させない）。
+                    if (data.data.registration_complete) {
                             showReturningDeviceEntry(data.data);
                         } else {
                             showFirstTimeEntry(data.data);
@@ -1852,9 +1882,25 @@
     // is a link; the address text itself stays plain (per spec). 'addr' has
     // already been HTML-escaped by formatBotMessageHtml, so escape it again for
     // the aria-label/title attribute to neutralise any stray double quotes.
+    // Google マップは全角数字や特殊なハイフン（‐ ― ー －）が混じると住所を正しく
+    // ジオコーディングできず、ピンがずれる／検索できないことがある。表示テキスト自体は
+    // 元のまま（addr）に保ちつつ、リンク先クエリだけ正規化する。addr は
+    // formatBotMessageHtml で HTML エスケープ済みなので、まず実体参照を戻してから
+    // 半角数字・標準ハイフンへ変換する。
+    function addressForMapsQuery(addr) {
+        return String(addr || '')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#0?39;/g, "'")
+            .replace(/[０-９]/g, function (ch) { return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); })
+            .replace(/[‐‑‒–—―ー－−]/g, '-');
+    }
+
     function linkifyAddresses(html) {
         return html.replace(ADDRESS_RE, function (addr) {
-            var href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr);
+            var href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addressForMapsQuery(addr));
             var label = escapeAttribute(addr);
             return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" class="chat-msg-address-pin" aria-label="Googleマップで開く: ' + label + '" title="Googleマップで開く: ' + label + '">📍</a>' + addr;
         });
@@ -2822,6 +2868,11 @@
                 var tab = btn.getAttribute('data-chat-tab') || 'ai';
                 if (tab === 'ai') {
                     exitFeatureView();
+                    return;
+                }
+                // 接続中・ユーザー認識中は、AI担当以外のタブを開かせない。
+                // 認識前に遷移するとスタックし、誰の履歴か分からないまま操作が進むため。
+                if (!chatFeaturesReady()) {
                     return;
                 }
                 if (tab === 'contact') {

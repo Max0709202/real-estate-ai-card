@@ -98,7 +98,11 @@
       "Bash(php -l backend/config/config.php)",
       "Bash(php -l backend/config/secrets.php)",
       "Bash(curl -s \"https://maps.googleapis.com/maps/api/geocode/json?latlng=35.69384,139.66551&language=ja&region=jp&key=AIzaSyCjOx90oWFNsixsoeB-ShrVGjxti_ou6os\")",
-      "Bash(php -r '$d=json_decode\\(stream_get_contents\\(STDIN\\),true\\); echo \"status: \".$d[\"status\"].\"\\\\n\"; if\\(!empty\\($d[\"results\"]\\)\\) echo \"formatted: \".$d[\"results\"][0][\"formatted_address\"].\"\\\\n\"; if\\(!empty\\($d[\"error_message\"]\\)\\) echo \"error: \".$d[\"error_message\"].\"\\\\n\";')"
+      "Bash(php -r '$d=json_decode\\(stream_get_contents\\(STDIN\\),true\\); echo \"status: \".$d[\"status\"].\"\\\\n\"; if\\(!empty\\($d[\"results\"]\\)\\) echo \"formatted: \".$d[\"results\"][0][\"formatted_address\"].\"\\\\n\"; if\\(!empty\\($d[\"error_message\"]\\)\\) echo \"error: \".$d[\"error_message\"].\"\\\\n\";')",
+      "Bash(node --check /home/xs013436/ai-fcard.com/public_html/assets/js/chat-widget.js)",
+      "Bash(git --no-pager diff --stat)",
+      "Bash(git --no-pager diff assets/js/chat-widget.js)",
+      "Bash(git --no-pager diff .claude/settings.json)"
     ]
   }
 }

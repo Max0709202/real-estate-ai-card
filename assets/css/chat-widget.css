@@ -1394,6 +1394,13 @@
     border-color: #c9def7;
 }
 
+/* 接続中・ユーザー認識中はAI担当以外のタブを操作不可にする（スタック防止・身元不明操作の防止）。 */
+.chat-widget-tab.is-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .chat-widget-tab-icon {
     width: 30px;
     height: 30px;
