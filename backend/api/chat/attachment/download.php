@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../includes/functions.php';
+require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
 
 $attachmentId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $sessionId = trim($_GET['session_id'] ?? '');
@@ -39,9 +40,10 @@ try {
         $authorized = true;
     }
 
-    // 顧客としてのアクセス（session_id 一致＋（登録済みなら）visitor_id 一致）
+    // 顧客としてのアクセス（session_id 一致＋（登録済みなら）visitor_id 一致）。
+    // 同一電話番号でSMS認証済みの別端末も許可する（複数端末での添付共有）。
     if (!$authorized && $sessionId !== '' && $sessionId === $att['session_id']) {
-        if (empty($att['visitor_identifier']) || $visitorId === '' || $att['visitor_identifier'] === $visitorId) {
+        if (chatSessionVisitorAuthorized($db, $att['session_id'], $visitorId, $att['visitor_identifier'])) {
             $authorized = true;
         }
     }

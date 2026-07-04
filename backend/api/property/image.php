@@ -37,8 +37,9 @@ try {
     if (!empty($_SESSION['user_id']) && (int)$_SESSION['user_id'] === (int)$img['user_id']) {
         $isAgent = true;
     }
+    // 同一電話番号でSMS認証済みの別端末も許可する（複数端末での物件画像共有）。
     if (!$isAgent && $sessionId !== '' && $sessionId === $img['prop_session']) {
-        if (empty($img['visitor_identifier']) || $visitorId === '' || $img['visitor_identifier'] === $visitorId) {
+        if (chatSessionVisitorAuthorized($db, $img['prop_session'], $visitorId, $img['visitor_identifier'])) {
             $isCustomer = true;
         }
     }

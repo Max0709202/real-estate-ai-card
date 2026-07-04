@@ -10,6 +10,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/chat-phone-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -48,7 +49,8 @@ try {
     if (!$session) {
         sendErrorResponse('セッションが見つかりません', 404);
     }
-    if (!empty($session['visitor_identifier']) && $visitorId !== '' && $session['visitor_identifier'] !== $visitorId) {
+    // 同一電話番号でSMS認証済みの別端末も許可する（複数端末での購読登録）。
+    if (!chatSessionVisitorAuthorized($db, $sessionId, $visitorId, $session['visitor_identifier'])) {
         sendErrorResponse('セッションを確認できません', 403);
     }
 

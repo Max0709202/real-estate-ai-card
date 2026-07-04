@@ -136,6 +136,12 @@ try {
 
     chatRegisterVerifiedPhone($db, $businessCardId, $phone, $uid, $sessionId, $customerName);
 
+    // SMS認証済みのこの端末を、当該セッションを共有できる認可端末として登録する。
+    // これにより同一電話番号の別端末（PC・スマホ等）も同じ相談内容へアクセスできる。
+    if ($sessionId !== '' && $visitorId !== '') {
+        chatSessionRegisterDevice($db, $sessionId, $visitorId);
+    }
+
     $agentName = $card['name'] ?? '担当者';
     $intake = chatIntakeInitialPayload($agentName);
     $resumeIntake = $matched ? chatIntakeResumePayload($db, $sessionId, $businessCardId) : null;

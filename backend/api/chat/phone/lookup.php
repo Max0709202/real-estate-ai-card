@@ -67,6 +67,11 @@ try {
         $stmt->execute([$sessionId]);
     }
 
+    // 登録済み電話番号として本人確認できたこの端末を、セッション共有の認可端末に登録する。
+    if ($visitorId !== '') {
+        chatSessionRegisterDevice($db, $sessionId, $visitorId);
+    }
+
     $customerName = chatResolveCustomerNameForSession($db, $sessionId, $businessCardId);
     if ($customerName === '') {
         $customerName = chatCleanCustomerNameValue($found['customer_name'] ?? '');

@@ -9,6 +9,7 @@
  */
 
 require_once __DIR__ . '/openai-chat-helper.php';
+require_once __DIR__ . '/chat-phone-helper.php';
 
 /* ──────────────────────────────────────────────────────────
  * テーブル自動作成（マイグレーション未実行でも動作するよう冪等に作成）
@@ -317,10 +318,9 @@ if (!function_exists('propertyVerifyCustomerSession')) {
         $stmt->execute([$sessionId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) sendErrorResponse('セッションが見つかりません', 404);
-        // 既存の添付配信（download.php）と同じ認可方針:
         // セッションに visitor_identifier が登録済みなら一致を要求、未登録なら session_id 所持で許可。
-        $stored = $row['visitor_identifier'] ?? '';
-        if ($stored !== '' && $visitorId !== '' && $stored !== $visitorId) {
+        // ただし同一電話番号でSMS認証済みの別端末（複数端末共有）は認可集合で許可する。
+        if (!chatSessionVisitorAuthorized($db, $sessionId, $visitorId, $row['visitor_identifier'] ?? '')) {
             sendErrorResponse('アクセス権がありません', 403);
         }
         return (int)$row['business_card_id'];

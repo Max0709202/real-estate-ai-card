@@ -629,6 +629,9 @@
         renderQuickReplies(startupData.quick_replies || []);
         greetingShown = true;
         setInputEnabled(true);
+        // セッション確定後、この端末の機能タブ内容を確定したセッションで読み直す。
+        crmState = null;
+        loadCrmState(true);
     }
 
     function continueSavedConsultation(data, alreadyConfirmed) {
@@ -647,6 +650,10 @@
         renderQuickReplies(startupData.quick_replies || []);
         greetingShown = true;
         setInputEnabled(true);
+        // 別端末でSMS認証して共有セッションへ切り替わった直後は、機能タブ（条件整理・進捗管理・
+        // 物件選定・担当連絡等）の内容を共有セッションで読み直し、端末間で同じ内容を表示する。
+        crmState = null;
+        loadCrmState(true);
     }
 
     function loadScriptOnce(src) {
@@ -777,6 +784,9 @@
                     if (lookup.session_id) {
                         sessionId = lookup.session_id;
                         saveSessionId(sessionId);
+                        // 共有セッションへ切り替わったので機能タブ内容を読み直す。
+                        crmState = null;
+                        loadCrmState(true);
                     }
                     var returningLabel = customerCasualLabel(startupData || {});
                     var welcomeText = returningLabel === 'お客様' ? 'お帰りなさい。' : returningLabel + '、お帰りなさい。';
@@ -2024,44 +2034,64 @@
         return /(現在地|現在位置|現在の場所|今いる場所|今の場所|今いるところ|いまいる場所|ここはどこ|ここはどの|ここの(土地|場所|情報|住所|地域|エリア)|この場所|この土地|この付近|この周辺|ここら辺|この辺り|この辺|周辺の情報)/.test(t);
     }
 
-    // 2地点間の距離（メートル）。同一セッションでのGPS再利用＋100m移動判定に使う。
-    function geoDistanceMeters(a, b) {
-        if (!a || !b) return Infinity;
-        var R = 6371000;
-        var toRad = function (d) { return d * Math.PI / 180; };
-        var dLat = toRad(b.lat - a.lat);
-        var dLon = toRad(b.lon - a.lon);
-        var la1 = toRad(a.lat), la2 = toRad(b.lat);
-        var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+    // GPS取得失敗の理由を切り分けて、具体的な対処を案内する。原因が分からないと
+    // 「位置情報が取得できない」だけで詰まってしまうため、許可拒否／取得不可／
+    // タイムアウト／非セキュア接続 を区別してメッセージを出す。
+    function geolocationErrorMessage(err) {
+        if (typeof window !== 'undefined' && window.isSecureContext === false) {
+            return '現在地を取得できませんでした。安全な接続（https）でないため、位置情報を利用できません。住所を直接ご入力ください。';
+        }
+        var code = err && err.code;
+        if (code === 1) { // PERMISSION_DENIED
+            return '位置情報の利用が許可されていないため、現在地を取得できませんでした。\n\nお使いの端末・ブラウザの設定で位置情報を「許可」に変更してから、もう一度お試しください。（例：iPhoneは「設定 > プライバシーとセキュリティ > 位置情報サービス」、Safariのサイト設定など）\n\nそのまま住所を直接ご入力いただくこともできます。';
+        }
+        if (code === 2) { // POSITION_UNAVAILABLE
+            return '現在地を特定できませんでした。電波やGPSの状況が良い場所で、もう一度お試しください。住所を直接ご入力いただくこともできます。';
+        }
+        if (code === 3) { // TIMEOUT
+            return '現在地の取得に時間がかかり、完了できませんでした。もう一度お試しいただくか、住所を直接ご入力ください。';
+        }
+        return '現在地を取得できませんでした。位置情報を許可するか、住所をご入力ください。';
     }
 
-    // 現在地に関する質問の共通エントリ。GPS取得済みなら再許可を求めず即座に土地情報を取得し、
-    // 未取得なら許可ダイアログ（GPS取得）を起動する。
+    // 現在地に関する質問の共通エントリ。
+    // 「現在地」と聞かれるたびに、必ずその場で最新のGPS座標を取り直す。以前取得した座標
+    // （sessionGeo）を使い回すと、移動後もGoogleマップは正しい現在地なのにAIだけ前回の住所を
+    // 返す不整合が起きる（特にiOS Safariは permissions API が geolocation 未対応で、背景での
+    // 自動更新が一切効かず、初回座標がセッション中ずっと固定されてしまう）。そのため毎回
+    // maximumAge:0 で新規測位し、成功した座標だけを今回の照会に使う。取得できたら sessionGeo も
+    // 最新値へ更新する。取得に失敗した時だけ、直近に取得できた座標へフォールバックする。
     function startCurrentLocationFlow() {
-        if (sessionGeo) {
-            // 取得済み座標を再利用（毎回の許可要求をしない）。背景で100m以上の移動だけ反映する。
-            runCurrentLocationLandInfo(sessionGeo);
-            refreshSessionGeoIfMoved();
-            return;
-        }
         if (!navigator.geolocation) {
-            appendBotMessage('現在地を取得できませんでした。位置情報を許可するか、住所をご入力ください。');
+            appendBotMessage('お使いのブラウザが位置情報（GPS）に対応していないため、現在地を取得できませんでした。住所を直接ご入力ください。');
             return;
         }
-        appendBotMessage('現在地の情報を取得するため、位置情報（GPS）の利用を許可してください。');
+        // 初回のみ許可のお願いを表示（許可済みなら毎回出さない）。
+        if (!sessionGeo) {
+            appendBotMessage('現在地の情報を取得するため、位置情報（GPS）の利用を許可してください。');
+        }
         var waiting = appendBotMessage('現在地を取得しています', true);
         navigator.geolocation.getCurrentPosition(
             function (pos) {
                 if (waiting) waiting.remove();
+                // 常に最新の測位結果で上書きし、その座標で照会する。
                 sessionGeo = { lat: pos.coords.latitude, lon: pos.coords.longitude };
                 runCurrentLocationLandInfo(sessionGeo);
             },
-            function () {
+            function (err) {
                 if (waiting) waiting.remove();
-                appendBotMessage('現在地を取得できませんでした。位置情報を許可するか、住所をご入力ください。');
+                if (window.console && console.warn) console.warn('[chat-widget] geolocation failed:', { code: err && err.code, message: err && err.message, secureContext: window.isSecureContext });
+                // 最新座標を取得できなくても、同一セッションで以前取得できていれば、その座標で
+                // 案内する（ただし最新でない旨を明示する）。
+                if (sessionGeo) {
+                    appendBotMessage('最新の現在地を取得できなかったため、直近に取得した位置情報で土地情報をご案内します。位置がずれている場合は、位置情報を許可のうえ、もう一度お試しください。');
+                    runCurrentLocationLandInfo(sessionGeo);
+                    return;
+                }
+                appendBotMessage(geolocationErrorMessage(err));
             },
-            { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
+            // maximumAge:0 でブラウザのキャッシュ済み座標を使わせず、必ず新規測位する。
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
     }
 
@@ -2069,27 +2099,6 @@
     // ここでは二重表示しない（skipUserEcho）。
     function runCurrentLocationLandInfo(geo) {
         sendMessage('現在地の土地情報を教えてください', { geo: geo, skipUserEcho: true });
-    }
-
-    // 許可済みのときだけ、背景で現在地を再取得し、100m以上移動していれば座標を更新する。
-    // 許可が「毎回確認」の場合に不意のダイアログを出さないよう、granted のときのみ実行する。
-    function refreshSessionGeoIfMoved() {
-        if (!sessionGeo || !navigator.geolocation) return;
-        var go = function () {
-            navigator.geolocation.getCurrentPosition(
-                function (pos) {
-                    var next = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-                    if (geoDistanceMeters(sessionGeo, next) >= 100) sessionGeo = next;
-                },
-                function () {},
-                { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-            );
-        };
-        if (navigator.permissions && navigator.permissions.query) {
-            navigator.permissions.query({ name: 'geolocation' })
-                .then(function (st) { if (st && st.state === 'granted') go(); })
-                .catch(function () {});
-        }
     }
 
     function sendMessage(text, options) {
@@ -2254,7 +2263,35 @@
         return apiBase.replace(/\/?$/, '') + '/crm/' + path;
     }
 
-    function loadCrmState(force) {
+    var sessionRevalidating = false;
+    // サーバがセッションを認識できない（保存済み session_id が実在しない等）とき、
+    // session/start をやり直して有効な session_id を張り直す。これにより
+    // 「読み込みに失敗しました」で固定されず、機能タブが自動復帰できる。
+    function revalidateSession() {
+        if (sessionRevalidating) return Promise.resolve(false);
+        sessionRevalidating = true;
+        return fetch(apiBase + '/session/start.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: getSavedSessionId() || '', resume: true })
+        })
+            .then(function (res) { return res.json().catch(function () { return { success: false }; }); })
+            .then(function (data) {
+                sessionRevalidating = false;
+                if (data && data.success && data.data && data.data.session_id) {
+                    var newId = data.data.session_id;
+                    var changed = newId !== sessionId;
+                    sessionId = newId;
+                    if (data.data.visitor_id) visitorId = data.data.visitor_id;
+                    saveSessionId(sessionId);
+                    return changed;
+                }
+                return false;
+            })
+            .catch(function () { sessionRevalidating = false; return false; });
+    }
+
+    function loadCrmState(force, _healed) {
         if (!sessionId) return Promise.resolve(null);
         if (crmLoading && !force) return Promise.resolve(crmState);
         crmLoading = true;
@@ -2269,11 +2306,22 @@
                     }
                     return crmState;
                 }
+                // セッション不整合の可能性 → 一度だけセッションを張り直して再試行する。
+                if (!_healed) {
+                    return revalidateSession().then(function () {
+                        return loadCrmState(true, true);
+                    });
+                }
                 crmState = { failed: true };
                 return crmState;
             })
             .catch(function () {
                 crmLoading = false;
+                if (!_healed) {
+                    return revalidateSession().then(function () {
+                        return loadCrmState(true, true);
+                    });
+                }
                 crmState = { failed: true };
                 return crmState;
             });
@@ -2462,7 +2510,7 @@
         return 'session_id=' + encodeURIComponent(sessionId || '') + '&visitor_id=' + encodeURIComponent(visitorId || '');
     }
 
-    function renderPropertiesTab() {
+    function renderPropertiesTab(_healed) {
         if (!PUI) { renderFeaturePanel('<div class="chat-feature-empty">読み込みに失敗しました。</div>'); return; }
         if (!sessionId) {
             renderFeaturePanel('<div class="chat-feature-empty">まず「AI担当」で会話を始めると、提案物件をここで確認できます。</div>');
@@ -2472,6 +2520,11 @@
         propApi('/list.php?' + propAuthQS()).then(function (res) {
             var box = featurePanel.querySelector('#prop-cust');
             if (!box) return;
+            if (!res || !res.success) {
+                // セッション不整合の可能性 → 一度だけセッションを張り直して再試行。
+                if (!_healed) { revalidateSession().then(function () { renderPropertiesTab(true); }); return; }
+                propShowLoadError(box); return;
+            }
             var html = '<div class="prop-toolbar"><h4>物件選定</h4></div>';
             html += '<div class="prop-method" id="prop-cust-urlbtn" style="margin-bottom:12px">' +
                 '<span class="prop-method__icon prop-method__icon--url">' + PUI.icon('url') + '</span>' +
@@ -2486,7 +2539,18 @@
             box.querySelectorAll('.prop-card').forEach(function (c) {
                 c.addEventListener('click', function () { propOpenDetail(parseInt(c.getAttribute('data-prop-id'), 10)); });
             });
+        }).catch(function () {
+            // 通信エラー時に「読み込み中」のまま固まらないようにし、再読み込みで復帰できるようにする。
+            if (!_healed) { revalidateSession().then(function () { renderPropertiesTab(true); }); return; }
+            var box = featurePanel.querySelector('#prop-cust');
+            if (box) propShowLoadError(box);
         });
+    }
+
+    function propShowLoadError(box) {
+        box.innerHTML = '<div class="prop-empty">読み込みに失敗しました。<br><button type="button" class="prop-btn prop-btn--primary" id="prop-cust-retry">再読み込みする</button></div>';
+        var rb = box.querySelector('#prop-cust-retry');
+        if (rb) rb.addEventListener('click', renderPropertiesTab);
     }
 
     function propOpenUrlShare() {
@@ -2655,7 +2719,14 @@
             return;
         }
         if (crmState.failed) {
-            renderFeaturePanel('<div class="chat-feature-empty">読み込みに失敗しました。</div>');
+            // 失敗状態を固定表示にせず、再読み込みで復帰できるようにする。
+            // （複数端末での共有セッション確定前に一度失敗しても、押し直せば読み込める）
+            renderFeaturePanel('<div class="chat-feature-empty">読み込みに失敗しました。<br><button type="button" class="chat-feature-retry" data-crm-retry="1">再読み込みする</button></div>');
+            var retryBtn = featurePanel.querySelector('[data-crm-retry]');
+            if (retryBtn) retryBtn.addEventListener('click', function () {
+                crmState = null;
+                renderFeatureTab(tab);
+            });
             return;
         }
         if (tab === 'conditions') renderConditionsTab();

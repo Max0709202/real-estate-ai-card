@@ -24,6 +24,94 @@ function ensureChatVerifiedPhonesTable($db) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
 
+/**
+ * 同一セッションを共有できる「SMS認証済み端末」の集合を保持するテーブル。
+ * chat_sessions.visitor_identifier は単一所有者しか持てず、同じ電話番号で複数端末
+ * （PC・スマホ等）からアクセスすると最後に認証した端末以外が 403 になる。
+ * このテーブルに認証済み端末の visitor_id を登録し、認可判定で参照することで、
+ * 同一電話番号の全端末が同じ相談内容（条件整理・進捗・物件選定・担当連絡等）を共有できる。
+ */
+function ensureChatSessionDevicesTable($db) {
+    $db->exec("CREATE TABLE IF NOT EXISTS chat_session_devices (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        session_id CHAR(36) NOT NULL,
+        visitor_identifier VARCHAR(128) NOT NULL,
+        first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_chat_session_device (session_id, visitor_identifier),
+        INDEX idx_chat_session_device_session (session_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function chatIsValidVisitorId($visitorId) {
+    return is_string($visitorId) && preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId);
+}
+
+/**
+ * SMS認証（または登録済み電話番号の照合）を通過した端末を、当該セッションの
+ * 認可済み端末として登録する。既にセッションに単独所有者（visitor_identifier）が
+ * 記録されていれば、その所有者もあわせて集合へ引き継ぐ（本機能導入前のセッション救済）。
+ */
+function chatSessionRegisterDevice($db, $sessionId, $visitorId) {
+    $sessionId = trim((string)$sessionId);
+    $visitorId = trim((string)$visitorId);
+    if ($sessionId === '' || !preg_match('/^[A-Fa-f0-9-]{36}$/', $sessionId)) return;
+    if (!chatIsValidVisitorId($visitorId)) return;
+    try {
+        ensureChatSessionDevicesTable($db);
+        $stmt = $db->prepare("INSERT INTO chat_session_devices (session_id, visitor_identifier)
+            VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE last_seen_at = CURRENT_TIMESTAMP");
+        $stmt->execute([$sessionId, $visitorId]);
+
+        $stmt = $db->prepare("SELECT visitor_identifier FROM chat_sessions WHERE id = ? LIMIT 1");
+        $stmt->execute([$sessionId]);
+        $owner = trim((string)($stmt->fetchColumn() ?: ''));
+        if ($owner !== '' && $owner !== $visitorId && chatIsValidVisitorId($owner)) {
+            $stmt = $db->prepare("INSERT INTO chat_session_devices (session_id, visitor_identifier)
+                VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE last_seen_at = CURRENT_TIMESTAMP");
+            $stmt->execute([$sessionId, $owner]);
+        }
+    } catch (Throwable $e) {
+        // 認可集合の記録失敗は致命的ではない（従来の単独所有者判定にフォールバック）。
+    }
+}
+
+/**
+ * 顧客端末（visitor_id）が当該セッションへアクセス可能かを判定する。
+ *  - visitor_id 未提示、またはセッションに所有者が未登録なら従来通り許可。
+ *  - セッションの単独所有者（visitor_identifier）と一致すれば許可。
+ *  - SMS認証済みの別端末として認可集合に登録済みなら許可（同一電話番号の複数端末共有）。
+ * $storedVisitorIdentifier を渡せば chat_sessions の追加照会を省略できる。
+ */
+function chatSessionVisitorAuthorized($db, $sessionId, $visitorId, $storedVisitorIdentifier = null) {
+    $sessionId = trim((string)$sessionId);
+    $visitorId = trim((string)$visitorId);
+    if ($visitorId === '') return true;
+
+    $stored = $storedVisitorIdentifier;
+    if ($stored === null) {
+        $stmt = $db->prepare("SELECT visitor_identifier FROM chat_sessions WHERE id = ? LIMIT 1");
+        $stmt->execute([$sessionId]);
+        $stored = $stmt->fetchColumn();
+    }
+    $stored = trim((string)($stored ?? ''));
+    if ($stored === '') return true;
+    if ($stored === $visitorId) return true;
+
+    // 認可集合を突合。高頻度ポーリングでの無駄な DDL を避けるため、
+    // テーブル未作成などで失敗したときだけ遅延生成を試みる。
+    try {
+        $stmt = $db->prepare("SELECT 1 FROM chat_session_devices WHERE session_id = ? AND visitor_identifier = ? LIMIT 1");
+        $stmt->execute([$sessionId, $visitorId]);
+        if ($stmt->fetchColumn()) return true;
+    } catch (Throwable $e) {
+        try { ensureChatSessionDevicesTable($db); } catch (Throwable $e2) {}
+    }
+    return false;
+}
+
 function chatNormalizePhoneDigits($phone) {
     $phone = mb_convert_kana((string)$phone, 'n');
     return preg_replace('/\D+/', '', $phone);
@@ -185,9 +273,14 @@ function chatFindSessionByVerifiedPhone($db, $businessCardId, $phone) {
 
     ensureChatVerifiedPhonesTable($db);
     if (function_exists('ensureChatLeadContactTable')) ensureChatLeadContactTable($db);
+    // INNER JOIN で「実在するセッション」だけを返す。
+    // last_session_id が削除済みセッションを指している（デッドポインタ）場合に、
+    // 存在しない session_id をクライアントへ渡してしまうと、以降 crm/get・物件・担当連絡が
+    // すべて 404 になり「読み込みに失敗しました」から復帰できなくなるため。
+    // デッドポインタ時は下の chat_lead_contacts フォールバック、または新規セッション作成に委ねる。
     $stmt = $db->prepare("SELECT cvp.last_session_id AS session_id, cvp.customer_name, cs.last_seen_at, cs.created_at
         FROM chat_verified_phones cvp
-        LEFT JOIN chat_sessions cs ON cs.id = cvp.last_session_id
+        JOIN chat_sessions cs ON cs.id = cvp.last_session_id
         WHERE cvp.business_card_id = ? AND cvp.phone_normalized = ?
         LIMIT 1");
     $stmt->execute([$businessCardId, $lookup]);

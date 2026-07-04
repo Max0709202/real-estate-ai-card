@@ -4,6 +4,8 @@
  * 既存の chat_sessions / chat_messages を共有チャネルとして使い、role='agent' を人間の担当発言とする。
  */
 
+require_once __DIR__ . '/chat-phone-helper.php';
+
 if (!function_exists('agentMsgVerifyOwnedSession')) {
     /**
      * セッションが指定ユーザー（担当）の名刺に属するか検証し、セッション情報を返す。
@@ -42,7 +44,8 @@ if (!function_exists('agentMsgVerifyVisitorSession')) {
         if (!$session) {
             sendErrorResponse('セッションが見つかりません', 404);
         }
-        if (!empty($session['visitor_identifier']) && $visitorId !== '' && $session['visitor_identifier'] !== $visitorId) {
+        // 同一電話番号でSMS認証済みの別端末も許可する（複数端末でのセッション共有）。
+        if (!chatSessionVisitorAuthorized($db, $sessionId, $visitorId, $session['visitor_identifier'])) {
             sendErrorResponse('セッションを確認できません', 403);
         }
         return $session;

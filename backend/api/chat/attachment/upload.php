@@ -77,7 +77,8 @@ try {
         if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
             $visitorId = '';
         }
-        if (!empty($session['visitor_identifier']) && $visitorId !== '' && $session['visitor_identifier'] !== $visitorId) {
+        // 同一電話番号でSMS認証済みの別端末も許可する（複数端末での添付共有）。
+        if (!chatSessionVisitorAuthorized($db, $sessionId, $visitorId, $session['visitor_identifier'])) {
             sendErrorResponse('セッションを確認できません', 403);
         }
     }

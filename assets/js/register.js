@@ -3022,6 +3022,8 @@ async function showPreview() {
     }
     iframe.setAttribute('frameborder', '0');
     iframe.setAttribute('scrolling', 'yes');
+    // プレビュー（iframe）内でも現在地取得・音声入力が使えるように権限を委譲する。
+    iframe.setAttribute('allow', 'geolocation; microphone');
 
     // Close button
     const closeButton = document.createElement('button');
@@ -4986,6 +4988,8 @@ async function showPreview() {
     }
     iframe.setAttribute('frameborder', '0');
     iframe.setAttribute('scrolling', 'yes');
+    // プレビュー（iframe）内でも現在地取得・音声入力が使えるように権限を委譲する。
+    iframe.setAttribute('allow', 'geolocation; microphone');
 
     // Close button
     const closeButton = document.createElement('button');
