@@ -244,12 +244,13 @@
     }
     var rows = items.map(function (it) {
       var label = esc(it.title || it.label || it.name || it.code || '項目');
-      var val = it.count_note || it.summary || it.value || it.text || it.scope_note || '該当あり';
+      // GPTが生成した自然な説明文（summary）を最優先で表示。無い場合は従来の説明文へフォールバック。
+      var val = it.summary || it.count_note || it.value || it.text || it.scope_note || '該当あり';
       if (Array.isArray(val)) val = val.join(' / ');
       else if (typeof val === 'object') val = JSON.stringify(val);
       return '<div class="prop-hazard-row"><span class="prop-hazard-row__icon">' + icon('warn') + '</span>' +
         '<span class="prop-hazard-row__label">' + label + '</span>' +
-        '<span class="prop-hazard-row__val">' + esc(String(val)).substr(0, 80) + '</span></div>';
+        '<span class="prop-hazard-row__val">' + esc(String(val)).substr(0, 300) + '</span></div>';
     }).join('');
     return meta + '<div class="prop-hazard-list">' + rows + '</div>';
   }

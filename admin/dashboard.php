@@ -619,6 +619,10 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                             $type = $user['user_type'] ?? 'new';
                             $isEra = $user['is_era_member'] ?? 0;
                             $classification = $isEra ? 'era' : $type;
+                            // 既存・ＥＲＡ会員はセルフィンPro利用期間中で月額請求が無いため、利用期限の代わりに「利用期間中」と表示する
+                            if (in_array($classification, ['existing', 'era'], true)) {
+                                $usagePeriodDisplay = '利用期間中';
+                            }
                             $classificationLabels = ['new' => '新規', 'existing' => '既存', 'era' => 'ＥＲＡ'];
                             $classificationLabel = $classificationLabels[$classification] ?? '新規';
                             $classificationEraStyle = $classification === 'era' ? 'color: #dc3545; font-weight: bold;' : '';

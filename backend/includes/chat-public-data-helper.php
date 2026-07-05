@@ -1530,6 +1530,90 @@ function chatReinfoResolveLatLon($db, $area, $message) {
     return null;
 }
 
+/**
+ * 取得した各ハザード項目の生データ（GeoJSONプロパティを整形した data 行）を GPT で
+ * 一括解析し、お客様が理解しやすい自然な説明文（summary）を項目ごとに生成する。
+ * ・APIの定型文（「これは指定地点を含む区域のGISデータです」等）ではなく、取得値そのものを
+ *   噛み砕いた文章にするのが目的。
+ * ・data が空の項目はスキップ（count_note にフォールバック）。
+ * ・GPT失敗時は何も付与しない（フロントが従来の count_note を表示）。
+ * @param array $items chatHazardAddressReport が集めた status='data' の項目配列（参照渡しで summary を付与）
+ */
+function chatHazardSummarizeItems(array &$items) {
+    if (empty($items) || !function_exists('callOpenAIChat')) return;
+
+    // GPTに渡す各項目の生データを、コード・見出し・値行だけにコンパクト化する。
+    $payload = [];
+    foreach ($items as $idx => $it) {
+        $rows = isset($it['data']) && is_array($it['data']) ? $it['data'] : [];
+        if (empty($rows)) continue; // 生データが無ければ要約対象外
+        $code = (string)($it['code'] ?? ('item' . $idx));
+        // タイトル末尾の「（XKT025）」等のコード表記は不要なので落とす。
+        $title = trim(preg_replace('/（[A-Z0-9]+）\s*$/u', '', (string)($it['title'] ?? '')));
+        $payload[] = [
+            'code'  => $code,
+            'title' => $title,
+            'scope' => (string)($it['scope_note'] ?? ''),
+            'rows'  => array_slice($rows, 0, 6),
+        ];
+    }
+    if (empty($payload)) return;
+
+    $model = function_exists('chatOpenAIModelSummary') ? chatOpenAIModelSummary()
+        : (defined('OPENAI_CHAT_MODEL') ? OPENAI_CHAT_MODEL : 'gpt-4o-mini');
+    $apiKey = function_exists('chatOpenAIApiKeyForModel') ? chatOpenAIApiKeyForModel($model)
+        : (defined('OPENAI_API_KEY') ? OPENAI_API_KEY : '');
+    if ($apiKey === '') return;
+
+    $system = <<<SYS
+あなたは経験豊富な不動産営業担当者です。国土交通省・不動産情報ライブラリの公開データ（ハザード・地盤・防災情報）を、お客様が理解しやすい自然な日本語で説明します。
+
+絶対ルール：
+- 与えられた【取得データ】の値のみを使う。書かれていない事実の推測・創作は一切しない。
+- 各項目を1〜2文の平易な文章にまとめる。専門用語や項目コード、「GISデータ」「基準点」「レコード」等のシステム用語は使わない。
+- 数値・区分名・施設名などの固有の値はそのまま正確に伝える。
+- 不安を過度に煽らず、断定しすぎず、事実を淡々と分かりやすく伝える。避難場所・災害履歴などは、その内容が何を意味するかを一言添える。
+- 他社・他機関への相談を促す表現は書かない。
+- 出力は必ずJSONのみ。形式: {"項目コード":"説明文", ...}。説明文やコードフェンスは付けない。
+SYS;
+
+    $user = "【取得データ】（項目コードごとの値）\n"
+        . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+        . "\n\n各項目コードについて、お客様向けの自然な説明文を作成し、JSONで返してください。";
+    $messages = [
+        ['role' => 'system', 'content' => $system],
+        ['role' => 'user', 'content' => $user],
+    ];
+    $result = callOpenAIChat($messages, $apiKey, $model, [
+        'purpose' => 'hazard_summary',
+        'max_tokens' => 900,
+        'temperature' => 0.3,
+        'timeout' => 40,
+    ]);
+    if (!empty($result['error']) || empty($result['reply'])) {
+        chatLandDebugLog('hazard_summary_error', ['error' => $result['error'] ?? 'empty reply']);
+        return;
+    }
+
+    $reply = trim((string)$result['reply']);
+    $reply = preg_replace('/^```[a-zA-Z]*\s*/', '', $reply);
+    $reply = preg_replace('/```$/', '', trim($reply));
+    $s = strpos($reply, '{'); $e = strrpos($reply, '}');
+    if ($s === false || $e === false) return;
+    $map = json_decode(substr($reply, $s, $e - $s + 1), true);
+    if (!is_array($map)) return;
+
+    foreach ($items as &$it) {
+        $code = (string)($it['code'] ?? '');
+        if ($code === '' || !isset($map[$code])) continue;
+        $summary = trim((string)$map[$code]);
+        if ($summary === '') continue;
+        if (function_exists('sanitizeChatReferralLanguage')) $summary = sanitizeChatReferralLanguage($summary);
+        $it['summary'] = $summary;
+    }
+    unset($it);
+}
+
 function chatHazardAddressReport($db, $address) {
     if (!$db instanceof PDO) return null;
     $address = trim((string)$address);
@@ -1561,6 +1645,9 @@ function chatHazardAddressReport($db, $address) {
             $items[] = $item;
         }
     }
+    // 取得したハザードデータ（生JSON）を GPT で解析し、お客様向けの自然な説明文を各項目に付与する。
+    // 失敗しても致命ではない（フロントは従来の count_note にフォールバックする）。
+    try { chatHazardSummarizeItems($items); } catch (Throwable $e) { error_log('hazard summarize error: ' . $e->getMessage()); }
     return [
         'address' => $address,
         'geocoded' => $geo,

@@ -695,8 +695,13 @@ if (!function_exists('propertyFetchUrlHtml')) {
             CURLOPT_MAXREDIRS => 4,
             CURLOPT_TIMEOUT => 15,
             CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; AIFcardBot/1.0)',
-            CURLOPT_HTTPHEADER => ['Accept-Language: ja,en;q=0.8'],
+            // アットホーム等はbot判定のUser-Agentを405で弾くため、実ブラウザ相当のUA・ヘッダーで取得する。
+            // （SUUMO/HOME'S/Yahoo!等は従来通り取得でき、UAでbotを拒否する媒体も救済される）
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            CURLOPT_HTTPHEADER => [
+                'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language: ja,en-US;q=0.9,en;q=0.8',
+            ],
         ]);
         $html = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
