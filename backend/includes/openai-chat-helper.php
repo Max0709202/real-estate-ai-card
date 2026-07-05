@@ -494,7 +494,7 @@ function unifyAgentPersonaLanguage($reply, $agentName = '担当者') {
  * @param string $agentName Optional agent name for persona
  * @return array [ 'reply' => string, 'sources' => array, 'error' => string|null ]
  */
-function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentName = '担当者', $db = null, $sessionId = '', $geo = null) {
+function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentName = '担当者', $db = null, $sessionId = '', $geo = null, $imagePropertyContext = '') {
     $today  = date('Y-m-d');
     $leadData = [];
     $businessCardId = null;
@@ -585,9 +585,18 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
         chatLogPublicDataAccess($db, $sessionId, $businessCardId, $userMessage, $publicDataMeta);
     }
 
+    // 添付画像から特定した物件を、会話メモリー（過去の別物件）より優先する最重要ブロック。
+    $imagePropertyBlock = '';
+    if (is_string($imagePropertyContext) && trim($imagePropertyContext) !== '') {
+        $imagePropertyBlock = "\n# 今回の質問対象（添付画像から特定・最優先）\n"
+            . trim($imagePropertyContext) . "\n"
+            . "この画像から特定した物件情報は、下の会話メモリーや過去の会話に登場した物件よりも優先してください。\n";
+    }
+
     $systemPrompt = <<<PROMPT
 あなたは不動産の専門家ではなく、日本の不動産営業現場で使われる顧客を担当している不動産エージェントです。
 名前は「{$agentName}」です。今日の日付は {$today} です。
+{$imagePropertyBlock}
 
 # 担当営業本人としての応対（最重要・全回答に必ず適用）
 あなたは「担当営業本人（{$agentName}）の分身AI」です。お客様から見て、あなたと担当営業は同一人物・同一窓口です。

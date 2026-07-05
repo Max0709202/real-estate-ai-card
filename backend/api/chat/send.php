@@ -12,6 +12,7 @@ require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../includes/chat-crm-helper.php';
 require_once __DIR__ . '/../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../includes/notification-helper.php';
+require_once __DIR__ . '/../../includes/property-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -168,6 +169,52 @@ try {
         $sources = [];
     } else {
         $agentName = $card['name'] ?? '担当者';
+        // 画像添付がある場合は、まず添付画像から物件（物件名・所在地・マンション名等）を特定し、
+        // その物件を最優先の前提としてAI回答を生成する。過去の会話の別物件と混同させない。
+        // 物件を特定できない場合は、推測で答えず「物件を特定できませんでした」と正直に返す。
+        $imageProp = !empty($attachmentIds)
+            ? chatResolvePropertyFromAttachments($db, $sessionId, $attachmentIds)
+            : null;
+
+        if ($imageProp !== null && $imageProp['has_image']) {
+            if ($imageProp['identified']) {
+                $propContext = chatBuildImagePropertyContext($imageProp['fields']);
+                // 公的データ／マンションDB照会が画像の住所を対象にするよう、物件名・住所をクエリ先頭へ添える。
+                $hintParts = [];
+                $bName = trim((string)($imageProp['fields']['building_name'] ?? ''));
+                $bAddr = trim((string)($imageProp['fields']['address'] ?? ''));
+                if ($bName !== '') $hintParts[] = $bName;
+                if ($bAddr !== '') $hintParts[] = $bAddr;
+                $hint = implode(' ', $hintParts);
+                $queryForAI = ($hint !== '' ? '対象物件：' . $hint . "\n" : '') . $message;
+
+                $result = getBotReplyWithOpenAI($queryForAI, $conversationHistory, $agentName, $db, $sessionId, null, $propContext);
+                if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
+                    error_log('Chat OpenAI error (image property): ' . ($result['error'] ?? 'empty reply'));
+                    $reply = getBotReplyPlaceholder($message);
+                    $sources = [['url' => CHAT_BLOG_BASE_URL, 'title' => '戸建てリノベINFO']];
+                } else {
+                    $reply = $result['reply'];
+                    $sources = $result['sources'];
+                    if ($bName !== '') {
+                        $reply = $bName . 'について、お送りいただいた画像をもとに回答します。' . "\n\n" . $reply;
+                    }
+                }
+            } else {
+                // 画像はあるが物件を特定できなかった → 過去の会話から推測せず、正直に伝える。
+                // 解析APIの一時失敗と、内容から物件を読み取れなかった場合とで文面を分ける。
+                if (!empty($imageProp['error'])) {
+                    error_log('Chat image property extraction failed: ' . $imageProp['error']);
+                    $reply = "申し訳ありません。お送りいただいた画像の読み取りに一時的に失敗しました。\n\n"
+                        . "お手数ですが、もう一度画像をお送りいただくか、物件名・ご住所をテキストでお知らせください。私の方でお調べしてご案内いたします。";
+                } else {
+                    $reply = "お送りいただいた画像から物件を特定できませんでした。\n\n"
+                        . "恐れ入りますが、物件名（マンション名）や所在地がはっきり写った画像を改めてお送りいただくか、"
+                        . "物件名・ご住所をテキストでお知らせいただけますでしょうか。私の方でお調べしてご案内いたします。";
+                }
+                $sources = [];
+            }
+        } else {
         // マンション名での土地/ハザード照会 → DBから住所を解決し、住所入りクエリで
         // 標準の土地情報フロー（用途地域・建ぺい率・容積率・ハザード等）を実行する。
         $mansionLand = chatMansionLandQueryAddress($db, $message);
@@ -197,6 +244,7 @@ try {
                 }
             }
         }
+        } // 画像物件フロー else（マンション名テキストフロー）の終端
     }
     }
 

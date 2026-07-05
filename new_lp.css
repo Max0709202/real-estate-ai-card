@@ -2184,6 +2184,19 @@ body {
     line-height: 1.2;
 }
 
+/* Pricing Image */
+.pricing-image {
+    max-width: 900px;
+    margin: 0 auto 40px;
+}
+
+.pricing-image img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 24px;
+}
+
 /* Blue Pricing Box */
 .pricing-box-blue {
     background-color: #0066CC;

@@ -607,6 +607,82 @@ if (!function_exists('propertyExtractFromImages')) {
     }
 }
 
+if (!function_exists('chatResolvePropertyFromAttachments')) {
+    /**
+     * 顧客がチャットに添付した画像（販売図面・物件写真等）から、Vision で物件情報を抽出する。
+     * 画像添付が1枚も無ければ has_image=false。抽出できた物件名/所在地があれば identified=true。
+     * $attachmentIds は client 入力由来のため、必ず当該セッションの画像のみに限定する。
+     * @return array ['has_image'=>bool, 'identified'=>bool, 'fields'=>array, 'error'=>?string]
+     */
+    function chatResolvePropertyFromAttachments(PDO $db, string $sessionId, array $attachmentIds): array
+    {
+        $attachmentIds = array_values(array_filter(array_map('intval', $attachmentIds)));
+        $empty = ['has_image' => false, 'identified' => false, 'fields' => [], 'error' => null];
+        if (!$attachmentIds || $sessionId === '') return $empty;
+
+        $place = implode(',', array_fill(0, count($attachmentIds), '?'));
+        $stmt = $db->prepare(
+            "SELECT stored_path FROM chat_message_attachments
+             WHERE id IN ($place) AND session_id = ? AND kind = 'image'
+             ORDER BY id ASC"
+        );
+        $stmt->execute(array_merge($attachmentIds, [$sessionId]));
+
+        $paths = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $abs = rtrim(UPLOAD_DIR, '/') . '/' . ltrim((string)$row['stored_path'], '/');
+            if (is_file($abs)) $paths[] = $abs;
+        }
+        if (!$paths) return $empty; // 画像添付なし（PDF等のみ）→ 通常フローへ
+
+        $res = propertyExtractFromImages($paths);
+        $fields = is_array($res['fields'] ?? null) ? $res['fields'] : [];
+        $building = trim((string)($fields['building_name'] ?? ''));
+        $address  = trim((string)($fields['address'] ?? ''));
+
+        return [
+            'has_image'  => true,
+            'identified' => ($building !== '' || $address !== ''),
+            'fields'     => $fields,
+            'error'      => $res['error'] ?? null,
+        ];
+    }
+}
+
+if (!function_exists('chatBuildImagePropertyContext')) {
+    /**
+     * 添付画像から抽出した物件情報を、AIプロンプトへ最優先で注入するブロックを生成する。
+     * 抽出できた項目だけを列挙し、無い項目は書かない（推測させない）。
+     * 顧客向けチャットのため、担当のみ（seller_* 等 agent_only）の項目は絶対に含めない。
+     */
+    function chatBuildImagePropertyContext(array $fields): string
+    {
+        $typeMap = ['mansion' => 'マンション', 'house' => '一戸建て', 'land' => '土地'];
+        $lines = [];
+
+        $ptype = trim((string)($fields['property_type'] ?? ''));
+        if ($ptype !== '') {
+            $lines[] = '・物件種別: ' . ($typeMap[$ptype] ?? $ptype);
+        }
+        // propertyFieldDefs の並び順で、顧客に出してよい（agent_only=false）項目のみ列挙する。
+        foreach (propertyFieldDefs() as $f) {
+            list($key, $label, , , $agentOnly) = array_pad($f, 5, null);
+            if ($agentOnly) continue;
+            $v = trim((string)($fields[$key] ?? ''));
+            if ($v === '') continue;
+            $lines[] = '・' . $label . ': ' . $v;
+        }
+        if (!$lines) return '';
+
+        return "【添付画像から読み取った物件情報（今回の質問の対象物件・最優先）】\n"
+            . implode("\n", $lines) . "\n"
+            . "※お客様は、この添付画像に写っている上記の物件について質問しています。"
+            . "過去の会話に出てきた別の物件と混同せず、必ずこの物件を前提に回答してください。"
+            . "上記に記載が無い事項（写っていない住所・築年・価格・設備など）は、"
+            . "別途の参照データで確認できない限り、推測で答えないでください。";
+    }
+}
+
 if (!function_exists('propertyFetchUrlHtml')) {
     /** 物件URLのHTMLを取得し、本文テキストを抽出（タグ除去・圧縮）。 */
     function propertyFetchUrlHtml(string $url): ?string
@@ -1193,10 +1269,18 @@ if (!function_exists('propertyApplyMaskToJpeg')) {
 }
 
 if (!function_exists('propertyFlyerModel')) {
-    /** 販売図面解析に使うモデル（既定 GPT-4.5）。OPENAI_MODEL_FLYER で上書き可。 */
+    /**
+     * 販売図面解析（写真領域の検出・分類）に使うVisionモデル。
+     * 既定は gpt-4o。※旧既定の gpt-4.5-preview は提供終了で存在せず、常に
+     * 弱い gpt-4o-mini へフォールバックしていたため、写真領域の座標検出が不正確だった。
+     * gpt-4o は領域座標の精度が大幅に高い。OPENAI_MODEL_FLYER で上書き可。
+     */
     function propertyFlyerModel(): string
     {
-        return getenv('OPENAI_MODEL_FLYER') ?: 'gpt-4.5-preview';
+        $m = trim((string)getenv('OPENAI_MODEL_FLYER'));
+        // 空・または存在しない旧モデル指定は gpt-4o に矯正する。
+        if ($m === '' || stripos($m, 'gpt-4.5') !== false) $m = 'gpt-4o';
+        return $m;
     }
 }
 
@@ -1255,6 +1339,34 @@ if (!function_exists('propertyCropRegionToJpeg')) {
     }
 }
 
+if (!function_exists('propertyFlyerDrawGrid')) {
+    /**
+     * ページ画像に列・行番号つきの格子を重ねたJPEGを生成する（GPTの位置推定補助用）。
+     * Visionモデルは自由な小数座標より「見えている格子セル」の指定の方が精度が高い。
+     * 実際の切り出しは格子なしの原本から行うため、この画像はGPT入力専用。
+     * $cols/$rows は参照渡しで、実際に描いたセル数を返す。
+     */
+    function propertyFlyerDrawGrid(string $srcJpeg, string $outJpeg, int &$cols, int &$rows): bool
+    {
+        if (!function_exists('imagecreatefromjpeg')) return false;
+        $src = @imagecreatefromjpeg($srcJpeg);
+        if (!$src) return false;
+        $W = imagesx($src); $H = imagesy($src);
+        if ($W < 8 || $H < 8) { imagedestroy($src); return false; }
+        $cols = 16;
+        $rows = max(8, min(28, (int)round($cols * $H / max(1, $W))));
+        $red = imagecolorallocate($src, 255, 0, 0);
+        for ($i = 1; $i < $cols; $i++) { $x = (int)round($i * $W / $cols); imageline($src, $x, 0, $x, $H, $red); }
+        for ($j = 1; $j < $rows; $j++) { $y = (int)round($j * $H / $rows); imageline($src, 0, $y, $W, $y, $red); }
+        // 列番号（上端）・行番号（左端）を各セルに描画
+        for ($i = 0; $i < $cols; $i++) { imagestring($src, 3, (int)round(($i + 0.30) * $W / $cols) + 1, 1, (string)($i + 1), $red); }
+        for ($j = 0; $j < $rows; $j++) { imagestring($src, 3, 1, (int)round(($j + 0.30) * $H / $rows) + 1, (string)($j + 1), $red); }
+        $ok = imagejpeg($src, $outJpeg, 90);
+        imagedestroy($src);
+        return (bool)$ok;
+    }
+}
+
 if (!function_exists('propertyFlyerAnalyzePage')) {
     /**
      * 販売図面の1ページ画像を GPT-4.5（Vision）で1回だけ解析し、
@@ -1267,19 +1379,42 @@ if (!function_exists('propertyFlyerAnalyzePage')) {
     {
         $fallback = ['items' => [], 'mask_regions' => propertyFlyerBottomBandRegions()];
         if (!is_file($pageAbsPath) || !function_exists('curl_init')) return $fallback;
-        $data = @file_get_contents($pageAbsPath);
-        if ($data === false) return $fallback;
+
+        // 位置推定の精度を上げるため、列・行番号つきの格子を重ねた画像をGPTへ渡し、
+        // 各写真・図版の位置を「セル範囲（列c1-c2 / 行r1-r2）」で答えさせる。
+        // 自由な小数座標だと間取り図等を大きく取り違えるため、セル指定に統一する。
+        // 切り出しは格子なしの原本から行う（この格子画像はGPT入力専用）。
+        $cols = 16; $rows = 12;
+        $gridPath = tempnam(sys_get_temp_dir(), 'prop_grid_') . '.jpg';
+        $useGrid = propertyFlyerDrawGrid($pageAbsPath, $gridPath, $cols, $rows);
+        $imgPath = $useGrid ? $gridPath : $pageAbsPath;
+        $data = @file_get_contents($imgPath);
+        if ($data === false) { if ($useGrid) @unlink($gridPath); return $fallback; }
         $b64 = 'data:image/jpeg;base64,' . base64_encode($data);
 
-        $prompt = "あなたは日本の不動産販売図面（チラシ）画像を解析するアシスタントです。\n"
-            . "この画像に含まれる個々の写真・図版の領域を検出し、それぞれ次のいずれかに分類してください:\n"
-            . "建物外観 / 間取り図 / 室内写真 / 設備写真 / 地図 / その他\n"
-            . "「その他」= 会社ロゴ・QRコード・会社名・住所・電話/FAX番号・担当者情報・物件確認QR・アイコン・広告等（売主仲介会社情報を含む可能性のあるもの）。\n"
-            . "各領域は、画像左上を(0,0)・右下を(1,1)とした正規化矩形 {x,y,w,h}（x,y=左上, w,h=幅高さ, 0〜1の小数）で示してください。\n"
-            . "建物外観が複数ある場合は、建物全体が最も分かりやすい1枚にのみ thumbnail_candidate=true を付けてください。\n"
-            . "さらに、顧客に渡すPDFでマスク（非表示に）すべき『売主仲介会社情報』（会社名・住所・電話・FAX・QRコード・『物件確認はこちら』『お問い合わせ』等）の領域を mask_regions として返してください。\n"
-            . "出力はJSONのみ: {\"items\":[{\"category\":\"..\",\"x\":..,\"y\":..,\"w\":..,\"h\":..,\"thumbnail_candidate\":true}], \"mask_regions\":[{\"x\":..,\"y\":..,\"w\":..,\"h\":..}]}\n"
-            . "説明文やコードフェンスは付けないこと。";
+        if ($useGrid) {
+            $prompt = "あなたは日本の不動産販売図面（チラシ）画像を解析するアシスタントです。\n"
+                . "画像には赤い格子（列1〜{$cols}を上端、行1〜{$rows}を左端に番号表示）を重ねています。\n"
+                . "この図面に含まれる個々の写真・図版を検出し、それぞれ次のいずれかに分類してください:\n"
+                . "建物外観 / 間取り図 / 室内写真 / 設備写真 / 地図 / その他\n"
+                . "「その他」= 会社ロゴ・QRコード・会社名・住所・電話/FAX番号・担当者情報・物件確認QR・アイコン・広告等（売主仲介会社情報を含む可能性のあるもの）。\n"
+                . "各写真・図版の位置は、その絵柄が占める格子セル範囲を、列開始c1・行開始r1・列終了c2・行終了r2（いずれも1以上の整数、c1≦c2, r1≦r2）で答えてください。\n"
+                . "【重要】絵柄が実際に写っているセルだけを含め、周囲の見出し文字・余白・キャッチコピー・価格帯のセルは含めないでください。実在する写真・図版だけを返し、無い場合や位置が曖昧な場合はその項目を出力しないこと（無理に作らない）。\n"
+                . "建物外観が複数ある場合は、建物全体が最も分かりやすい1枚にのみ thumbnail_candidate=true を付けてください。\n"
+                . "さらに、顧客に渡すPDFでマスク（非表示に）すべき『売主仲介会社情報』（会社名・住所・電話・FAX・QRコード・『物件確認はこちら』『お問い合わせ』等）の領域も同じセル範囲形式で mask_regions として返してください。\n"
+                . "出力はJSONのみ: {\"items\":[{\"category\":\"..\",\"c1\":..,\"r1\":..,\"c2\":..,\"r2\":..,\"thumbnail_candidate\":true}], \"mask_regions\":[{\"c1\":..,\"r1\":..,\"c2\":..,\"r2\":..}]}\n"
+                . "説明文やコードフェンスは付けないこと。";
+        } else {
+            $prompt = "あなたは日本の不動産販売図面（チラシ）画像を解析するアシスタントです。\n"
+                . "この画像に含まれる個々の写真・図版の領域を検出し、それぞれ次のいずれかに分類してください:\n"
+                . "建物外観 / 間取り図 / 室内写真 / 設備写真 / 地図 / その他\n"
+                . "「その他」= 会社ロゴ・QRコード・会社名・住所・電話/FAX番号・担当者情報・物件確認QR・アイコン・広告等（売主仲介会社情報を含む可能性のあるもの）。\n"
+                . "各領域は、画像左上を(0,0)・右下を(1,1)とした正規化矩形 {x,y,w,h}（0〜1の小数、小数第3位まで）で示してください。写真の外側の余白・見出し文字・キャッチコピーは含めず、絵柄だけをタイトに囲うこと。実在する写真だけを返し、曖昧なら出力しないこと。\n"
+                . "建物外観が複数ある場合は、建物全体が最も分かりやすい1枚にのみ thumbnail_candidate=true を付けてください。\n"
+                . "さらに、顧客に渡すPDFでマスクすべき『売主仲介会社情報』の領域を mask_regions として返してください。\n"
+                . "出力はJSONのみ: {\"items\":[{\"category\":\"..\",\"x\":..,\"y\":..,\"w\":..,\"h\":..,\"thumbnail_candidate\":true}], \"mask_regions\":[{\"x\":..,\"y\":..,\"w\":..,\"h\":..}]}\n"
+                . "説明文やコードフェンスは付けないこと。";
+        }
         $messages = [['role' => 'user', 'content' => [
             ['type' => 'text', 'text' => $prompt],
             ['type' => 'image_url', 'image_url' => ['url' => $b64]],
@@ -1295,7 +1430,25 @@ if (!function_exists('propertyFlyerAnalyzePage')) {
             if (empty($res['error']) && !empty($res['reply'])) { $reply = $res['reply']; break; }
             error_log('property flyer analyze model ' . $model . ' failed: ' . ($res['error'] ?? 'empty'));
         }
+        if ($useGrid) @unlink($gridPath);
         if ($reply === null) return $fallback;
+
+        // セル範囲（1始まり・両端含む）→ 正規化矩形 {x,y,w,h} へ変換する。
+        $cellToRegion = function ($c1, $r1, $c2, $r2) use ($cols, $rows) {
+            $c1 = (int)$c1; $r1 = (int)$r1; $c2 = (int)$c2; $r2 = (int)$r2;
+            if ($c2 < $c1) { $t = $c1; $c1 = $c2; $c2 = $t; }
+            if ($r2 < $r1) { $t = $r1; $r1 = $r2; $r2 = $t; }
+            $c1 = max(1, min($cols, $c1)); $c2 = max(1, min($cols, $c2));
+            $r1 = max(1, min($rows, $r1)); $r2 = max(1, min($rows, $r2));
+            return propertyClampRegion(($c1 - 1) / $cols, ($r1 - 1) / $rows, ($c2 - $c1 + 1) / $cols, ($r2 - $r1 + 1) / $rows);
+        };
+        $regionFromEntry = function ($e) use ($useGrid, $cellToRegion) {
+            if (!is_array($e)) return null;
+            if ($useGrid && isset($e['c1'], $e['r1'], $e['c2'], $e['r2'])) {
+                return $cellToRegion($e['c1'], $e['r1'], $e['c2'], $e['r2']);
+            }
+            return propertyClampRegion($e['x'] ?? null, $e['y'] ?? null, $e['w'] ?? null, $e['h'] ?? null);
+        };
 
         $reply = trim($reply);
         $reply = preg_replace('/^```[a-zA-Z]*\s*/', '', $reply);
@@ -1310,7 +1463,7 @@ if (!function_exists('propertyFlyerAnalyzePage')) {
         foreach (($parsed['items'] ?? []) as $it) {
             if (!is_array($it)) continue;
             $cat = trim((string)($it['category'] ?? ''));
-            $reg = propertyClampRegion($it['x'] ?? null, $it['y'] ?? null, $it['w'] ?? null, $it['h'] ?? null);
+            $reg = $regionFromEntry($it);
             if (!$reg) continue;
             $items[] = [
                 'category' => $cat,
@@ -1321,8 +1474,7 @@ if (!function_exists('propertyFlyerAnalyzePage')) {
         }
         $mask = [];
         foreach (($parsed['mask_regions'] ?? []) as $r) {
-            if (!is_array($r)) continue;
-            $reg = propertyClampRegion($r['x'] ?? null, $r['y'] ?? null, $r['w'] ?? null, $r['h'] ?? null);
+            $reg = $regionFromEntry($r);
             // 図面の大半を覆う領域（誤検出）は除外。売主情報は通常ページの一部のみ。
             if ($reg && ($reg['w'] * $reg['h']) <= 0.7) $mask[] = $reg;
         }

@@ -2074,8 +2074,21 @@
         navigator.geolocation.getCurrentPosition(
             function (pos) {
                 if (waiting) waiting.remove();
-                // 常に最新の測位結果で上書きし、その座標で照会する。
-                sessionGeo = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                var lat = pos.coords.latitude;
+                var lon = pos.coords.longitude;
+                var accuracy = (typeof pos.coords.accuracy === 'number') ? pos.coords.accuracy : null;
+                // 取得したGPSの緯度・経度・精度をログ出力（現在地ずれの原因切り分け用）。
+                if (window.console && console.log) console.log('[chat-widget] geolocation fix:', { latitude: lat, longitude: lon, accuracy: accuracy });
+                // 精度が極端に粗い場合（約3km超）は、GPSではなくWi‑Fi・基地局・IPから推定した
+                // おおよその位置の可能性が高い（＝「正確な位置情報」オフや許可が概略のみの端末）。
+                // その座標で照会すると実際の現在地と異なる住所・ハザードを表示してしまうため、
+                // 案内せず、正確な位置情報を有効化して取り直すよう促す。
+                if (accuracy !== null && accuracy > 3000) {
+                    appendBotMessage('現在地を十分な精度で取得できませんでした（推定誤差 約' + Math.round(accuracy) + 'm）。\n\nWi‑Fiや通信環境から推定したおおよその位置のため、実際の現在地とずれている可能性があります。お手数ですが、端末の「正確な位置情報（高精度／Precise Location）」をオンにし、ブラウザに位置情報を「許可」したうえで、もう一度お試しください。\n\n（iPhone：設定 > プライバシーとセキュリティ > 位置情報サービス をオン、対象ブラウザで「正確な位置情報」をオン。Android：位置情報を「高精度」に設定）\n\nお急ぎの場合は、住所を直接ご入力いただくこともできます。');
+                    return;
+                }
+                // 常に最新の測位結果で上書きし、そのGPS座標（緯度経度）をそのまま照会に使う。
+                sessionGeo = { lat: lat, lon: lon, accuracy: accuracy };
                 runCurrentLocationLandInfo(sessionGeo);
             },
             function (err) {

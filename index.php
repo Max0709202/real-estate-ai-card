@@ -870,27 +870,12 @@ if ($excludeFromSearch) {
                 <h2 class="pricing-title">費用・決済方法について</h2>
             </div>
 
-            <!-- Blue Pricing Box -->
-            <div class="pricing-box-blue">
-                <div class="popular-badge">人気</div>
-                <h3 class="pricing-plan-name">不動産AI名刺プラン</h3>
-                <div class="pricing-divider"></div>
-                <div class="pricing-amount">
-                    <span class="price-yen">¥</span>
-                    <span class="price-number"><?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_MONTHLY)); ?></span>
-                    <span class="price-period">/月（税込）</span>
-                    <?php if ($userType === 'existing'): ?>
-                    <div class="existing-user-price" style="position: absolute; height: 10px; background-color: red; width: 56%; rotate: 350deg; top: 34%;">
-                    </div>
-                    <?php endif; ?>
-                </div>
-                
-                <div class="pricing-plus">+</div>
+            <!-- Pricing Image (existing ERA user vs. general user) -->
+            <div class="pricing-image">
                 <?php if ($userType === 'existing'): ?>
-                <p class="pricing-initial">初期費用 <?php echo number_format(pricing_amount_inc_tax_yen(PRICING_EXISTING_USER_INITIAL)); ?>円（税込）</p>
-                <?php endif; ?>
-                <?php if ($userType === 'new'): ?>
-                <p class="pricing-initial">初期費用 <?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_INITIAL)); ?>円（税込）</p>
+                <img src="./images/section11-pricing-existing.png" alt="セルフィンProユーザープラン 料金" loading="lazy">
+                <?php else: ?>
+                <img src="./images/section11-pricing-new.png" alt="不動産AI名刺プラン 料金" loading="lazy">
                 <?php endif; ?>
             </div>
 
