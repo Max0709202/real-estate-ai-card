@@ -129,7 +129,8 @@
       "Bash(sed -i 's#__DIR__ . '\"'\"'/../ai-fcard.com/public_html#'\"'\"'/home/xs013436/ai-fcard.com/public_html#g' /tmp/flyer_model_test.php)",
       "Bash(php /tmp/flyer_model_test.php)",
       "Bash(php /tmp/nano_vision_test.php)",
-      "Bash(rm -f /tmp/flyer_model_test.php /tmp/nano_vision_test.php /tmp/nano_crop.php /tmp/mt_*.jpg /tmp/nano_*.jpg)"
+      "Bash(rm -f /tmp/flyer_model_test.php /tmp/nano_vision_test.php /tmp/nano_crop.php /tmp/mt_*.jpg /tmp/nano_*.jpg)",
+      "Bash(grep -n 'conversationHistory\\\\|$messages\\\\[\\\\]\\\\|messages\\\\[\\\\] =\\\\|role.*=>.*user\\\\|role.*=>.*assistant\\\\|buildChatMemoryContext\\\\|last_summary\\\\|preferred_area\\\\|現在地\\\\|測定地点' backend/includes/openai-chat-helper.php)"
     ],
     "additionalDirectories": [
       "/tmp"

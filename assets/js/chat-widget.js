@@ -2055,12 +2055,15 @@
     }
 
     // 現在地に関する質問の共通エントリ。
-    // 「現在地」と聞かれるたびに、必ずその場で最新のGPS座標を取り直す。以前取得した座標
-    // （sessionGeo）を使い回すと、移動後もGoogleマップは正しい現在地なのにAIだけ前回の住所を
-    // 返す不整合が起きる（特にiOS Safariは permissions API が geolocation 未対応で、背景での
-    // 自動更新が一切効かず、初回座標がセッション中ずっと固定されてしまう）。そのため毎回
-    // maximumAge:0 で新規測位し、成功した座標だけを今回の照会に使う。取得できたら sessionGeo も
-    // 最新値へ更新する。取得に失敗した時だけ、直近に取得できた座標へフォールバックする。
+    // 「現在地」と聞かれるたびに、必ずその場で最新のGPS座標を取り直す。
+    //
+    // 単発の getCurrentPosition は、特に iOS Safari やスタンドアロンPWAで、GPSチップが
+    // 新しい測位を終える前に「OSが保持している前回の位置」を即座に返すことがあり、
+    // maximumAge:0 を指定しても前回の座標＝前回の住所が出続ける（＝ご報告の症状）。
+    // そこで watchPosition で測位を継続し、精度が改善した新しい読み取りを待って採用する。
+    // 十分な精度（GOOD_ACCURACY以下）が得られたら即採用、最長 MAX_WAIT_MS まで待って
+    // その時点の最良読み取りを採用する。粗すぎる（MAX_ACCURACY超）場合はWi‑Fi/IP由来の
+    // 概略位置とみなし、正確な位置情報を有効化して取り直すよう促す。
     function startCurrentLocationFlow() {
         if (!navigator.geolocation) {
             appendBotMessage('お使いのブラウザが位置情報（GPS）に対応していないため、現在地を取得できませんでした。住所を直接ご入力ください。');
@@ -2071,41 +2074,76 @@
             appendBotMessage('現在地の情報を取得するため、位置情報（GPS）の利用を許可してください。');
         }
         var waiting = appendBotMessage('現在地を取得しています', true);
-        navigator.geolocation.getCurrentPosition(
+
+        var GOOD_ACCURACY = 100;   // これ以下（m）なら十分正確とみなし即採用
+        var MAX_ACCURACY = 3000;   // これ超（m）はGPSでなくWi‑Fi/IP由来の概略位置とみなし不採用
+        var MAX_WAIT_MS = 12000;   // 最良読み取りを待つ最長時間
+
+        var watchId = null;
+        var timer = null;
+        var settled = false;
+        var best = null; // { lat, lon, accuracy }
+
+        function cleanup() {
+            if (watchId !== null && navigator.geolocation.clearWatch) {
+                try { navigator.geolocation.clearWatch(watchId); } catch (e) {}
+            }
+            watchId = null;
+            if (timer) { clearTimeout(timer); timer = null; }
+        }
+
+        function useFix(fix) {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            if (waiting) waiting.remove();
+            // 採用したGPSの緯度・経度・精度をログ出力（現在地ずれの原因切り分け用）。
+            if (window.console && console.log) console.log('[chat-widget] geolocation fix (used):', { latitude: fix.lat, longitude: fix.lon, accuracy: fix.accuracy });
+            // 常に最新の測位結果で上書きし、そのGPS座標（緯度経度）をそのまま照会に使う。
+            sessionGeo = { lat: fix.lat, lon: fix.lon, accuracy: fix.accuracy };
+            runCurrentLocationLandInfo(sessionGeo);
+        }
+
+        function fail(err) {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            if (waiting) waiting.remove();
+            if (window.console && console.warn) console.warn('[chat-widget] geolocation failed:', { code: err && err.code, message: err && err.message, bestAccuracy: best && best.accuracy, secureContext: window.isSecureContext });
+            // 概略位置しか得られなかった場合は、その旨を明示して取り直しを促す（誤った住所を出さない）。
+            if (best && typeof best.accuracy === 'number' && best.accuracy > MAX_ACCURACY) {
+                appendBotMessage('現在地を十分な精度で取得できませんでした（推定誤差 約' + Math.round(best.accuracy) + 'm）。\n\nWi‑Fiや通信環境から推定したおおよその位置のため、実際の現在地とずれている可能性があります。お手数ですが、端末の「正確な位置情報（高精度／Precise Location）」をオンにし、ブラウザに位置情報を「許可」したうえで、もう一度お試しください。\n\n（iPhone：設定 > プライバシーとセキュリティ > 位置情報サービス をオン、対象ブラウザで「正確な位置情報」をオン。Android：位置情報を「高精度」に設定）\n\nお急ぎの場合は、住所を直接ご入力いただくこともできます。');
+                return;
+            }
+            appendBotMessage(geolocationErrorMessage(err));
+        }
+
+        watchId = navigator.geolocation.watchPosition(
             function (pos) {
-                if (waiting) waiting.remove();
-                var lat = pos.coords.latitude;
-                var lon = pos.coords.longitude;
-                var accuracy = (typeof pos.coords.accuracy === 'number') ? pos.coords.accuracy : null;
-                // 取得したGPSの緯度・経度・精度をログ出力（現在地ずれの原因切り分け用）。
-                if (window.console && console.log) console.log('[chat-widget] geolocation fix:', { latitude: lat, longitude: lon, accuracy: accuracy });
-                // 精度が極端に粗い場合（約3km超）は、GPSではなくWi‑Fi・基地局・IPから推定した
-                // おおよその位置の可能性が高い（＝「正確な位置情報」オフや許可が概略のみの端末）。
-                // その座標で照会すると実際の現在地と異なる住所・ハザードを表示してしまうため、
-                // 案内せず、正確な位置情報を有効化して取り直すよう促す。
-                if (accuracy !== null && accuracy > 3000) {
-                    appendBotMessage('現在地を十分な精度で取得できませんでした（推定誤差 約' + Math.round(accuracy) + 'm）。\n\nWi‑Fiや通信環境から推定したおおよその位置のため、実際の現在地とずれている可能性があります。お手数ですが、端末の「正確な位置情報（高精度／Precise Location）」をオンにし、ブラウザに位置情報を「許可」したうえで、もう一度お試しください。\n\n（iPhone：設定 > プライバシーとセキュリティ > 位置情報サービス をオン、対象ブラウザで「正確な位置情報」をオン。Android：位置情報を「高精度」に設定）\n\nお急ぎの場合は、住所を直接ご入力いただくこともできます。');
-                    return;
-                }
-                // 常に最新の測位結果で上書きし、そのGPS座標（緯度経度）をそのまま照会に使う。
-                sessionGeo = { lat: lat, lon: lon, accuracy: accuracy };
-                runCurrentLocationLandInfo(sessionGeo);
+                var acc = (typeof pos.coords.accuracy === 'number') ? pos.coords.accuracy : 999999;
+                var reading = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: acc };
+                // 各読み取りをログ出力（座標が更新されているか＝キャッシュ固定でないかの確認用）。
+                if (window.console && console.log) console.log('[chat-widget] geolocation reading:', reading);
+                if (!best || acc < best.accuracy) best = reading;
+                // 十分な精度が得られたら即採用（それ以上待たない）。
+                if (acc <= GOOD_ACCURACY) useFix(reading);
             },
             function (err) {
-                if (waiting) waiting.remove();
-                if (window.console && console.warn) console.warn('[chat-widget] geolocation failed:', { code: err && err.code, message: err && err.message, secureContext: window.isSecureContext });
-                // 最新座標を取得できなくても、同一セッションで以前取得できていれば、その座標で
-                // 案内する（ただし最新でない旨を明示する）。
-                if (sessionGeo) {
-                    appendBotMessage('最新の現在地を取得できなかったため、直近に取得した位置情報で土地情報をご案内します。位置がずれている場合は、位置情報を許可のうえ、もう一度お試しください。');
-                    runCurrentLocationLandInfo(sessionGeo);
-                    return;
-                }
-                appendBotMessage(geolocationErrorMessage(err));
+                // 許可拒否など致命的なエラーは即失敗。取得不可・タイムアウトは待機満了時に判定する。
+                if (err && err.code === 1) fail(err);
             },
-            // maximumAge:0 でブラウザのキャッシュ済み座標を使わせず、必ず新規測位する。
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            // maximumAge:0 でブラウザ／OSのキャッシュ座標を使わせず、継続測位で新しい読み取りを得る。
+            { enableHighAccuracy: true, maximumAge: 0, timeout: MAX_WAIT_MS }
         );
+
+        timer = setTimeout(function () {
+            // 最長待機に到達。実用的な精度（MAX_ACCURACY以下）の読み取りがあれば採用、なければ失敗扱い。
+            if (best && typeof best.accuracy === 'number' && best.accuracy <= MAX_ACCURACY) {
+                useFix(best);
+            } else {
+                fail({ code: 3 }); // TIMEOUT 相当
+            }
+        }, MAX_WAIT_MS);
     }
 
     // 取得済み座標を使って土地情報を取得する。ユーザー発言は呼び出し側で既に表示済みのため、

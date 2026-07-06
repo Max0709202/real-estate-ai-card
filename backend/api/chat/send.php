@@ -145,8 +145,13 @@ try {
     if ($geo !== null) {
         // 現在地（GPS）照会：intake／マンション名検索は通さず、緯度経度を土地情報の
         // 公的データ取得にそのまま渡してAI回答を生成する。
+        // 会話履歴は渡さない（空配列）。現在地レポートは「その座標のAPI取得結果」だけで
+        // 完結する自己完結型のため、履歴を渡すと、毎回同じ定型文「現在地の土地情報を教えて
+        // ください」に対して、履歴内の前回の現在地レポート（前回の住所・座標）をそのまま
+        // 繰り返してしまう。その結果、移動後・別セッションでも前の住所が表示され、名刺（＝
+        // セッション）ごとに挙動が変わる。毎回その時の緯度経度から生成させる。
         $agentName = $card['name'] ?? '担当者';
-        $result = getBotReplyWithOpenAI($message, $conversationHistory, $agentName, $db, $sessionId, $geo);
+        $result = getBotReplyWithOpenAI($message, [], $agentName, $db, $sessionId, $geo);
         if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
             error_log('Chat OpenAI error (geo): ' . ($result['error'] ?? 'empty reply'));
             $reply = getBotReplyPlaceholder($message);
