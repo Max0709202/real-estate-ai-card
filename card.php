@@ -1287,12 +1287,25 @@ if (!empty($card['profile_photo'])) {
     <?php endif; ?>
 
     <?php if ($chatbotEnabled): ?>
+    <?php
+    // チャットAPIは、必ず「今ページを開いているホスト」を同一オリジンで呼ぶ。
+    // BASE_URL は www 固定だが、apex（www無し）でアクセスされると www を呼んでしまい
+    // クロスオリジン扱いになって CORS で失敗する（crm/get.php 等）。実リクエストホストが
+    // 正規ホスト（www 有/無）のいずれかなら、そのホストを使って同一オリジン化する。
+    $canonicalChatHost = parse_url(BASE_URL, PHP_URL_HOST) ?: 'www.ai-fcard.com';
+    $apexChatHost = preg_replace('/^www\./', '', $canonicalChatHost);
+    $reqChatHost = $_SERVER['HTTP_HOST'] ?? '';
+    $sameOriginChatHost = ($reqChatHost === $canonicalChatHost || $reqChatHost === $apexChatHost)
+        ? $reqChatHost : $canonicalChatHost;
+    $chatScheme = parse_url(BASE_URL, PHP_URL_SCHEME) ?: 'https';
+    $chatApiBase = $chatScheme . '://' . $sameOriginChatHost . '/backend/api/chat';
+    ?>
     <!-- Chatbot widget (floating button + panel) -->
     <div id="chat-widget-root" class="chat-widget-root<?php echo $chatOnly ? ' chat-widget-chat-only' : ''; ?>"
          data-card-slug="<?php echo htmlspecialchars($card['url_slug'] ?? ''); ?>"
          data-agent-name="<?php echo htmlspecialchars($card['name'] ?? ''); ?>"
          data-agent-photo="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>"
-         data-api-base="<?php echo htmlspecialchars(rtrim(BASE_URL, '/') . '/backend/api/chat'); ?>"
+         data-api-base="<?php echo htmlspecialchars($chatApiBase); ?>"
          data-chat-only="<?php echo $chatOnly ? '1' : '0'; ?>">
         <button type="button" id="chat-widget-toggle" class="chat-widget-toggle" aria-label="チャットを開く">
             <?php if (!empty($agentPhotoUrlForChat)): ?>

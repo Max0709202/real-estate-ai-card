@@ -11,6 +11,10 @@ require_once __DIR__ . '/../../../includes/notification-helper.php';
 require_once __DIR__ . '/../../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
+// 兄弟の crm/save.php と同様、クロスオリジン（apex⇄www 等）でもブロックされないようにする。
+// 主要な修正は card.php 側の同一オリジン化だが、旧キャッシュのページが別ホストを呼んでも
+// 壊れないよう、ここでも許可ヘッダを付ける。session_id はクエリ渡しで Cookie 非依存。
+header('Access-Control-Allow-Origin: *');
 
 startSessionIfNotStarted();
 

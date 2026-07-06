@@ -39,7 +39,15 @@ if (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || (int)$card[
     exit;
 }
 
-$base = rtrim(BASE_URL, '/');
+// manifest はドキュメントと同一オリジンで配信される（card.php から相対 href で参照）。
+// start_url はドキュメントと同一オリジンでないとブラウザに無視される（apex/www 不一致で警告）。
+// BASE_URL は www 固定のため、実リクエストホスト（正規ホストの www 有/無）に合わせて同一オリジン化する。
+$canonicalHost = parse_url(BASE_URL, PHP_URL_HOST) ?: 'www.ai-fcard.com';
+$apexHost = preg_replace('/^www\./', '', $canonicalHost);
+$reqHost = $_SERVER['HTTP_HOST'] ?? '';
+$sameOriginHost = ($reqHost === $canonicalHost || $reqHost === $apexHost) ? $reqHost : $canonicalHost;
+$scheme = parse_url(BASE_URL, PHP_URL_SCHEME) ?: 'https';
+$base = $scheme . '://' . $sameOriginHost;
 $startUrl = $base . '/card.php?slug=' . urlencode($card['url_slug']);
 $cardName = trim($card['name'] ?? '');
 $appName = $cardName !== '' ? $cardName . 'の名刺' : 'AI名刺';

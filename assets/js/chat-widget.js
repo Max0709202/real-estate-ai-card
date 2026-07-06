@@ -2977,9 +2977,21 @@
             }
         });
     }
-    // Enterでは送信しない（テキストエリアなので改行が入る）。送信は送信ボタン、
-    // または音声入力で最後に「送信」と発話した時のみ。
     inputEl.addEventListener('paste', function (e) { handlePasteToAttach(e, uploadCustomerAttachment); });
+    // PC（物理キーボード）ではEnterで送信、Shift+Enterで改行する。チャットの標準操作に
+    // 合わせ、PCで「送信ボタンを押さないと送れない＝AIエージェントが使えない」状態を解消する。
+    // スマホ（タッチ端末）ではEnterは改行のままにし、従来どおり送信ボタンで送信する
+    // （ソフトキーボードのEnterは改行が自然なため）。
+    // 日本語IMEの変換確定Enter（isComposing / keyCode 229）では送信しない。
+    var chatInputIsTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    inputEl.addEventListener('keydown', function (e) {
+        if (chatInputIsTouchDevice) return;
+        var isEnter = e.key === 'Enter' || e.keyCode === 13;
+        if (!isEnter || e.shiftKey) return;
+        if (e.isComposing || e.keyCode === 229) return; // IME変換確定中は送信しない
+        e.preventDefault();
+        sendMessage(inputEl.value.trim());
+    });
 
     if (tabBar) {
         tabBar.addEventListener('click', function (e) {
