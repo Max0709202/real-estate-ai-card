@@ -1,9 +1,8 @@
-/* QR → PWA → Add-to-Home-Screen guidance (show when not installed, so reinstall is possible after uninstall) */
+/* QR -> PWA -> Add-to-Home-Screen and address-book guidance */
 (function () {
   const isSecureContext = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
   if (!isSecureContext) return; // PWA requires HTTPS (except localhost)
 
-  // Register Service Worker (scope: current directory)
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {
       // ignore
@@ -14,7 +13,6 @@
   const uaLower = ua.toLowerCase();
   const isIOS = /iphone|ipad|ipod/.test(uaLower);
   const isAndroid = /android/.test(uaLower);
-  // On iOS, only Safari shows "Add to Home Screen" in the share sheet; Chrome/Chromium do not
   const isIOSSafari = isIOS && !/\bcrios\b|\bfxios\b|\bedgios\b|\bopios\b/i.test(ua);
 
   const isStandalone =
@@ -25,9 +23,13 @@
   const slug = params.get('slug') || '';
 
   const banner = document.getElementById('installBanner');
+  if (!banner) return;
+
   const installBtn = document.getElementById('installBtn');
   const closeBtn = document.getElementById('installCloseBtn');
   const saveVcfBtn = document.getElementById('saveVcfBtn');
+  const bannerTitle = banner.querySelector('.pwa-banner-text strong');
+  const bannerVcfMsg = banner.querySelector('.pwa-banner-vcf-msg');
   const iosSteps = document.getElementById('iosInstallSteps');
   const iosCreateHomeIconBtn = document.getElementById('iosCreateHomeIconBtn');
   const modal1 = document.getElementById('pwaIosModal1');
@@ -41,45 +43,117 @@
   const modal3CopyBtn = document.getElementById('pwaIosModalSafariCopy');
   const modal3CloseBtn = document.getElementById('pwaIosModalSafariClose');
 
-  if (!banner) return;
-
   const cardSlug = (banner.dataset && banner.dataset.cardSlug) || slug;
   const vcfUrl = cardSlug ? ('vcard.php?slug=' + encodeURIComponent(cardSlug)) : '';
+  const storageSuffix = cardSlug || window.location.pathname;
+  const homeInstalledKey = 'aiFcard.homeInstalled:' + storageSuffix;
+  const contactSavedKey = 'aiFcard.contactSaved:' + storageSuffix;
+  let androidInstallPromptChecked = !isAndroid;
+  let androidInstallPromptUnavailable = false;
+  let deferredPrompt = null;
+
+  function getFlag(key) {
+    try {
+      return window.localStorage && localStorage.getItem(key) === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function setFlag(key) {
+    try {
+      if (window.localStorage) localStorage.setItem(key, '1');
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  function show(el, display) {
+    if (el) el.style.display = display || 'inline-block';
+  }
+
+  function hide(el) {
+    if (el) el.style.display = 'none';
+  }
+
+  function isHomeStepComplete() {
+    return isStandalone || getFlag(homeInstalledKey) || androidInstallPromptUnavailable;
+  }
+
+  function isContactStepComplete() {
+    return getFlag(contactSavedKey);
+  }
+
+  function syncBanner() {
+    const waitingForAndroidPrompt = isAndroid && !androidInstallPromptChecked && !isHomeStepComplete();
+    const needsHomeStep = !isHomeStepComplete() && !waitingForAndroidPrompt;
+    const needsContactStep = !!vcfUrl && !isContactStepComplete();
+
+    if ((waitingForAndroidPrompt || !needsHomeStep) && !needsContactStep) {
+      hide(banner);
+      return;
+    }
+
+    show(banner, 'block');
+
+    if (bannerTitle) {
+      bannerTitle.textContent = needsHomeStep
+        ? '名刺をホーム画面に追加すると、いつでも1タップで開けます'
+        : '連絡先をアドレス帳に保存できます';
+    }
+
+    if (bannerVcfMsg) {
+      bannerVcfMsg.style.display = needsContactStep ? 'block' : 'none';
+      bannerVcfMsg.textContent = '連絡先をアドレス帳に保存すると、この名刺の住所が保存されます。';
+    }
+
+    if (needsContactStep) {
+      show(saveVcfBtn);
+    } else {
+      hide(saveVcfBtn);
+    }
+
+    if (!needsHomeStep) {
+      hide(installBtn);
+      hide(iosCreateHomeIconBtn);
+      hide(iosSteps);
+    }
+  }
+
+  function showModal(el) {
+    if (el) el.removeAttribute('hidden');
+  }
+
+  function hideModal(el) {
+    if (el) el.setAttribute('hidden', '');
+  }
+
+  if (isStandalone) {
+    setFlag(homeInstalledKey);
+  }
+
   if (saveVcfBtn && vcfUrl) {
-    saveVcfBtn.style.display = 'inline-block';
     saveVcfBtn.addEventListener('click', function () {
+      setFlag(contactSavedKey);
+      syncBanner();
       window.location.href = vcfUrl;
     });
-  } else if (saveVcfBtn) {
-    saveVcfBtn.style.display = 'none';
+  } else {
+    hide(saveVcfBtn);
   }
 
-  // If already running as installed app, never show
-  if (isStandalone) {
-    return;
-  }
-
-  // Show banner whenever opened in browser (not standalone), so user can reinstall after uninstalling
-  banner.style.display = 'block';
+  syncBanner();
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
-      banner.style.display = 'none';
+      hide(banner);
     });
   }
 
-  // iOS: two-step modal flow (Step 1 → Step 2 → Share sheet or instruction)
   if (isIOS && (modal1 || modal2)) {
-    if (installBtn) installBtn.style.display = 'none';
-    if (iosSteps) iosSteps.style.display = 'none';
-    if (iosCreateHomeIconBtn) iosCreateHomeIconBtn.style.display = 'inline-block';
-
-    function showModal(el) {
-      if (el) el.removeAttribute('hidden');
-    }
-    function hideModal(el) {
-      if (el) el.setAttribute('hidden', '');
-    }
+    hide(installBtn);
+    hide(iosSteps);
+    if (!isHomeStepComplete()) show(iosCreateHomeIconBtn);
 
     if (iosCreateHomeIconBtn) {
       iosCreateHomeIconBtn.addEventListener('click', () => {
@@ -115,6 +189,8 @@
       }
       if (modal2Add) {
         modal2Add.addEventListener('click', () => {
+          setFlag(homeInstalledKey);
+          syncBanner();
           const url = window.location.href;
           const title = 'AI名刺';
           const instruction = 'ホーム画面に追加するには、画面下の「共有」ボタンをタップし、「ホーム画面に追加」を選択してください。';
@@ -141,45 +217,45 @@
           }
         });
       }
-      if (modal3) {
-        if (modal3CloseBtn) {
-          modal3CloseBtn.addEventListener('click', () => hideModal(modal3));
-        }
-        const backdrop3 = modal3.querySelector('.pwa-ios-modal-backdrop');
-        if (backdrop3) {
-          backdrop3.addEventListener('click', () => hideModal(modal3));
-        }
-        if (modal3CopyBtn) {
-          modal3CopyBtn.addEventListener('click', () => {
-            const url = window.location.href;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(url).then(() => {
-                modal3CopyBtn.textContent = 'コピーしました';
-                setTimeout(() => { modal3CopyBtn.textContent = 'リンクをコピー'; }, 2000);
-              }).catch(() => {
-                modal3CopyBtn.textContent = 'コピーしました';
-                setTimeout(() => { modal3CopyBtn.textContent = 'リンクをコピー'; }, 2000);
-              });
-            } else {
+    }
+
+    if (modal3) {
+      if (modal3CloseBtn) {
+        modal3CloseBtn.addEventListener('click', () => hideModal(modal3));
+      }
+      const backdrop3 = modal3.querySelector('.pwa-ios-modal-backdrop');
+      if (backdrop3) {
+        backdrop3.addEventListener('click', () => hideModal(modal3));
+      }
+      if (modal3CopyBtn) {
+        modal3CopyBtn.addEventListener('click', () => {
+          const url = window.location.href;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(() => {
               modal3CopyBtn.textContent = 'コピーしました';
               setTimeout(() => { modal3CopyBtn.textContent = 'リンクをコピー'; }, 2000);
-            }
-          });
-        }
+            }).catch(() => {
+              modal3CopyBtn.textContent = 'コピーしました';
+              setTimeout(() => { modal3CopyBtn.textContent = 'リンクをコピー'; }, 2000);
+            });
+          } else {
+            modal3CopyBtn.textContent = 'コピーしました';
+            setTimeout(() => { modal3CopyBtn.textContent = 'リンクをコピー'; }, 2000);
+          }
+        });
       }
     }
     return;
   }
 
-  // Android: semi-automatic install prompt
-  let deferredPrompt = null;
   window.addEventListener('beforeinstallprompt', (e) => {
-    // Only for Android/Chromium
     if (!isAndroid) return;
     e.preventDefault();
+    androidInstallPromptChecked = true;
     deferredPrompt = e;
-    if (installBtn) installBtn.style.display = 'inline-block';
-    if (iosSteps) iosSteps.style.display = 'none';
+    syncBanner();
+    if (!isHomeStepComplete()) show(installBtn);
+    hide(iosSteps);
   });
 
   if (installBtn) {
@@ -187,12 +263,30 @@
       if (!deferredPrompt) return;
       deferredPrompt.prompt();
       try {
-        await deferredPrompt.userChoice;
+        const choice = await deferredPrompt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          setFlag(homeInstalledKey);
+        }
       } catch (_) {
         // ignore
       }
       deferredPrompt = null;
-      banner.style.display = 'none';
+      syncBanner();
     });
+  }
+
+  window.addEventListener('appinstalled', () => {
+    setFlag(homeInstalledKey);
+    syncBanner();
+  });
+
+  if (isAndroid) {
+    window.setTimeout(() => {
+      if (!deferredPrompt && !isHomeStepComplete()) {
+        androidInstallPromptUnavailable = true;
+        androidInstallPromptChecked = true;
+        syncBanner();
+      }
+    }, 1500);
   }
 })();

@@ -551,6 +551,45 @@ $defaultGreetings = [
         .btn-secondary:hover {
             background: #5a6268;
         }
+        .chat-draft-preview {
+            display: grid;
+            gap: 0.65rem;
+            margin: 0.75rem 0;
+            padding: 0.85rem;
+            border: 1px solid #d7e3f0;
+            border-radius: 6px;
+            background: #f8fbff;
+        }
+        .chat-draft-preview[hidden] {
+            display: none;
+        }
+        .chat-draft-preview-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            align-items: center;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #113b63;
+        }
+        .chat-draft-preview-body {
+            min-height: 4.5rem;
+            max-height: 14rem;
+            overflow: auto;
+            padding: 0.75rem;
+            border-radius: 4px;
+            background: #fff;
+            border: 1px solid #e4edf7;
+            color: #1f2933;
+            white-space: pre-wrap;
+            line-height: 1.7;
+        }
+        .chat-draft-preview-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
         .btn-payment-red {
             background: #dc3545;
             color: #fff;
@@ -3734,6 +3773,11 @@ $defaultGreetings = [
                         html += '<label class="chat-compose-attach btn-secondary">添付<input type="file" id="agent-chat-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" hidden></label>';
                         html += '</div>';
                         html += '<div class="chat-compose-attach-list" id="agent-chat-attach-list"></div>';
+                        html += '<div class="chat-draft-preview" id="agent-chat-draft-preview" hidden>';
+                        html += '<div class="chat-draft-preview-head"><span id="agent-chat-draft-title">AI文案プレビュー</span></div>';
+                        html += '<div class="chat-draft-preview-body" id="agent-chat-draft-body"></div>';
+                        html += '<div class="chat-draft-preview-actions"><button type="button" class="btn-secondary" id="agent-chat-draft-close">閉じる</button><button type="button" class="btn-primary" id="agent-chat-draft-apply">採用</button></div>';
+                        html += '</div>';
                         html += '<textarea id="agent-chat-input" class="chat-compose-input" rows="3" placeholder="顧客へのメッセージを入力。「自動回答作成」で文案を生成、「ブラッシュアップ」で推敲できます。"></textarea>';
                         html += '<div class="chat-compose-actions"><span class="chat-compose-status" id="agent-chat-status"></span><button type="button" class="btn-primary" id="agent-chat-send">送信</button></div>';
                         html += '</div>';
@@ -3750,6 +3794,46 @@ $defaultGreetings = [
             function setAgentStatus(msg) {
                 var el = document.getElementById('agent-chat-status');
                 if (el) el.textContent = msg || '';
+            }
+
+            function setReplyDraftBusy(isBusy) {
+                var autoBtn = document.getElementById('agent-chat-auto');
+                var polishBtn = document.getElementById('agent-chat-polish');
+                if (autoBtn) autoBtn.disabled = !!isBusy;
+                if (polishBtn) polishBtn.disabled = !!isBusy;
+            }
+
+            function showReplyDraftPreview(draft, mode) {
+                var preview = document.getElementById('agent-chat-draft-preview');
+                var body = document.getElementById('agent-chat-draft-body');
+                var title = document.getElementById('agent-chat-draft-title');
+                if (!preview || !body) return;
+                preview.dataset.draft = draft || '';
+                body.textContent = draft || '';
+                if (title) title.textContent = mode === 'auto' ? '自動回答案プレビュー' : 'ブラッシュアップ結果プレビュー';
+                preview.hidden = false;
+                preview.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+
+            function hideReplyDraftPreview() {
+                var preview = document.getElementById('agent-chat-draft-preview');
+                var body = document.getElementById('agent-chat-draft-body');
+                if (preview) {
+                    preview.dataset.draft = '';
+                    preview.hidden = true;
+                }
+                if (body) body.textContent = '';
+            }
+
+            function applyReplyDraftPreview() {
+                var preview = document.getElementById('agent-chat-draft-preview');
+                var input = document.getElementById('agent-chat-input');
+                var draft = preview ? (preview.dataset.draft || '') : '';
+                if (!draft || !input) return;
+                input.value = draft;
+                input.focus();
+                hideReplyDraftPreview();
+                setAgentStatus('文案を入力欄に反映しました。確認・修正のうえ手動で送信してください。');
             }
 
             function agentFormatBytes(n) {
@@ -3811,6 +3895,13 @@ $defaultGreetings = [
 
             function requestReplyDraft(mode, sessionId) {
                 var input = document.getElementById('agent-chat-input');
+                var errorMessage = '文章を作成できませんでした。時間をおいて再度お試しください。';
+                if (mode === 'polish' && (!input || input.value.trim() === '')) {
+                    setAgentStatus(errorMessage);
+                    return;
+                }
+                hideReplyDraftPreview();
+                setReplyDraftBusy(true);
                 setAgentStatus(mode === 'auto' ? '文案を生成中...' : '推敲中...');
                 fetch(apiBase + '/reply-draft.php', {
                     method: 'POST',
@@ -3820,14 +3911,18 @@ $defaultGreetings = [
                 })
                     .then(function(r) { return r.json(); })
                     .then(function(res) {
+                        setReplyDraftBusy(false);
                         if (res.success && res.data && res.data.draft) {
-                            if (input) { input.value = res.data.draft; input.focus(); }
-                            setAgentStatus('文案を入力欄に反映しました。確認・修正のうえ送信してください。');
+                            showReplyDraftPreview(res.data.draft, mode);
+                            setAgentStatus('文案を作成しました。内容を確認し、採用する場合のみ入力欄に反映してください。');
                         } else {
-                            setAgentStatus(res.message || '生成に失敗しました');
+                            setAgentStatus(errorMessage);
                         }
                     })
-                    .catch(function() { setAgentStatus('生成に失敗しました'); });
+                    .catch(function() {
+                        setReplyDraftBusy(false);
+                        setAgentStatus(errorMessage);
+                    });
             }
 
             function sendAgentMessage(sessionId) {
@@ -3922,9 +4017,13 @@ $defaultGreetings = [
                 var polishBtn = document.getElementById('agent-chat-polish');
                 var sendBtn = document.getElementById('agent-chat-send');
                 var fileInput = document.getElementById('agent-chat-file');
+                var draftApplyBtn = document.getElementById('agent-chat-draft-apply');
+                var draftCloseBtn = document.getElementById('agent-chat-draft-close');
                 if (autoBtn) autoBtn.addEventListener('click', function() { requestReplyDraft('auto', sessionId); });
                 if (polishBtn) polishBtn.addEventListener('click', function() { requestReplyDraft('polish', sessionId); });
                 if (sendBtn) sendBtn.addEventListener('click', function() { sendAgentMessage(sessionId); });
+                if (draftApplyBtn) draftApplyBtn.addEventListener('click', applyReplyDraftPreview);
+                if (draftCloseBtn) draftCloseBtn.addEventListener('click', hideReplyDraftPreview);
                 if (fileInput) fileInput.addEventListener('change', function() {
                     if (fileInput.files && fileInput.files[0]) { uploadAgentAttachment(fileInput.files[0], sessionId); fileInput.value = ''; }
                 });
