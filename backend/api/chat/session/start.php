@@ -75,11 +75,12 @@ try {
 
     if ($sessionId !== '') {
         $isResumed = true;
-        if ($visitorId !== '') {
+        $deviceAuth = $visitorId !== '' ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
+        if ($visitorId !== '' && $deviceAuth) {
             // 再開した端末を現所有者に更新する。COALESCE で元所有者を保持すると、
             // 端末側 visitor_id とセッションの visitor_identifier が食い違い、
             // poll/upload の突合で 403（セッションを確認できません）になるため。
-            // session_id（推測不能なUUID）を提示して再開できている時点で履歴閲覧権は付与済み。
+            // SMS認証から3時間以内の端末だけ、履歴閲覧権を付与する。
             $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$visitorId, $sessionId]);
         } else {
@@ -96,11 +97,13 @@ try {
 
     $messages = [];
     $hasPreviousMessages = false;
+    $deviceAuth = ($isResumed && $visitorId !== '') ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
+    $deviceAuthValid = (bool)$deviceAuth;
     if ($isResumed) {
         $stmt = $db->prepare("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?");
         $stmt->execute([$sessionId]);
         $hasPreviousMessages = ((int)$stmt->fetchColumn()) > 0;
-        if ($hasPreviousMessages) {
+        if ($hasPreviousMessages && $deviceAuthValid) {
             $messages = loadRecentChatMessagesForResume($db, $sessionId, 40);
         }
     }
@@ -117,8 +120,11 @@ try {
     // 単に発言があっただけ（recent_context）では出さず、ヒアリングで相談実体が
     // 溜まっている場合のみ true にする。
     $hasConsultationSummary = false;
-    if ($isResumed) {
+    if ($isResumed && $deviceAuthValid) {
         $customerName = chatResolveCustomerNameForSession($db, $sessionId, (int)$card['id']);
+        if ($customerName === '' && !empty($deviceAuth['customer_name'])) {
+            $customerName = chatCleanCustomerNameValue($deviceAuth['customer_name']);
+        }
         $sessionMemory = getChatSessionMemory($db, $sessionId);
         if (is_array($sessionMemory)) {
             foreach (['last_summary', 'intent', 'property_type', 'budget', 'preferred_area', 'family', 'loan_plan', 'income_range', 'lead_summary'] as $memKey) {
@@ -127,18 +133,18 @@ try {
         }
     }
     $intake = chatIntakeInitialPayload($agentName);
-    $resumeIntake = $isResumed ? chatIntakeResumePayload($db, $sessionId, $card['id']) : null;
+    $resumeIntake = ($isResumed && $deviceAuthValid) ? chatIntakeResumePayload($db, $sessionId, $card['id']) : null;
     // 同じ端末で電話番号・お名前・メールアドレスの登録が済んでいるか。
     // 済んでいれば、リロード時に再入力を求めずそのまま相談へ進める。
     $registrationComplete = false;
-    if ($isResumed && $resumeIntake && !empty($resumeIntake['data'])) {
+    if ($isResumed && $deviceAuthValid && $resumeIntake && !empty($resumeIntake['data'])) {
         $ld = $resumeIntake['data'];
         $registrationComplete = !empty($ld['customer_phone_verified'])
             && !empty($ld['customer_last_name'])
             && !empty($ld['customer_first_name'])
             && !empty($ld['customer_email']);
     }
-    $resumeMessage = $isResumed ? getChatResumeMessageForSession($db, $sessionId, $agentName, $card['id'], true) : '';
+    $resumeMessage = ($isResumed && $deviceAuthValid) ? getChatResumeMessageForSession($db, $sessionId, $agentName, $card['id'], true) : '';
     $resumeQuickReplies = [];
     if ($isResumed && $resumeIntake && !empty($resumeIntake['can_ask_next'])) {
         $resumeQuickReplies = $resumeIntake['quick_replies'] ?? [];
@@ -161,6 +167,8 @@ try {
         'has_previous_messages' => $hasPreviousMessages,
         'has_consultation_summary' => $hasConsultationSummary,
         'registration_complete' => $registrationComplete,
+        'device_auth_valid' => $deviceAuthValid,
+        'device_auth_expires_at' => $deviceAuth['verified_until'] ?? null,
         'agent_name' => $card['name'] ?? '',
         'customer_name' => $customerName,
         'resume_message' => $resumeMessage,
@@ -173,19 +181,21 @@ try {
         'initial_message' => $intake['initial_message'],
         'quick_replies' => $isResumed ? $resumeQuickReplies : $intake['quick_replies'],
     ];
-    $crmCase = chatCrmLoadCase($db, $sessionId, (int)$card['id']);
-    if (!$crmCase) {
-        chatCrmUpsertCase($db, $sessionId, (int)$card['id'], [
-            'deal_type' => 'purchase',
-            'customer_name' => $customerName ?: '',
-        ]);
+    if ($registrationComplete || !$isResumed) {
         $crmCase = chatCrmLoadCase($db, $sessionId, (int)$card['id']);
-    }
-    if ($crmCase) {
-        $crmCase['conditions_summary'] = chatCrmSummarizeConditions($crmCase);
-        $crmCase['purchase_schedule'] = chatCrmCalculatePurchaseStages($crmCase['progress']['target_date'] ?? null, $crmCase['progress']['manual_overrides'] ?? []);
-        $crmCase['sale_schedule'] = chatCrmCalculateSaleStages($crmCase['progress']['target_date'] ?? null, $crmCase['progress']['manual_overrides'] ?? []);
-        $data['crm_case'] = $crmCase;
+        if (!$crmCase) {
+            chatCrmUpsertCase($db, $sessionId, (int)$card['id'], [
+                'deal_type' => 'purchase',
+                'customer_name' => $customerName ?: '',
+            ]);
+            $crmCase = chatCrmLoadCase($db, $sessionId, (int)$card['id']);
+        }
+        if ($crmCase) {
+            $crmCase['conditions_summary'] = chatCrmSummarizeConditions($crmCase);
+            $crmCase['purchase_schedule'] = chatCrmCalculatePurchaseStages($crmCase['progress']['target_date'] ?? null, $crmCase['progress']['manual_overrides'] ?? []);
+            $crmCase['sale_schedule'] = chatCrmCalculateSaleStages($crmCase['progress']['target_date'] ?? null, $crmCase['progress']['manual_overrides'] ?? []);
+            $data['crm_case'] = $crmCase;
+        }
     }
     sendSuccessResponse($data, 'セッションを作成しました');
 } catch (Exception $e) {

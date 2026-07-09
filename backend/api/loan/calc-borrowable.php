@@ -10,6 +10,8 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
+require_once __DIR__ . '/../../includes/chat-phone-helper.php';
+require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -47,6 +49,7 @@ if ($annualIncome < 0 || $annualIncome > 999990000 || $desiredMonthly < 0 || $de
 
 $card = null;
 $db = null;
+$canPersistLoanSimulation = false;
 if ($cardSlug !== "") {
     try {
         $database = new Database();
@@ -57,6 +60,13 @@ if ($cardSlug !== "") {
         }
         if (!canUseLoanSim($card)) {
             sendErrorResponse('この名刺ではローンシミュレーションはご利用いただけません。', 403);
+        }
+        if ($sessionId !== "" && $visitorId !== "" && chatSessionDeviceAuth($db, $sessionId, $visitorId)) {
+            $leadProfile = chatIntakeLoad($db, $sessionId, (int)$card["id"]);
+            $canPersistLoanSimulation = !empty($leadProfile["customer_phone_verified"])
+                && !empty($leadProfile["customer_last_name"])
+                && !empty($leadProfile["customer_first_name"])
+                && !empty($leadProfile["customer_email"]);
         }
     } catch (Exception $e) {
         error_log('Loan calc borrowable error: ' . $e->getMessage());
@@ -73,7 +83,7 @@ if ($desiredMonthly > 0 && $termYears > 0) {
     } else {
         $maxBorrowable = $desiredMonthly * (pow(1 + $rateMonth, $termMonths) - 1) / ($rateMonth * pow(1 + $rateMonth, $termMonths));
     }
-    if ($cardSlug !== "" && $db instanceof PDO && is_array($card)) {
+    if ($canPersistLoanSimulation && $cardSlug !== "" && $db instanceof PDO && is_array($card)) {
         saveLoanSimulationInput($db, (int)$card["id"], $sessionId, $visitorId, "borrow_monthly", [
             "desired_monthly_payment" => $desiredMonthly,
         ]);
@@ -93,7 +103,7 @@ if ($desiredMonthly > 0 && $termYears > 0) {
     } else {
         $maxBorrowable = $maxMonthlyRepayment * (pow(1 + $rateMonth, $termMonths) - 1) / ($rateMonth * pow(1 + $rateMonth, $termMonths));
     }
-    if ($cardSlug !== "" && $db instanceof PDO && is_array($card)) {
+    if ($canPersistLoanSimulation && $cardSlug !== "" && $db instanceof PDO && is_array($card)) {
         saveLoanSimulationInput($db, (int)$card["id"], $sessionId, $visitorId, "borrow_income", [
             "annual_income" => $annualIncome,
         ]);

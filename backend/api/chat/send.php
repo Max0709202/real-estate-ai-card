@@ -13,6 +13,7 @@ require_once __DIR__ . '/../../includes/chat-crm-helper.php';
 require_once __DIR__ . '/../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../includes/notification-helper.php';
 require_once __DIR__ . '/../../includes/property-helper.php';
+require_once __DIR__ . '/../../includes/chat-phone-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -74,11 +75,29 @@ try {
     if (!$session) {
         sendErrorResponse('セッションが見つかりません', 404);
     }
-    if ($visitorId !== '') {
-        // 送信元の端末を現所有者に更新（poll/upload の visitor 突合と整合させる）。
-        $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ? WHERE id = ?");
-        $stmt->execute([$visitorId, $sessionId]);
+    $stmt = $db->prepare("SELECT * FROM business_cards WHERE id = ?");
+    $stmt->execute([$session['business_card_id']]);
+    $card = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$card) {
+        sendErrorResponse('セッションが見つかりません', 404);
     }
+    if (!canUseChatbot($card)) {
+        sendErrorResponse('チャットボットはご利用いただけません。', 403);
+    }
+    if ($visitorId === '' || !chatSessionDeviceAuth($db, $sessionId, $visitorId)) {
+        sendErrorResponse('SMS認証の有効期限が切れています。もう一度SMS認証を行ってください。', 403);
+    }
+    $leadProfile = chatIntakeLoad($db, $sessionId, (int)$card['id']);
+    $profileComplete = !empty($leadProfile['customer_phone_verified'])
+        && !empty($leadProfile['customer_last_name'])
+        && !empty($leadProfile['customer_first_name'])
+        && !empty($leadProfile['customer_email']);
+    if (!$profileComplete) {
+        sendErrorResponse('ご本人情報の登録が完了していません。SMS認証後、お名前とメールアドレスを登録してください。', 403);
+    }
+    // 送信元の端末を現所有者に更新（poll/upload の visitor 突合と整合させる）。
+    $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+    $stmt->execute([$visitorId, $sessionId]);
 
     // 担当連絡チャネル：人間の担当者宛のメッセージ。AIの自動応答は行わず、
     // 顧客発言を担当への未読メッセージ（channel='contact'）として保存するだけにする。
@@ -88,8 +107,6 @@ try {
         if (!empty($attachmentIds)) {
             agentMsgAttachMessageId($db, $attachmentIds, $userMessageId, $sessionId, 'customer');
         }
-        $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$sessionId]);
         // 担当営業へメール通知（60秒バッチ・未読中は抑制）。失敗は握りつぶす。
         notifyEnqueue($db, $sessionId, 'contact');
         sendSuccessResponse([
@@ -99,16 +116,6 @@ try {
             'sources' => [],
             'quick_replies' => [],
         ], '担当者にお伝えしました');
-    }
-
-    $stmt = $db->prepare("SELECT * FROM business_cards WHERE id = ?");
-    $stmt->execute([$session['business_card_id']]);
-    $card = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$card) {
-        sendErrorResponse('セッションが見つかりません', 404);
-    }
-    if (!canUseChatbot($card)) {
-        sendErrorResponse('チャットボットはご利用いただけません。', 403);
     }
 
     if ($buttonSelection !== null) {

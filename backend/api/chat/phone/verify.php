@@ -139,7 +139,7 @@ try {
     // SMS認証済みのこの端末を、当該セッションを共有できる認可端末として登録する。
     // これにより同一電話番号の別端末（PC・スマホ等）も同じ相談内容へアクセスできる。
     if ($sessionId !== '' && $visitorId !== '') {
-        chatSessionRegisterDevice($db, $sessionId, $visitorId);
+        chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone, $customerName, 10800);
     }
 
     $agentName = $card['name'] ?? '担当者';

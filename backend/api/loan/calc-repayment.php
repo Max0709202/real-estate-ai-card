@@ -9,6 +9,8 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
+require_once __DIR__ . '/../../includes/chat-phone-helper.php';
+require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -43,6 +45,7 @@ if (!in_array($repaymentType, ['equal_installment', 'equal_principal'], true)) {
 
 $card = null;
 $db = null;
+$canPersistLoanSimulation = false;
 if ($cardSlug !== "") {
     try {
         $database = new Database();
@@ -53,6 +56,13 @@ if ($cardSlug !== "") {
         }
         if (!canUseLoanSim($card)) {
             sendErrorResponse('この名刺ではローンシミュレーションはご利用いただけません。', 403);
+        }
+        if ($sessionId !== "" && $visitorId !== "" && chatSessionDeviceAuth($db, $sessionId, $visitorId)) {
+            $leadProfile = chatIntakeLoad($db, $sessionId, (int)$card["id"]);
+            $canPersistLoanSimulation = !empty($leadProfile["customer_phone_verified"])
+                && !empty($leadProfile["customer_last_name"])
+                && !empty($leadProfile["customer_first_name"])
+                && !empty($leadProfile["customer_email"]);
         }
     } catch (Exception $e) {
         error_log('Loan calc repayment error: ' . $e->getMessage());
@@ -93,7 +103,7 @@ if ($repaymentType === 'equal_principal') {
     $totalInterest = $totalRepayment - $principal;
 }
 
-if ($cardSlug !== "" && $db instanceof PDO && is_array($card)) {
+if ($canPersistLoanSimulation && $cardSlug !== "" && $db instanceof PDO && is_array($card)) {
     saveLoanSimulationInput($db, (int)$card["id"], $sessionId, $visitorId, "repayment", [
         "desired_loan_amount" => $loanAmount,
         "down_payment" => $downPayment,

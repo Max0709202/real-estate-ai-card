@@ -36,11 +36,39 @@ function ensureChatSessionDevicesTable($db) {
         id INT AUTO_INCREMENT PRIMARY KEY,
         session_id CHAR(36) NOT NULL,
         visitor_identifier VARCHAR(128) NOT NULL,
+        phone_normalized VARCHAR(32) NULL,
+        customer_name VARCHAR(255) NULL,
+        verified_until DATETIME NULL,
         first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uniq_chat_session_device (session_id, visitor_identifier),
-        INDEX idx_chat_session_device_session (session_id)
+        INDEX idx_chat_session_device_session (session_id),
+        INDEX idx_chat_session_device_verified (session_id, visitor_identifier, verified_until)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $columns = [
+        'phone_normalized' => "ALTER TABLE chat_session_devices ADD COLUMN phone_normalized VARCHAR(32) NULL AFTER visitor_identifier",
+        'customer_name' => "ALTER TABLE chat_session_devices ADD COLUMN customer_name VARCHAR(255) NULL AFTER phone_normalized",
+        'verified_until' => "ALTER TABLE chat_session_devices ADD COLUMN verified_until DATETIME NULL AFTER customer_name",
+    ];
+    foreach ($columns as $column => $sql) {
+        try {
+            $stmt = $db->prepare("SHOW COLUMNS FROM chat_session_devices LIKE ?");
+            $stmt->execute([$column]);
+            if (!$stmt->fetch(PDO::FETCH_ASSOC)) {
+                $db->exec($sql);
+            }
+        } catch (Throwable $e) {
+        }
+    }
+    try {
+        $stmt = $db->prepare("SHOW INDEX FROM chat_session_devices WHERE Key_name = ?");
+        $stmt->execute(['idx_chat_session_device_verified']);
+        if (!$stmt->fetch(PDO::FETCH_ASSOC)) {
+            $db->exec("ALTER TABLE chat_session_devices ADD INDEX idx_chat_session_device_verified (session_id, visitor_identifier, verified_until)");
+        }
+    } catch (Throwable $e) {
+    }
 }
 
 function chatIsValidVisitorId($visitorId) {
@@ -52,17 +80,40 @@ function chatIsValidVisitorId($visitorId) {
  * 認可済み端末として登録する。既にセッションに単独所有者（visitor_identifier）が
  * 記録されていれば、その所有者もあわせて集合へ引き継ぐ（本機能導入前のセッション救済）。
  */
-function chatSessionRegisterDevice($db, $sessionId, $visitorId) {
+function chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone = '', $customerName = '', $ttlSeconds = 10800) {
     $sessionId = trim((string)$sessionId);
     $visitorId = trim((string)$visitorId);
     if ($sessionId === '' || !preg_match('/^[A-Fa-f0-9-]{36}$/', $sessionId)) return;
     if (!chatIsValidVisitorId($visitorId)) return;
     try {
         ensureChatSessionDevicesTable($db);
-        $stmt = $db->prepare("INSERT INTO chat_session_devices (session_id, visitor_identifier)
-            VALUES (?, ?)
+        $phoneLookup = chatPhoneLookupKey($phone);
+        $cleanName = chatCleanCustomerNameValue($customerName);
+        $ttlSeconds = max(60, (int)$ttlSeconds);
+        $stmt = $db->query("SELECT DATE_ADD(NOW(), INTERVAL {$ttlSeconds} SECOND)");
+        $verifiedUntil = (string)($stmt ? $stmt->fetchColumn() : '');
+        if ($verifiedUntil === '') return;
+        $stmt = $db->prepare("INSERT INTO chat_session_devices (session_id, visitor_identifier, phone_normalized, customer_name, verified_until)
+            VALUES (?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE last_seen_at = CURRENT_TIMESTAMP");
-        $stmt->execute([$sessionId, $visitorId]);
+        $stmt->execute([$sessionId, $visitorId, $phoneLookup !== '' ? $phoneLookup : null, $cleanName !== '' ? $cleanName : null, $verifiedUntil]);
+
+        $updates = ["last_seen_at = CURRENT_TIMESTAMP"];
+        $params = [];
+        if ($phoneLookup !== '') {
+            $updates[] = "phone_normalized = ?";
+            $params[] = $phoneLookup;
+        }
+        if ($cleanName !== '') {
+            $updates[] = "customer_name = ?";
+            $params[] = $cleanName;
+        }
+        $updates[] = "verified_until = ?";
+        $params[] = $verifiedUntil;
+        $params[] = $sessionId;
+        $params[] = $visitorId;
+        $stmt = $db->prepare("UPDATE chat_session_devices SET " . implode(', ', $updates) . " WHERE session_id = ? AND visitor_identifier = ?");
+        $stmt->execute($params);
 
         $stmt = $db->prepare("SELECT visitor_identifier FROM chat_sessions WHERE id = ? LIMIT 1");
         $stmt->execute([$sessionId]);
@@ -75,6 +126,25 @@ function chatSessionRegisterDevice($db, $sessionId, $visitorId) {
         }
     } catch (Throwable $e) {
         // 認可集合の記録失敗は致命的ではない（従来の単独所有者判定にフォールバック）。
+    }
+}
+
+function chatSessionDeviceAuth($db, $sessionId, $visitorId) {
+    $sessionId = trim((string)$sessionId);
+    $visitorId = trim((string)$visitorId);
+    if ($sessionId === '' || !preg_match('/^[A-Fa-f0-9-]{36}$/', $sessionId)) return null;
+    if (!chatIsValidVisitorId($visitorId)) return null;
+    try {
+        ensureChatSessionDevicesTable($db);
+        $stmt = $db->prepare("SELECT phone_normalized, customer_name, verified_until
+            FROM chat_session_devices
+            WHERE session_id = ? AND visitor_identifier = ? AND verified_until > NOW()
+            LIMIT 1");
+        $stmt->execute([$sessionId, $visitorId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    } catch (Throwable $e) {
+        return null;
     }
 }
 

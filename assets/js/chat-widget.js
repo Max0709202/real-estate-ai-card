@@ -598,23 +598,10 @@
         greetingShown = true;
         messagesContainer.innerHTML = '';
         showReloadNoticeIfNeeded();
-        var differentPersonLabel = customerLabel === 'お客様' ? '別の方' : customerLabel + '以外の方';
-        // ヒアリングで相談内容が溜まっている場合のみ、「今までのご相談内容を表示しますか？」を会話の入口として出す。
-        var hasConsultationSummary = !!(startupData && startupData.has_consultation_summary);
-        if (hasConsultationSummary) {
-            appendBotMessage(customerLabel + '、お帰りなさい。\n\n今までのご相談内容を表示しますか？\n\n「今までの相談内容を表示する」を選ぶと、これまでのご相談を振り返ってからご案内します。そのまま続けてご相談いただくこともできます。\n\n' + differentPersonLabel + 'がご利用される場合は、「別の方として始める」をお選びください。\n\n');
-            renderEntryActions([
-                { label: '今までの相談内容を表示する', action: 'continue_saved_session' },
-                { label: '別の方として始める', action: 'start_as_different_person' }
-            ]);
-        } else {
-            // ヒアリング未実施: 相談内容の表示案内は出さない。
-            appendBotMessage(customerLabel + '、お帰りなさい。\n\nこの端末からは、そのまま続きからご相談いただけます。\n\n' + differentPersonLabel + 'がご利用される場合は、「別の方として始める」をお選びください。\n\n');
-            renderEntryActions([
-                { label: 'このまま相談する', action: 'continue_current_session' },
-                { label: '別の方として始める', action: 'start_as_different_person' }
-            ]);
-        }
+        appendBotMessage(customerLabel + '、おかえりなさい。\n\nこの端末ではSMS認証から3時間以内のため、このまま同じユーザーとしてご利用いただけます。');
+        renderEntryActions([
+            { label: '別の方の場合はこちら', action: 'use_as_someone_else' }
+        ]);
         setInputEnabled(true);
         inputEl.focus();
     }
@@ -770,37 +757,7 @@
             sendButton.disabled = true;
             verifyButton.disabled = true;
             firebaseConfirmationResult = null;
-            setStatus('登録済みの電話番号か確認しています...');
-            lookupRegisteredPhone(phone).then(function (lookup) {
-                if (lookup && lookup.registered) {
-                    removeSmsAuthBox();
-                    entryAwaitingChoice = false;
-                    registrationFlow = false;
-                    renderQuickReplies([]);
-                    startupData = Object.assign({}, startupData || {}, lookup);
-                    if (lookup.customer_name) {
-                        saveCustomerName(lookup.customer_name);
-                    }
-                    if (lookup.session_id) {
-                        sessionId = lookup.session_id;
-                        saveSessionId(sessionId);
-                        // 共有セッションへ切り替わったので機能タブ内容を読み直す。
-                        crmState = null;
-                        loadCrmState(true);
-                    }
-                    var returningLabel = customerCasualLabel(startupData || {});
-                    var welcomeText = returningLabel === 'お客様' ? 'お帰りなさい。' : returningLabel + '、お帰りなさい。';
-                    appendBotMessage(welcomeText + '\n\nこの電話番号は登録済みですので、SMS認証を省略しました。このままご相談いただけます。');
-                    appendVoiceAvailabilityNotice();
-                    setInputEnabled(true);
-                    inputEl.focus();
-                    return;
-                }
-                return sendSmsCode(phone);
-            }).catch(function (error) {
-                if (window.console && console.warn) console.warn('Phone registration lookup failed; continuing with SMS:', error);
-                sendSmsCode(phone);
-            });
+            sendSmsCode(phone);
         });
 
         verifyButton.addEventListener('click', function () {
@@ -842,19 +799,6 @@
         var replyText = String(reply || '');
         if (replyText.indexOf('SMS認証フォームを表示します') !== -1) return true;
         return !!normalizePhoneInput(userText) && replyText.indexOf('最後に、携帯電話番号をご入力ください') !== -1;
-    }
-
-    function lookupRegisteredPhone(phone) {
-        return fetch(apiBase + '/phone/lookup.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: phone, card_slug: cardSlug, visitor_id: visitorId })
-        }).then(function (res) {
-            return res.json().catch(function () { return { success: false }; });
-        }).then(function (data) {
-            if (!data.success || !data.data) return null;
-            return data.data;
-        });
     }
 
     function firebaseSmsErrorMessage(error, normalizedPhone) {

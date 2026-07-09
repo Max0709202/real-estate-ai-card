@@ -30,6 +30,10 @@ $name = trim($input['name'] ?? '');
 $lastName = trim($input['last_name'] ?? '');
 $firstName = trim($input['first_name'] ?? '');
 $email = trim($input['email'] ?? '');
+$visitorId = trim($input['visitor_id'] ?? '');
+if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
+    $visitorId = '';
+}
 
 if ($sessionId === '' || !preg_match('/^[A-Fa-f0-9-]{36}$/', $sessionId)) {
     sendErrorResponse('セッションが正しくありません。', 400);
@@ -80,6 +84,10 @@ try {
 
     $data['_current_field'] = chatIntakeNextField($data);
     chatIntakeSave($db, $sessionId, $businessCardId, $data);
+    if ($visitorId !== '' && !empty($data['customer_phone_verified'])) {
+        $verifiedPhone = $data['customer_phone'] ?? ($data['phone'] ?? '');
+        chatSessionRegisterDevice($db, $sessionId, $visitorId, $verifiedPhone, $data['customer_name'] ?? '', 10800);
+    }
 
     sendSuccessResponse([
         'customer_name' => $data['customer_name'] ?? '',

@@ -48,58 +48,10 @@ try {
         sendErrorResponse('この名刺ではチャットボットはご利用いただけません。', 403);
     }
 
-    $businessCardId = (int)$card['id'];
-    $found = chatFindSessionByVerifiedPhone($db, $businessCardId, $phone);
-    if (!$found || empty($found['session_id'])) {
-        sendSuccessResponse([
-            'registered' => false,
-            'matched' => false,
-            'sms_required' => true,
-        ], 'OK');
-    }
-
-    $sessionId = (string)$found['session_id'];
-    if ($visitorId !== '') {
-        $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = COALESCE(visitor_identifier, ?), last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$visitorId, $sessionId]);
-    } else {
-        $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$sessionId]);
-    }
-
-    // 登録済み電話番号として本人確認できたこの端末を、セッション共有の認可端末に登録する。
-    if ($visitorId !== '') {
-        chatSessionRegisterDevice($db, $sessionId, $visitorId);
-    }
-
-    $customerName = chatResolveCustomerNameForSession($db, $sessionId, $businessCardId);
-    if ($customerName === '') {
-        $customerName = chatCleanCustomerNameValue($found['customer_name'] ?? '');
-    }
-    if ($customerName !== '') {
-        chatRegisterVerifiedPhone($db, $businessCardId, $phone, '', $sessionId, $customerName);
-    }
-
-    $agentName = $card['name'] ?? '担当者';
-    $resumeIntake = chatIntakeResumePayload($db, $sessionId, $businessCardId);
-    $resumeQuickReplies = [];
-    if ($resumeIntake && !empty($resumeIntake['can_ask_next'])) {
-        $resumeQuickReplies = $resumeIntake['quick_replies'] ?? [];
-    }
-
     sendSuccessResponse([
-        'registered' => true,
-        'matched' => true,
-        'sms_required' => false,
-        'session_id' => $sessionId,
-        'phone' => $phone,
-        'customer_name' => $customerName,
-        'resume_message' => getChatResumeMessageForSession($db, $sessionId, $agentName, $businessCardId, true),
-        'messages' => loadRecentChatMessagesForResume($db, $sessionId, 40),
-        'quick_replies' => $resumeQuickReplies,
-        'current_field' => $resumeIntake['current_field'] ?? null,
-        'current_question' => $resumeIntake['current_question'] ?? '',
-        'can_ask_next' => $resumeIntake['can_ask_next'] ?? false,
+        'registered' => false,
+        'matched' => false,
+        'sms_required' => true,
     ], 'OK');
 } catch (Exception $e) {
     error_log('Chat phone lookup error: ' . $e->getMessage());

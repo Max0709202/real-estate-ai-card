@@ -16,3 +16,17 @@ CREATE TABLE IF NOT EXISTS chat_verified_phones (
     INDEX idx_chat_verified_phone_card (business_card_id),
     INDEX idx_chat_verified_phone_session (last_session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS chat_session_devices (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id CHAR(36) NOT NULL,
+    visitor_identifier VARCHAR(128) NOT NULL,
+    phone_normalized VARCHAR(32) NULL,
+    customer_name VARCHAR(255) NULL,
+    verified_until DATETIME NULL,
+    first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_chat_session_device (session_id, visitor_identifier),
+    INDEX idx_chat_session_device_session (session_id),
+    INDEX idx_chat_session_device_verified (session_id, visitor_identifier, verified_until)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
