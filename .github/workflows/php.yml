@@ -19,16 +19,16 @@ jobs:
       - name: Deploy to staging
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.XSERVER_SSH_KEY }}" > ~/.ssh/xserver_key
-          chmod 600 ~/.ssh/xserver_key
+          echo "${{ secrets.XSERVER_SSH_KEY }}" > ~/.ssh/max
+          chmod 600 ~/.ssh/max
 
           rsync -az --delete \
             --exclude=".git" \
             --exclude=".github" \
             --exclude=".env" \
             --exclude="config.production.php" \
-            -e "ssh -i ~/.ssh/xserver_key -p ${{ secrets.XSERVER_SSH_PORT }} -o StrictHostKeyChecking=no" \
-            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/example.com/public_html/staging/
+            -e "ssh -i ~/.ssh/max -p ${{ secrets.XSERVER_SSH_PORT }} -o StrictHostKeyChecking=no" \
+            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/ai-fcard.com/public_html/staging/
 
   deploy-production:
     if: github.ref == 'refs/heads/main'
@@ -42,8 +42,8 @@ jobs:
       - name: Deploy to production
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.XSERVER_SSH_KEY }}" > ~/.ssh/xserver_key
-          chmod 600 ~/.ssh/xserver_key
+          echo "${{ secrets.XSERVER_SSH_KEY }}" > ~/.ssh/max
+          chmod 600 ~/.ssh/max
 
           rsync -az --delete \
             --exclude=".git" \
@@ -51,5 +51,5 @@ jobs:
             --exclude=".env" \
             --exclude="config.staging.php" \
             --exclude="uploads/" \
-            -e "ssh -i ~/.ssh/xserver_key -p ${{ secrets.XSERVER_SSH_PORT }} -o StrictHostKeyChecking=no" \
-            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/example.com/public_html/
+            -e "ssh -i ~/.ssh/max -p ${{ secrets.XSERVER_SSH_PORT }} -o StrictHostKeyChecking=no" \
+            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/ai-fcard.com/public_html/
