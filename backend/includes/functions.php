@@ -2215,7 +2215,7 @@ function capture_existing_invite_token_from_request(): void {
     if (session_status() !== PHP_SESSION_ACTIVE) {
         return;
     }
-    $type = $_GET['type'] ?? '';
+    $type = rtrim((string) ($_GET['type'] ?? ''), '/');
     $token = trim((string) ($_GET['token'] ?? ''));
     if ($type === 'existing' && $token !== '') {
         $_SESSION['existing_invite_token'] = $token;
@@ -2234,7 +2234,7 @@ function existing_user_nav_suffix(bool $urlAlreadyHasQuery = false): string {
 
     $isExistingUser = !empty($_SESSION['user_type']) && $_SESSION['user_type'] === 'existing';
     $guestExisting  = !empty($_SESSION['guest_user_type']) && $_SESSION['guest_user_type'] === 'existing';
-    $urlSaysExisting = (($_GET['type'] ?? '') === 'existing');
+    $urlSaysExisting = (rtrim((string) ($_GET['type'] ?? ''), '/') === 'existing');
 
     $token = trim((string) ($_SESSION['existing_invite_token'] ?? ''));
     if ($token === '') {

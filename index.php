@@ -8,13 +8,21 @@ require_once __DIR__ . '/backend/includes/functions.php';
 
 startSessionIfNotStarted();
 
+if (isset($_GET['type']) && rtrim((string) $_GET['type'], '/') === 'existing' && $_GET['type'] !== 'existing') {
+    $redirectParams = $_GET;
+    $redirectParams['type'] = 'existing';
+    $redirectUrl = strtok($_SERVER['REQUEST_URI'] ?? 'index.php', '?') . '?' . http_build_query($redirectParams);
+    header('Location: ' . $redirectUrl, true, 301);
+    exit;
+}
+
 // Handle token-based access for existing users
 $invitationToken = $_GET['token'] ?? '';
 $isTokenBased    = !empty($invitationToken);
 $tokenValid      = false;
 $tokenData       = null;
 // Get userType from URL parameter first, default to 'new'
-$userType = $_GET['type'] ?? 'new';
+$userType = rtrim((string) ($_GET['type'] ?? 'new'), '/');
 
 if ($isTokenBased) {
     // Validate token via DB（cURL→BASE_URL は同一サーバ到達失敗で常に無効になることがある）

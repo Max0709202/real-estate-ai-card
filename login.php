@@ -11,7 +11,7 @@ $existingNavSuffix = existing_user_nav_suffix(false);
 $existingNavAmp     = existing_user_nav_suffix(true);
 
 // Get URL parameters for redirect after login
-$userType = $_GET['type'] ?? '';
+$userType = rtrim((string) ($_GET['type'] ?? ''), '/');
 $invitationToken = $_GET['token'] ?? '';
 if ($invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
     $invitationToken = $_SESSION['existing_invite_token'];

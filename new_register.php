@@ -10,7 +10,7 @@ startSessionIfNotStarted();
 $existingNavSuffix = existing_user_nav_suffix(false);
 
 // Get initial userType and token from URL (token はセッションからも復元)
-$userType = $_GET['type'] ?? 'new'; // new, existing
+$userType = rtrim((string) ($_GET['type'] ?? 'new'), '/'); // new, existing
 $invitationToken = trim((string) ($_GET['token'] ?? ''));
 if ($invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
     $invitationToken = trim((string) $_SESSION['existing_invite_token']);

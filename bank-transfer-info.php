@@ -19,7 +19,7 @@ if (!empty($paymentIntentId) && strpos($paymentIntentId, '?') !== false) {
     // Defensive: older/broken URLs may append query params into pi itself.
     $paymentIntentId = strtok($paymentIntentId, '?');
 }
-$userType = $_GET['type'] ?? ($_SESSION['user_type'] ?? 'new');
+$userType = rtrim((string) ($_GET['type'] ?? ($_SESSION['user_type'] ?? 'new')), '/');
 $urlTypeParam = ($userType === 'existing') ? existing_user_nav_suffix(true) : '';
 
 $paymentInfo = null;
@@ -567,4 +567,3 @@ if ($paymentInfo) {
     <?php endif; ?>
 </body>
 </html>
-

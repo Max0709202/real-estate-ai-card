@@ -35,7 +35,7 @@ $invitationToken = trim((string) ($_GET['token'] ?? ''));
 if ($invitationToken === '' && !empty($_SESSION['existing_invite_token'])) {
     $invitationToken = trim((string) $_SESSION['existing_invite_token']);
 }
-$urlUserType = $_GET['type'] ?? null;
+$urlUserType = isset($_GET['type']) ? rtrim((string) $_GET['type'], '/') : null;
 $isTokenBased = !empty($invitationToken);
 $tokenValid = false;
 $tokenUserType = null;
@@ -682,4 +682,3 @@ if ($isLoggedIn) {
 
 <!-- Mobile Menu Script -->
 <script src="assets/js/mobile-menu.js"></script>
-

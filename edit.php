@@ -11,7 +11,7 @@ startSessionIfNotStarted();
 // Check for token-based guest access (existing users with valid invitation token)
 $isGuestAccess = false;
 $guestInvitationData = null;
-$userType = $_GET['type'] ?? '';
+$userType = rtrim((string) ($_GET['type'] ?? ''), '/');
 $invitationToken = $_GET['token'] ?? '';
 
 if (empty($_SESSION['user_id']) && $userType === 'existing' && !empty($invitationToken)) {
@@ -79,7 +79,7 @@ if ($isGuestAccess) {
     $userType = 'existing'; // Guest access is always for existing users
 } elseif (!empty($_SESSION['user_type'])) {
     $userType = $_SESSION['user_type']; // Use session value for logged-in users
-} elseif (!empty($_GET['type']) && $_GET['type'] === 'existing') {
+} elseif (!empty($_GET['type']) && rtrim((string) $_GET['type'], '/') === 'existing') {
     $userType = 'existing'; // Use URL parameter
 } else {
     $userType = 'new'; // Default, may be overwritten by DB query
