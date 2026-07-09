@@ -1,0 +1,4 @@
+AuthType Basic
+AuthName "Staging Area"
+AuthUserFile /home/server_id/.htpasswd-staging
+Require valid-user
