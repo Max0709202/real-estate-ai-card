@@ -1,0 +1,55 @@
+name: Deploy PHP App to Xserver
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  deploy-staging:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.XSERVER_SSH_KEY }}" > ~/.ssh/xserver_key
+          chmod 600 ~/.ssh/xserver_key
+
+          rsync -az --delete \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude=".env" \
+            --exclude="config.production.php" \
+            -e "ssh -i ~/.ssh/xserver_key -p ${{ secrets.XSERVER_SSH_PORT }} -o StrictHostKeyChecking=no" \
+            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/example.com/public_html/staging/
+
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to production
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.XSERVER_SSH_KEY }}" > ~/.ssh/xserver_key
+          chmod 600 ~/.ssh/xserver_key
+
+          rsync -az --delete \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude=".env" \
+            --exclude="config.staging.php" \
+            --exclude="uploads/" \
+            -e "ssh -i ~/.ssh/xserver_key -p ${{ secrets.XSERVER_SSH_PORT }} -o StrictHostKeyChecking=no" \
+            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/example.com/public_html/
