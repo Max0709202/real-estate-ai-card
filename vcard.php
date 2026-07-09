@@ -46,13 +46,75 @@ function vcardEscape($s) {
     return $s;
 }
 
-$fn = vcardEscape($card['name']);
+function vcardSplitName($name) {
+    $name = trim(preg_replace('/\s+/u', ' ', (string)$name));
+    if ($name === '') return ['', ''];
+
+    $parts = explode(' ', $name, 2);
+    if (count($parts) === 2) {
+        return [trim($parts[0]), trim($parts[1])];
+    }
+
+    return [$name, ''];
+}
+
+function vcardLegalFormKana($value) {
+    $replacements = [
+        '株式会社' => 'カブシキガイシャ',
+        '有限会社' => 'ユウゲンガイシャ',
+        '合同会社' => 'ゴウドウガイシャ',
+        '合資会社' => 'ゴウシガイシャ',
+        '合名会社' => 'ゴウメイガイシャ',
+        '一般社団法人' => 'イッパンシャダンホウジン',
+        '公益社団法人' => 'コウエキシャダンホウジン',
+        '一般財団法人' => 'イッパンザイダンホウジン',
+        '公益財団法人' => 'コウエキザイダンホウジン',
+        '特定非営利活動法人' => 'トクテイヒエイリカツドウホウジン',
+        '医療法人' => 'イリョウホウジン',
+        '学校法人' => 'ガッコウホウジン',
+        '社会福祉法人' => 'シャカイフクシホウジン',
+    ];
+
+    return str_replace(array_keys($replacements), array_values($replacements), $value);
+}
+
+function vcardToKatakana($value) {
+    $value = trim((string)$value);
+    if ($value === '') return '';
+
+    $value = vcardLegalFormKana($value);
+    if (class_exists('Transliterator')) {
+        $latin = Transliterator::create('Latin-Katakana');
+        if ($latin) {
+            $value = $latin->transliterate($value);
+        }
+
+        $kana = Transliterator::create('Any-Katakana');
+        if ($kana) {
+            $value = $kana->transliterate($value);
+        }
+    }
+
+    $value = mb_convert_kana($value, 'KVC', 'UTF-8');
+    $value = preg_replace('/\s+/u', ' ', $value);
+    return trim($value);
+}
+
+[$familyName, $givenName] = vcardSplitName($card['name'] ?? '');
+[$familyNameRomaji, $givenNameRomaji] = vcardSplitName($card['name_romaji'] ?? '');
+
+$fn = vcardEscape(trim(($familyName . ' ' . $givenName)) ?: ($card['name'] ?? ''));
+$familyNameEscaped = vcardEscape($familyName);
+$givenNameEscaped = vcardEscape($givenName);
 $org = vcardEscape($card['company_name'] ?? '');
 $tel = vcardEscape($card['mobile_phone'] ?? $card['company_phone'] ?? '');
 $email = vcardEscape($card['email'] ?? '');
 $url = vcardEscape($cardUrl);
-// N: Family;Given;Middle;Prefix;Suffix - we have single name field
-$n = ';' . $fn . ';;;';
+$phoneticFamily = vcardEscape(vcardToKatakana($familyNameRomaji ?: $familyName));
+$phoneticGiven = vcardEscape(vcardToKatakana($givenNameRomaji ?: $givenName));
+$phoneticOrg = vcardEscape(vcardToKatakana($card['company_name'] ?? ''));
+// N: Family;Given;Middle;Prefix;Suffix
+$n = $familyNameEscaped . ';' . $givenNameEscaped . ';;;';
 $title = vcardEscape($card['position'] ?? '');
 $role = vcardEscape($card['branch_department'] ?? '');
 $adr = '';
@@ -64,7 +126,10 @@ if (!empty($card['company_postal_code']) || !empty($card['company_address'])) {
 $vcard = "BEGIN:VCARD\r\nVERSION:3.0\r\n";
 $vcard .= "FN:" . $fn . "\r\n";
 $vcard .= "N:" . $n . "\r\n";
+if ($phoneticFamily !== '') $vcard .= "X-PHONETIC-LAST-NAME:" . $phoneticFamily . "\r\n";
+if ($phoneticGiven !== '') $vcard .= "X-PHONETIC-FIRST-NAME:" . $phoneticGiven . "\r\n";
 if ($org !== '') $vcard .= "ORG:" . $org . "\r\n";
+if ($phoneticOrg !== '') $vcard .= "X-PHONETIC-ORG:" . $phoneticOrg . "\r\n";
 if ($title !== '') $vcard .= "TITLE:" . $title . "\r\n";
 if ($role !== '') $vcard .= "ROLE:" . $role . "\r\n";
 if ($tel !== '') $vcard .= "TEL;TYPE=CELL:" . $tel . "\r\n";

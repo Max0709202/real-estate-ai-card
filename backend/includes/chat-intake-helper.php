@@ -352,11 +352,68 @@ function chatIntakeLoad($db, $sessionId, $businessCardId) {
         $decoded = json_decode($row['structured_data'], true);
         if (is_array($decoded)) $data = array_merge($data, $decoded);
     }
+    try {
+        ensureChatLeadContactTable($db);
+        $stmt = $db->prepare('SELECT customer_name, phone, email, contact_method, contact_value, raw_contact, consent_given FROM chat_lead_contacts WHERE session_id = ? AND business_card_id = ? LIMIT 1');
+        $stmt->execute([$sessionId, $businessCardId]);
+        $contact = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($contact) {
+            $contactName = trim((string)($contact['customer_name'] ?? ''));
+            if ($contactName !== '') {
+                $data['customer_name'] = $data['customer_name'] ?: $contactName;
+                if (empty($data['customer_last_name']) || empty($data['customer_first_name'])) {
+                    [$lastName, $firstName] = chatIntakeParseNameParts($contactName);
+                    if ($lastName !== '' && $firstName !== '') {
+                        $data['customer_last_name'] = $data['customer_last_name'] ?: $lastName;
+                        $data['customer_first_name'] = $data['customer_first_name'] ?: $firstName;
+                    }
+                }
+            }
+            if (!empty($contact['phone'])) {
+                $data['customer_phone'] = $data['customer_phone'] ?: trim((string)$contact['phone']);
+            }
+            if (!empty($contact['email'])) {
+                $data['customer_email'] = $data['customer_email'] ?: trim((string)$contact['email']);
+            }
+            if (!empty($contact['raw_contact'])) {
+                $data['customer_contact_raw'] = $data['customer_contact_raw'] ?: trim((string)$contact['raw_contact']);
+            }
+            if (!empty($contact['contact_method'])) {
+                $data['preferred_contact_method'] = $data['preferred_contact_method'] ?: trim((string)$contact['contact_method']);
+            }
+            if (!empty($contact['contact_value'])) {
+                $data['preferred_contact_value'] = $data['preferred_contact_value'] ?: trim((string)$contact['contact_value']);
+            }
+            if (!empty($contact['consent_given'])) {
+                $data['contact_consent'] = true;
+                $data['contact_status'] = $data['contact_status'] ?: 'provided';
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('chatIntakeLoad contact merge failed: ' . $e->getMessage());
+    }
     if (function_exists("loanSimulationFetchForSession")) {
         $loanSimulation = loanSimulationFetchForSession($db, $sessionId, $businessCardId);
         if ($loanSimulation) loanSimulationApplyToLeadData($data, $loanSimulation);
     }
     return $data;
+}
+
+function chatIntakeHasCustomerName($data) {
+    if (!is_array($data)) return false;
+    return (!empty($data['customer_last_name']) && !empty($data['customer_first_name']))
+        || !empty($data['customer_name']);
+}
+
+function chatIntakeHasCustomerEmail($data) {
+    return is_array($data) && !empty($data['customer_email']);
+}
+
+function chatIntakeProfileComplete($data) {
+    return is_array($data)
+        && !empty($data['customer_phone_verified'])
+        && chatIntakeHasCustomerName($data)
+        && chatIntakeHasCustomerEmail($data);
 }
 
 function ensureChatLeadContactTable($db) {
@@ -995,8 +1052,8 @@ function chatIntakeFieldHasValue($data, $field) {
     if ($field === 'preferred_station_line') return !empty($data['preferred_station_line']) || !empty($data['preferred_station']);
     if ($field === 'current_property_location') return !empty($data['current_property_location']);
     if ($field === 'property_location') return !empty($data['property_location']);
-    if ($field === 'contact_name') return !empty($data['customer_last_name']) && !empty($data['customer_first_name']);
-    if ($field === 'contact_email') return !empty($data['customer_email']);
+    if ($field === 'contact_name') return chatIntakeHasCustomerName($data);
+    if ($field === 'contact_email') return chatIntakeHasCustomerEmail($data);
     if ($field === 'contact_phone') return !empty($data['customer_phone']) && !empty($data['customer_phone_verified']);
     if ($field === 'contact_request') return !empty($data['customer_contact_raw']) || (in_array(($data['contact_status'] ?? ''), ['anonymous', 'not_requested'], true) && in_array('contact_request', $data['_asked_fields'] ?? [], true));
     if (!array_key_exists($field, $data)) return false;

@@ -59,6 +59,7 @@ function ensureChatSessionDevicesTable($db) {
                 $db->exec($sql);
             }
         } catch (Throwable $e) {
+            error_log('chat_session_devices schema update failed for ' . $column . ': ' . $e->getMessage());
         }
     }
     try {
@@ -68,6 +69,7 @@ function ensureChatSessionDevicesTable($db) {
             $db->exec("ALTER TABLE chat_session_devices ADD INDEX idx_chat_session_device_verified (session_id, visitor_identifier, verified_until)");
         }
     } catch (Throwable $e) {
+        error_log('chat_session_devices index update failed: ' . $e->getMessage());
     }
 }
 
@@ -125,7 +127,7 @@ function chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone = '', $cu
             $stmt->execute([$sessionId, $owner]);
         }
     } catch (Throwable $e) {
-        // 認可集合の記録失敗は致命的ではない（従来の単独所有者判定にフォールバック）。
+        error_log('chatSessionRegisterDevice failed: ' . $e->getMessage());
     }
 }
 
@@ -144,6 +146,7 @@ function chatSessionDeviceAuth($db, $sessionId, $visitorId) {
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     } catch (Throwable $e) {
+        error_log('chatSessionDeviceAuth failed: ' . $e->getMessage());
         return null;
     }
 }

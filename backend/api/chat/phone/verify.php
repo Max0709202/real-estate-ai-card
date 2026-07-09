@@ -132,6 +132,8 @@ try {
     if ($sessionId !== '') {
         $resolvedCustomerName = chatResolveCustomerNameForSession($db, $sessionId, $businessCardId);
         if ($resolvedCustomerName !== '') $customerName = $resolvedCustomerName;
+        $leadData = chatIntakeApplyVerifiedPhoneRegistration($db, $sessionId, $businessCardId, $phone);
+        $customerName = $leadData['customer_name'] ?? $customerName;
     }
 
     chatRegisterVerifiedPhone($db, $businessCardId, $phone, $uid, $sessionId, $customerName);
@@ -151,11 +153,21 @@ try {
         $resumeQuickReplies = $resumeIntake['quick_replies'] ?? [];
     }
     $messages = $matched ? loadRecentChatMessagesForResume($db, $sessionId, 40) : [];
+    $profileData = $resumeIntake['data'] ?? ($leadData ?? []);
+    $hasName = chatIntakeHasCustomerName($profileData);
+    $hasEmail = chatIntakeHasCustomerEmail($profileData);
+    $needsProfile = !$hasName || !$hasEmail;
+    if ($needsProfile) {
+        $messages = [];
+        $resumeQuickReplies = [];
+    }
 
     sendSuccessResponse([
         'matched' => $matched,
         'registration_completed' => $registrationCompleted,
         'needs_profile' => $needsProfile,
+        'has_name' => $hasName,
+        'has_email' => $hasEmail,
         'session_id' => $sessionId,
         'phone' => $phone,
         'customer_name' => $customerName,
@@ -165,7 +177,7 @@ try {
         'initial_message' => $intake['initial_message'],
         'current_field' => $resumeIntake['current_field'] ?? null,
         'current_question' => $resumeIntake['current_question'] ?? '',
-        'can_ask_next' => $resumeIntake['can_ask_next'] ?? false,
+        'can_ask_next' => !$needsProfile && !empty($resumeIntake['can_ask_next']),
     ], 'OK');
 } catch (Exception $e) {
     error_log('Chat phone verify error: ' . $e->getMessage());

@@ -68,7 +68,7 @@ try {
     $database = new Database();
     $db = $database->getConnection();
 
-    $stmt = $db->prepare("SELECT id, business_card_id, handoff_mode FROM chat_sessions WHERE id = ?");
+    $stmt = $db->prepare("SELECT id, business_card_id, visitor_identifier, handoff_mode FROM chat_sessions WHERE id = ?");
     $stmt->execute([$sessionId]);
     $session = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -84,14 +84,20 @@ try {
     if (!canUseChatbot($card)) {
         sendErrorResponse('チャットボットはご利用いただけません。', 403);
     }
-    if ($visitorId === '' || !chatSessionDeviceAuth($db, $sessionId, $visitorId)) {
+    $leadProfile = chatIntakeLoad($db, $sessionId, (int)$card['id']);
+    $deviceAuth = $visitorId !== '' ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
+    if (!$deviceAuth && $visitorId !== '' && (string)($session['visitor_identifier'] ?? '') === $visitorId && !empty($leadProfile['customer_phone_verified'])) {
+        $fallbackName = trim((string)($leadProfile['customer_name'] ?? ''));
+        if ($fallbackName === '') {
+            $fallbackName = trim((string)($leadProfile['customer_last_name'] ?? '') . ' ' . (string)($leadProfile['customer_first_name'] ?? ''));
+        }
+        chatSessionRegisterDevice($db, $sessionId, $visitorId, $leadProfile['customer_phone'] ?? '', $fallbackName, 10800);
+        $deviceAuth = chatSessionDeviceAuth($db, $sessionId, $visitorId);
+    }
+    if ($visitorId === '' || !$deviceAuth) {
         sendErrorResponse('SMS認証の有効期限が切れています。もう一度SMS認証を行ってください。', 403);
     }
-    $leadProfile = chatIntakeLoad($db, $sessionId, (int)$card['id']);
-    $profileComplete = !empty($leadProfile['customer_phone_verified'])
-        && !empty($leadProfile['customer_last_name'])
-        && !empty($leadProfile['customer_first_name'])
-        && !empty($leadProfile['customer_email']);
+    $profileComplete = chatIntakeProfileComplete($leadProfile);
     if (!$profileComplete) {
         sendErrorResponse('ご本人情報の登録が完了していません。SMS認証後、お名前とメールアドレスを登録してください。', 403);
     }

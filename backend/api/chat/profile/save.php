@@ -91,8 +91,8 @@ try {
 
     sendSuccessResponse([
         'customer_name' => $data['customer_name'] ?? '',
-        'has_name' => !empty($data['customer_last_name']) && !empty($data['customer_first_name']),
-        'has_email' => !empty($data['customer_email']),
+        'has_name' => chatIntakeHasCustomerName($data),
+        'has_email' => chatIntakeHasCustomerEmail($data),
     ], 'OK');
 } catch (Exception $e) {
     error_log('Chat profile save error: ' . $e->getMessage());
