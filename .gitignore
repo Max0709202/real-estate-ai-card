@@ -4,3 +4,11 @@
 ai-fcard*.zip
 
 assets/video/card.mp4
+
+config.production.php
+config.staging.php
+.env
+*.log
+/vendor/
+/backend/vendor/
+backend/config/secrets.php

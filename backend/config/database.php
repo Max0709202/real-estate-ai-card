@@ -3,12 +3,55 @@
  * Database Configuration
  */
 class Database {
-    private $host = 'localhost';
-    private $db_name = 'xs013436_realestatecard';
-    private $username = 'xs013436_nishio';
-    private $password = 'renewal4329';
+    private $host;
+    private $db_name;
+    private $username;
+    private $password;
     private $charset = 'utf8mb4';
     public $conn;
+
+    public function __construct(?array $config = null) {
+        $config = $config ?? self::loadConfig();
+
+        foreach (['db_host', 'db_name', 'db_user', 'db_pass'] as $key) {
+            if (!array_key_exists($key, $config)) {
+                throw new Exception("Missing database config value: {$key}");
+            }
+        }
+
+        $this->host = $config['db_host'];
+        $this->db_name = $config['db_name'];
+        $this->username = $config['db_user'];
+        $this->password = $config['db_pass'];
+    }
+
+    private static function loadConfig(): array {
+        $host = strtolower($_SERVER['HTTP_HOST'] ?? '');
+        $host = preg_replace('/:\d+$/', '', $host);
+        $env = getenv('APP_ENV') ?: '';
+
+        $configName = ($env === 'staging' || $host === 'staging.example.com' || $host === 'staging.ai-fcard.com')
+            ? 'config.staging.php'
+            : 'config.production.php';
+
+        $paths = [
+            dirname(__DIR__, 3) . '/' . $configName,
+            __DIR__ . '/' . $configName,
+        ];
+
+        foreach ($paths as $path) {
+            if (is_file($path)) {
+                $config = require $path;
+                if (!is_array($config)) {
+                    throw new Exception("Config file must return an array: {$path}");
+                }
+
+                return $config;
+            }
+        }
+
+        throw new Exception("Database config file not found: {$configName}");
+    }
 
     public function getConnection() {
         $this->conn = null;
