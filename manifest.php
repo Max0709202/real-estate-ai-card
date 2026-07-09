@@ -54,9 +54,11 @@ $appName = $cardName !== '' ? $cardName . 'の名刺' : 'AI名刺';
 $shortName = $cardName !== '' ? mb_substr($cardName, 0, 12) : 'AI名刺';
 
 $manifest = [
+    'id' => '/card.php?slug=' . urlencode($card['url_slug']),
     'name' => $appName,
     'short_name' => $shortName,
     'start_url' => $startUrl,
+    'scope' => $base . '/',
     'display' => 'standalone',
     'background_color' => '#ffffff',
     'theme_color' => '#0A84FF',

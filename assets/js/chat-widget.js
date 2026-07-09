@@ -598,7 +598,7 @@
         greetingShown = true;
         messagesContainer.innerHTML = '';
         showReloadNoticeIfNeeded();
-        appendBotMessage(customerLabel + '、おかえりなさい。\n\nこの端末ではSMS認証から3時間以内のため、このまま同じユーザーとしてご利用いただけます。');
+        appendBotMessage(customerLabel + '、おかえりなさい。\n\nこのまま前回の続きからご利用いただけます。\n\n別の方がご利用の場合は、下のボタンを押してSMS認証からお進みいただくと、前回の続きからご利用いただけます。');
         renderEntryActions([
             { label: '別の方の場合はこちら', action: 'use_as_someone_else' }
         ]);

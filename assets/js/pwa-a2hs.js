@@ -13,7 +13,12 @@
   const uaLower = ua.toLowerCase();
   const isIOS = /iphone|ipad|ipod/.test(uaLower);
   const isAndroid = /android/.test(uaLower);
-  const isIOSSafari = isIOS && !/\bcrios\b|\bfxios\b|\bedgios\b|\bopios\b/i.test(ua);
+  const isIOSChrome = isIOS && /\bcrios\b/i.test(ua);
+  const isIOSFirefox = isIOS && /\bfxios\b/i.test(ua);
+  const isIOSEdge = isIOS && /\bedgios\b/i.test(ua);
+  const isIOSOpera = isIOS && /\bopios\b/i.test(ua);
+  const isIOSInAppBrowser = isIOS && /\b(line|fbav|fban|instagram|micromessenger)\b/i.test(ua);
+  const isIOSSafari = isIOS && !isIOSChrome && !isIOSFirefox && !isIOSEdge && !isIOSOpera && !isIOSInAppBrowser;
 
   const isStandalone =
     window.matchMedia('(display-mode: standalone)').matches ||
@@ -42,6 +47,8 @@
   const modal3 = document.getElementById('pwaIosModalSafari');
   const modal3CopyBtn = document.getElementById('pwaIosModalSafariCopy');
   const modal3CloseBtn = document.getElementById('pwaIosModalSafariClose');
+  const androidGuideModal = document.getElementById('pwaAndroidGuideModal');
+  const androidGuideClose = document.getElementById('pwaAndroidGuideClose');
 
   const cardSlug = (banner.dataset && banner.dataset.cardSlug) || slug;
   const vcfUrl = cardSlug ? ('vcard.php?slug=' + encodeURIComponent(cardSlug)) : '';
@@ -77,7 +84,7 @@
   }
 
   function isHomeStepComplete() {
-    return isStandalone || getFlag(homeInstalledKey) || androidInstallPromptUnavailable;
+    return isStandalone || getFlag(homeInstalledKey);
   }
 
   function isContactStepComplete() {
@@ -114,6 +121,25 @@
     }
 
     if (!needsHomeStep) {
+      hide(installBtn);
+      hide(iosCreateHomeIconBtn);
+      hide(iosSteps);
+    } else if (isIOS) {
+      hide(installBtn);
+      hide(iosSteps);
+      show(iosCreateHomeIconBtn);
+    } else if (isAndroid) {
+      hide(iosCreateHomeIconBtn);
+      hide(iosSteps);
+      if (deferredPrompt || androidInstallPromptUnavailable) {
+        if (installBtn) {
+          installBtn.textContent = deferredPrompt ? 'ホームに追加' : '追加方法を見る';
+          show(installBtn);
+        }
+      } else {
+        hide(installBtn);
+      }
+    } else {
       hide(installBtn);
       hide(iosCreateHomeIconBtn);
       hide(iosSteps);
@@ -174,8 +200,12 @@
     if (modal1CreateBtn) {
       modal1CreateBtn.addEventListener('click', () => {
         hideModal(modal1);
-        if (modal2Url) modal2Url.textContent = window.location.hostname || window.location.href;
-        showModal(modal2);
+        if (isIOSSafari) {
+          if (modal2Url) modal2Url.textContent = window.location.hostname || window.location.href;
+          showModal(modal2);
+        } else if (modal3) {
+          showModal(modal3);
+        }
       });
     }
 
@@ -189,32 +219,7 @@
       }
       if (modal2Add) {
         modal2Add.addEventListener('click', () => {
-          setFlag(homeInstalledKey);
-          syncBanner();
-          const url = window.location.href;
-          const title = 'AI名刺';
-          const instruction = 'ホーム画面に追加するには、画面下の「共有」ボタンをタップし、「ホーム画面に追加」を選択してください。';
-          if (typeof navigator.share === 'function') {
-            navigator.share({ title: title, url: url })
-              .then(() => { hideModal(modal2); })
-              .catch((err) => {
-                hideModal(modal2);
-                if (err && err.name !== 'AbortError') {
-                  if (isIOS && !isIOSSafari && modal3) {
-                    showModal(modal3);
-                  } else {
-                    alert(instruction);
-                  }
-                }
-              });
-          } else {
-            hideModal(modal2);
-            if (isIOS && modal3) {
-              showModal(modal3);
-            } else {
-              alert(instruction);
-            }
-          }
+          hideModal(modal2);
         });
       }
     }
@@ -260,7 +265,10 @@
 
   if (installBtn) {
     installBtn.addEventListener('click', async () => {
-      if (!deferredPrompt) return;
+      if (!deferredPrompt) {
+        if (isAndroid && androidGuideModal) showModal(androidGuideModal);
+        return;
+      }
       deferredPrompt.prompt();
       try {
         const choice = await deferredPrompt.userChoice;
@@ -288,5 +296,15 @@
         syncBanner();
       }
     }, 1500);
+  }
+
+  if (androidGuideModal) {
+    if (androidGuideClose) {
+      androidGuideClose.addEventListener('click', () => hideModal(androidGuideModal));
+    }
+    const androidBackdrop = androidGuideModal.querySelector('.pwa-ios-modal-backdrop');
+    if (androidBackdrop) {
+      androidBackdrop.addEventListener('click', () => hideModal(androidGuideModal));
+    }
   }
 })();

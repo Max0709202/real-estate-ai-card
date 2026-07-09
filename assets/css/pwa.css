@@ -262,6 +262,19 @@
   line-height: 1.4;
 }
 
+.pwa-install-guide-list {
+  margin: 0 0 16px;
+  padding-left: 22px;
+  color: #192B49;
+  font-size: 14px;
+  line-height: 1.65;
+  text-align: left;
+}
+
+.pwa-install-guide-list li {
+  margin: 0 0 6px;
+}
+
 .pwa-ios-modal-actions {
   display: flex;
   justify-content: flex-end;

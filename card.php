@@ -302,16 +302,19 @@ if (!empty($card['profile_photo'])) {
     <!-- PWA (dynamic manifest: start_url = this card, name = card holder) -->
     <link rel="manifest" href="manifest.php?slug=<?php echo urlencode($card['url_slug'] ?? ''); ?>">
     <meta name="theme-color" content="#0A84FF">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="<?php echo htmlspecialchars(mb_substr($card['name'] ?? 'AI名刺', 0, 12)); ?>">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="stylesheet" href="assets/css/card.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
-    <link rel="stylesheet" href="assets/css/pwa.css">
+    <link rel="stylesheet" href="assets/css/pwa.css?v=<?php echo filemtime(__DIR__ . '/assets/css/pwa.css'); ?>">
     <?php if ($chatbotEnabled): ?>
     <link rel="stylesheet" href="assets/css/chat-widget.css?v=<?php echo filemtime(__DIR__ . '/assets/css/chat-widget.css'); ?>">
     <link rel="stylesheet" href="assets/css/property.css?v=<?php echo filemtime(__DIR__ . '/assets/css/property.css'); ?>">
     <?php endif; ?>
     <?php if (!$chatOnly): ?>
-    <script src="assets/js/pwa-a2hs.js" defer></script>
+    <script src="assets/js/pwa-a2hs.js?v=<?php echo filemtime(__DIR__ . '/assets/js/pwa-a2hs.js'); ?>" defer></script>
     <?php endif; ?>
     <style>
         /* View toggle button */
@@ -1404,7 +1407,7 @@ if (!empty($card['profile_photo'])) {
         </div>
     </div>
 
-    <!-- iOS: Step 2 – Native-style "Add to Home Screen" (Cancel / Add); Add opens Share sheet -->
+    <!-- iOS Safari: Web apps can be added from Safari's share menu. -->
     <div id="pwaIosModal2" class="pwa-ios-modal" role="dialog" aria-label="ホーム画面に追加" aria-modal="true" hidden>
         <div class="pwa-ios-modal-backdrop"></div>
         <div class="pwa-ios-modal-box pwa-ios-modal-box-2">
@@ -1416,10 +1419,16 @@ if (!empty($card['profile_photo'])) {
                     <span class="pwa-ios-modal-app-url" id="pwaIosModal2Url"></span>
                 </div>
             </div>
-            <p class="pwa-ios-modal-hint">「追加」をタップすると共有メニューが開きます。一覧から<strong>「ホーム画面に追加」</strong>を選ぶと、アイコンと名前を設定する画面が表示されます。</p>
+            <ol class="pwa-install-guide-list">
+                <li>Safari下部の共有ボタン、または右下の「…」をタップ</li>
+                <li>「共有」をタップ</li>
+                <li>一覧から「ホーム画面に追加」を選択</li>
+                <li>右上の「追加」をタップ</li>
+            </ol>
+            <p class="pwa-ios-modal-hint">「ホーム画面に追加」が見つからない場合は、共有メニュー下部の「アクションを編集」から追加してください。</p>
             <div class="pwa-ios-modal-actions">
                 <button type="button" class="pwa-ios-modal-btn-cancel" id="pwaIosModal2Cancel">キャンセル</button>
-                <button type="button" class="pwa-ios-modal-btn-add" id="pwaIosModal2Add">追加</button>
+                <button type="button" class="pwa-ios-modal-btn-add" id="pwaIosModal2Add">閉じる</button>
             </div>
         </div>
     </div>
@@ -1428,11 +1437,33 @@ if (!empty($card['profile_photo'])) {
     <div id="pwaIosModalSafari" class="pwa-ios-modal" role="dialog" aria-label="Safariで開く" aria-modal="true" hidden>
         <div class="pwa-ios-modal-backdrop"></div>
         <div class="pwa-ios-modal-box pwa-ios-modal-box-safari">
-            <h3 class="pwa-ios-modal-title">ホーム画面に追加するには</h3>
-            <p class="pwa-ios-modal-text">「ホーム画面に追加」は<strong>Safari</strong>でのみご利用いただけます。<br><br>1. 下の「リンクをコピー」をタップ<br>2. Safariを開き、アドレス欄に貼り付けて移動<br>3. 共有ボタン → 「ホーム画面に追加」を選択</p>
+            <h3 class="pwa-ios-modal-title">Safariで開いて追加してください</h3>
+            <p class="pwa-ios-modal-text">iPhoneのChromeやLINE内ブラウザでは、ホーム画面への追加が表示されない場合があります。</p>
+            <ol class="pwa-install-guide-list">
+                <li>下の「リンクをコピー」をタップ</li>
+                <li>Safariを開き、アドレス欄に貼り付けて移動</li>
+                <li>右下の「…」または共有ボタンから「共有」をタップ</li>
+                <li>「ホーム画面に追加」→「追加」をタップ</li>
+            </ol>
             <div class="pwa-ios-modal-actions pwa-ios-modal-actions-stack">
                 <button type="button" class="pwa-ios-modal-btn-primary" id="pwaIosModalSafariCopy">リンクをコピー</button>
                 <button type="button" class="pwa-ios-modal-btn-cancel" id="pwaIosModalSafariClose">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Android fallback: shown when the browser does not expose beforeinstallprompt. -->
+    <div id="pwaAndroidGuideModal" class="pwa-ios-modal" role="dialog" aria-label="ホーム画面に追加する方法" aria-modal="true" hidden>
+        <div class="pwa-ios-modal-backdrop"></div>
+        <div class="pwa-ios-modal-box pwa-ios-modal-box-safari">
+            <h3 class="pwa-ios-modal-title">ホーム画面に追加する方法</h3>
+            <ol class="pwa-install-guide-list">
+                <li>Chrome右上の「︙」メニューをタップ</li>
+                <li>「アプリをインストール」または「ホーム画面に追加」を選択</li>
+                <li>確認画面で「インストール」または「追加」をタップ</li>
+            </ol>
+            <div class="pwa-ios-modal-actions pwa-ios-modal-actions-stack">
+                <button type="button" class="pwa-ios-modal-btn-primary" id="pwaAndroidGuideClose">閉じる</button>
             </div>
         </div>
     </div>
