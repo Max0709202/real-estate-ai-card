@@ -16,7 +16,8 @@
  * Common Utility Functions
  */
 
-// Load Composer autoloader for PHPMailer and other dependencies
+// Load Composer autoloaders for PHPMailer and other dependencies.
+// Some deployments have backend/vendor for backend packages and vendor for PHPMailer.
 $autoloadPaths = [
     __DIR__ . '/../vendor/autoload.php',   // backend/vendor (composer run from backend/)
     __DIR__ . '/../../vendor/autoload.php' // project root vendor
@@ -26,7 +27,6 @@ foreach ($autoloadPaths as $path) {
     if (file_exists($path)) {
         require_once $path;
         $autoloadLoaded = true;
-        break;
     }
 }
 if (!$autoloadLoaded) {
@@ -37,6 +37,40 @@ require_once __DIR__ . '/upload_security.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+
+function ensurePHPMailerAvailable(): bool {
+    if (class_exists(PHPMailer::class, false)) {
+        return true;
+    }
+
+    $phpmailerRoots = [
+        __DIR__ . '/../vendor/phpmailer/phpmailer/src',
+        __DIR__ . '/../../vendor/phpmailer/phpmailer/src',
+    ];
+
+    foreach ($phpmailerRoots as $root) {
+        $requiredFiles = [
+            $root . '/Exception.php',
+            $root . '/SMTP.php',
+            $root . '/PHPMailer.php',
+        ];
+
+        if (count(array_filter($requiredFiles, 'is_file')) !== count($requiredFiles)) {
+            continue;
+        }
+
+        foreach ($requiredFiles as $file) {
+            require_once $file;
+        }
+
+        if (class_exists(PHPMailer::class, false)) {
+            return true;
+        }
+    }
+
+    error_log('[Email Error] PHPMailer is not installed completely. Run composer install in backend/ or deploy vendor/phpmailer/phpmailer/src.');
+    return false;
+}
 
 /**
  * JSONレスポンスを送信
@@ -1111,6 +1145,10 @@ function sendEmail(
     // Basic email validation (prevents obvious errors)
     if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
         error_log("[Email Error] Invalid recipient email: {$to}");
+        return false;
+    }
+
+    if (!ensurePHPMailerAvailable()) {
         return false;
     }
 
