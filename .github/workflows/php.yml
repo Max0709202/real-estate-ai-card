@@ -28,7 +28,7 @@ jobs:
             --exclude=".env" \
             --exclude="config.production.php" \
             -e "ssh -i ~/.ssh/max -p ${{ secrets.XSERVER_SSH_PORT }} -o StrictHostKeyChecking=no" \
-            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/ai-fcard.com/public_html/staging.ai-fcard.c/
+            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/ai-fcard.com/public_html/staging.ai-fcard.com/
 
   deploy-production:
     if: github.ref == 'refs/heads/main'
