@@ -12,3 +12,4 @@ config.staging.php
 /vendor/
 /backend/vendor/
 backend/config/secrets.php
+/staging.ai-fcard.com
