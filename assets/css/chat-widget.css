@@ -1136,11 +1136,23 @@
 
     .chat-widget-panel {
         position: fixed;
-        inset: 0;
+        top: var(--chat-visual-viewport-top, 0px);
+        right: 0;
+        bottom: auto;
+        left: 0;
         width: auto;
-        height: 100dvh;
+        height: var(--chat-visual-viewport-height, 100dvh);
         max-height: none;
         border-radius: 0;
+    }
+
+    /* キーボード表示中は会話と入力欄を優先し、7項目のメニューを一時的に退避する。 */
+    .chat-widget-root.is-keyboard-open .chat-widget-tabbar {
+        display: none;
+    }
+
+    .chat-widget-root.is-keyboard-open .chat-widget-input-wrap {
+        margin-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
     }
 
     .chat-widget-toggle {

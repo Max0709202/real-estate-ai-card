@@ -1225,6 +1225,51 @@
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
+    // Android のソフトキーボードはレイアウト viewport を縮めない場合があるため、
+    // 実際に見えている VisualViewport をチャットの高さ・位置へ反映する。
+    var isAndroidDevice = /Android/i.test(navigator.userAgent || '');
+    var chatViewportBaselineHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+
+    function syncChatVisualViewport() {
+        if (!isAndroidDevice) {
+            root.classList.remove('is-keyboard-open');
+            root.style.removeProperty('--chat-visual-viewport-height');
+            root.style.removeProperty('--chat-visual-viewport-top');
+            return;
+        }
+        var viewport = window.visualViewport;
+        var visibleHeight = viewport ? viewport.height : window.innerHeight;
+        var offsetTop = viewport ? viewport.offsetTop : 0;
+        var layoutHeight = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0);
+        var active = document.activeElement;
+        var isChatInput = !!(active && root.contains(active) && (
+            active.matches('.chat-widget-input, input, textarea, select')
+        ));
+        if (!isChatInput) {
+            chatViewportBaselineHeight = Math.max(chatViewportBaselineHeight, layoutHeight, visibleHeight);
+        }
+        var keyboardOpen = isChatInput && (
+            layoutHeight - visibleHeight > 120 || chatViewportBaselineHeight - visibleHeight > 120
+        );
+
+        root.style.setProperty('--chat-visual-viewport-height', Math.round(visibleHeight) + 'px');
+        root.style.setProperty('--chat-visual-viewport-top', Math.round(offsetTop) + 'px');
+        root.classList.toggle('is-keyboard-open', keyboardOpen);
+
+        if (keyboardOpen) {
+            runOnNextFrame(function () {
+                if (active && typeof active.scrollIntoView === 'function') {
+                    active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                }
+                if (active === inputEl) scrollMessagesToBottom();
+                var contactMessagesEl = panel.querySelector('.chat-contact-messages');
+                if (active && active.id === 'chat-contact-input' && contactMessagesEl) {
+                    contactMessagesEl.scrollTop = contactMessagesEl.scrollHeight;
+                }
+            });
+        }
+    }
+
     function appendMessageSources(wrap, sources) {
         if (!sources || !sources.length) return;
         var sourceBox = document.createElement('div');
@@ -2955,6 +3000,23 @@
     messagesContainer.addEventListener("pointerdown", function () { noteQuickActionsScrollIntent(false); }, { passive: true });
     window.addEventListener("resize", syncQuickActionsAfterRender);
     window.addEventListener("orientationchange", syncQuickActionsAfterRender);
+
+    // focusin は担当連絡など後から描画される入力欄も拾う。
+    root.addEventListener('focusin', function () {
+        syncChatVisualViewport();
+        setTimeout(syncChatVisualViewport, 100);
+        setTimeout(syncChatVisualViewport, 300);
+    });
+    root.addEventListener('focusout', function () {
+        setTimeout(syncChatVisualViewport, 100);
+    });
+    window.addEventListener('resize', syncChatVisualViewport);
+    window.addEventListener('orientationchange', syncChatVisualViewport);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', syncChatVisualViewport);
+        window.visualViewport.addEventListener('scroll', syncChatVisualViewport);
+    }
+    syncChatVisualViewport();
 
     toggleBtn.setAttribute('aria-expanded', chatOnly ? 'true' : 'false');
     toggleBtn.addEventListener('click', function () {
