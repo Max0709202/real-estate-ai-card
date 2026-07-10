@@ -6,50 +6,257 @@ on:
       - develop
       - main
 
+  # Allows manual execution from the GitHub Actions page.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Prevent two deployments from modifying Xserver at the same time.
+concurrency:
+  group: xserver-deployment
+  cancel-in-progress: false
+
 jobs:
   deploy-staging:
+    name: Deploy to staging
     if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: staging
 
     steps:
-      - name: Checkout code
+      - name: Checkout develop branch
         uses: actions/checkout@v4
 
-      - name: Deploy to staging
+      - name: Validate required secrets
+        shell: bash
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.XSERVER_SSH_KEY }}" > ~/.ssh/max
-          chmod 600 ~/.ssh/max
+          set -euo pipefail
+
+          test -n "${{ secrets.XSERVER_HOST }}" || {
+            echo "XSERVER_HOST is missing"
+            exit 1
+          }
+
+          test -n "${{ secrets.XSERVER_USER }}" || {
+            echo "XSERVER_USER is missing"
+            exit 1
+          }
+
+          test -n "${{ secrets.XSERVER_SSH_PORT }}" || {
+            echo "XSERVER_SSH_PORT is missing"
+            exit 1
+          }
+
+          test -n "${{ secrets.XSERVER_SSH_KEY }}" || {
+            echo "XSERVER_SSH_KEY is missing"
+            exit 1
+          }
+
+      - name: Prepare SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+
+          printf '%s\n' "${{ secrets.XSERVER_SSH_KEY }}" \
+            > "$HOME/.ssh/xserver_key"
+
+          chmod 600 "$HOME/.ssh/xserver_key"
+
+          # Validate that the secret contains a readable private key.
+          ssh-keygen -y \
+            -f "$HOME/.ssh/xserver_key" \
+            > /dev/null
+
+          echo "SSH private key format is valid."
+
+      - name: Test SSH connection
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in 1 2 3 4 5; do
+            echo "SSH connection attempt ${attempt}/5"
+
+            if ssh \
+              -i "$HOME/.ssh/xserver_key" \
+              -p "${{ secrets.XSERVER_SSH_PORT }}" \
+              -o BatchMode=yes \
+              -o ConnectTimeout=30 \
+              -o ConnectionAttempts=2 \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=3 \
+              -o StrictHostKeyChecking=accept-new \
+              "${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}" \
+              "echo 'SSH connection successful'"; then
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 5 ]; then
+              echo "Connection failed. Retrying in 20 seconds..."
+              sleep 20
+            fi
+          done
+
+          echo "Unable to connect to Xserver after five attempts."
+          exit 1
+
+      - name: Deploy develop to staging
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SSH_COMMAND="ssh \
+            -i $HOME/.ssh/xserver_key \
+            -p ${{ secrets.XSERVER_SSH_PORT }} \
+            -o BatchMode=yes \
+            -o ConnectTimeout=30 \
+            -o ConnectionAttempts=3 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=accept-new"
 
           rsync -az \
-            --exclude=".git" \
-            --exclude=".github" \
+            --partial \
+            --delay-updates \
+            --exclude=".git/" \
+            --exclude=".github/" \
+            --exclude=".gitignore" \
             --exclude=".env" \
+            --exclude="secrets.php" \
             --exclude="config.production.php" \
-            -e "ssh -i ~/.ssh/max -p ${{ secrets.XSERVER_SSH_PORT }} -o StrictHostKeyChecking=no" \
-            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/ai-fcard.com/public_html/staging.ai-fcard.com/
+            --exclude="uploads/" \
+            --exclude="logs/" \
+            --exclude="cache/" \
+            --exclude="storage/" \
+            --exclude="tmp/" \
+            -e "$SSH_COMMAND" \
+            ./ \
+            "${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/staging.ai-fcard.com/"
+
+          echo "Staging deployment completed."
 
   deploy-production:
+    name: Deploy to production
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: production
 
     steps:
-      - name: Checkout code
+      - name: Checkout main branch
         uses: actions/checkout@v4
 
-      - name: Deploy to production
+      - name: Validate required secrets
+        shell: bash
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.XSERVER_SSH_KEY }}" > ~/.ssh/max
-          chmod 600 ~/.ssh/max
+          set -euo pipefail
+
+          test -n "${{ secrets.XSERVER_HOST }}" || {
+            echo "XSERVER_HOST is missing"
+            exit 1
+          }
+
+          test -n "${{ secrets.XSERVER_USER }}" || {
+            echo "XSERVER_USER is missing"
+            exit 1
+          }
+
+          test -n "${{ secrets.XSERVER_SSH_PORT }}" || {
+            echo "XSERVER_SSH_PORT is missing"
+            exit 1
+          }
+
+          test -n "${{ secrets.XSERVER_SSH_KEY }}" || {
+            echo "XSERVER_SSH_KEY is missing"
+            exit 1
+          }
+
+      - name: Prepare SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+
+          printf '%s\n' "${{ secrets.XSERVER_SSH_KEY }}" \
+            > "$HOME/.ssh/xserver_key"
+
+          chmod 600 "$HOME/.ssh/xserver_key"
+
+          ssh-keygen -y \
+            -f "$HOME/.ssh/xserver_key" \
+            > /dev/null
+
+          echo "SSH private key format is valid."
+
+      - name: Test SSH connection
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in 1 2 3 4 5; do
+            echo "SSH connection attempt ${attempt}/5"
+
+            if ssh \
+              -i "$HOME/.ssh/xserver_key" \
+              -p "${{ secrets.XSERVER_SSH_PORT }}" \
+              -o BatchMode=yes \
+              -o ConnectTimeout=30 \
+              -o ConnectionAttempts=2 \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=3 \
+              -o StrictHostKeyChecking=accept-new \
+              "${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}" \
+              "echo 'SSH connection successful'"; then
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 5 ]; then
+              echo "Connection failed. Retrying in 20 seconds..."
+              sleep 20
+            fi
+          done
+
+          echo "Unable to connect to Xserver after five attempts."
+          exit 1
+
+      - name: Deploy main to production
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SSH_COMMAND="ssh \
+            -i $HOME/.ssh/xserver_key \
+            -p ${{ secrets.XSERVER_SSH_PORT }} \
+            -o BatchMode=yes \
+            -o ConnectTimeout=30 \
+            -o ConnectionAttempts=3 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=accept-new"
 
           rsync -az \
-            --exclude=".git" \
-            --exclude=".github" \
+            --partial \
+            --delay-updates \
+            --exclude=".git/" \
+            --exclude=".github/" \
+            --exclude=".gitignore" \
             --exclude=".env" \
+            --exclude="secrets.php" \
             --exclude="config.staging.php" \
             --exclude="uploads/" \
-            -e "ssh -i ~/.ssh/max -p ${{ secrets.XSERVER_SSH_PORT }} -o StrictHostKeyChecking=no" \
-            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/ai-fcard.com/public_html/
+            --exclude="logs/" \
+            --exclude="cache/" \
+            --exclude="storage/" \
+            --exclude="tmp/" \
+            -e "$SSH_COMMAND" \
+            ./ \
+            "${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/ai-fcard.com/public_html/"
+
+          echo "Production deployment completed."
