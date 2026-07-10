@@ -22,13 +22,13 @@ jobs:
           echo "${{ secrets.XSERVER_SSH_KEY }}" > ~/.ssh/max
           chmod 600 ~/.ssh/max
 
-          rsync -az --delete \
+          rsync -az \
             --exclude=".git" \
             --exclude=".github" \
             --exclude=".env" \
             --exclude="config.production.php" \
             -e "ssh -i ~/.ssh/max -p ${{ secrets.XSERVER_SSH_PORT }} -o StrictHostKeyChecking=no" \
-            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/ai-fcard.com/public_html/staging.ai-fcard.com/
+            ./ ${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/ai-fcard.com/public_html/staging.ai-fcard.c/
 
   deploy-production:
     if: github.ref == 'refs/heads/main'
@@ -45,7 +45,7 @@ jobs:
           echo "${{ secrets.XSERVER_SSH_KEY }}" > ~/.ssh/max
           chmod 600 ~/.ssh/max
 
-          rsync -az --delete \
+          rsync -az \
             --exclude=".git" \
             --exclude=".github" \
             --exclude=".env" \
