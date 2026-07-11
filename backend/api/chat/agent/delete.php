@@ -1,10 +1,10 @@
 <?php
 /** 担当者が自分の担当連絡メッセージを取り消す（ソフト削除）。 */
-require_once __DIR__ . '/../../../../config/config.php';
-require_once __DIR__ . '/../../../../config/database.php';
-require_once __DIR__ . '/../../../../includes/functions.php';
-require_once __DIR__ . '/../../../../includes/agent-messaging-helper.php';
-require_once __DIR__ . '/../../../middleware/auth.php';
+require_once __DIR__ . '/../../../config/config.php';
+require_once __DIR__ . '/../../../config/database.php';
+require_once __DIR__ . '/../../../includes/functions.php';
+require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
+require_once __DIR__ . '/../../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { sendErrorResponse('Method not allowed', 405); }
