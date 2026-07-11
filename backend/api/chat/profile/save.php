@@ -84,10 +84,6 @@ try {
 
     $data['_current_field'] = chatIntakeNextField($data);
     chatIntakeSave($db, $sessionId, $businessCardId, $data);
-    if ($visitorId !== '' && !empty($data['customer_phone_verified'])) {
-        $verifiedPhone = $data['customer_phone'] ?? ($data['phone'] ?? '');
-        chatSessionRegisterDevice($db, $sessionId, $visitorId, $verifiedPhone, $data['customer_name'] ?? '', 10800);
-    }
 
     sendSuccessResponse([
         'customer_name' => $data['customer_name'] ?? '',

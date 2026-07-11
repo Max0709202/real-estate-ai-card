@@ -98,25 +98,6 @@ try {
     $messages = [];
     $hasPreviousMessages = false;
     $deviceAuth = ($isResumed && $visitorId !== '') ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
-    if (!$deviceAuth && $isResumed && $visitorId !== '') {
-        try {
-            $resumeLeadProfile = chatIntakeLoad($db, $sessionId, (int)$card['id']);
-            if ((string)($card['id'] ?? '') !== '' && !empty($resumeLeadProfile['customer_phone_verified'])) {
-                $stmt = $db->prepare("SELECT visitor_identifier FROM chat_sessions WHERE id = ? LIMIT 1");
-                $stmt->execute([$sessionId]);
-                $sessionVisitor = (string)($stmt->fetchColumn() ?: '');
-                if ($sessionVisitor === $visitorId) {
-                    $fallbackName = trim((string)($resumeLeadProfile['customer_name'] ?? ''));
-                    if ($fallbackName === '') {
-                        $fallbackName = trim((string)($resumeLeadProfile['customer_last_name'] ?? '') . ' ' . (string)($resumeLeadProfile['customer_first_name'] ?? ''));
-                    }
-                    chatSessionRegisterDevice($db, $sessionId, $visitorId, $resumeLeadProfile['customer_phone'] ?? '', $fallbackName, 10800);
-                    $deviceAuth = chatSessionDeviceAuth($db, $sessionId, $visitorId);
-                }
-            }
-        } catch (Throwable $e) {
-        }
-    }
     $deviceAuthValid = (bool)$deviceAuth;
     if ($isResumed) {
         $stmt = $db->prepare("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?");

@@ -86,14 +86,6 @@ try {
     }
     $leadProfile = chatIntakeLoad($db, $sessionId, (int)$card['id']);
     $deviceAuth = $visitorId !== '' ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
-    if (!$deviceAuth && $visitorId !== '' && (string)($session['visitor_identifier'] ?? '') === $visitorId && !empty($leadProfile['customer_phone_verified'])) {
-        $fallbackName = trim((string)($leadProfile['customer_name'] ?? ''));
-        if ($fallbackName === '') {
-            $fallbackName = trim((string)($leadProfile['customer_last_name'] ?? '') . ' ' . (string)($leadProfile['customer_first_name'] ?? ''));
-        }
-        chatSessionRegisterDevice($db, $sessionId, $visitorId, $leadProfile['customer_phone'] ?? '', $fallbackName, 10800);
-        $deviceAuth = chatSessionDeviceAuth($db, $sessionId, $visitorId);
-    }
     if ($visitorId === '' || !$deviceAuth) {
         sendErrorResponse('SMS認証の有効期限が切れています。もう一度SMS認証を行ってください。', 403);
     }
