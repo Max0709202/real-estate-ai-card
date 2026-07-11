@@ -3528,25 +3528,36 @@ $defaultGreetings = [
                     + '</div>';
             }
 
-            function handleAgentMessageAction(e, sessionId) {
-                var editBtn = e.target.closest('[data-agent-msg-edit]');
-                var deleteBtn = e.target.closest('[data-agent-msg-delete]');
-                if (!editBtn && !deleteBtn) return;
-                var item = e.target.closest('.chat-thread-msg');
-                var messageId = item ? parseInt(item.getAttribute('data-msg-id'), 10) : 0;
-                if (!messageId || agentChatBusy) return;
-                var bubble = item.querySelector('.chat-thread-bubble');
-                var message = bubble ? bubble.textContent : '';
-                var endpoint = '/agent/delete.php';
-                var payload = { session_id: sessionId, message_id: messageId };
-                if (editBtn) {
-                    var changed = prompt('メッセージを編集してください', message);
-                    if (changed === null) return;
-                    changed = changed.trim();
-                    if (!changed) { setAgentStatus('メッセージを入力してください'); return; }
-                    endpoint = '/agent/edit.php';
-                    payload.message = changed;
-                } else if (!confirm('このメッセージの送信を取り消しますか？')) return;
+            function openAgentEditModal(message, onSave) {
+                var overlay = document.createElement('div');
+                overlay.className = 'agent-message-edit-overlay';
+                overlay.innerHTML = '<div class="agent-message-edit-modal" role="dialog" aria-modal="true" aria-labelledby="agent-message-edit-title">'
+                    + '<h3 id="agent-message-edit-title">メッセージを編集</h3>'
+                    + '<textarea maxlength="2000" rows="8" aria-label="編集するメッセージ"></textarea>'
+                    + '<p class="agent-message-edit-error" aria-live="polite"></p>'
+                    + '<div class="agent-message-edit-actions"><button type="button" class="btn-secondary" data-edit-cancel>キャンセル</button><button type="button" class="btn-primary" data-edit-save>保存</button></div>'
+                    + '</div>';
+                document.body.appendChild(overlay);
+                var textarea = overlay.querySelector('textarea');
+                var error = overlay.querySelector('.agent-message-edit-error');
+                textarea.value = message || '';
+                function close() { document.removeEventListener('keydown', onKeydown); overlay.remove(); }
+                function save() {
+                    var changed = textarea.value.trim();
+                    if (!changed) { error.textContent = 'メッセージを入力してください'; textarea.focus(); return; }
+                    close();
+                    onSave(changed);
+                }
+                function onKeydown(event) { if (event.key === 'Escape') close(); }
+                overlay.querySelector('[data-edit-cancel]').addEventListener('click', close);
+                overlay.querySelector('[data-edit-save]').addEventListener('click', save);
+                overlay.addEventListener('click', function(event) { if (event.target === overlay) close(); });
+                document.addEventListener('keydown', onKeydown);
+                textarea.focus();
+                textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+            }
+
+            function updateAgentMessage(item, bubble, editBtn, endpoint, payload) {
                 agentChatBusy = true;
                 fetch(apiBase + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload) })
                     .then(function(r) { return r.json(); })
@@ -3563,6 +3574,27 @@ $defaultGreetings = [
                         }
                         setAgentStatus('');
                     }).catch(function() { agentChatBusy = false; setAgentStatus('操作に失敗しました'); });
+            }
+
+            function handleAgentMessageAction(e, sessionId) {
+                var editBtn = e.target.closest('[data-agent-msg-edit]');
+                var deleteBtn = e.target.closest('[data-agent-msg-delete]');
+                if (!editBtn && !deleteBtn) return;
+                var item = e.target.closest('.chat-thread-msg');
+                var messageId = item ? parseInt(item.getAttribute('data-msg-id'), 10) : 0;
+                if (!messageId || agentChatBusy) return;
+                var bubble = item.querySelector('.chat-thread-bubble');
+                var message = bubble ? bubble.textContent : '';
+                var payload = { session_id: sessionId, message_id: messageId };
+                if (editBtn) {
+                    openAgentEditModal(message, function(changed) {
+                        payload.message = changed;
+                        updateAgentMessage(item, bubble, editBtn, '/agent/edit.php', payload);
+                    });
+                    return;
+                }
+                if (!confirm('このメッセージの送信を取り消しますか？')) return;
+                updateAgentMessage(item, bubble, null, '/agent/delete.php', payload);
             }
 
             function loadSessions() {
