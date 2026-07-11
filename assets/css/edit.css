@@ -1543,6 +1543,7 @@ body {
 }
 .chat-thread-who { font-weight: 700; color: #555; }
 .chat-thread-read { color: #2a9d63; font-weight: 600; }
+.chat-thread-edited { color: #888; }
 .chat-thread-bubble {
     display: inline-block;
     padding: 8px 12px;
@@ -1557,6 +1558,10 @@ body {
 .chat-thread-agent { margin-left: auto; text-align: right; }
 .chat-thread-agent .chat-thread-meta { justify-content: flex-end; }
 .chat-thread-agent .chat-thread-bubble { background: #06c755; color: #fff; text-align: left; }
+.chat-thread-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 3px; }
+.chat-thread-actions button { padding: 0; border: 0; background: transparent; color: #667085; font-size: 0.72rem; cursor: pointer; text-decoration: underline; }
+.chat-thread-actions button:hover { color: #333; }
+.chat-thread-agent .chat-thread-deleted { background: #e5e7eb; color: #777; font-style: italic; }
 .chat-thread-bot .chat-thread-bubble { background: #eef0f3; border: 1px solid #e0e0e0; color: #333; }
 .chat-thread-system { text-align: center; margin: 6px auto; }
 .chat-thread-system .chat-thread-bubble { background: transparent; color: #999; font-size: 0.8rem; }

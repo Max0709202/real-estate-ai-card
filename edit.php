@@ -3513,13 +3513,56 @@ $defaultGreetings = [
                 var who = role === 'user' ? 'お客様' : (role === 'agent' ? '自分' : (role === 'bot' || role === 'assistant' ? 'AI' : 'システム'));
                 var time = m.created_at ? new Date(String(m.created_at).replace(' ', 'T')).toLocaleString('ja-JP') : '';
                 var readMark = (role === 'agent' && m.read_at) ? '<span class="chat-thread-read">既読</span>' : '';
-                var atts = (m.attachments || []).map(attachmentHtml).join('');
-                var body = m.message && m.message !== '[ファイルを送信しました]' ? escapeHtml(m.message) : '';
+                var deleted = !!m.deleted || !!m.deleted_at;
+                var edited = !!m.edited || !!m.edited_at;
+                var atts = deleted ? '' : (m.attachments || []).map(attachmentHtml).join('');
+                var body = deleted ? 'メッセージの送信を取り消しました' : (m.message && m.message !== '[ファイルを送信しました]' ? escapeHtml(m.message) : '');
+                var editedMark = edited && !deleted ? '<span class="chat-thread-edited">編集済み</span>' : '';
+                var actions = role === 'agent' && !deleted
+                    ? '<div class="chat-thread-actions"><button type="button" data-agent-msg-edit>編集</button><button type="button" data-agent-msg-delete>取り消し</button></div>' : '';
                 return '<div class="chat-thread-msg chat-thread-' + escapeHtml(role) + '" data-msg-id="' + (parseInt(m.id, 10) || 0) + '">'
-                    + '<div class="chat-thread-meta"><span class="chat-thread-who">' + who + '</span><span class="chat-thread-time">' + escapeHtml(time) + '</span>' + readMark + '</div>'
-                    + (body ? '<div class="chat-thread-bubble">' + body + '</div>' : '')
+                    + '<div class="chat-thread-meta"><span class="chat-thread-who">' + who + '</span><span class="chat-thread-time">' + escapeHtml(time) + '</span>' + readMark + editedMark + '</div>'
+                    + (body ? '<div class="chat-thread-bubble' + (deleted ? ' chat-thread-deleted' : '') + '">' + body + '</div>' : '')
                     + (atts ? '<div class="chat-thread-attachments">' + atts + '</div>' : '')
+                    + actions
                     + '</div>';
+            }
+
+            function handleAgentMessageAction(e, sessionId) {
+                var editBtn = e.target.closest('[data-agent-msg-edit]');
+                var deleteBtn = e.target.closest('[data-agent-msg-delete]');
+                if (!editBtn && !deleteBtn) return;
+                var item = e.target.closest('.chat-thread-msg');
+                var messageId = item ? parseInt(item.getAttribute('data-msg-id'), 10) : 0;
+                if (!messageId || agentChatBusy) return;
+                var bubble = item.querySelector('.chat-thread-bubble');
+                var message = bubble ? bubble.textContent : '';
+                var endpoint = '/agent/delete.php';
+                var payload = { session_id: sessionId, message_id: messageId };
+                if (editBtn) {
+                    var changed = prompt('メッセージを編集してください', message);
+                    if (changed === null) return;
+                    changed = changed.trim();
+                    if (!changed) { setAgentStatus('メッセージを入力してください'); return; }
+                    endpoint = '/agent/edit.php';
+                    payload.message = changed;
+                } else if (!confirm('このメッセージの送信を取り消しますか？')) return;
+                agentChatBusy = true;
+                fetch(apiBase + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload) })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        agentChatBusy = false;
+                        if (!res.success) { setAgentStatus(res.message || '操作に失敗しました'); return; }
+                        if (editBtn) {
+                            bubble.textContent = res.data.message;
+                            if (!item.querySelector('.chat-thread-edited')) item.querySelector('.chat-thread-meta').insertAdjacentHTML('beforeend', '<span class="chat-thread-edited">編集済み</span>');
+                        } else {
+                            bubble.textContent = 'メッセージの送信を取り消しました';
+                            bubble.classList.add('chat-thread-deleted');
+                            item.querySelectorAll('.chat-thread-attachments, .chat-thread-actions').forEach(function(el) { el.remove(); });
+                        }
+                        setAgentStatus('');
+                    }).catch(function() { agentChatBusy = false; setAgentStatus('操作に失敗しました'); });
             }
 
             function loadSessions() {
@@ -4028,6 +4071,8 @@ $defaultGreetings = [
                     if (fileInput.files && fileInput.files[0]) { uploadAgentAttachment(fileInput.files[0], sessionId); fileInput.value = ''; }
                 });
                 var composeInput = document.getElementById('agent-chat-input');
+                var thread = document.getElementById('agent-chat-thread');
+                if (thread) thread.addEventListener('click', function(e) { handleAgentMessageAction(e, sessionId); });
                 if (composeInput) composeInput.addEventListener('paste', function(e) {
                     // クリップボードからの貼り付けでファイルを添付（Slackのように画像を貼り付け可能に）。
                     var cd = e.clipboardData || window.clipboardData;
