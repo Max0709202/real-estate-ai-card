@@ -371,6 +371,15 @@ function chatMansionNormalizeText($s) {
     $s = preg_replace('/[ー―‐\x{2010}-\x{2015}\x{2212}\x{301C}\x{FF5E}\-－〜~ｰ]/u', '', $s);
     // Spaces, middle dots, quotes, punctuation, brackets and common symbols → removed.
     $s = preg_replace('/[\s\x{3000}・･,，、。.／\/「」『』（）()\[\]【】｛｝{}＆&\x{2019}\x{2018}\x{201C}\x{201D}\x{0027}\x{0060}"’‘`*~!！?？:：;；|｜＿_]/u', '', $s);
+    // NFKC turns Unicode Roman numerals (Ⅱ etc.) into Latin letters (ii), while
+    // an Arabic numeral remains "2".  Building databases and users commonly mix
+    // these suffixes, so canonicalise a terminal Roman phase number to Arabic.
+    // Requiring a preceding Japanese character avoids changing ordinary Latin
+    // names which happen to end in "i"/"ii" (for example, Hawaii).
+    $roman = ['viii' => '8', 'vii' => '7', 'iii' => '3', 'vi' => '6', 'iv' => '4', 'ix' => '9', 'ii' => '2', 'v' => '5', 'x' => '10', 'i' => '1'];
+    if (preg_match('/([一-龯々〆ぁ-んァ-ヺ])(' . implode('|', array_keys($roman)) . ')$/u', (string)$s, $m)) {
+        $s = mb_substr((string)$s, 0, mb_strlen((string)$s) - mb_strlen($m[2])) . $roman[$m[2]];
+    }
     return $s === null ? '' : $s;
 }
 
@@ -477,14 +486,14 @@ function chatMansionTokenizeForMatch($s) {
             $cls = chatMansionCharClass($ch);
             if ($curClass !== null && $cls !== $curClass && !($cls === 'other' || $curClass === 'other')) {
                 $n = chatMansionNormalizeText($cur);
-                if ($n !== '' && mb_strlen($n) >= 2) $tokens[] = $n;
+                if ($n !== '' && (mb_strlen($n) >= 2 || preg_match('/^[0-9]$/', $n))) $tokens[] = $n;
                 $cur = '';
             }
             $cur .= $ch;
             $curClass = $cls;
         }
         $n = chatMansionNormalizeText($cur);
-        if ($n !== '' && mb_strlen($n) >= 2) $tokens[] = $n;
+        if ($n !== '' && (mb_strlen($n) >= 2 || preg_match('/^[0-9]$/', $n))) $tokens[] = $n;
     }
     return array_values(array_unique($tokens));
 }
@@ -516,6 +525,22 @@ function chatMansionRowConfident($row, $terms, $requireMultiToken = false) {
     return true;
 }
 
+/** Raw LIKE fallbacks for existing rows whose normalized columns predate Roman-number canonicalisation. */
+function chatMansionNumericSuffixVariants($term) {
+    $term = trim((string)$term);
+    if (class_exists('Normalizer')) {
+        $kc = Normalizer::normalize($term, Normalizer::FORM_KC);
+        if (is_string($kc) && $kc !== '') $term = $kc;
+    }
+    $term = mb_convert_kana($term, 'KVCn');
+    $lower = mb_strtolower($term);
+    if (!preg_match('/^(.+?)(10|[1-9]|viii|vii|iii|vi|iv|ix|ii|v|x|i)$/u', $lower, $m)) return [];
+    $romanToArabic = ['i' => '1', 'ii' => '2', 'iii' => '3', 'iv' => '4', 'v' => '5', 'vi' => '6', 'vii' => '7', 'viii' => '8', 'ix' => '9', 'x' => '10'];
+    $number = $romanToArabic[$m[2]] ?? $m[2];
+    $roman = ['1' => 'Ⅰ', '2' => 'Ⅱ', '3' => 'Ⅲ', '4' => 'Ⅳ', '5' => 'Ⅴ', '6' => 'Ⅵ', '7' => 'Ⅶ', '8' => 'Ⅷ', '9' => 'Ⅸ', '10' => 'Ⅹ'];
+    return [$m[1] . $number, $m[1] . $roman[$number]];
+}
+
 function chatMansionDbSearchRows($db, $terms, $limit = 5) {
     if (!$db instanceof PDO) return [];
     $limit = max(1, min(10, (int)$limit));
@@ -534,6 +559,10 @@ function chatMansionDbSearchRows($db, $terms, $limit = 5) {
 
         $where = ['name_norm LIKE :n_sub', 'search_norm LIKE :s_sub', 'building_name LIKE :raw'];
         $params = [':n_sub' => '%' . $norm . '%', ':s_sub' => '%' . $norm . '%', ':raw' => '%' . $term . '%'];
+        foreach (chatMansionNumericSuffixVariants($term) as $i => $variant) {
+            $where[] = "building_name LIKE :raw_variant{$i}";
+            $params[":raw_variant{$i}"] = '%' . $variant . '%';
+        }
         // Token AND-match. Placeholders are duplicated between WHERE and ORDER BY,
         // and this PDO connection has emulated prepares off (each placeholder must
         // be bound exactly once), so use a separate :ont* set for the ORDER BY copy.
@@ -706,12 +735,19 @@ function chatMansionDisambiguationAnswer($terms, $candidates) {
         if ($t !== '') { $queryLabel = $t; break; }
     }
     $lines = [];
+    $quickReplies = [];
     foreach ($candidates as $r) {
         $name = trim((string)($r['building_name'] ?? ''));
         if ($name === '') continue;
         $loc = trim((string)($r['prefecture'] ?? '') . (string)($r['city'] ?? ''));
         if ($loc === '') $loc = trim((string)($r['full_address'] ?? ''));
-        $lines[] = '・' . $name . ($loc !== '' ? '（' . $loc . '）' : '');
+        $label = $name . ($loc !== '' ? '（' . $loc . '）' : '');
+        $lines[] = '・' . $label;
+        $quickReplies[] = [
+            'label' => $label,
+            'value' => $name . ($loc !== '' ? ' ' . $loc : ''),
+            'field' => 'mansion_lookup',
+        ];
     }
     if (count($lines) < 2) return null;
     $head = ($queryLabel !== '' ? '「' . $queryLabel . '」' : 'ご入力の名称')
@@ -724,6 +760,7 @@ function chatMansionDisambiguationAnswer($terms, $candidates) {
         'row' => null,
         'meta' => [],
         'ambiguous' => true,
+        'quick_replies' => $quickReplies,
     ];
 }
 
