@@ -14,6 +14,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/property-helper.php';
+require_once __DIR__ . '/../../includes/customer-notification-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -41,7 +42,6 @@ try {
             $db->prepare("UPDATE properties SET ocr_status = 'confirmed' WHERE id = ?")->execute([$propertyId]);
             // ドラフト確認時を「顧客へ共有された」時点として初めて通知する。
             if (($row['ocr_status'] ?? '') === 'draft') {
-                require_once __DIR__ . '/../../includes/customer-notification-helper.php';
                 customerNotifyEnqueue($db, (string)$row['session_id'], 'property');
             }
         }
@@ -59,6 +59,9 @@ try {
             'created_by' => 'agent',
             'ocr_status' => !empty($input['confirm_ocr']) ? 'confirmed' : 'none',
         ], $fields);
+
+        // 手入力で新規登録した物件も、この時点で顧客へ共有されるため通知する。
+        customerNotifyEnqueue($db, $sessionId, 'property');
     }
 
     $stmt = $db->prepare("SELECT * FROM properties WHERE id = ? LIMIT 1");
