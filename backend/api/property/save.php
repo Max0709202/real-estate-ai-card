@@ -39,6 +39,11 @@ try {
         propertyApplyFields($db, $propertyId, $fields);
         if (!empty($input['confirm_ocr'])) {
             $db->prepare("UPDATE properties SET ocr_status = 'confirmed' WHERE id = ?")->execute([$propertyId]);
+            // ドラフト確認時を「顧客へ共有された」時点として初めて通知する。
+            if (($row['ocr_status'] ?? '') === 'draft') {
+                require_once __DIR__ . '/../../includes/customer-notification-helper.php';
+                customerNotifyEnqueue($db, (string)$row['session_id'], 'property');
+            }
         }
     } else {
         // 新規
