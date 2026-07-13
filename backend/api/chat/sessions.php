@@ -36,6 +36,19 @@ try {
         FROM chat_sessions cs
         JOIN business_cards bc ON bc.id = cs.business_card_id
         WHERE bc.user_id = ?
+          AND EXISTS (
+              SELECT 1
+              FROM chat_lead_contacts listed_contact
+              WHERE listed_contact.session_id = cs.id
+                AND listed_contact.business_card_id = cs.business_card_id
+                AND (
+                    NULLIF(TRIM(listed_contact.customer_name), '') IS NOT NULL
+                    OR NULLIF(TRIM(listed_contact.phone), '') IS NOT NULL
+                    OR NULLIF(TRIM(listed_contact.email), '') IS NOT NULL
+                    OR NULLIF(TRIM(listed_contact.line_id), '') IS NOT NULL
+                    OR NULLIF(TRIM(listed_contact.contact_value), '') IS NOT NULL
+                )
+          )
     ";
     $params = [$userId];
     if ($cardId > 0) {

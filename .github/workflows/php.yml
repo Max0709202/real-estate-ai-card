@@ -136,7 +136,7 @@ jobs:
             --exclude="tmp/" \
             -e "$SSH_COMMAND" \
             ./ \
-            "${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/staging.ai-fcard.com/"
+            "${{ secrets.XSERVER_USER }}@${{ secrets.XSERVER_HOST }}:/home/${{ secrets.XSERVER_USER }}/ai-fcard.com/public_html/staging.ai-fcard.com/"
 
           echo "Staging deployment completed."
 

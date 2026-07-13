@@ -770,41 +770,7 @@
             sendButton.disabled = true;
             verifyButton.disabled = true;
             firebaseConfirmationResult = null;
-            setStatus('登録済みの電話番号か確認しています...');
-            lookupRegisteredPhone(phone).then(function (lookup) {
-                if (lookup && lookup.registered) {
-                    removeSmsAuthBox();
-                    entryAwaitingChoice = false;
-                    registrationFlow = false;
-                    renderQuickReplies([]);
-                    startupData = Object.assign({}, startupData || {}, lookup);
-                    if (lookup.customer_name) {
-                        saveCustomerName(lookup.customer_name);
-                    }
-                    if (lookup.session_id) {
-                        sessionId = lookup.session_id;
-                        saveSessionId(sessionId);
-                        crmState = null;
-                        loadCrmState(true);
-                    }
-                    var returningLabel = customerCasualLabel(startupData || {});
-                    var welcomeText = returningLabel === 'お客様' ? 'おかえりなさい。' : returningLabel + '、おかえりなさい。';
-                    appendBotMessage(welcomeText + '\n\n登録済みの電話番号を確認できましたので、SMS認証を省略しました。');
-                    if (lookup.needs_profile) {
-                        continueProfileRegistration(startupData);
-                        return;
-                    }
-                    appendBotMessage('このままご相談いただけます。');
-                    appendVoiceAvailabilityNotice();
-                    setInputEnabled(true);
-                    inputEl.focus();
-                    return;
-                }
-                return sendSmsCode(phone);
-            }).catch(function (error) {
-                if (window.console && console.warn) console.warn('Phone registration lookup failed; continuing with SMS:', error);
-                sendSmsCode(phone);
-            });
+            sendSmsCode(phone);
         });
 
         verifyButton.addEventListener('click', function () {
@@ -846,19 +812,6 @@
         var replyText = String(reply || '');
         if (replyText.indexOf('SMS認証フォームを表示します') !== -1) return true;
         return !!normalizePhoneInput(userText) && replyText.indexOf('最後に、携帯電話番号をご入力ください') !== -1;
-    }
-
-    function lookupRegisteredPhone(phone) {
-        return fetch(apiBase + '/phone/lookup.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: phone, card_slug: cardSlug, visitor_id: visitorId })
-        }).then(function (res) {
-            return res.json().catch(function () { return { success: false }; });
-        }).then(function (data) {
-            if (!data.success || !data.data) return null;
-            return data.data;
-        });
     }
 
     function firebaseSmsErrorMessage(error, normalizedPhone) {
