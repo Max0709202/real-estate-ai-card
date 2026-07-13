@@ -61,14 +61,17 @@
     return fetch(SUBSCRIBE_URL, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
       body: JSON.stringify({ session_id: sess.sessionId, visitor_id: sess.visitorId || '', subscription: sub })
-    }).catch(function () {});
+    }).then(function (response) {
+      if (!response.ok) throw new Error('push subscription was rejected');
+      return response;
+    });
   }
 
   function ensureSubscribed() {
-    if (subscribing || !swReg || !VAPID || !isStandalone()) return;
+    if (subscribing || !swReg || !VAPID || !isStandalone()) return Promise.resolve(false);
     var sess = getSession();
-    if (!sess || !sess.sessionId) return;
-    if (Notification.permission === 'denied') return;
+    if (!sess || !sess.sessionId) return Promise.resolve(false);
+    if (Notification.permission === 'denied') return Promise.resolve(false);
     subscribing = true;
     var doSub = function () {
       return swReg.pushManager.getSubscription().then(function (existing) {
@@ -79,13 +82,13 @@
     var flow = (Notification.permission === 'granted')
       ? doSub()
       : Notification.requestPermission().then(function (p) { return p === 'granted' ? doSub() : null; });
-    flow.then(function (sub) {
+    return flow.then(function (sub) {
       subscribing = false;
-      if (!sub) return;
+      if (!sub) return false;
       var s = getSession() || sess;
       sendConfigToSw(s);
-      return saveSubscription(sub.toJSON ? sub.toJSON() : sub, s);
-    }).catch(function () { subscribing = false; });
+      return saveSubscription(sub.toJSON ? sub.toJSON() : sub, s).then(function () { return true; });
+    }).catch(function () { subscribing = false; return false; });
   }
 
   navigator.serviceWorker.register(SW_URL).then(function (reg) {
@@ -105,9 +108,12 @@
   // 通知許可は必ずユーザー操作を起点に（iOS要件）。standalone時のみ、最初の操作で購読を試みる。
   if (isStandalone()) {
     var onGesture = function () {
-      ensureSubscribed();
-      document.removeEventListener('pointerdown', onGesture);
-      document.removeEventListener('click', onGesture);
+      // SWまたはセッションが未準備なら監視を残し、次の操作で再試行する。
+      ensureSubscribed().then(function (started) {
+        if (!started) return;
+        document.removeEventListener('pointerdown', onGesture);
+        document.removeEventListener('click', onGesture);
+      });
     };
     document.addEventListener('pointerdown', onGesture);
     document.addEventListener('click', onGesture);
