@@ -63,6 +63,12 @@ if ($buttonSelection !== null && ($buttonSelection['field'] ?? '') === 'land_haz
     $message = trim((string)$buttonSelection['value']) . ' の土地情報・ハザード情報（用途地域・建ぺい率・容積率・都市計画・浸水／土砂／液状化など）を教えてください';
     $buttonSelection = null;
 }
+// マンション候補ボタン：表示ラベル（所在地入り）ではなく、検索用の名称＋所在エリアを
+// 明示した通常質問へ変換する。候補をクリックすれば確実に同じDB先行フローを通る。
+if ($buttonSelection !== null && ($buttonSelection['field'] ?? '') === 'mansion_lookup' && !empty($buttonSelection['value'])) {
+    $message = trim((string)$buttonSelection['value']) . ' の物件情報を教えてください';
+    $buttonSelection = null;
+}
 
 try {
     $database = new Database();
@@ -166,17 +172,43 @@ try {
             $sources = $result['sources'];
         }
     } else {
-    $intake = processChatIntakeMessage($db, $sessionId, $card['id'], $message, [
+    // 物件名らしい問い合わせは、AIやヒアリングより先にDBで決定的に処理する。
+    // DBで解決できない場合だけ従来のintake→AI解析へフォールバックする。
+    $agentName = $card['name'] ?? '担当者';
+    $isMansionLandRequest = (bool)preg_match('/(土地情報|ハザード|用途地域|建ぺい率|容積率|都市計画|浸水|土砂|液状化)/u', $message);
+    $mansionSearchTerms = chatExtractMansionSearchTerms($message);
+    $isMansionLookupIntent = !$isMansionLandRequest
+        && !empty($mansionSearchTerms)
+        && chatMansionTermLooksSpecific($mansionSearchTerms, $message);
+    $preflightMansionAnswer = $isMansionLandRequest ? null : chatMansionDbDirectAnswer($db, $message, $agentName);
+    if ($preflightMansionAnswer !== null) {
+        $intake = [
+            'handled' => true,
+            'reply' => $preflightMansionAnswer['reply'],
+            'quick_replies' => $preflightMansionAnswer['quick_replies'] ?? [],
+            'data' => null,
+            '_mansion_sources' => $preflightMansionAnswer['sources'] ?? [],
+            '_mansion_meta' => $preflightMansionAnswer['meta'] ?? [],
+        ];
+    } elseif ($isMansionLookupIntent) {
+        // DBで処理できなかった物件名質問はヒアリングに横取りさせず、下段のAIへ渡す。
+        $intake = ['handled' => false, 'quick_replies' => [], 'data' => null];
+    } else {
+        $intake = processChatIntakeMessage($db, $sessionId, $card['id'], $message, [
         'from_button' => $buttonSelection !== null,
         'button_selection' => $buttonSelection,
-        'agent_name' => $card['name'] ?? '担当者',
-    ]);
+        'agent_name' => $agentName,
+        ]);
+    }
     $quickReplies = $intake['quick_replies'] ?? [];
     $leadData = $intake['data'] ?? null;
 
     if (!empty($intake['handled'])) {
         $reply = $intake['reply'];
-        $sources = [];
+        $sources = $intake['_mansion_sources'] ?? [];
+        if (!empty($intake['_mansion_meta'])) {
+            chatLogPublicDataAccess($db, $sessionId, (int)$card['id'], $message, $intake['_mansion_meta']);
+        }
     } else {
         $agentName = $card['name'] ?? '担当者';
         // 画像添付がある場合は、まず添付画像から物件（物件名・所在地・マンション名等）を特定し、

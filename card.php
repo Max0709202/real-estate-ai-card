@@ -1292,10 +1292,10 @@ if (!empty($card['profile_photo'])) {
     <?php if ($chatbotEnabled): ?>
     <?php
     // チャットAPIは、必ず「今ページを開いているホスト」を同一オリジンで呼ぶ。
-    // BASE_URL は www 固定だが、apex（www無し）でアクセスされると www を呼んでしまい
+    // apex（www無し）でアクセスされた場合も同一オリジンを使用する。
     // クロスオリジン扱いになって CORS で失敗する（crm/get.php 等）。実リクエストホストが
     // 正規ホスト（www 有/無）のいずれかなら、そのホストを使って同一オリジン化する。
-    $canonicalChatHost = parse_url(BASE_URL, PHP_URL_HOST) ?: 'www.ai-fcard.com';
+    $canonicalChatHost = parse_url(BASE_URL, PHP_URL_HOST) ?: ($_SERVER['HTTP_HOST'] ?? 'localhost');
     $apexChatHost = preg_replace('/^www\./', '', $canonicalChatHost);
     $reqChatHost = $_SERVER['HTTP_HOST'] ?? '';
     $sameOriginChatHost = ($reqChatHost === $canonicalChatHost || $reqChatHost === $apexChatHost)

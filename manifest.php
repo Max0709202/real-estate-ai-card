@@ -41,8 +41,8 @@ if (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || (int)$card[
 
 // manifest はドキュメントと同一オリジンで配信される（card.php から相対 href で参照）。
 // start_url はドキュメントと同一オリジンでないとブラウザに無視される（apex/www 不一致で警告）。
-// BASE_URL は www 固定のため、実リクエストホスト（正規ホストの www 有/無）に合わせて同一オリジン化する。
-$canonicalHost = parse_url(BASE_URL, PHP_URL_HOST) ?: 'www.ai-fcard.com';
+// 実リクエストホスト（正規ホストの www 有/無）に合わせて同一オリジン化する。
+$canonicalHost = parse_url(BASE_URL, PHP_URL_HOST) ?: ($_SERVER['HTTP_HOST'] ?? 'localhost');
 $apexHost = preg_replace('/^www\./', '', $canonicalHost);
 $reqHost = $_SERVER['HTTP_HOST'] ?? '';
 $sameOriginHost = ($reqHost === $canonicalHost || $reqHost === $apexHost) ? $reqHost : $canonicalHost;

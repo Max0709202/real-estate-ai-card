@@ -208,7 +208,7 @@ $users = $stmt->fetchAll();
 
 $referralSummarySql = "
     SELECT
-        COALESCE(NULLIF(u.agent, ''), '未設定') AS agent_label,
+        u.utm_source AS referral_source,
         COUNT(DISTINCT u.id) AS registered_count,
         COUNT(DISTINCT CASE
             WHEN EXISTS (
@@ -222,8 +222,10 @@ $referralSummarySql = "
             THEN u.id
         END) AS contracted_count
     FROM users u
-    GROUP BY COALESCE(NULLIF(u.agent, ''), '未設定')
-    ORDER BY contracted_count DESC, registered_count DESC, agent_label ASC
+    WHERE u.utm_source IS NOT NULL
+      AND u.utm_source <> ''
+    GROUP BY u.utm_source
+    ORDER BY contracted_count DESC, registered_count DESC, referral_source ASC
     LIMIT 12
 ";
 $referralSummary = $db->query($referralSummarySql)->fetchAll(PDO::FETCH_ASSOC);
@@ -452,12 +454,12 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
             </div>
 
             <section style="margin: 0 0 1rem; padding: 1rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;">
-                <h2 style="font-size: 1rem; margin: 0 0 0.75rem; color: #2d3748;">代理店別成果集計</h2>
+                <h2 style="font-size: 1rem; margin: 0 0 0.75rem; color: #2d3748;">提携先別成果集計</h2>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
                     <?php foreach ($referralSummary as $summary): ?>
                         <div style="border: 1px solid #edf2f7; border-radius: 6px; padding: 0.75rem; background: #f8fafc;">
                             <div style="font-weight: 700; color: #1a202c; margin-bottom: 0.35rem;">
-                                <?php echo htmlspecialchars($summary['agent_label'] ?? '未設定', ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo htmlspecialchars($summary['referral_source'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                             </div>
                             <div style="font-size: 0.85rem; color: #4a5568;">
                                 登録者数: <?php echo number_format((int)($summary['registered_count'] ?? 0)); ?>人<br>
