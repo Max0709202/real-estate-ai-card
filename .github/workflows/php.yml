@@ -18,9 +18,56 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Validate PHP and JavaScript syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate PHP syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          find . \
+            -type f \
+            -name '*.php' \
+            -not -path '*/vendor/*' \
+            -not -path '*/node_modules/*' \
+            -print0 \
+            | xargs -0 -r -n1 php -l
+
+      - name: Validate JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          find . \
+            -type f \
+            -name '*.js' \
+            -not -path '*/vendor/*' \
+            -not -path '*/node_modules/*' \
+            -print0 \
+            | xargs -0 -r -n1 node --check
+
   deploy-staging:
     name: Deploy to staging
     if: github.ref == 'refs/heads/develop'
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: staging
@@ -143,6 +190,7 @@ jobs:
   deploy-production:
     name: Deploy to production
     if: github.ref == 'refs/heads/main'
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
