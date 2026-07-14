@@ -18,8 +18,12 @@ ini_set('memory_limit', '256M');
 // Start output buffering first
 ob_start();
 
+require_once __DIR__ . '/../../config/config.php';
+
 // CORS: when request uses credentials, browser requires a specific origin (not *).
-$allowedOrigins = ['https://ai-fcard.com', 'https://www.ai-fcard.com', 'http://103.179.45.108/php/'];
+$configuredOrigin = rtrim(BASE_URL, '/');
+$apexOrigin = preg_replace('#^(https?://)www\.#i', '$1', $configuredOrigin);
+$allowedOrigins = array_values(array_unique([$configuredOrigin, $apexOrigin, 'http://103.179.45.108/php/']));
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? trim($_SERVER['HTTP_ORIGIN']) : '';
 if (in_array($origin, $allowedOrigins, true)) {
     header('Access-Control-Allow-Origin: ' . $origin);
@@ -33,7 +37,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../middleware/auth.php';
