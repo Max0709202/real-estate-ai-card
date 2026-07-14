@@ -739,13 +739,16 @@ function chatMansionDisambiguationAnswer($terms, $candidates) {
     foreach ($candidates as $r) {
         $name = trim((string)($r['building_name'] ?? ''));
         if ($name === '') continue;
+        $fullAddress = trim((string)($r['full_address'] ?? ''));
         $loc = trim((string)($r['prefecture'] ?? '') . (string)($r['city'] ?? ''));
-        if ($loc === '') $loc = trim((string)($r['full_address'] ?? ''));
+        if ($loc === '') $loc = $fullAddress;
         $label = $name . ($loc !== '' ? '（' . $loc . '）' : '');
         $lines[] = '・' . $label;
         $quickReplies[] = [
             'label' => $label,
-            'value' => $name . ($loc !== '' ? ' ' . $loc : ''),
+            // The full DB address makes the selection deterministic even when
+            // several buildings share both a similar name and the same city.
+            'value' => $name . ($fullAddress !== '' ? ' ' . $fullAddress : ($loc !== '' ? ' ' . $loc : '')),
             'field' => 'mansion_lookup',
         ];
     }
@@ -753,7 +756,7 @@ function chatMansionDisambiguationAnswer($terms, $candidates) {
     $head = ($queryLabel !== '' ? '「' . $queryLabel . '」' : 'ご入力の名称')
         . 'に近い物件が複数見つかりました。どの物件について確認しますか？';
     $reply = $head . "\n\n" . implode("\n", $lines)
-        . "\n\n正式名称または所在エリア（都道府県・市区町村など）を教えていただければ、その物件の情報をお調べします。";
+        . "\n\n下の候補ボタンから選択してください。正式名称や所在エリアを入力して選ぶこともできます。";
     return [
         'reply' => $reply,
         'sources' => [],
@@ -1046,7 +1049,16 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
         // Only answer when a row genuinely matches the query (all tokens present in
         // its name+address). For a bare name we also require ≥2 tokens so an
         // ambiguous single word never produces one confidently-wrong building.
-        $requireMulti = $isBareName && !$hasKeyword;
+        // A candidate is commonly selected as "建物名（東京都足立区）".  That is
+        // not a bare-name lookup: the parenthesised location is an explicit
+        // disambiguator and must be matched against name+address.  Previously it
+        // was matched against building_name alone, so the same row shown in the
+        // candidate list was rejected immediately after the customer selected it.
+        $hasLocationQualifier = (bool)preg_match(
+            '/[（(][^）)]*(?:都|道|府|県|市|区|町|村)[^）)]*[）)]|(?:東京都|北海道|京都府|大阪府|[一-龥]{2,3}県)/u',
+            (string)$message
+        );
+        $requireMulti = $isBareName && !$hasKeyword && !$hasLocationQualifier;
         $confident = [];
         foreach ($rows as $r) {
             if (chatMansionRowConfident($r, $terms, $requireMulti)) $confident[] = $r;
