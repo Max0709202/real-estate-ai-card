@@ -593,7 +593,7 @@ if (!function_exists('propertyExtractFromImages')) {
         }
         if ($count === 0) return ['fields' => [], 'error' => '解析できる画像がありません（PDFは画像化が必要です）。'];
 
-        $model = 'gpt-4o-mini'; // vision対応・lightキー
+        $model = propertyFlyerModel();
         $apiKey = chatOpenAIApiKeyForModel($model);
         $messages = [['role' => 'user', 'content' => $content]];
         $res = callOpenAIChat($messages, $apiKey, $model, [
@@ -1076,7 +1076,7 @@ if (!function_exists('propertyFlyerDetectRegions')) {
             ['type' => 'text', 'text' => $prompt],
             ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . base64_encode($data)]],
         ];
-        $model = 'gpt-4o-mini';
+        $model = propertyFlyerModel();
         $apiKey = chatOpenAIApiKeyForModel($model);
         $res = callOpenAIChat([['role' => 'user', 'content' => $content]], $apiKey, $model, [
             'purpose' => 'property_flyer_mask', 'max_tokens' => 500, 'temperature' => 0.0, 'timeout' => 45,
@@ -1275,16 +1275,14 @@ if (!function_exists('propertyApplyMaskToJpeg')) {
 
 if (!function_exists('propertyFlyerModel')) {
     /**
-     * 販売図面解析（写真領域の検出・分類）に使うVisionモデル。
-     * 既定は gpt-4o。※旧既定の gpt-4.5-preview は提供終了で存在せず、常に
-     * 弱い gpt-4o-mini へフォールバックしていたため、写真領域の座標検出が不正確だった。
-     * gpt-4o は領域座標の精度が大幅に高い。OPENAI_MODEL_FLYER で上書き可。
+     * 販売図面のOCR・画像認識・写真/間取り領域の検出と分類に使うVisionモデル。
+     * OPENAI_MODEL_FLYER で上書き可。
      */
     function propertyFlyerModel(): string
     {
         $m = trim((string)getenv('OPENAI_MODEL_FLYER'));
-        // 空・または存在しない旧モデル指定は gpt-4o に矯正する。
-        if ($m === '' || stripos($m, 'gpt-4.5') !== false) $m = 'gpt-4o';
+        // 空・または提供終了済みの旧モデル指定は販売図面用の既定モデルに矯正する。
+        if ($m === '' || stripos($m, 'gpt-4.5') !== false) $m = 'gpt-5.4-mini';
         return $m;
     }
 }
@@ -1374,10 +1372,10 @@ if (!function_exists('propertyFlyerDrawGrid')) {
 
 if (!function_exists('propertyFlyerAnalyzePage')) {
     /**
-     * 販売図面の1ページ画像を GPT-4.5（Vision）で1回だけ解析し、
+     * 販売図面の1ページ画像を販売図面用Visionモデルで解析し、
      *  - 個々の写真・図版領域の分類（建物外観/間取り図/室内写真/設備写真/地図/その他）
      *  - 顧客用PDFで黒塗りすべき売主仲介会社情報の領域（mask_regions）
-     * を返す。失敗時は gpt-4o-mini で再試行し、それも失敗なら items=[] / mask=下端帯。
+     * を返す。失敗時は items=[] / mask=下端帯。
      * @return array ['items'=>[['category','x','y','w','h','thumbnail_candidate'],...], 'mask_regions'=>[['x','y','w','h'],...]]
      */
     function propertyFlyerAnalyzePage(string $pageAbsPath, array $options = []): array
@@ -1425,7 +1423,7 @@ if (!function_exists('propertyFlyerAnalyzePage')) {
             ['type' => 'image_url', 'image_url' => ['url' => $b64]],
         ]]];
 
-        $tryModels = [propertyFlyerModel(), 'gpt-4o-mini'];
+        $tryModels = [propertyFlyerModel()];
         $reply = null;
         foreach ($tryModels as $model) {
             $apiKey = chatOpenAIApiKeyForModel($model);
@@ -1791,7 +1789,7 @@ if (!function_exists('propertyExtractPdfImages')) {
 
 if (!function_exists('propertyClassifyImages')) {
     /**
-     * 抽出済み画像群を GPT-4.5 で一度に分類する（建物外観/間取り図/室内写真/設備写真/地図/その他）。
+     * 抽出済み画像群を販売図面用Visionモデルで一度に分類する（建物外観/間取り図/室内写真/設備写真/地図/その他）。
      * @return array  index => ['category'=>..,'thumbnail_candidate'=>bool]
      */
     function propertyClassifyImages(array $imagePaths, array $options = []): array
@@ -1815,7 +1813,7 @@ if (!function_exists('propertyClassifyImages')) {
         }
         $messages = [['role' => 'user', 'content' => $content]];
         $reply = null;
-        foreach ([propertyFlyerModel(), 'gpt-4o-mini'] as $model) {
+        foreach ([propertyFlyerModel()] as $model) {
             $res = callOpenAIChat($messages, chatOpenAIApiKeyForModel($model), $model, [
                 'purpose' => 'property_flyer_classify', 'max_tokens' => 900, 'temperature' => 0.0, 'timeout' => 60,
             ] + $options);
@@ -1846,10 +1844,10 @@ if (!function_exists('propertyClassifyImages')) {
 
 if (!function_exists('propertyFlyerProcessUploaded')) {
     /**
-     * アップロード直後の販売図面に対して、GPT-4.5で一度だけ解析し以下を生成・保存する（再表示時に再解析しない）:
+     * アップロード直後の販売図面に対して、販売図面用Visionモデルで解析し以下を生成・保存する（再表示時に再解析しない）:
      *  ① 画像抽出: PDF埋め込み画像を純PHPで直接抽出（poppler不要。DCTDecode/FlateDecode）。
      *     取得できない場合はGhostscriptのページラスタからAI領域検出でクロップ（フォールバック）。
-     *  ② 抽出画像をGPT-4.5で一括分類（建物外観/間取り図/室内/設備/地図/その他）
+     *  ② 抽出画像を販売図面用Visionモデルで一括分類（建物外観/間取り図/室内/設備/地図/その他）
      *  ③ 保存対象（その他以外）のみ「写真・資料」に自動登録（最大10枚・JPEG圧縮/リサイズ）
      *  ④⑤⑥ サムネイル選定（建物外観→間取り図、無ければ未設定）
      *  ⑧ 顧客用マスク済PDF生成（売主情報を黒塗り）
@@ -1901,7 +1899,7 @@ if (!function_exists('propertyFlyerProcessUploaded')) {
             $pageItems = [];
             $thumb = null; // ['id'=>, 'prio'=>]
 
-            // ② 各ページをGPT-4.5で解析（写真抽出のフォールバック用 items を取得）。
+            // ② 各ページを販売図面用Visionモデルで解析（写真抽出のフォールバック用 items を取得）。
             //    マスクの既定は「A4横の下3cm（全幅）」に統一する（担当が編集画面で調整・確定する）。
             //    確定するまで顧客には公開されない（customer_visible=0）。
             $defaultBand = propertyFlyerBottomBandRegions();
@@ -1931,7 +1929,7 @@ if (!function_exists('propertyFlyerProcessUploaded')) {
                 if ($prio <= 3 && ($thumb === null || $prio < $thumb['prio'])) $thumb = ['id' => $pid, 'prio' => $prio];
             };
 
-            // ① 主たる方法: PDFから埋め込み画像を直接抽出 → ② GPT-4.5で一括分類 → ③ 保存対象のみ登録
+            // ① 主たる方法: PDFから埋め込み画像を直接抽出 → ② Visionモデルで一括分類 → ③ 保存対象のみ登録
             $usedExtraction = false;
             if ($isPdf) {
                 $exDir = rtrim(sys_get_temp_dir(), '/') . '/prop_ex_' . bin2hex(random_bytes(6));
