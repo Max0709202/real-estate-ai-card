@@ -52,8 +52,8 @@ function generateBusinessCardQRCode($businessCardId, $db, $sendEmails = true) {
             ];
         }
         
-        // Generate QR code URL (card viewing URL): https://www.ai-fcard.com/card.php?slug=xxx
-        $base = rtrim(QR_CODE_BASE_URL, '/');
+        // Generate QR code URL (card viewing URL) from the configured application base URL.
+        $base = rtrim(BASE_URL, '/');
         $qrUrl = $base . '/card.php?slug=' . $card['url_slug'];
         
         // Create QR codes directory if it doesn't exist
