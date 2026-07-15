@@ -125,12 +125,15 @@ if (!defined('OPENAI_MODEL_LIGHT')) {
     define('OPENAI_MODEL_LIGHT', getenv('OPENAI_MODEL_LIGHT') ?: OPENAI_CHAT_MODEL);
 }
 if (!defined('OPENAI_MODEL_SALES')) {
-    define('OPENAI_MODEL_SALES', getenv('OPENAI_MODEL_SALES') ?: OPENAI_CHAT_MODEL);
+    // Customer-facing consultation and property explanations need the flagship
+    // model. Keep OPENAI_MODEL_LIGHT on the inexpensive default for routing,
+    // classification and fallback work.
+    define('OPENAI_MODEL_SALES', getenv('OPENAI_MODEL_SALES') ?: 'gpt-5.6');
 }
 if (!defined('OPENAI_MODEL_SUMMARY')) {
     define('OPENAI_MODEL_SUMMARY', getenv('OPENAI_MODEL_SUMMARY') ?: OPENAI_MODEL_LIGHT);
 }
-// マンション紹介文の生成に使うモデル（GPT-4.1 など。未設定時は営業モデルを流用）。
+// マンション紹介文の生成に使うモデル（未設定時は営業モデルを流用）。
 if (!defined('OPENAI_MODEL_MANSION')) {
     define('OPENAI_MODEL_MANSION', getenv('OPENAI_MODEL_MANSION') ?: OPENAI_MODEL_SALES);
 }
