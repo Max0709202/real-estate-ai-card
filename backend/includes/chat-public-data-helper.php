@@ -768,6 +768,44 @@ function chatMansionDisambiguationAnswer($terms, $candidates) {
 }
 
 /**
+ * Convert property candidates written as list items in an AI reply into the same
+ * structured buttons used by deterministic DB disambiguation.
+ *
+ * Only lines containing both a candidate name and a Japanese location qualifier
+ * in parentheses are accepted. This deliberately ignores ordinary prose and
+ * factual bullet lists such as 築年月/構造/総戸数.
+ */
+function chatMansionQuickRepliesFromAiReply($reply) {
+    $reply = trim((string)$reply);
+    if ($reply === '') return [];
+
+    $quickReplies = [];
+    $seen = [];
+    foreach (preg_split('/\R/u', $reply) as $line) {
+        $line = trim((string)$line);
+        if ($line === '') continue;
+        if (!preg_match('/^(?:[-・●▪◦]|[0-9０-９]{1,2}[\.．、\)）])\s*[「『"]?(.{2,80}?)[」』"]?\s*[（(]([^）)]{1,80}(?:都|道|府|県|市|区|町|村)[^）)]*)[）)]\s*$/u', $line, $m)) {
+            continue;
+        }
+        $name = trim((string)$m[1]);
+        $location = trim((string)$m[2]);
+        if ($name === '' || preg_match('/^(?:所在地|住所|築年月|構造|規模|総戸数|アクセス)$/u', $name)) continue;
+
+        $key = chatMansionNormalizeText($name . '|' . $location);
+        if ($key === '' || isset($seen[$key])) continue;
+        $seen[$key] = true;
+        $label = $name . '（' . $location . '）';
+        $quickReplies[] = [
+            'label' => $label,
+            'value' => $name . ' ' . $location,
+            'field' => 'mansion_lookup',
+        ];
+        if (count($quickReplies) >= 5) break;
+    }
+    return $quickReplies;
+}
+
+/**
  * Debug logging for マンション検索・紹介生成 (req. ⑧). Active only when CHAT_MANSION_DEBUG
  * is on, so production stays quiet. The GPT context and reply are logged in full
  * because the whole point is to verify what was sent to / returned by the model.

@@ -290,6 +290,13 @@ try {
     }
     }
 
+    // AIが本文内で「・物件名（所在地）」形式の候補を提示した場合も、DBの
+    // 曖昧候補と同じ選択ボタンに変換する。既存の明示的なボタンは上書きしない。
+    if (empty($quickReplies)) {
+        $aiCandidateReplies = chatMansionQuickRepliesFromAiReply($reply);
+        if (!empty($aiCandidateReplies)) $quickReplies = $aiCandidateReplies;
+    }
+
     // Update lightweight conversation memory for future turns and reload continuity
     updateChatSessionMemoryHeuristic($db, $sessionId, $card['id'], $message, $reply);
     $crmCase = chatCrmSyncFromChatSession($db, $sessionId, (int)$card['id']);
