@@ -365,8 +365,20 @@ function chatMansionNormalizeText($s) {
         $n = Normalizer::normalize($s, Normalizer::FORM_KC);
         if (is_string($n) && $n !== '') $s = $n;
     }
-    $s = mb_convert_kana($s, 'KVC');
+    // Do not depend on ext-intl: some production PHP builds do not provide
+    // Normalizer. Convert Unicode Roman numerals explicitly, and use `a` to fold
+    // full-width Latin letters and digits (including ２) to ASCII.
+    $s = strtr($s, ['Ⅰ' => 'I', 'Ⅱ' => 'II', 'Ⅲ' => 'III', 'Ⅳ' => 'IV', 'Ⅴ' => 'V', 'Ⅵ' => 'VI', 'Ⅶ' => 'VII', 'Ⅷ' => 'VIII', 'Ⅸ' => 'IX', 'Ⅹ' => 'X']);
+    $s = mb_convert_kana($s, 'KVCa');
     $s = mb_strtolower($s);
+    // Convert a Roman phase number while its original boundary is still present.
+    // Confidence matching normalizes "building_name + space + address", so doing
+    // this only after spaces were removed made Ⅱ cease to be a terminal suffix.
+    $roman = ['viii' => '8', 'vii' => '7', 'iii' => '3', 'vi' => '6', 'iv' => '4', 'ix' => '9', 'ii' => '2', 'v' => '5', 'x' => '10', 'i' => '1'];
+    $romanPattern = '/([一-龯々〆ぁ-んァ-ヺ])(' . implode('|', array_keys($roman)) . ')(?=$|[\s\x{3000}・･,，、。.／\/「」『』（）()\[\]【】])/u';
+    $s = preg_replace_callback($romanPattern, function ($m) use ($roman) {
+        return $m[1] . $roman[$m[2]];
+    }, $s);
     // Long-vowel marks and hyphen/dash/tilde variants → removed (treated as noise).
     $s = preg_replace('/[ー―‐\x{2010}-\x{2015}\x{2212}\x{301C}\x{FF5E}\-－〜~ｰ]/u', '', $s);
     // Spaces, middle dots, quotes, punctuation, brackets and common symbols → removed.
@@ -376,10 +388,6 @@ function chatMansionNormalizeText($s) {
     // these suffixes, so canonicalise a terminal Roman phase number to Arabic.
     // Requiring a preceding Japanese character avoids changing ordinary Latin
     // names which happen to end in "i"/"ii" (for example, Hawaii).
-    $roman = ['viii' => '8', 'vii' => '7', 'iii' => '3', 'vi' => '6', 'iv' => '4', 'ix' => '9', 'ii' => '2', 'v' => '5', 'x' => '10', 'i' => '1'];
-    if (preg_match('/([一-龯々〆ぁ-んァ-ヺ])(' . implode('|', array_keys($roman)) . ')$/u', (string)$s, $m)) {
-        $s = mb_substr((string)$s, 0, mb_strlen((string)$s) - mb_strlen($m[2])) . $roman[$m[2]];
-    }
     return $s === null ? '' : $s;
 }
 
@@ -475,7 +483,10 @@ function chatMansionCharClass($ch) {
  * though the order differs and a contiguous substring match would fail.
  */
 function chatMansionTokenizeForMatch($s) {
-    $s = preg_replace('/[\s\x{3000}・･,，、。.／\/「」『』（）()\[\]【】’‘\'＆&]+/u', ' ', (string)$s);
+    // Canonicalise the complete name before splitting it by script. Normalising
+    // each fragment independently loses the Japanese character immediately before
+    // an ASCII Roman suffix (II), so II and 2 previously produced different tokens.
+    $s = chatMansionNormalizeText($s);
     $tokens = [];
     foreach (preg_split('/\s+/u', trim($s)) as $word) {
         if ($word === '') continue;
@@ -532,7 +543,8 @@ function chatMansionNumericSuffixVariants($term) {
         $kc = Normalizer::normalize($term, Normalizer::FORM_KC);
         if (is_string($kc) && $kc !== '') $term = $kc;
     }
-    $term = mb_convert_kana($term, 'KVCn');
+    $term = strtr($term, ['Ⅰ' => 'I', 'Ⅱ' => 'II', 'Ⅲ' => 'III', 'Ⅳ' => 'IV', 'Ⅴ' => 'V', 'Ⅵ' => 'VI', 'Ⅶ' => 'VII', 'Ⅷ' => 'VIII', 'Ⅸ' => 'IX', 'Ⅹ' => 'X']);
+    $term = mb_convert_kana($term, 'KVCa');
     $lower = mb_strtolower($term);
     if (!preg_match('/^(.+?)(10|[1-9]|viii|vii|iii|vi|iv|ix|ii|v|x|i)$/u', $lower, $m)) return [];
     $romanToArabic = ['i' => '1', 'ii' => '2', 'iii' => '3', 'iv' => '4', 'v' => '5', 'vi' => '6', 'vii' => '7', 'viii' => '8', 'ix' => '9', 'x' => '10'];
