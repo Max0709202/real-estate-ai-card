@@ -1267,15 +1267,71 @@
         return 18;
     }
 
-    function finishBotTypewriter(wrap, bubble, text, sources, onComplete) {
+    function appendBubbleCandidateReplies(bubble, replies) {
+        if (!bubble || !replies || !replies.length) return;
+        var candidates = replies.filter(function (reply) {
+            return reply && reply.field === 'mansion_lookup';
+        });
+        if (!candidates.length) return;
+        var group = document.createElement('div');
+        group.className = 'chat-bubble-candidates';
+        candidates.forEach(function (reply) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chat-quick-btn chat-bubble-candidate-btn';
+            btn.textContent = reply.label || reply.value || '';
+            btn.addEventListener('click', function () {
+                if (sendingMessage) return;
+                group.querySelectorAll('button').forEach(function (candidateBtn) {
+                    candidateBtn.disabled = true;
+                });
+                var label = reply.label || reply.value || '';
+                sendMessage(label, {
+                    buttonSelection: {
+                        label: label,
+                        value: reply.value || label,
+                        field: 'mansion_lookup',
+                        multi_select: false
+                    }
+                });
+            });
+            group.appendChild(btn);
+        });
+        bubble.appendChild(group);
+    }
+
+    function extractBubbleCandidateReplies(text) {
+        var replies = [];
+        var seen = {};
+        String(text || '').split(/\r?\n/).forEach(function (rawLine) {
+            var line = rawLine.trim();
+            var match = line.match(/^(?:[-・●▪◦]|[0-9０-９]{1,2}[.．、)）])\s*[「『"]?(.{2,80}?)[」』"]?\s*[（(]([^）)]{1,80}(?:都|道|府|県|市|区|町|村)[^）)]*)[）)]\s*$/u);
+            if (!match) return;
+            var name = match[1].trim();
+            var location = match[2].trim();
+            if (!name || /^(?:所在地|住所|築年月|構造|規模|総戸数|アクセス)$/.test(name)) return;
+            var key = name + '|' + location;
+            if (seen[key] || replies.length >= 5) return;
+            seen[key] = true;
+            replies.push({
+                label: name + '（' + location + '）',
+                value: name + ' ' + location,
+                field: 'mansion_lookup'
+            });
+        });
+        return replies;
+    }
+
+    function finishBotTypewriter(wrap, bubble, text, sources, bubbleReplies, onComplete) {
         wrap.classList.remove('is-typing');
         bubble.innerHTML = formatBotMessageHtml(text);
+        appendBubbleCandidateReplies(bubble, bubbleReplies);
         appendMessageSources(wrap, sources);
         scrollMessagesToBottom();
         if (typeof onComplete === 'function') onComplete();
     }
 
-    function startBotTypewriter(wrap, bubble, text, sources, onComplete) {
+    function startBotTypewriter(wrap, bubble, text, sources, bubbleReplies, onComplete) {
         var index = 0;
         var totalLength = text.length;
         var step = getBotTypewriterStep(totalLength);
@@ -1295,7 +1351,7 @@
 
             if (index >= totalLength) {
                 botTypingTimer = null;
-                finishBotTypewriter(wrap, bubble, text, sources, onComplete);
+                finishBotTypewriter(wrap, bubble, text, sources, bubbleReplies, onComplete);
                 return;
             }
 
@@ -1320,9 +1376,11 @@
         wrap.innerHTML = img + '<div class="chat-msg-content"><div class="chat-msg-bubble">' + (shouldType ? '' : formatBotMessageHtml(text)) + '</div><div class="chat-msg-time">' + time + '</div></div>';
         messagesContainer.appendChild(wrap);
         var bubble = wrap.querySelector('.chat-msg-bubble');
+        var bubbleReplies = options.bubbleReplies || extractBubbleCandidateReplies(text);
         if (shouldType && bubble) {
-            startBotTypewriter(wrap, bubble, text, sources, options.onComplete);
+            startBotTypewriter(wrap, bubble, text, sources, bubbleReplies, options.onComplete);
         } else {
+            appendBubbleCandidateReplies(bubble, bubbleReplies);
             appendMessageSources(wrap, sources);
             scrollMessagesToBottom();
             if (typeof options.onComplete === 'function') options.onComplete();
@@ -2241,10 +2299,18 @@
                     return;
                 }
                 if (data.success && data.data && data.data.reply) {
+                    var responseReplies = data.data.quick_replies || [];
+                    var bubbleReplies = responseReplies.filter(function (reply) {
+                        return reply && reply.field === 'mansion_lookup';
+                    });
+                    var footerReplies = responseReplies.filter(function (reply) {
+                        return !reply || reply.field !== 'mansion_lookup';
+                    });
                     appendBotMessage(data.data.reply, false, data.data.sources || [], '', {
                         typewriter: true,
+                        bubbleReplies: bubbleReplies,
                         onComplete: function () {
-                            renderQuickReplies(data.data.quick_replies || []);
+                            renderQuickReplies(footerReplies);
                             finishSend();
                         }
                     });
