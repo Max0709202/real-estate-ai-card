@@ -272,7 +272,9 @@ try {
         } else {
             $landMessage = $mansionLand !== null ? $mansionLand['query'] : $message;
             $allowPropertyKnowledgeFallback = $mansionLand === null && $isMansionLookupIntent;
-            $result = getBotReplyWithOpenAI($landMessage, $conversationHistory, $agentName, $db, $sessionId, null, '', $allowPropertyKnowledgeFallback);
+            $result = $allowPropertyKnowledgeFallback
+                ? getPropertyKnowledgeFallbackWithOpenAI($landMessage, $conversationHistory, $agentName, $db, $sessionId)
+                : getBotReplyWithOpenAI($landMessage, $conversationHistory, $agentName, $db, $sessionId);
 
             if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
                 error_log('Chat OpenAI error: ' . ($result['error'] ?? 'empty reply'));
