@@ -806,6 +806,39 @@ function chatMansionTermLooksSpecific($terms, $message) {
     return false;
 }
 
+/**
+ * Whether the message UNAMBIGUOUSLY names a specific building — the only case in which
+ * the hard 「該当するマンションが見つかりませんでした」 guard may replace a normal AI answer.
+ *
+ * Why this must be strict: chatExtractMansionSearchTerms() is deliberately permissive
+ * (it strips a trailing "?" and returns a fragment for almost ANY sentence — "夏季休業は
+ * いつからですか?" → "夏季休業はいつから"), and chatMansionTermLooksSpecific() then accepts
+ * it purely on length (≥3). Used alone those two turn EVERY ordinary question into a
+ * マンション lookup and answer it 「該当するマンションが見つかりませんでした」, starving
+ * ヒアリング・公的データ・ローン・一般Q&A of the message.
+ *
+ * A カタカナ run is NOT a usable signal here: 不動産用語 is overwhelmingly カタカナ
+ * (フラット35 / インスペクション / サブリース / レインズ / バリアフリー …), so requiring one
+ * hijacks ordinary real-estate Q&A. Only three signals are trustworthy:
+ *   1. an explicit marker — マンション名は○○ / 物件名：○○
+ *   2. a quoted name — 「○○」『○○』
+ *   3. a bare proper noun typed alone AND made of ≥2 tokens. A single-token bare
+ *      カタカナ word is essentially always 用語 (インスペクション), never a building; a real
+ *      name splits into ≥2 tokens (カーサ新宿 → [カサ, 新宿]). Same ≥2-token reasoning as
+ *      $requireMulti in chatMansionRowConfident().
+ *
+ * This does NOT gate DB answers: chatMansionDbDirectAnswer() runs independently, so a
+ * building that exists in the DB is still answered from the DB even when this is false.
+ */
+function chatMansionMessageNamesBuilding($message, $terms = []) {
+    $message = (string)$message;
+    if (preg_match('/(?:マンション名|物件名|建物名)\s*(?:は|の|:|：)/u', $message)) return true;
+    if (preg_match('/[「『][^」』]{2,80}[」』]/u', $message)) return true;
+    if (chatMansionLooksLikeBareName($message)
+        && count(chatMansionTokenizeForMatch($message)) >= 2) return true;
+    return false;
+}
+
 function chatMansionRequestedFields($message) {
     $message = (string)$message;
     $fields = [];

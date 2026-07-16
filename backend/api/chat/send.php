@@ -160,6 +160,10 @@ try {
 
     $quickReplies = [];
     $leadData = null;
+    // 現在地(GPS)分岐は intake を通らないが、最終レスポンス組み立てで
+    // $intake['sms_auth_required'] 等を参照するため、ここで必ず初期化しておく
+    // （未初期化のままだと現在地照会のたびに Undefined variable 警告が出る）。
+    $intake = [];
 
     if ($geo !== null) {
         // 現在地（GPS）照会：intake／マンション名検索は通さず、緯度経度を土地情報の
@@ -183,16 +187,38 @@ try {
     // 物件名らしい問い合わせは、AIやヒアリングより先にDBで決定的に処理する。
     // DBで解決できない場合だけ従来のintake→AI解析へフォールバックする。
     $agentName = $card['name'] ?? '担当者';
-    $isMansionLandRequest = (bool)preg_match('/(土地情報|ハザード|用途地域|建ぺい率|容積率|都市計画|浸水|土砂|液状化)/u', $message);
+    // 土地/ハザード照会の判定は chatMessageAsksLandInfo() に一本化する。ここだけ独自の
+    // 狭い正規表現を持っていたため、「災害/防災/洪水/地盤/津波」等は土地照会と見なされず、
+    // マンション先行応答が基礎情報だけを返して 下の 土地情報フロー（マンション名→住所→
+    // ハザード）へ到達しなかった。両者の語彙を揃えて取りこぼしを無くす。
+    $isMansionLandRequest = function_exists('chatMessageAsksLandInfo')
+        ? chatMessageAsksLandInfo($message)
+        : (bool)preg_match('/(土地情報|ハザード|用途地域|建ぺい率|容積率|都市計画|浸水|土砂|液状化)/u', $message);
     $mansionSearchTerms = chatExtractMansionSearchTerms($message);
+    // 物件名を実際に含む質問だけを「マンション照会」とみなす。名称抽出は緩く、ほぼ全ての
+    // 文から断片を返す（「夏季休業はいつからですか?」→「夏季休業はいつから」）ため、長さ判定
+    // だけを条件にすると通常の会話まで「該当するマンションが見つかりませんでした」で
+    // 上書きしてしまう。DB照会自体は下の preflight で別途実行されるので影響しない。
+    // function_exists ガード：この関数は chat-public-data-helper.php にあり、send.php は
+    // 同ファイルを直接 require していない（推移的読み込み）。片側だけ古いまま配信されると
+    // 未定義関数は Error を投げ、下の catch (Exception) では捕捉できずチャット全体が500に
+    // なる。未定義時は「物件名照会ではない」＝通常AI応答へ倒す（安全側）。
     $isMansionLookupIntent = !$isMansionLandRequest
         && !empty($mansionSearchTerms)
-        && chatMansionTermLooksSpecific($mansionSearchTerms, $message);
+        && chatMansionTermLooksSpecific($mansionSearchTerms, $message)
+        && function_exists('chatMansionMessageNamesBuilding')
+        && chatMansionMessageNamesBuilding($message, $mansionSearchTerms);
+    // 添付がある場合はテキストからのマンション先行応答を行わない。先行応答が成立すると
+    // handled=true となり、下の「添付画像から物件を特定するフロー」（chatResolvePropertyFrom
+    // Attachments）へ到達せず、送信された図面・資料が黙って無視されてしまうため。
+    // ※候補ボタン（mansion_id 指定）は利用者の明示選択なので添付有無に関わらず優先する。
     $preflightMansionAnswer = $isMansionLandRequest
         ? null
         : ($selectedMansionId !== null
             ? chatMansionDbDirectAnswerById($db, $selectedMansionId, $message, $agentName)
-            : chatMansionDbDirectAnswer($db, $message, $agentName));
+            : (!empty($attachmentIds)
+                ? null
+                : chatMansionDbDirectAnswer($db, $message, $agentName)));
     if ($preflightMansionAnswer !== null) {
         $intake = [
             'handled' => true,

@@ -144,5 +144,22 @@ try {
     line('    !!! UNCAUGHT EXCEPTION: ' . get_class($e) . ': ' . $e->getMessage());
     line('    !!! ' . $e->getFile() . ':' . $e->getLine());
 }
+// 7) The hard not-found guard gate -------------------------------------------
+// This is what decides whether an ordinary question gets hijacked by
+// 「該当するマンションが見つかりませんでした」 instead of being answered by the AI.
+line('');
+line('[7] 「該当するマンションが見つかりませんでした」 guard gate');
+$isLand = (bool)preg_match('/(土地情報|ハザード|用途地域|建ぺい率|容積率|都市計画|浸水|土砂|液状化)/u', $message);
+$specific = chatMansionTermLooksSpecific($terms, $message);
+$namesBuilding = function_exists('chatMansionMessageNamesBuilding')
+    ? chatMansionMessageNamesBuilding($message, $terms)
+    : null;
+$intent = !$isLand && !empty($terms) && $specific && $namesBuilding;
+line('    land/hazard request?       : ' . ($isLand ? 'YES' : 'no'));
+line('    term looks specific?       : ' . ($specific ? 'YES' : 'no'));
+line('    message NAMES a building?  : ' . ($namesBuilding === null ? '(helper missing - OLD CODE)' : ($namesBuilding ? 'YES' : 'no')));
+line('    => isMansionLookupIntent   : ' . ($intent
+        ? 'YES  (mansion lookup; hard not-found guard may fire)'
+        : 'NO   (ordinary question -> normal AI answers it)'));
 line('');
 line('=== end of diagnostic ===');
