@@ -405,6 +405,38 @@ function chatNormalizeMansionSearchTerm($term) {
 }
 
 /**
+ * Remove natural-language request phrases which follow a mansion name.
+ *
+ * This is intentionally suffix based: replacing words globally could damage a
+ * legitimate building name. The function is run repeatedly because requests may
+ * stack phrases such as "の詳しい情報について教えてください".
+ */
+function chatStripMansionRequestSuffix($text) {
+    $text = trim((string)$text);
+    if ($text === '') return '';
+    $text = preg_replace('/^[\s　「」『』"\']+|[\s　「」『』"\']+$/u', '', $text);
+
+    $patterns = [
+        '/\s*(?:について|に関して)?\s*(?:を|が)?\s*(?:詳しく|くわしく)?\s*(?:教えて|知りたい|調べて|検索して|確認して)(?:ください|下さい|ほしい|欲しい|もらえますか|いただけますか)?[。．.!！?？\s　]*$/u',
+        '/\s*(?:の)?\s*(?:(?:詳しい|くわしい|詳細な|具体的な|もっと詳しい)\s*)?(?:物件情報|マンション情報|建物情報|基本情報|基礎情報|詳細情報|詳しい情報|情報|詳細|概要)(?:について)?[。．.!！?？\s　]*$/u',
+        '/\s*(?:の)?\s*(?:住所|所在地|築年月|築年数|構造|総戸数|戸数|階建|階数|最寄り駅|最寄駅|アクセス)(?:と|や|、|,|，|・|\s|.)*$/u',
+    ];
+
+    do {
+        $before = $text;
+        foreach ($patterns as $pattern) {
+            $text = preg_replace($pattern, '', $text);
+        }
+        // PHP trim() uses a byte mask and corrupts UTF-8 when Japanese punctuation
+        // is placed in its character list. Keep Unicode trimming in a regex.
+        $text = preg_replace('/^[\s　、。,.．!！?？「」『』"\']+|[\s　、。,.．!！?？「」『』"\']+$/u', '', (string)$text);
+        $text = preg_replace('/(?:の|を)$/u', '', $text);
+    } while ($text !== $before && $text !== '');
+
+    return trim((string)$text);
+}
+
+/**
  * Whether a message is just a building name typed on its own (no field word, no
  * intent, no sentence) — e.g. "キャピタルコータス南砂". These should still trigger a
  * DB lookup. Kept conservative (must contain カタカナ, be short, and not look like
@@ -431,9 +463,21 @@ function chatExtractMansionSearchTerms($message) {
     $patterns = [
         '/「([^」]{2,80})」/u',
         '/『([^』]{2,80})』/u',
-        '/([' . $nameChars . ']{2,80}?)(?:の)?(?:' . $fieldWords . ')/u',
+        '/([' . $nameChars . ']{2,80}?)(?:の)?(?:(?:詳しい|くわしい|詳細な|具体的な|もっと詳しい)\s*)?(?:' . $fieldWords . ')/u',
         '/(?:マンション|物件|建物)(?:名)?(?:は|の|：|:)?\s*([' . $nameChars . ']{2,80})/u',
     ];
+    // First choice: remove a complete request suffix from the original sentence.
+    // This handles phrasing variants without teaching the DB search every adjective.
+    $stripped = chatStripMansionRequestSuffix($message);
+    if ($stripped !== '' && $stripped !== $message && mb_strlen($stripped) >= 2 && mb_strlen($stripped) <= 80) {
+        $preferredTerm = chatNormalizeMansionSearchTerm($stripped);
+        if ($preferredTerm !== '') {
+            // This candidate is derived from the whole sentence rather than a
+            // partial regex capture. Do not mix lower-priority legacy candidates
+            // into confidence matching: one bad extra token rejects a valid row.
+            return [$preferredTerm];
+        }
+    }
     foreach ($patterns as $pattern) {
         if (preg_match($pattern, $message, $m)) {
             $term = chatNormalizeMansionSearchTerm($m[1]);
@@ -441,7 +485,7 @@ function chatExtractMansionSearchTerms($message) {
         }
     }
     if (preg_match('/(マンション|物件|建物|' . $fieldWords . ')/u', $message)) {
-        $clean = preg_replace('/(について|教えて|ください|下さい|知りたい|調べて|検索して|確認して|どこ|ですか|でしょうか|' . $fieldWords . '|マンション名|物件名|建物名|マンション|物件|建物|の|は|を|。|、|\?|？)/u', ' ', $message);
+        $clean = preg_replace('/(について|教えて|ください|下さい|知りたい|調べて|検索して|確認して|どこ|ですか|でしょうか|詳しい|くわしい|詳しく|くわしく|詳細な|具体的な|もっと詳しい|' . $fieldWords . '|マンション名|物件名|建物名|マンション|物件|建物|の|は|を|。|、|\?|？)/u', ' ', $message);
         $clean = chatNormalizeMansionSearchTerm($clean);
         if (mb_strlen($clean) >= 2 && mb_strlen($clean) <= 80) $terms[] = $clean;
     }
@@ -461,6 +505,12 @@ function chatExtractMansionSearchTerms($message) {
         $cand = chatNormalizeMansionSearchTerm($message);
         if ($cand !== '') $terms[] = $cand;
     }
+    // Apply the same suffix cleanup to every extraction route so a lower-priority
+    // legacy candidate cannot reintroduce request words and then fail confidence
+    // matching even when the first candidate was correct.
+    $terms = array_map(function ($term) {
+        return chatNormalizeMansionSearchTerm(chatStripMansionRequestSuffix($term));
+    }, $terms);
     return array_values(array_unique(array_filter($terms)));
 }
 
