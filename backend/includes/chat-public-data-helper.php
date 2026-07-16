@@ -604,8 +604,16 @@ function chatMansionNumericSuffixVariants($term) {
     if (!preg_match('/^(.+?)(10|[1-9]|viii|vii|iii|vi|iv|ix|ii|v|x|i)$/u', $lower, $m)) return [];
     $romanToArabic = ['i' => '1', 'ii' => '2', 'iii' => '3', 'iv' => '4', 'v' => '5', 'vi' => '6', 'vii' => '7', 'viii' => '8', 'ix' => '9', 'x' => '10'];
     $number = $romanToArabic[$m[2]] ?? $m[2];
-    $roman = ['1' => 'Ⅰ', '2' => 'Ⅱ', '3' => 'Ⅲ', '4' => 'Ⅳ', '5' => 'Ⅴ', '6' => 'Ⅵ', '7' => 'Ⅶ', '8' => 'Ⅷ', '9' => 'Ⅸ', '10' => 'Ⅹ'];
-    return [$m[1] . $number, $m[1] . $roman[$number]];
+    $unicodeRoman = ['1' => 'Ⅰ', '2' => 'Ⅱ', '3' => 'Ⅲ', '4' => 'Ⅳ', '5' => 'Ⅴ', '6' => 'Ⅵ', '7' => 'Ⅶ', '8' => 'Ⅷ', '9' => 'Ⅸ', '10' => 'Ⅹ'];
+    $asciiRoman = ['1' => 'I', '2' => 'II', '3' => 'III', '4' => 'IV', '5' => 'V', '6' => 'VI', '7' => 'VII', '8' => 'VIII', '9' => 'IX', '10' => 'X'];
+    $fullWidthNumber = mb_convert_kana($number, 'N');
+    return array_values(array_unique([
+        $m[1] . $number,
+        $m[1] . $fullWidthNumber,
+        $m[1] . $unicodeRoman[$number],
+        $m[1] . $asciiRoman[$number],
+        $m[1] . mb_strtolower($asciiRoman[$number]),
+    ]));
 }
 
 /** Raw recall variants for existing normalized rows created before ヶ/ケ folding. */
@@ -620,14 +628,97 @@ function chatMansionSmallKanaVariants($term) {
     })));
 }
 
+/**
+ * Check whether the optional normalized search columns are available.
+ *
+ * Older deployments created mansion_buildings from add_mansion_buildings.sql,
+ * which did not contain these columns. Referencing them unconditionally made the
+ * whole query fail and the caller converted that database error into "not found".
+ */
+function chatMansionDbHasNormalizedColumns($db) {
+    if (!$db instanceof PDO) return false;
+    static $cache = [];
+    $key = function_exists('spl_object_id') ? spl_object_id($db) : spl_object_hash($db);
+    if (array_key_exists($key, $cache)) return $cache[$key];
+    try {
+        $stmt = $db->query("SHOW COLUMNS FROM mansion_buildings WHERE Field IN ('name_norm', 'search_norm')");
+        $fields = $stmt ? $stmt->fetchAll(PDO::FETCH_COLUMN) : [];
+        return $cache[$key] = in_array('name_norm', $fields, true) && in_array('search_norm', $fields, true);
+    } catch (Throwable $e) {
+        error_log('Mansion DB normalized-column check error: ' . $e->getMessage());
+        return $cache[$key] = false;
+    }
+}
+
+/** Search legacy mansion tables without name_norm/search_norm. */
+function chatMansionDbSearchLegacyRows($db, $term, $limit) {
+    $variants = array_merge(
+        [$term],
+        chatMansionNumericSuffixVariants($term),
+        chatMansionSmallKanaVariants($term)
+    );
+    // Also expand kana variants of numeric variants (e.g. ヶ丘Ⅱ).
+    foreach ($variants as $variant) {
+        $variants = array_merge($variants, chatMansionSmallKanaVariants($variant));
+    }
+    $variants = array_values(array_unique(array_filter(array_map('trim', $variants))));
+    if (empty($variants)) return [];
+
+    $where = [];
+    $params = [];
+    foreach ($variants as $i => $variant) {
+        $where[] = "(building_name LIKE :legacy_name{$i} OR search_text LIKE :legacy_search{$i})";
+        $params[":legacy_name{$i}"] = '%' . $variant . '%';
+        $params[":legacy_search{$i}"] = '%' . $variant . '%';
+    }
+    // Fetch a small recall set, then use the exact same PHP canonicalizer used by
+    // confidence matching. This avoids relying on server collation for Ⅱ/2 etc.
+    $fetchLimit = max(20, min(100, (int)$limit * 10));
+    $sql = "SELECT id, building_name, postal_code, prefecture, city, town, address_detail, full_address, structure, floors_above, floors_below, built_year_month, total_units, nearest_line, nearest_station, nearest_access_method, nearest_minutes, transports_json
+        FROM mansion_buildings
+        WHERE " . implode(' OR ', $where) . "
+        ORDER BY CHAR_LENGTH(building_name) ASC, id ASC
+        LIMIT {$fetchLimit}";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $queryNorm = chatMansionNormalizeText($term);
+    usort($rows, function ($a, $b) use ($queryNorm) {
+        $an = chatMansionNormalizeText($a['building_name'] ?? '');
+        $bn = chatMansionNormalizeText($b['building_name'] ?? '');
+        $rank = function ($name) use ($queryNorm) {
+            if ($name === $queryNorm) return 0;
+            if ($queryNorm !== '' && mb_strpos($name, $queryNorm) === 0) return 1;
+            if ($queryNorm !== '' && mb_strpos($name, $queryNorm) !== false) return 2;
+            return 3;
+        };
+        $cmp = $rank($an) <=> $rank($bn);
+        if ($cmp !== 0) return $cmp;
+        $cmp = mb_strlen($an) <=> mb_strlen($bn);
+        return $cmp !== 0 ? $cmp : ((int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0));
+    });
+    return array_slice($rows, 0, max(1, (int)$limit));
+}
+
 function chatMansionDbSearchRows($db, $terms, $limit = 5) {
     if (!$db instanceof PDO) return [];
     $limit = max(1, min(10, (int)$limit));
     $rows = [];
     $seen = [];
+    $hasNormalizedColumns = chatMansionDbHasNormalizedColumns($db);
     foreach (array_slice((array)$terms, 0, 4) as $term) {
         $term = chatNormalizeMansionSearchTerm($term);
         if ($term === '') continue;
+        if (!$hasNormalizedColumns) {
+            foreach (chatMansionDbSearchLegacyRows($db, $term, $limit) as $row) {
+                $key = ($row['building_name'] ?? '') . '|' . ($row['full_address'] ?? '');
+                if ($key === '|' || isset($seen[$key])) continue;
+                $seen[$key] = true;
+                $rows[] = $row;
+                if (count($rows) >= $limit) break 2;
+            }
+            continue;
+        }
         // Canonical 表記ブレ-insensitive match. name_norm/search_norm collapse
         // spaces, 中黒, 長音, ハイフン, 記号; raw building_name is a recall fallback
         // (collation folds 全半角/かな/大小文字). Token AND-matching additionally
