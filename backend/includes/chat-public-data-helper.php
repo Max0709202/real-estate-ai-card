@@ -368,7 +368,12 @@ function chatMansionNormalizeText($s) {
     // Do not depend on ext-intl: some production PHP builds do not provide
     // Normalizer. Convert Unicode Roman numerals explicitly, and use `a` to fold
     // full-width Latin letters and digits (including ２) to ASCII.
-    $s = strtr($s, ['Ⅰ' => 'I', 'Ⅱ' => 'II', 'Ⅲ' => 'III', 'Ⅳ' => 'IV', 'Ⅴ' => 'V', 'Ⅵ' => 'VI', 'Ⅶ' => 'VII', 'Ⅷ' => 'VIII', 'Ⅸ' => 'IX', 'Ⅹ' => 'X']);
+    $s = strtr($s, [
+        'Ⅰ' => 'I', 'Ⅱ' => 'II', 'Ⅲ' => 'III', 'Ⅳ' => 'IV', 'Ⅴ' => 'V',
+        'Ⅵ' => 'VI', 'Ⅶ' => 'VII', 'Ⅷ' => 'VIII', 'Ⅸ' => 'IX', 'Ⅹ' => 'X',
+        // Common address/building-name variants: ヶ丘 ⇔ ケ丘, ヵ月 ⇔ カ月.
+        'ヶ' => 'ケ', 'ゖ' => 'ケ', 'ヵ' => 'カ', 'ゕ' => 'カ',
+    ]);
     $s = mb_convert_kana($s, 'KVCa');
     $s = mb_strtolower($s);
     // Convert a Roman phase number while its original boundary is still present.
@@ -405,6 +410,38 @@ function chatNormalizeMansionSearchTerm($term) {
 }
 
 /**
+ * Remove natural-language request phrases which follow a mansion name.
+ *
+ * This is intentionally suffix based: replacing words globally could damage a
+ * legitimate building name. The function is run repeatedly because requests may
+ * stack phrases such as "の詳しい情報について教えてください".
+ */
+function chatStripMansionRequestSuffix($text) {
+    $text = trim((string)$text);
+    if ($text === '') return '';
+    $text = preg_replace('/^[\s　「」『』"\']+|[\s　「」『』"\']+$/u', '', $text);
+
+    $patterns = [
+        '/\s*(?:について|に関して)?\s*(?:を|が)?\s*(?:詳しく|くわしく)?\s*(?:教えて|知りたい|調べて|検索して|確認して)(?:ください|下さい|ほしい|欲しい|もらえますか|いただけますか)?[。．.!！?？\s　]*$/u',
+        '/\s*(?:の)?\s*(?:(?:詳しい|くわしい|詳細な|具体的な|もっと詳しい)\s*)?(?:物件情報|マンション情報|建物情報|基本情報|基礎情報|詳細情報|詳しい情報|情報|詳細|概要)(?:について)?[。．.!！?？\s　]*$/u',
+        '/\s*(?:の)?\s*(?:住所|所在地|築年月|築年数|構造|総戸数|戸数|階建|階数|最寄り駅|最寄駅|アクセス)(?:と|や|、|,|，|・|\s|.)*$/u',
+    ];
+
+    do {
+        $before = $text;
+        foreach ($patterns as $pattern) {
+            $text = preg_replace($pattern, '', $text);
+        }
+        // PHP trim() uses a byte mask and corrupts UTF-8 when Japanese punctuation
+        // is placed in its character list. Keep Unicode trimming in a regex.
+        $text = preg_replace('/^[\s　、。,.．!！?？「」『』"\']+|[\s　、。,.．!！?？「」『』"\']+$/u', '', (string)$text);
+        $text = preg_replace('/(?:の|を)$/u', '', $text);
+    } while ($text !== $before && $text !== '');
+
+    return trim((string)$text);
+}
+
+/**
  * Whether a message is just a building name typed on its own (no field word, no
  * intent, no sentence) — e.g. "キャピタルコータス南砂". These should still trigger a
  * DB lookup. Kept conservative (must contain カタカナ, be short, and not look like
@@ -431,9 +468,21 @@ function chatExtractMansionSearchTerms($message) {
     $patterns = [
         '/「([^」]{2,80})」/u',
         '/『([^』]{2,80})』/u',
-        '/([' . $nameChars . ']{2,80}?)(?:の)?(?:' . $fieldWords . ')/u',
+        '/([' . $nameChars . ']{2,80}?)(?:の)?(?:(?:詳しい|くわしい|詳細な|具体的な|もっと詳しい)\s*)?(?:' . $fieldWords . ')/u',
         '/(?:マンション|物件|建物)(?:名)?(?:は|の|：|:)?\s*([' . $nameChars . ']{2,80})/u',
     ];
+    // First choice: remove a complete request suffix from the original sentence.
+    // This handles phrasing variants without teaching the DB search every adjective.
+    $stripped = chatStripMansionRequestSuffix($message);
+    if ($stripped !== '' && $stripped !== $message && mb_strlen($stripped) >= 2 && mb_strlen($stripped) <= 80) {
+        $preferredTerm = chatNormalizeMansionSearchTerm($stripped);
+        if ($preferredTerm !== '') {
+            // This candidate is derived from the whole sentence rather than a
+            // partial regex capture. Do not mix lower-priority legacy candidates
+            // into confidence matching: one bad extra token rejects a valid row.
+            return [$preferredTerm];
+        }
+    }
     foreach ($patterns as $pattern) {
         if (preg_match($pattern, $message, $m)) {
             $term = chatNormalizeMansionSearchTerm($m[1]);
@@ -441,7 +490,7 @@ function chatExtractMansionSearchTerms($message) {
         }
     }
     if (preg_match('/(マンション|物件|建物|' . $fieldWords . ')/u', $message)) {
-        $clean = preg_replace('/(について|教えて|ください|下さい|知りたい|調べて|検索して|確認して|どこ|ですか|でしょうか|' . $fieldWords . '|マンション名|物件名|建物名|マンション|物件|建物|の|は|を|。|、|\?|？)/u', ' ', $message);
+        $clean = preg_replace('/(について|教えて|ください|下さい|知りたい|調べて|検索して|確認して|どこ|ですか|でしょうか|詳しい|くわしい|詳しく|くわしく|詳細な|具体的な|もっと詳しい|' . $fieldWords . '|マンション名|物件名|建物名|マンション|物件|建物|の|は|を|。|、|\?|？)/u', ' ', $message);
         $clean = chatNormalizeMansionSearchTerm($clean);
         if (mb_strlen($clean) >= 2 && mb_strlen($clean) <= 80) $terms[] = $clean;
     }
@@ -461,6 +510,12 @@ function chatExtractMansionSearchTerms($message) {
         $cand = chatNormalizeMansionSearchTerm($message);
         if ($cand !== '') $terms[] = $cand;
     }
+    // Apply the same suffix cleanup to every extraction route so a lower-priority
+    // legacy candidate cannot reintroduce request words and then fail confidence
+    // matching even when the first candidate was correct.
+    $terms = array_map(function ($term) {
+        return chatNormalizeMansionSearchTerm(chatStripMansionRequestSuffix($term));
+    }, $terms);
     return array_values(array_unique(array_filter($terms)));
 }
 
@@ -553,6 +608,18 @@ function chatMansionNumericSuffixVariants($term) {
     return [$m[1] . $number, $m[1] . $roman[$number]];
 }
 
+/** Raw recall variants for existing normalized rows created before ヶ/ケ folding. */
+function chatMansionSmallKanaVariants($term) {
+    $term = (string)$term;
+    $variants = [
+        strtr($term, ['ヶ' => 'ケ', 'ゖ' => 'ケ', 'ヵ' => 'カ', 'ゕ' => 'カ']),
+        strtr($term, ['ケ' => 'ヶ', 'カ' => 'ヵ']),
+    ];
+    return array_values(array_unique(array_filter($variants, function ($variant) use ($term) {
+        return $variant !== '' && $variant !== $term;
+    })));
+}
+
 function chatMansionDbSearchRows($db, $terms, $limit = 5) {
     if (!$db instanceof PDO) return [];
     $limit = max(1, min(10, (int)$limit));
@@ -574,6 +641,10 @@ function chatMansionDbSearchRows($db, $terms, $limit = 5) {
         foreach (chatMansionNumericSuffixVariants($term) as $i => $variant) {
             $where[] = "building_name LIKE :raw_variant{$i}";
             $params[":raw_variant{$i}"] = '%' . $variant . '%';
+        }
+        foreach (chatMansionSmallKanaVariants($term) as $i => $variant) {
+            $where[] = "building_name LIKE :raw_kana_variant{$i}";
+            $params[":raw_kana_variant{$i}"] = '%' . $variant . '%';
         }
         // Token AND-match. Placeholders are duplicated between WHERE and ORDER BY,
         // and this PDO connection has emulated prepares off (each placeholder must
@@ -601,7 +672,7 @@ function chatMansionDbSearchRows($db, $terms, $limit = 5) {
         $params[':npre'] = $norm . '%';
         $params[':s_sub2'] = '%' . $norm . '%';
 
-        $sql = "SELECT building_name, postal_code, prefecture, city, town, address_detail, full_address, structure, floors_above, floors_below, built_year_month, total_units, nearest_line, nearest_station, nearest_access_method, nearest_minutes, transports_json
+        $sql = "SELECT id, building_name, postal_code, prefecture, city, town, address_detail, full_address, structure, floors_above, floors_below, built_year_month, total_units, nearest_line, nearest_station, nearest_access_method, nearest_minutes, transports_json
             FROM mansion_buildings
             WHERE " . implode(' OR ', $where) . "
             ORDER BY CASE
@@ -758,9 +829,11 @@ function chatMansionDisambiguationAnswer($terms, $candidates) {
         $lines[] = '・' . $label;
         $quickReplies[] = [
             'label' => $label,
-            // The full DB address makes the selection deterministic even when
-            // several buildings share both a similar name and the same city.
-            'value' => $name . ($fullAddress !== '' ? ' ' . $fullAddress : ($loc !== '' ? ' ' . $loc : '')),
+            // Prefer the immutable DB id. Name/address remains a compatibility
+            // fallback for legacy rows or non-DB AI candidates without an id.
+            'value' => !empty($r['id'])
+                ? 'mansion_id:' . (int)$r['id']
+                : $name . ($fullAddress !== '' ? ' ' . $fullAddress : ($loc !== '' ? ' ' . $loc : '')),
             'field' => 'mansion_lookup',
         ];
     }
@@ -777,6 +850,20 @@ function chatMansionDisambiguationAnswer($terms, $candidates) {
         'ambiguous' => true,
         'quick_replies' => $quickReplies,
     ];
+}
+
+/** Resolve a customer-selected candidate by its immutable mansion DB id. */
+function chatMansionDbFindRowById($db, $id) {
+    if (!$db instanceof PDO || (int)$id <= 0) return null;
+    try {
+        $stmt = $db->prepare("SELECT id, building_name, postal_code, prefecture, city, town, address_detail, full_address, structure, floors_above, floors_below, built_year_month, total_units, nearest_line, nearest_station, nearest_access_method, nearest_minutes, transports_json FROM mansion_buildings WHERE id = ? LIMIT 1");
+        $stmt->execute([(int)$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    } catch (Throwable $e) {
+        error_log('Mansion DB id lookup error: ' . $e->getMessage());
+        return null;
+    }
 }
 
 /**
@@ -1076,6 +1163,70 @@ SYS;
     return $reply !== '' ? $reply : null;
 }
 
+/** Build the final answer from one already-retrieved DB row (the generation stage of RAG). */
+function chatMansionBuildAnswerFromRow($row, $fields, $agentName = '担当者', $recordCount = 1, $hasSimilarRows = false) {
+    if (!is_array($row) || empty($row['building_name'])) return null;
+    $facts = chatMansionFormatFacts($row, $fields);
+    $source = chatPublicDataSourceLabel('mansion_db');
+    $fetchedAt = date('Y-m-d H:i:s');
+
+    // Only this retrieved row is passed to the LLM. The prompt explicitly forbids
+    // adding facts which are absent from chatMansionGatherFacts().
+    $intro = chatMansionGenerateIntroduction(chatMansionGatherFacts($row), $agentName);
+    if ($intro !== null && $intro !== '') {
+        $reply = $intro;
+    } else {
+        if (empty($facts)) return null;
+        $reply = $row['building_name'] . 'について、当社データベースでは次の内容を確認できます。' . "\n\n・" . implode("\n・", $facts);
+    }
+
+    $fullAddr = trim((string)($row['full_address'] ?? ''));
+    if ($fullAddr !== '') {
+        $normReply = chatMansionNormalizeText($reply);
+        $normAddr = chatMansionNormalizeText($fullAddr);
+        if ($normAddr !== '' && mb_strpos($normReply, $normAddr) === false) {
+            $reply .= "\n\n所在地：" . $fullAddr;
+        }
+    }
+    if ($hasSimilarRows) {
+        $reply .= "\n\n※似た名称の候補が他にもあります。別の物件の場合は、住所やエリアを添えていただくと、より正確に絞り込めます。";
+    }
+    $reply .= "\n\n出典：" . $source;
+    $meta = [[
+        'provider' => 'mansion_db',
+        'label' => $source,
+        'record_count' => max(1, (int)$recordCount),
+        'total_count' => max(1, (int)$recordCount),
+        'fetched_at' => $fetchedAt,
+        'cached' => false,
+    ]];
+    $footer = chatPublicDataTransparencyFooter($meta);
+    if ($footer !== '') $reply .= "\n\n" . $footer;
+    $quickReplies = $fullAddr !== '' ? [[
+        'label' => '土地/ハザード情報を確認',
+        'value' => $fullAddr,
+        'field' => 'land_hazard',
+    ]] : [];
+
+    return [
+        'reply' => $reply,
+        'sources' => chatPublicDataSourcesForUi([$source], $meta),
+        'row' => $row,
+        'meta' => $meta,
+        'quick_replies' => $quickReplies,
+    ];
+}
+
+/** ID-selected RAG path: retrieve exactly one row, then generate only from that row. */
+function chatMansionDbDirectAnswerById($db, $id, $message, $agentName = '担当者') {
+    $row = chatMansionDbFindRowById($db, $id);
+    if ($row === null) return null;
+    $fields = chatMansionRequestedFields($message);
+    if (empty($fields)) $fields = ['address', 'built', 'station', 'structure', 'floors', 'units'];
+    chatMansionDebugLog('chosen_building_id', (int)$id . ' | ' . ($row['building_name'] ?? ''));
+    return chatMansionBuildAnswerFromRow($row, $fields, $agentName, 1, false);
+}
+
 function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
     if (!$db instanceof PDO) return null;
     $hasKeyword = (bool)preg_match('/(マンション|物件|建物|基礎情報|基本情報|建物情報|物件情報|マンション情報|概要|詳細|情報|築年月|築年数|築|竣工|構造|総戸数|戸数|階建|最寄り駅|最寄駅|住所|所在地|所在|アクセス|どこ|場所|について|教えて|調べて|知りたい|検索)/u', (string)$message);
@@ -1096,6 +1247,45 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
         $rows = chatMansionDbSearchRows($db, $terms, 5);
         chatMansionDebugLog('hit_count', count($rows));
         if (empty($rows)) return null;
+        $hasLocationQualifier = (bool)preg_match(
+            '/[（(][^）)]*(?:都|道|府|県|市|区|町|村)[^）)]*[）)]|(?:東京都|北海道|京都府|大阪府|[一-龥]{2,3}県)/u',
+            (string)$message
+        );
+
+        // Separate an actual building-name equality from the broader recall query.
+        // SQL intentionally returns prefix/token/substring matches too; without
+        // this step an exact row could be mixed with similarly named buildings.
+        $termNorms = [];
+        foreach ($terms as $term) {
+            $termNorm = chatMansionNormalizeText(chatNormalizeMansionSearchTerm($term));
+            if ($termNorm !== '') $termNorms[$termNorm] = true;
+        }
+        $exactRows = [];
+        foreach ($rows as $candidateRow) {
+            $candidateNorm = chatMansionNormalizeText($candidateRow['building_name'] ?? '');
+            if ($candidateNorm !== '' && isset($termNorms[$candidateNorm])) {
+                $exactRows[] = $candidateRow;
+            }
+        }
+
+        // No exact name: this is a similarity search. When several distinct rows
+        // were recalled, do not silently choose one using token confidence; show
+        // every candidate as a mansion_lookup button and let the customer select.
+        if (empty($exactRows) && !$hasLocationQualifier) {
+            $similarDistinct = [];
+            foreach ($rows as $candidateRow) {
+                $key = chatMansionNormalizeText(($candidateRow['building_name'] ?? '') . '|' . ($candidateRow['full_address'] ?? ''));
+                if ($key !== '' && !isset($similarDistinct[$key])) $similarDistinct[$key] = $candidateRow;
+            }
+            if (count($similarDistinct) > 1) {
+                $suggestions = chatMansionDisambiguationAnswer($terms, array_slice(array_values($similarDistinct), 0, 5));
+                if ($suggestions !== null) return $suggestions;
+            }
+        } else {
+            // Exact equality always outranks prefix/substring candidates.
+            $rows = $exactRows;
+        }
+
         // Only answer when a row genuinely matches the query (all tokens present in
         // its name+address). For a bare name we also require ≥2 tokens so an
         // ambiguous single word never produces one confidently-wrong building.
@@ -1104,10 +1294,6 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
         // disambiguator and must be matched against name+address.  Previously it
         // was matched against building_name alone, so the same row shown in the
         // candidate list was rejected immediately after the customer selected it.
-        $hasLocationQualifier = (bool)preg_match(
-            '/[（(][^）)]*(?:都|道|府|県|市|区|町|村)[^）)]*[）)]|(?:東京都|北海道|京都府|大阪府|[一-龥]{2,3}県)/u',
-            (string)$message
-        );
         $requireMulti = $isBareName && !$hasKeyword && !$hasLocationQualifier;
         $confident = [];
         foreach ($rows as $r) {
@@ -1128,60 +1314,13 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
         }
         $row = reset($confident);
         chatMansionDebugLog('chosen_building', ($row['building_name'] ?? '') . ' | ' . ($row['full_address'] ?? ''));
-        $facts = chatMansionFormatFacts($row, $fields);
-
-        $source = chatPublicDataSourceLabel('mansion_db');
-        $fetchedAt = date('Y-m-d H:i:s');
-
-        // 役割分離：DB から取得した実在事実だけを GPT へ渡し、自然な紹介文を生成する。
-        // 生成失敗時は従来どおりの事実ベース定型回答へフォールバック（出典・件数は不変）。
-        $intro = chatMansionGenerateIntroduction(chatMansionGatherFacts($row), $agentName);
-        if ($intro !== null && $intro !== '') {
-            $reply = $intro;
-        } else {
-            if (empty($facts)) return null;
-            $reply = ($row['building_name'] ?? '該当マンション') . 'について、当社データベースでは次の内容を確認できます。' . "\n\n・" . implode("\n・", $facts);
-        }
-        // 所在地（住所）は必ず正確な全文（丁目・番地・号まで）を表示する。GPTが自然文化の
-        // 過程で「○丁目」までに省略することがあるため、本文に全文が含まれていなければ
-        // 末尾に正確な所在地を補う（実データのみ・創作なし）。
-        $fullAddr = trim((string)($row['full_address'] ?? ''));
-        if ($fullAddr !== '') {
-            $normReply = chatMansionNormalizeText($reply);
-            $normAddr = chatMansionNormalizeText($fullAddr);
-            if ($normAddr !== '' && mb_strpos($normReply, $normAddr) === false) {
-                $reply .= "\n\n所在地：" . $fullAddr;
-            }
-        }
-        if (count($rows) > count($confident)) {
-            $reply .= "\n\n※似た名称の候補が他にもあります。別の物件の場合は、住所やエリアを添えていただくと、より正確に絞り込めます。";
-        }
-        $reply .= "\n\n出典：" . $source;
-        $meta = [[
-            'provider' => 'mansion_db',
-            'label' => $source,
-            'record_count' => count($rows),
-            'total_count' => count($rows),
-            'fetched_at' => $fetchedAt,
-            'cached' => false,
-        ]];
-        $footer = chatPublicDataTransparencyFooter($meta);
-        if ($footer !== '') $reply .= "\n\n" . $footer;
-        // マンション名／住所が表示されたので、ワンタップで土地・ハザード情報を確認できる
-        // 選択肢ボタンを添える（タップ時は住所で土地情報フローを実行する）。
-        $qrTarget = $fullAddr !== '' ? $fullAddr : trim((string)($row['building_name'] ?? ''));
-        $quickReplies = $qrTarget !== '' ? [[
-            'label' => '土地/ハザード情報を確認',
-            'value' => $qrTarget,
-            'field' => 'land_hazard',
-        ]] : [];
-        return [
-            'reply' => $reply,
-            'sources' => chatPublicDataSourcesForUi([$source], $meta),
-            'row' => $row,
-            'meta' => $meta,
-            'quick_replies' => $quickReplies,
-        ];
+        return chatMansionBuildAnswerFromRow(
+            $row,
+            $fields,
+            $agentName,
+            count($rows),
+            count($rows) > count($confident)
+        );
     } catch (Throwable $e) {
         error_log('Mansion DB direct answer error: ' . $e->getMessage());
     }

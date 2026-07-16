@@ -135,7 +135,7 @@ if (!defined('OPENAI_MODEL_SUMMARY')) {
 }
 // マンション紹介文の生成に使うモデル（未設定時は営業モデルを流用）。
 if (!defined('OPENAI_MODEL_MANSION')) {
-    define('OPENAI_MODEL_MANSION', getenv('OPENAI_MODEL_MANSION') ?: OPENAI_MODEL_SALES);
+    define('OPENAI_MODEL_MANSION', getenv('OPENAI_MODEL_MANSION') ?: 'gpt-5.4-mini');
 }
 // 開発環境でマンション検索・紹介生成の詳細ログ（抽出名/検索方法/件数/採用ID/
 // コンテキスト文字数・内容/GPT応答）をerror_logへ出すフラグ。
