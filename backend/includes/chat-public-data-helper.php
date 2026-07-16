@@ -1146,6 +1146,45 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
         $rows = chatMansionDbSearchRows($db, $terms, 5);
         chatMansionDebugLog('hit_count', count($rows));
         if (empty($rows)) return null;
+        $hasLocationQualifier = (bool)preg_match(
+            '/[（(][^）)]*(?:都|道|府|県|市|区|町|村)[^）)]*[）)]|(?:東京都|北海道|京都府|大阪府|[一-龥]{2,3}県)/u',
+            (string)$message
+        );
+
+        // Separate an actual building-name equality from the broader recall query.
+        // SQL intentionally returns prefix/token/substring matches too; without
+        // this step an exact row could be mixed with similarly named buildings.
+        $termNorms = [];
+        foreach ($terms as $term) {
+            $termNorm = chatMansionNormalizeText(chatNormalizeMansionSearchTerm($term));
+            if ($termNorm !== '') $termNorms[$termNorm] = true;
+        }
+        $exactRows = [];
+        foreach ($rows as $candidateRow) {
+            $candidateNorm = chatMansionNormalizeText($candidateRow['building_name'] ?? '');
+            if ($candidateNorm !== '' && isset($termNorms[$candidateNorm])) {
+                $exactRows[] = $candidateRow;
+            }
+        }
+
+        // No exact name: this is a similarity search. When several distinct rows
+        // were recalled, do not silently choose one using token confidence; show
+        // every candidate as a mansion_lookup button and let the customer select.
+        if (empty($exactRows) && !$hasLocationQualifier) {
+            $similarDistinct = [];
+            foreach ($rows as $candidateRow) {
+                $key = chatMansionNormalizeText(($candidateRow['building_name'] ?? '') . '|' . ($candidateRow['full_address'] ?? ''));
+                if ($key !== '' && !isset($similarDistinct[$key])) $similarDistinct[$key] = $candidateRow;
+            }
+            if (count($similarDistinct) > 1) {
+                $suggestions = chatMansionDisambiguationAnswer($terms, array_slice(array_values($similarDistinct), 0, 5));
+                if ($suggestions !== null) return $suggestions;
+            }
+        } else {
+            // Exact equality always outranks prefix/substring candidates.
+            $rows = $exactRows;
+        }
+
         // Only answer when a row genuinely matches the query (all tokens present in
         // its name+address). For a bare name we also require ≥2 tokens so an
         // ambiguous single word never produces one confidently-wrong building.
@@ -1154,10 +1193,6 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
         // disambiguator and must be matched against name+address.  Previously it
         // was matched against building_name alone, so the same row shown in the
         // candidate list was rejected immediately after the customer selected it.
-        $hasLocationQualifier = (bool)preg_match(
-            '/[（(][^）)]*(?:都|道|府|県|市|区|町|村)[^）)]*[）)]|(?:東京都|北海道|京都府|大阪府|[一-龥]{2,3}県)/u',
-            (string)$message
-        );
         $requireMulti = $isBareName && !$hasKeyword && !$hasLocationQualifier;
         $confident = [];
         foreach ($rows as $r) {
