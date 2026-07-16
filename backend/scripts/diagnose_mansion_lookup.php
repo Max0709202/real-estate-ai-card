@@ -132,6 +132,14 @@ try {
         line('    >>> DIRECT ANSWER produced. reply preview:');
         line('    ' . str_replace("\n", "\n    ", mb_substr($ans['reply'] ?? '', 0, 600)));
     }
+    // Show the clickable candidate/sibling buttons attached to the answer.
+    $qr = $ans['quick_replies'] ?? [];
+    $siblings = array_filter($qr, function ($q) { return ($q['field'] ?? '') === 'mansion_lookup'; });
+    line('');
+    line('    clickable sibling candidates (field=mansion_lookup): ' . count($siblings));
+    foreach ($siblings as $q) {
+        line('        [' . ($q['label'] ?? '') . ']  value=' . ($q['value'] ?? ''));
+    }
 } catch (Throwable $e) {
     line('    !!! UNCAUGHT EXCEPTION: ' . get_class($e) . ': ' . $e->getMessage());
     line('    !!! ' . $e->getFile() . ':' . $e->getLine());
