@@ -125,14 +125,17 @@ if (!defined('OPENAI_MODEL_LIGHT')) {
     define('OPENAI_MODEL_LIGHT', getenv('OPENAI_MODEL_LIGHT') ?: OPENAI_CHAT_MODEL);
 }
 if (!defined('OPENAI_MODEL_SALES')) {
-    define('OPENAI_MODEL_SALES', getenv('OPENAI_MODEL_SALES') ?: OPENAI_CHAT_MODEL);
+    // Customer-facing consultation and property explanations need the flagship
+    // model. Keep OPENAI_MODEL_LIGHT on the inexpensive default for routing,
+    // classification and fallback work.
+    define('OPENAI_MODEL_SALES', getenv('OPENAI_MODEL_SALES') ?: 'gpt-5.6');
 }
 if (!defined('OPENAI_MODEL_SUMMARY')) {
     define('OPENAI_MODEL_SUMMARY', getenv('OPENAI_MODEL_SUMMARY') ?: OPENAI_MODEL_LIGHT);
 }
-// マンション紹介文の生成に使うモデル（GPT-4.1 など。未設定時は営業モデルを流用）。
+// マンション紹介文の生成に使うモデル（未設定時は営業モデルを流用）。
 if (!defined('OPENAI_MODEL_MANSION')) {
-    define('OPENAI_MODEL_MANSION', getenv('OPENAI_MODEL_MANSION') ?: OPENAI_MODEL_SALES);
+    define('OPENAI_MODEL_MANSION', getenv('OPENAI_MODEL_MANSION') ?: 'gpt-5.4-mini');
 }
 // 開発環境でマンション検索・紹介生成の詳細ログ（抽出名/検索方法/件数/採用ID/
 // コンテキスト文字数・内容/GPT応答）をerror_logへ出すフラグ。

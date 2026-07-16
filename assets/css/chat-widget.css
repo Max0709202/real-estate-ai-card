@@ -206,6 +206,24 @@
     color: #1a1a1a;
     border-bottom-left-radius: 4px;
 }
+.chat-bubble-candidates {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+    white-space: normal;
+}
+.chat-bubble-candidate-btn {
+    width: 100%;
+    text-align: left;
+    border-radius: 8px;
+    line-height: 1.4;
+}
+.chat-bubble-candidate-btn:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
 .chat-msg.bot.is-typing .chat-msg-bubble::after {
     content: '';
     display: inline-block;

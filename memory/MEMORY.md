@@ -1,0 +1,1 @@
+- [Mansion RAG chat feature](mansion-rag-chat.md) — how the 全国マンションDB name-lookup flow works and its known failure modes

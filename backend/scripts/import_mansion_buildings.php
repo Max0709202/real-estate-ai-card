@@ -64,14 +64,20 @@ function mansionNormalizeText($s) {
         $n = Normalizer::normalize($s, Normalizer::FORM_KC);
         if (is_string($n) && $n !== '') $s = $n;
     }
-    $s = mb_convert_kana($s, 'KVC');
+    $s = strtr($s, [
+        'Ⅰ' => 'I', 'Ⅱ' => 'II', 'Ⅲ' => 'III', 'Ⅳ' => 'IV', 'Ⅴ' => 'V',
+        'Ⅵ' => 'VI', 'Ⅶ' => 'VII', 'Ⅷ' => 'VIII', 'Ⅸ' => 'IX', 'Ⅹ' => 'X',
+        'ヶ' => 'ケ', 'ゖ' => 'ケ', 'ヵ' => 'カ', 'ゕ' => 'カ',
+    ]);
+    $s = mb_convert_kana($s, 'KVCa');
     $s = mb_strtolower($s);
+    $roman = ['viii' => '8', 'vii' => '7', 'iii' => '3', 'vi' => '6', 'iv' => '4', 'ix' => '9', 'ii' => '2', 'v' => '5', 'x' => '10', 'i' => '1'];
+    $romanPattern = '/([一-龯々〆ぁ-んァ-ヺ])(' . implode('|', array_keys($roman)) . ')(?=$|[\s\x{3000}・･,，、。.／\/「」『』（）()\[\]【】])/u';
+    $s = preg_replace_callback($romanPattern, function ($m) use ($roman) {
+        return $m[1] . $roman[$m[2]];
+    }, $s);
     $s = preg_replace('/[ー―‐\x{2010}-\x{2015}\x{2212}\x{301C}\x{FF5E}\-－〜~ｰ]/u', '', $s);
     $s = preg_replace('/[\s\x{3000}・･,，、。.／\/「」『』（）()\[\]【】｛｝{}＆&\x{2019}\x{2018}\x{201C}\x{201D}\x{0027}\x{0060}"’‘`*~!！?？:：;；|｜＿_]/u', '', $s);
-    $roman = ['viii' => '8', 'vii' => '7', 'iii' => '3', 'vi' => '6', 'iv' => '4', 'ix' => '9', 'ii' => '2', 'v' => '5', 'x' => '10', 'i' => '1'];
-    if (preg_match('/([一-龯々〆ぁ-んァ-ヺ])(' . implode('|', array_keys($roman)) . ')$/u', (string)$s, $m)) {
-        $s = mb_substr((string)$s, 0, mb_strlen((string)$s) - mb_strlen($m[2])) . $roman[$m[2]];
-    }
     return $s === null ? '' : $s;
 }
 

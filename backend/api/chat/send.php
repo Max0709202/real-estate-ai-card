@@ -35,6 +35,7 @@ $message = trim($input['message'] ?? '');
 $visitorId = trim($input['visitor_id'] ?? '');
 $buttonSelection = isset($input['button_selection']) && is_array($input['button_selection']) ? $input['button_selection'] : null;
 $attachmentIds = isset($input['attachment_ids']) && is_array($input['attachment_ids']) ? $input['attachment_ids'] : [];
+$selectedMansionId = null;
 // 現在地（GPS）からの土地情報照会。緯度経度が来た場合のみ有効。日本国内のおおよその
 // 範囲（緯度20〜46／経度122〜154）に収まる値だけ採用し、範囲外は通常メッセージ扱い。
 $geo = null;
@@ -66,7 +67,14 @@ if ($buttonSelection !== null && ($buttonSelection['field'] ?? '') === 'land_haz
 // マンション候補ボタン：表示ラベル（所在地入り）ではなく、検索用の名称＋所在エリアを
 // 明示した通常質問へ変換する。候補をクリックすれば確実に同じDB先行フローを通る。
 if ($buttonSelection !== null && ($buttonSelection['field'] ?? '') === 'mansion_lookup' && !empty($buttonSelection['value'])) {
-    $message = trim((string)$buttonSelection['value']) . ' の物件情報を教えてください';
+    $selectedValue = trim((string)$buttonSelection['value']);
+    if (preg_match('/^mansion_id:(\d+)$/', $selectedValue, $selectedMatch)) {
+        $selectedMansionId = (int)$selectedMatch[1];
+        // Resolved immediately after the DB connection is available below.
+        $message = trim((string)($buttonSelection['label'] ?? '選択したマンション'));
+    } else {
+        $message = $selectedValue . ' の物件情報を教えてください';
+    }
     $buttonSelection = null;
 }
 
@@ -180,7 +188,11 @@ try {
     $isMansionLookupIntent = !$isMansionLandRequest
         && !empty($mansionSearchTerms)
         && chatMansionTermLooksSpecific($mansionSearchTerms, $message);
-    $preflightMansionAnswer = $isMansionLandRequest ? null : chatMansionDbDirectAnswer($db, $message, $agentName);
+    $preflightMansionAnswer = $isMansionLandRequest
+        ? null
+        : ($selectedMansionId !== null
+            ? chatMansionDbDirectAnswerById($db, $selectedMansionId, $message, $agentName)
+            : chatMansionDbDirectAnswer($db, $message, $agentName));
     if ($preflightMansionAnswer !== null) {
         $intake = [
             'handled' => true,
@@ -271,13 +283,22 @@ try {
             }
         } else {
             $landMessage = $mansionLand !== null ? $mansionLand['query'] : $message;
-            $result = getBotReplyWithOpenAI($landMessage, $conversationHistory, $agentName, $db, $sessionId);
+            $isUnresolvedMansionLookup = $mansionLand === null && $isMansionLookupIntent;
+            if ($isUnresolvedMansionLookup) {
+                // Accuracy-first policy: do not guess individual building facts
+                // from model knowledge when neither exact nor similar DB rows exist.
+                $reply = '該当するマンションが見つかりませんでした。正式名称や所在地などをご確認ください。';
+                $sources = [];
+                $result = null;
+            } else {
+                $result = getBotReplyWithOpenAI($landMessage, $conversationHistory, $agentName, $db, $sessionId);
+            }
 
-            if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
+            if ($result !== null && ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '')) {
                 error_log('Chat OpenAI error: ' . ($result['error'] ?? 'empty reply'));
                 $reply = getBotReplyPlaceholder($message);
                 $sources = [['url' => CHAT_BLOG_BASE_URL, 'title' => '戸建てリノベINFO']];
-            } else {
+            } elseif ($result !== null) {
                 $reply = $result['reply'];
                 $sources = $result['sources'];
                 // マンション名から住所を解決して回答した場合、対象物件・住所を先頭に明示する。
@@ -288,6 +309,13 @@ try {
         }
         } // 画像物件フロー else（マンション名テキストフロー）の終端
     }
+    }
+
+    // AIが本文内で「・物件名（所在地）」形式の候補を提示した場合も、DBの
+    // 曖昧候補と同じ選択ボタンに変換する。既存の明示的なボタンは上書きしない。
+    if (empty($quickReplies)) {
+        $aiCandidateReplies = chatMansionQuickRepliesFromAiReply($reply);
+        if (!empty($aiCandidateReplies)) $quickReplies = $aiCandidateReplies;
     }
 
     // Update lightweight conversation memory for future turns and reload continuity
