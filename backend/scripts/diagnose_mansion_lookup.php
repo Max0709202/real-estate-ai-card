@@ -10,6 +10,13 @@
  */
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/chat-helpers.php';
+// Load the OpenAI helper so callOpenAIChat()/chatOpenAIModelMansion() exist EXACTLY
+// as they do in the live send.php request. Without it, the LLM formatting step is
+// skipped and a crash inside that step (which nulls the whole mansion answer) is
+// invisible — which is the difference between this diagnostic and the live chat.
+require_once __DIR__ . '/../includes/openai-chat-helper.php';
 require_once __DIR__ . '/../includes/chat-public-data-helper.php';
 
 $message = $argv[1] ?? 'カーサ新宿の詳しい情報を教えて';
@@ -84,20 +91,50 @@ foreach ($rows as $r) {
     line(sprintf('      - id=%-7s %s  |  %s', $r['id'] ?? '', $r['building_name'] ?? '', $r['full_address'] ?? ''));
 }
 
-// 6) Full deterministic answer path ------------------------------------------
+// 5b) LLM formatting environment (live-only variables) -----------------------
 line('');
-line('[6] chatMansionDbDirectAnswer() outcome');
-$ans = chatMansionDbDirectAnswer($db, $message, 'テスト担当');
-if ($ans === null) {
-    line('    >>> RETURNED NULL  (chat would then say 該当マンション見つからず / fall to GPT).');
-} elseif (!empty($ans['ambiguous'])) {
-    line('    >>> DISAMBIGUATION list (clickable candidates):');
-    foreach ($ans['quick_replies'] ?? [] as $q) {
-        line('        [' . ($q['label'] ?? '') . ']  value=' . ($q['value'] ?? ''));
+line('[5b] LLM formatting environment (this is what the CLI-only run skipped)');
+line('    callOpenAIChat() defined        : ' . (function_exists('callOpenAIChat') ? 'YES' : 'NO'));
+$model = function_exists('chatOpenAIModelMansion') ? chatOpenAIModelMansion()
+    : (defined('OPENAI_CHAT_MODEL') ? OPENAI_CHAT_MODEL : '(none)');
+line('    mansion model                   : ' . $model);
+$apiKey = function_exists('chatOpenAIApiKeyForModel') ? chatOpenAIApiKeyForModel($model)
+    : (defined('OPENAI_API_KEY') ? OPENAI_API_KEY : '');
+line('    api key for that model present  : ' . ($apiKey !== '' ? 'YES (len ' . strlen($apiKey) . ')' : 'NO  <<< empty key'));
+if (function_exists('chatMansionGenerateIntroduction')) {
+    line('    -- calling chatMansionGenerateIntroduction() on カーサ新宿 facts --');
+    try {
+        $probe = $probeRows[0] ?? ($rows[0] ?? null);
+        if ($probe) {
+            $intro = chatMansionGenerateIntroduction(chatMansionGatherFacts($probe), 'テスト担当');
+            line('    intro result : ' . ($intro === null ? 'NULL (LLM skipped/failed -> deterministic fallback used)' : 'OK, ' . mb_strlen($intro) . ' chars'));
+        }
+    } catch (Throwable $e) {
+        line('    !!! EXCEPTION in LLM formatting: ' . get_class($e) . ': ' . $e->getMessage());
+        line('    !!! ' . $e->getFile() . ':' . $e->getLine());
+        line('    >>> THIS is why the live mansion answer is nulled and the chat falls to GPT.');
     }
-} else {
-    line('    >>> DIRECT ANSWER produced. reply preview:');
-    line('    ' . str_replace("\n", "\n    ", mb_substr($ans['reply'] ?? '', 0, 600)));
+}
+
+// 6) Full answer path, wrapped so a live-only exception is visible -----------
+line('');
+line('[6] chatMansionDbDirectAnswer() outcome (full live path, LLM active)');
+try {
+    $ans = chatMansionDbDirectAnswer($db, $message, 'テスト担当');
+    if ($ans === null) {
+        line('    >>> RETURNED NULL  (chat then falls to GPT / not-found).');
+    } elseif (!empty($ans['ambiguous'])) {
+        line('    >>> DISAMBIGUATION list (clickable candidates):');
+        foreach ($ans['quick_replies'] ?? [] as $q) {
+            line('        [' . ($q['label'] ?? '') . ']  value=' . ($q['value'] ?? ''));
+        }
+    } else {
+        line('    >>> DIRECT ANSWER produced. reply preview:');
+        line('    ' . str_replace("\n", "\n    ", mb_substr($ans['reply'] ?? '', 0, 600)));
+    }
+} catch (Throwable $e) {
+    line('    !!! UNCAUGHT EXCEPTION: ' . get_class($e) . ': ' . $e->getMessage());
+    line('    !!! ' . $e->getFile() . ':' . $e->getLine());
 }
 line('');
 line('=== end of diagnostic ===');
