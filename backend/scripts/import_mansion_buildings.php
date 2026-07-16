@@ -64,7 +64,11 @@ function mansionNormalizeText($s) {
         $n = Normalizer::normalize($s, Normalizer::FORM_KC);
         if (is_string($n) && $n !== '') $s = $n;
     }
-    $s = strtr($s, ['Ⅰ' => 'I', 'Ⅱ' => 'II', 'Ⅲ' => 'III', 'Ⅳ' => 'IV', 'Ⅴ' => 'V', 'Ⅵ' => 'VI', 'Ⅶ' => 'VII', 'Ⅷ' => 'VIII', 'Ⅸ' => 'IX', 'Ⅹ' => 'X']);
+    $s = strtr($s, [
+        'Ⅰ' => 'I', 'Ⅱ' => 'II', 'Ⅲ' => 'III', 'Ⅳ' => 'IV', 'Ⅴ' => 'V',
+        'Ⅵ' => 'VI', 'Ⅶ' => 'VII', 'Ⅷ' => 'VIII', 'Ⅸ' => 'IX', 'Ⅹ' => 'X',
+        'ヶ' => 'ケ', 'ゖ' => 'ケ', 'ヵ' => 'カ', 'ゕ' => 'カ',
+    ]);
     $s = mb_convert_kana($s, 'KVCa');
     $s = mb_strtolower($s);
     $roman = ['viii' => '8', 'vii' => '7', 'iii' => '3', 'vi' => '6', 'iv' => '4', 'ix' => '9', 'ii' => '2', 'v' => '5', 'x' => '10', 'i' => '1'];

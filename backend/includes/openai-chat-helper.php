@@ -348,56 +348,6 @@ function callOpenAIChat($messages, $apiKey, $model = 'gpt-4o-mini', $options = [
     return ['reply' => $reply, 'error' => null, 'model' => $model, 'response_model' => $responseModel, 'usage' => $usage, 'http_code' => $httpCode];
 }
 
-/**
- * OpenAI-only fallback for a named property which the local mansion DB could not
- * resolve. This intentionally does not reuse the normal DB-only system prompt;
- * that prompt is designed to refuse precisely this situation.
- */
-function getPropertyKnowledgeFallbackWithOpenAI($userMessage, $conversationHistory = [], $agentName = '担当者', $db = null, $sessionId = '') {
-    $model = chatOpenAIModelSales();
-    $apiKey = chatOpenAIApiKeyForModel($model);
-    $system = "あなたは日本の不動産営業担当者「{$agentName}」です。ローカルのマンションDBで該当物件を確認できなかったため、OpenAIモデルの一般知識を使って、ユーザーが指定した物件について可能な範囲で具体的に回答してください。\n"
-        . "回答冒頭に『以下はOpenAIの一般知識による参考情報です。』と明記してください。確実でない所在地・築年月・戸数・交通情報などは推測で断定せず、確認が必要であることを項目ごとに明示してください。実際に取得していない出典やURLを作らないでください。\n"
-        . "同名物件が複数考えられる場合は1件に決めず、説明の前に候補を各1行の『・物件名（都道府県・市区町村）』形式で提示してください。候補選択後にその場所の説明を返せるよう、名称と所在地を省略しないでください。\n"
-        . "回答は日本語で、顧客が判断しやすいように物件概要、立地・アクセス、確認が必要な点を簡潔に整理してください。";
-    $messages = [['role' => 'system', 'content' => $system]];
-    foreach (chatOpenAICompactHistory($conversationHistory, 8, 700) as $historyMessage) {
-        $messages[] = $historyMessage;
-    }
-    $messages[] = ['role' => 'user', 'content' => (string)$userMessage];
-    $result = callOpenAIChat($messages, $apiKey, $model, [
-        'db' => $db,
-        'session_id' => $sessionId,
-        'purpose' => 'property_knowledge_fallback',
-        'max_tokens' => 1000,
-        'timeout' => 40,
-    ]);
-    if ($result['error'] !== null) {
-        $fallbackModel = chatOpenAIModelLight();
-        if ($fallbackModel !== $model) {
-            $result = callOpenAIChat($messages, chatOpenAIApiKeyForModel($fallbackModel), $fallbackModel, [
-                'db' => $db,
-                'session_id' => $sessionId,
-                'purpose' => 'property_knowledge_fallback_retry',
-                'max_tokens' => 1000,
-                'timeout' => 40,
-            ]);
-        }
-    }
-    if ($result['error'] === null && !empty($result['reply'])) {
-        $result['reply'] = unifyAgentPersonaLanguage(
-            sanitizeChatReferralLanguage($result['reply'], $agentName),
-            $agentName
-        );
-    }
-    return [
-        'reply' => $result['reply'] ?? null,
-        'sources' => [],
-        'error' => $result['error'] ?? null,
-        'model' => $result['model'] ?? $model,
-    ];
-}
-
 function chatOpenAITrimPromptText($text, $maxChars = 900) {
     $text = trim((string)$text);
     if ($text === '') return '';
