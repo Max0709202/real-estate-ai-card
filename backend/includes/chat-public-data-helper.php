@@ -1359,10 +1359,14 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
             }
         }
 
-        // No exact name: this is a similarity search. When several distinct rows
-        // were recalled, do not silently choose one using token confidence; show
-        // every candidate as a mansion_lookup button and let the customer select.
-        if (empty($exactRows) && !$hasLocationQualifier) {
+        if (!empty($exactRows)) {
+            // Exact equality always outranks prefix/substring candidates.
+            $rows = $exactRows;
+        } elseif (!$hasLocationQualifier) {
+            // No exact name AND no location hint: this is a similarity search.
+            // When several distinct rows were recalled, do not silently choose one
+            // using token confidence; show every candidate as a mansion_lookup
+            // button and let the customer select.
             $similarDistinct = [];
             foreach ($rows as $candidateRow) {
                 $key = chatMansionNormalizeText(($candidateRow['building_name'] ?? '') . '|' . ($candidateRow['full_address'] ?? ''));
@@ -1372,10 +1376,14 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
                 $suggestions = chatMansionDisambiguationAnswer($terms, array_slice(array_values($similarDistinct), 0, 5));
                 if ($suggestions !== null) return $suggestions;
             }
-        } else {
-            // Exact equality always outranks prefix/substring candidates.
-            $rows = $exactRows;
         }
+        // else: no exact name match but the user supplied a location qualifier —
+        // e.g. selected/typed "パレステージ江北２（東京都足立区）". The name+location
+        // string never equals a bare building_name, so $exactRows is empty here.
+        // Keep the recalled $rows and let the confidence + location filtering below
+        // pick the right building. (Previously $rows was overwritten with the empty
+        // $exactRows, so a just-selected candidate was answered
+        // 「該当物件が見つかりませんでした」.)
 
         // Only answer when a row genuinely matches the query (all tokens present in
         // its name+address). For a bare name we also require ≥2 tokens so an
