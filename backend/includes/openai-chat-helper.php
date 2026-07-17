@@ -572,8 +572,20 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
     $publicDataContext = $publicData['context'] !== ''
         ? "\n\n" . $publicData['context']
         : '';
+    // 【担当者追加RAG】は担当者本人が登録した一次情報。従来は優先指示を一切付けずに
+    // プロンプト末尾へ差し込んでいたため、モデルは「自分はAIなので24時間365日対応」と
+    // いう強い事前知識に引きずられ、登録済みの営業時間・定休日を無視して「24時間対応
+    // です」と誤答していた（夏季休業は競合する事前知識が無いため正答していた）。
+    // ここで「登録情報が最優先の正」であることと、AI受付時間と会社の営業時間・定休日は
+    // 別物であることを明示する。
     $agentCustomContext = $agentCustom['context'] !== ''
-        ? "\n\n" . $agentCustom['context']
+        ? "\n\n# 担当者登録情報（最優先・一次情報）\n"
+            . "以下の【担当者追加RAG】は、担当者本人がこの名刺のために登録した公式情報です。\n"
+            . "- 質問に該当する項目がある場合は、あなたの一般知識・推測・想定よりも必ず優先し、登録内容のとおりに回答してください。\n"
+            . "- 特に営業時間・定休日・休業期間・連絡先・対応エリアなどは、ここに記載があれば、それが唯一の正解です。登録内容と矛盾することを述べてはいけません。\n"
+            . "- AIチャットが24時間365日ご相談を受け付けることと、会社の営業時間・定休日・休業期間は別の事柄です。営業時間や定休日を尋ねられて「24時間対応」「年中無休」と答えてはいけません。登録内容をそのまま案内してください。\n"
+            . "- 登録が無い項目についてのみ、一般的な不動産実務知識で回答してください。\n\n"
+            . $agentCustom['context']
         : '';
     $agentProhibitedPrompt = buildAgentProhibitedWordsPrompt($agentCustom['prohibited_words'] ?? []);
     $agentProhibitedContext = $agentProhibitedPrompt !== ''
