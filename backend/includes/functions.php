@@ -34,6 +34,7 @@ if (!$autoloadLoaded) {
 }
 
 require_once __DIR__ . '/upload_security.php';
+require_once __DIR__ . '/form_security.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;

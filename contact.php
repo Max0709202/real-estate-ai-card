@@ -12,20 +12,49 @@ $email   = isset($_POST['email']) ? trim($_POST['email']) : '';
 $subject = isset($_POST['subject']) ? trim($_POST['subject']) : '';
 $body    = isset($_POST['message']) ? trim($_POST['message']) : '';
 
+// Bots that trip the honeypot or timing trap get the success page but no mail, so
+// they log a win and move on instead of adapting.
+$silentDrop = false;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($name === '') {
-        $errors['name'] = 'お名前を入力してください。';
+    // Hard per-IP ceiling first: rejects a flood before any other work.
+    if (!form_security_check_rate_limit('contact_min', CONTACT_RATE_LIMIT_PER_MINUTE, 60)
+        || !form_security_check_rate_limit('contact_hour', CONTACT_RATE_LIMIT_PER_HOUR, 3600)) {
+        $errors['general'] = '送信回数の上限に達しました。しばらく時間をおいてから再度お試しください。';
+    } elseif (!form_security_check_origin()) {
+        form_security_log_event('origin_rejected', ['origin' => $_SERVER['HTTP_ORIGIN'] ?? ($_SERVER['HTTP_REFERER'] ?? '')]);
+        $errors['general'] = '送信元を確認できませんでした。ページを再読み込みしてから再度お試しください。';
+    } elseif (!form_security_verify_csrf('contact', $_POST['form_csrf'] ?? null)) {
+        form_security_log_event('csrf_rejected');
+        $errors['general'] = 'セッションの有効期限が切れました。ページを再読み込みしてから再度お試しください。';
+    } elseif (form_security_honeypot_tripped($_POST)) {
+        form_security_log_event('honeypot_tripped', ['subject' => mb_substr($subject, 0, 80)]);
+        $silentDrop = true;
+    } elseif (!form_security_verify_timestamp('contact', $_POST['form_ts'] ?? null)) {
+        form_security_log_event('timing_rejected');
+        $silentDrop = true;
     }
 
-    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors['email'] = '有効なメールアドレスを入力してください。';
+    if ($silentDrop) {
+        $successMessage = 'お問い合わせを送信しました。担当者より折り返しご連絡いたします。';
+        $name = $email = $subject = $body = '';
     }
 
-    if ($body === '') {
-        $errors['message'] = 'お問い合わせ内容を入力してください。';
+    if (!$silentDrop && empty($errors)) {
+        if ($name === '') {
+            $errors['name'] = 'お名前を入力してください。';
+        }
+
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = '有効なメールアドレスを入力してください。';
+        }
+
+        if ($body === '') {
+            $errors['message'] = 'お問い合わせ内容を入力してください。';
+        }
     }
 
-    if (empty($errors)) {
+    if (!$silentDrop && empty($errors)) {
         $mailTo   = defined('NOTIFICATION_EMAIL') ? NOTIFICATION_EMAIL : (getenv('SMTP_FROM_EMAIL') ?: 'info@ai-fcard.com');
         $mailSubj = $subject !== '' ? $subject : '不動産AI名刺サイトからのお問い合わせ';
 
@@ -63,6 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($sent) {
+            // Rotate so a replayed POST cannot resend the same inquiry.
+            form_security_rotate_csrf('contact');
             $successMessage = 'お問い合わせを送信しました。担当者より折り返しご連絡いたします。';
             $name = $email = $subject = $body = '';
         } else {
@@ -119,6 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div class="contact-form-wrap">
                     <form class="contact-form" action="contact.php" method="post" novalidate>
+                        <?php form_security_render_fields('contact'); ?>
                         <div class="contact-form-grid">
                             <div class="contact-form-group">
                                 <label for="contact-name">お名前 <span class="contact-required">必須</span></label>
