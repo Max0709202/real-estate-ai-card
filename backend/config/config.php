@@ -105,6 +105,18 @@ define('TECH_TOOL_ALP_BASE', 'https://self-in.net/alp/index.php?id=');
 // 通知メール設定
 define('NOTIFICATION_EMAIL', 'info@ai-fcard.com');
 
+// お問い合わせフォームのスパム対策
+/** Per-IP contact submissions per hour (0 = unlimited) */
+define('CONTACT_RATE_LIMIT_PER_HOUR', 5);
+/** Per-IP contact submissions per minute (0 = unlimited) */
+define('CONTACT_RATE_LIMIT_PER_MINUTE', 2);
+/** Submissions faster than this after form render are bots */
+define('CONTACT_MIN_FILL_SECONDS', 3);
+/** Signed form timestamps older than this are stale */
+define('CONTACT_FORM_MAX_AGE_SECONDS', 86400);
+/** Honeypot input name (rendered hidden; any value = bot) */
+define('CONTACT_HONEYPOT_FIELD', 'website_url');
+
 // チャットボット: OpenAI
 if (!defined('OPENAI_API_KEY')) {
     define('OPENAI_API_KEY', getenv('OPENAI_API_KEY') ?: '');
