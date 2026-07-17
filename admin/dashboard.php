@@ -747,9 +747,17 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                         </td>
                         <td data-label="携帯"><?php echo htmlspecialchars($user['mobile_phone'] ?? ''); ?></td>
                         <td data-label="メール">
-                            <a href="mailto:<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>" style="color: #0066cc; text-decoration: none;">
-                                <?php echo htmlspecialchars($user['email']); ?>
-                            </a>
+                            <div style="display: flex; align-items: center; gap: 4px; white-space: nowrap;">
+                                <input type="email" class="user-email-input"
+                                       data-user-id="<?php echo $user['user_id']; ?>"
+                                       value="<?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?>"
+                                       placeholder="メールアドレス"
+                                       style="width: 190px; padding: 3px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 0.8rem;">
+                                <button type="button" class="btn-save-email"
+                                        style="padding: 2px 6px; font-size: 0.7rem; background: #28a745; color: #fff; border: none; border-radius: 3px; cursor: pointer; display: none;">
+                                    保存
+                                </button>
+                            </div>
                         </td>
                         <td data-label="流入情報" style="font-size: 0.78rem; line-height: 1.45; min-width: 180px;">
                             <strong>agent:</strong> <?php echo htmlspecialchars($user['agent'] ?: '-', ENT_QUOTES, 'UTF-8'); ?><br>
@@ -1146,6 +1154,92 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                     });
                 }
                 
+                // Save on Enter key
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter' && saveBtn) {
+                        e.preventDefault();
+                        saveBtn.click();
+                    }
+                });
+            });
+        })();
+
+        // User Email Input Handler
+        (function() {
+            const emailInputs = document.querySelectorAll('.user-email-input');
+
+            emailInputs.forEach(function(input) {
+                // Scoped to the cell rather than looked up by data-user-id: one user can
+                // own several cards, so user ids repeat across rows.
+                const saveBtn = input.parentElement.querySelector('.btn-save-email');
+                let savedValue = input.value;
+
+                // Show save button when value changes
+                input.addEventListener('input', function() {
+                    if (saveBtn) {
+                        saveBtn.style.display = this.value !== savedValue ? 'inline-block' : 'none';
+                    }
+                });
+
+                // Save on button click
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', function() {
+                        const newEmail = input.value.trim();
+                        const userId = input.dataset.userId;
+
+                        if (!newEmail) {
+                            alert('メールアドレスを入力してください');
+                            return;
+                        }
+
+                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+                            alert('メールアドレスの形式が正しくありません');
+                            return;
+                        }
+
+                        if (!confirm('メールアドレスを変更しますか？\n\n'
+                            + savedValue + '\n↓\n' + newEmail
+                            + '\n\n変更後、このユーザーは新しいメールアドレスでログインします。')) {
+                            return;
+                        }
+
+                        saveBtn.disabled = true;
+
+                        fetch('../backend/api/admin/update-user-email.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                user_id: parseInt(userId),
+                                email: newEmail
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(result => {
+                            if (result.success) {
+                                savedValue = result.data && result.data.email ? result.data.email : newEmail;
+                                input.value = savedValue;
+                                saveBtn.style.display = 'none';
+                                input.style.borderColor = '#28a745';
+                                setTimeout(function() {
+                                    input.style.borderColor = '#ddd';
+                                }, 2000);
+                            } else {
+                                alert('エラー: ' + (result.message || '更新に失敗しました'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('エラーが発生しました');
+                        })
+                        .finally(function() {
+                            saveBtn.disabled = false;
+                        });
+                    });
+                }
+
                 // Save on Enter key
                 input.addEventListener('keypress', function(e) {
                     if (e.key === 'Enter' && saveBtn) {
