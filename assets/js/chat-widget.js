@@ -46,7 +46,7 @@
     var featurePanel = document.getElementById('chat-widget-feature-panel');
     var tabBar = document.querySelector('.chat-widget-tabbar');
     var defaultPromptText = "不動産のことなら、何でもお気軽にご相談ください。";
-    var entryNoticeText = "こんにちは。\nAI{agent}です。\n\nこちらのAIエージェントでは、物件探しや進捗管理、私とのやり取りをスムーズに進めるために、ご相談内容を安全に保存し、スマートフォンの変更時や別の端末からアクセスした場合でも引き継げるよう、最初にSMS認証・メールアドレス・お名前の登録をお願いしています。\n\n最初にSMS認証を行います。電話番号を入力し、届いた認証コードを入力してください。";
+    var entryNoticeText = "こんにちは。\nAI{agent}です。\n\n\安心してご相談いただけるよう、最初にSMS認証をお願いしています。\n\nSMS認証を行うことで、ご相談内容や登録情報を安全に保存し、担当エージェントが物件提案・進捗管理・ご相談対応のために利用すること、およびスマートフォンの変更や別の端末からでも会話を引き継げることに同意いただいたものとします。個人情報は適切に管理いたします。\n\nそれでは、電話番号を入力し、SMSで届いた認証コードをご入力ください。";
     var firstConsultationNoticeText = "気になることを、そのまま文章で送ってください。\n\nまだ具体的に決まっていなくても大丈夫です。会話の流れの中で、必要なことだけ少しずつ確認します。\n\n※右下のマイクボタンから音声入力もご利用いただけます。\n\n※AIによるサービスのため、回答内容に誤りが含まれる場合があります。";
     var previousConfirmedNoticeText = "ありがとうございます。前回のご相談内容を確認しました。\n前回の内容をもとに、このまま続きからご案内できます。";
     var registeredPhoneNoticeText = "おかえりなさい、{customer}。\n\n前回のご相談内容をもとに、続きからご案内します。";
