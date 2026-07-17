@@ -1903,6 +1903,16 @@ body {
     margin: 0;
 }
 
+/* Honeypot: positioned off-screen rather than display:none, which bots skip. */
+.form-hp {
+    position: absolute;
+    left: -9999px;
+    top: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
 .contact-form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
