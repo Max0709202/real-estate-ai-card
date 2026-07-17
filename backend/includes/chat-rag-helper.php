@@ -419,6 +419,38 @@ function getChatRagContextForChat($db, $message, $limit = 6) {
     }
 }
 
+/**
+ * 日本語メッセージを LIKE 検索可能な語句へ分割する（担当者追加RAGの検索用）。
+ *
+ * 旧実装は `[一-龥ぁ-んァ-ンA-Za-z0-9０-９]{2,}` で抽出していたが、この文字クラスは
+ * 漢字・ひらがな・カタカナ・英数を1つのクラスにまとめており、日本語は分かち書きし
+ * ないため、文がまるごと1語になっていた：
+ *   「夏季休業はいつからですか?」→ ["夏季休業はいつからですか"]
+ * その結果 `content LIKE '%夏季休業はいつからですか%'` となり、登録RAG（例：タイトル
+ * 「夏季休業について」）には決して一致しない。さらに長音符「ー」がクラス外のため
+ * 「住宅ローン」→「住宅ロ」と欠けていた。
+ *
+ * ここでは字種ごと（漢字／カタカナ／英数）に区切って2文字以上の語だけを返す。
+ * ひらがなのみの語（助詞・語尾「はいつからですか」等）はどのRAGにも一致し得る雑音の
+ * ため除外する。「夏季休業はいつからですか?」→ ["夏季休業"] となり正しく一致する。
+ */
+function chatRagTokenizeMessage($message) {
+    $message = (string)$message;
+    if ($message === '') return [];
+    $tokens = [];
+    $patterns = [
+        '/[一-龥々〆]{2,}/u',              // 漢字
+        '/[ァ-ヶーヽヾｦ-ﾟ]{2,}/u',          // カタカナ（長音符・半角カナ含む）
+        '/[A-Za-zＡ-Ｚａ-ｚ0-9０-９]{2,}/u', // 英数（全角・半角）
+    ];
+    foreach ($patterns as $pattern) {
+        if (preg_match_all($pattern, $message, $m)) {
+            foreach ($m[0] as $token) $tokens[] = $token;
+        }
+    }
+    return array_values(array_unique(array_filter(array_map('trim', $tokens))));
+}
+
 function getAgentCustomContextForChat($db, $businessCardId, $message, $limit = 5) {
     $empty = ['context' => '', 'sources' => [], 'prohibited_words' => []];
     if (!$db instanceof PDO || !$businessCardId) return $empty;
@@ -426,10 +458,8 @@ function getAgentCustomContextForChat($db, $businessCardId, $message, $limit = 5
     try {
         ensureChatRagTables($db);
         $terms = chatExtractSearchTerms($message);
-        if (preg_match_all('/[一-龥ぁ-んァ-ンA-Za-z0-9０-９]{2,}/u', (string)$message, $m)) {
-            foreach ($m[0] as $term) {
-                $terms[] = $term;
-            }
+        foreach (chatRagTokenizeMessage($message) as $token) {
+            $terms[] = $token;
         }
         $terms = array_values(array_unique(array_filter(array_map('trim', $terms))));
 
@@ -455,7 +485,13 @@ function getAgentCustomContextForChat($db, $businessCardId, $message, $limit = 5
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if (empty($rows) && empty($terms)) {
+        // 語句一致で1件も引けなかった場合は、担当者の登録RAGを新しい順に読み込み、
+        // 関連性の判断はスコアリング（chatScoreKnowledgeChunk）へ委ねる。これは
+        // getChatRagContextForChat() と同じ救済パターン。
+        // 旧実装の条件は empty($rows) && empty($terms) だったが、上の語句抽出により
+        // $terms は実質常に非空になるため、このフォールバックは一度も発火しておらず、
+        // LIKE が外れた瞬間に「担当者追加RAG」が空になっていた（＝RAGが反映されない）。
+        if (empty($rows)) {
             $stmt = $db->prepare("SELECT id, title, content, source_note, updated_at
                 FROM agent_custom_rag_items
                 WHERE business_card_id = ? AND enabled = 1
