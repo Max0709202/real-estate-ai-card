@@ -38,7 +38,19 @@ try {
         notifyMarkRead($db, $sessionId, 'property');
     }
 
-    $stmt = $db->prepare("SELECT * FROM properties WHERE session_id = ? ORDER BY created_at DESC, id DESC");
+    // 一覧の並び順（§5）: ステータスのグループ順（申込検討 → 内見希望 → 検討中 → 見送り）で表示し、
+    // 各グループ内は登録が新しい順（created_at DESC）。ステータス未設定は「検討中」扱い。
+    // 担当のみステータス（仲介可/ご紹介不可）や想定外の値はグループ末尾へ。
+    $stmt = $db->prepare(
+        "SELECT * FROM properties WHERE session_id = ?
+         ORDER BY (CASE COALESCE(NULLIF(status, ''), 'considering')
+             WHEN 'application'     THEN 0
+             WHEN 'viewing_request' THEN 1
+             WHEN 'considering'     THEN 2
+             WHEN 'passed'          THEN 3
+             ELSE 4 END) ASC,
+             created_at DESC, id DESC"
+    );
     $stmt->execute([$sessionId]);
     $items = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
