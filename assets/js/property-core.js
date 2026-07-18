@@ -11,6 +11,14 @@
     });
   }
 
+  /* 登録日（時間は表示しない）。created_at（例:"2026-06-24 12:34:56" / ISO）→ "2026/06/24"。 */
+  function formatDate(ts) {
+    if (!ts) return '';
+    var m = String(ts).match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (!m) return '';
+    return m[1] + '/' + ('0' + m[2]).slice(-2) + '/' + ('0' + m[3]).slice(-2);
+  }
+
   /* ステータス定義（PHP propertyStatusDefs と一致） */
   var STATUS = {
     viewing_request:  { label: '内見希望',   role: 'customer', color: '#e8384f', icon: 'viewing' },
@@ -159,6 +167,8 @@
     var labels = sourceHtml(p);
     var badge = statusBadgeHtml(p);
     var fav = opts.fav ? '<span class="prop-card__fav">' + icon('heart') + '</span>' : '';
+    var regDate = formatDate(p.created_at);
+    var dateHtml = regDate ? '<div class="prop-card__date">登録日 ' + esc(regDate) + '</div>' : '';
     return '<div class="prop-card" data-prop-id="' + p.id + '">' +
       thumb +
       '<div class="prop-card__body">' +
@@ -166,6 +176,7 @@
         '<div class="prop-card__name">' + name + '</div>' +
         (p.price_text ? '<div class="prop-card__price">' + esc(p.price_text) + '</div>' : '') +
         '<div class="prop-card__meta">' + meta.join('<br>') + '</div>' +
+        dateHtml +
       '</div>' + fav +
     '</div>';
   }
@@ -187,11 +198,13 @@
     if (p.layout) sub.push(esc(p.layout));
     if (p.exclusive_area) sub.push(esc(p.exclusive_area));
     else if (p.land_area) sub.push('土地' + esc(p.land_area));
+    var regDate = formatDate(p.created_at);
     return '<div class="prop-detail__header">' +
       '<div class="prop-detail__title">' + name + '</div>' +
       (p.price_text ? '<div class="prop-detail__price">' + esc(p.price_text) + '</div>' : '') +
       (sub.length ? '<div class="prop-detail__sub">' + sub.join('｜') + '</div>' : '') +
       '<div class="prop-detail__badges">' + sourceHtml(p) + (statusBadgeHtml(p) || '') + '</div>' +
+      (regDate ? '<div class="prop-detail__date">登録日 ' + esc(regDate) + '</div>' : '') +
     '</div>';
   }
 
@@ -347,7 +360,7 @@
   }
 
   w.PropertyUI = {
-    esc: esc, icon: icon, STATUS: STATUS, FIELDS: FIELDS, TYPES: TYPES,
+    esc: esc, icon: icon, formatDate: formatDate, STATUS: STATUS, FIELDS: FIELDS, TYPES: TYPES,
     sourceHtml: sourceHtml, statusBadgeHtml: statusBadgeHtml, cardHtml: cardHtml,
     detailHeaderHtml: detailHeaderHtml, basicInfoHtml: basicInfoHtml, hazardHtml: hazardHtml,
     galleryHtml: galleryHtml, lightbox: lightbox, pdfViewer: pdfViewer, bindLightbox: bindLightbox, modal: modal,

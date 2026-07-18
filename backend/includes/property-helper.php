@@ -401,7 +401,9 @@ if (!function_exists('propertySerialize')) {
         $types = propertyTypeLabels();
         $media = propertyMediaLabels();
         $src = $row['source'] ?? 'agent';
+        // ステータス未設定（NULL/空）は既定で「検討中(considering)」として表示する（§5・既存データ含む）。
         $st = $row['status'] ?? null;
+        if ($st === null || $st === '') $st = 'considering';
 
         $images = propertyImagesFor($db, (int)$row['id']);
         $flyers = array_values(array_filter($images, fn($i) => $i['category'] === 'flyer'));
@@ -2035,9 +2037,11 @@ if (!function_exists('propertyCreate')) {
      */
     function propertyCreate(PDO $db, array $meta, array $fields = []): int
     {
+        // 検討/対応ステータス（§5）は既定で「検討中(considering)」。
+        // エージェント提案・お客様共有のいずれも、登録時点から「検討中」として表示する。
         $stmt = $db->prepare("
-            INSERT INTO properties (business_card_id, session_id, source, source_media, source_url, created_by, ocr_status)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO properties (business_card_id, session_id, source, source_media, source_url, created_by, ocr_status, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             (int)$meta['business_card_id'],
@@ -2047,6 +2051,7 @@ if (!function_exists('propertyCreate')) {
             $meta['source_url'] ?? null,
             $meta['created_by'] ?? 'agent',
             $meta['ocr_status'] ?? 'none',
+            $meta['status'] ?? 'considering',
         ]);
         $id = (int)$db->lastInsertId();
         if ($fields) propertyApplyFields($db, $id, $fields);
