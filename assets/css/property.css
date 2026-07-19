@@ -47,6 +47,7 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-card__price { font-weight: 800; font-size: 16px; color: #e8384f; }
 .prop-card__meta { font-size: 12px; color: #5b6675; line-height: 1.5;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.prop-card__date { font-size: 11px; color: #8a8f98; margin-top: 4px; }
 .prop-card__fav { position: absolute; right: 10px; bottom: 10px; color: #c4ccd8; }
 .prop-card__fav svg { width: 22px; height: 22px; }
 
@@ -91,6 +92,7 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-detail__price { font-size: 20px; font-weight: 800; color: #e8384f; }
 .prop-detail__sub { font-size: 13px; color: #5b6675; }
 .prop-detail__badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.prop-detail__date { font-size: 12px; color: #8a8f98; margin-top: 6px; }
 
 /* ===== タブ（§10） ===== */
 .prop-tabs { display: flex; gap: 4px; border-bottom: 2px solid #eef1f6; margin: 12px 0; overflow-x: auto; }

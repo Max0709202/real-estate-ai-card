@@ -65,7 +65,7 @@ if ($excludeFromSearch) {
     <meta name="author" content="不動産AI名刺">
 
     <!-- Canonical -->
-    <link rel="canonical" href="https://ai-fcard.com/">
+    <link rel="canonical" href="<?= BASE_URL ?>/">
 
     <!-- Robots -->
     <?php if (!empty($excludeFromSearch)): ?>
@@ -81,15 +81,15 @@ if ($excludeFromSearch) {
     <meta property="og:site_name" content="不動産AI名刺">
     <meta property="og:title" content="不動産AI名刺 | 商談機会を逃さない次世代営業ツール">
     <meta property="og:description" content="AI・QRコード・不動産ビッグデータを活用した次世代型営業支援ツール。不動産営業のDX化を強力にサポート。">
-    <meta property="og:url" content="https://ai-fcard.com/">
-    <meta property="og:image" content="https://ai-fcard.com/assets/images/ogp.jpg">
+    <meta property="og:url" content="<?= BASE_URL ?>/">
+    <meta property="og:image" content="<?= BASE_URL ?>/assets/images/ogp.jpg">
     <meta property="og:locale" content="ja_JP">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="不動産AI名刺 | 商談機会を逃さない次世代営業ツール">
     <meta name="twitter:description" content="AI・QRコード・不動産ビッグデータを活用した不動産営業DXツール。">
-    <meta name="twitter:image" content="https://ai-fcard.com/assets/images/ogp.jpg">
+    <meta name="twitter:image" content="<?= BASE_URL ?>/assets/images/ogp.jpg">
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="32x32" href="favicon.php?size=32&v=2">

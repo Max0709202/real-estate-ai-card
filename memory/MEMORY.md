@@ -1,2 +1,4 @@
 - [Mansion RAG chat feature](mansion-rag-chat.md) — how the 全国マンションDB name-lookup flow works and its known failure modes
 - [Agent RAG retrieval](agent-rag-retrieval.md) — why RAG registered in edit.php wasn't reaching chat answers
+- [Staging setup & chat 403](staging-base-url-and-chat-403.md) — staging host/docroot, BASE_URL env-awareness, and the two causes of the SMS-auth 403
+- [MariaDB native-prepares migrations](mariadb-native-prepares-migrations.md) — why SHOW COLUMNS/INDEX with `?` placeholders silently break in-code schema migrations

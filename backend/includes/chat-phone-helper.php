@@ -51,25 +51,43 @@ function ensureChatSessionDevicesTable($db) {
         'customer_name' => "ALTER TABLE chat_session_devices ADD COLUMN customer_name VARCHAR(255) NULL AFTER phone_normalized",
         'verified_until' => "ALTER TABLE chat_session_devices ADD COLUMN verified_until DATETIME NULL AFTER customer_name",
     ];
+    // NOTE: `SHOW COLUMNS ... LIKE ?` / `SHOW INDEX ... WHERE ... = ?` throw under native
+    // prepares (PDO::ATTR_EMULATE_PREPARES=false, see database.php) on MariaDB, which used to
+    // make these migrations fail silently on environments where the table already existed in an
+    // older shape. Introspect with a plain SHOW and compare in PHP instead of binding placeholders.
+    $existingColumns = [];
+    try {
+        foreach ($db->query("SHOW COLUMNS FROM chat_session_devices") as $row) {
+            $existingColumns[$row['Field']] = true;
+        }
+    } catch (Throwable $e) {
+        error_log('chat_session_devices column introspection failed: ' . $e->getMessage());
+    }
     foreach ($columns as $column => $sql) {
+        if (isset($existingColumns[$column])) {
+            continue;
+        }
         try {
-            $stmt = $db->prepare("SHOW COLUMNS FROM chat_session_devices LIKE ?");
-            $stmt->execute([$column]);
-            if (!$stmt->fetch(PDO::FETCH_ASSOC)) {
-                $db->exec($sql);
-            }
+            $db->exec($sql);
         } catch (Throwable $e) {
             error_log('chat_session_devices schema update failed for ' . $column . ': ' . $e->getMessage());
         }
     }
+
+    $existingIndexes = [];
     try {
-        $stmt = $db->prepare("SHOW INDEX FROM chat_session_devices WHERE Key_name = ?");
-        $stmt->execute(['idx_chat_session_device_verified']);
-        if (!$stmt->fetch(PDO::FETCH_ASSOC)) {
-            $db->exec("ALTER TABLE chat_session_devices ADD INDEX idx_chat_session_device_verified (session_id, visitor_identifier, verified_until)");
+        foreach ($db->query("SHOW INDEX FROM chat_session_devices") as $row) {
+            $existingIndexes[$row['Key_name']] = true;
         }
     } catch (Throwable $e) {
-        error_log('chat_session_devices index update failed: ' . $e->getMessage());
+        error_log('chat_session_devices index introspection failed: ' . $e->getMessage());
+    }
+    if (!isset($existingIndexes['idx_chat_session_device_verified'])) {
+        try {
+            $db->exec("ALTER TABLE chat_session_devices ADD INDEX idx_chat_session_device_verified (session_id, visitor_identifier, verified_until)");
+        } catch (Throwable $e) {
+            error_log('chat_session_devices index update failed: ' . $e->getMessage());
+        }
     }
 }
 
