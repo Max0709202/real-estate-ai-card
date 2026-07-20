@@ -77,6 +77,9 @@
     var startupData = null;
     var entryAwaitingChoice = false;
     var registrationFlow = false;
+    // 体験版（デモ）名刺かどうか。判定はサーバー（session/start.php）が返す is_demo のみを信じる。
+    // data-* 属性で持たせると、通常の名刺でも属性を書き換えれば認証を飛ばせてしまうため。
+    var isDemo = false;
     var firebaseConfigPromise = null;
     var firebaseAppReady = false;
     var firebaseConfirmationResult = null;
@@ -584,6 +587,34 @@
         showSmsAuth('upfront');
     }
 
+    // 体験版（デモ）名刺の入口。SMS認証・お名前・メールアドレスの入力をすべて省き、
+    // その場で相談を開始できるようにする。会話は訪問者ごとに独立しており、
+    // 他の体験者の履歴は表示されない（サーバー側で visitor_id 単位に分離）。
+    var demoNoticeText = "こんにちは。AI{agent}です。\n\nこちらは体験版です。SMS認証やお名前・メールアドレスのご登録なしで、そのままお試しいただけます。\n\n※体験版の会話内容は、一定時間の経過後に自動で削除されます。";
+
+    function showDemoEntry(data) {
+        entryAwaitingChoice = false;
+        registrationFlow = false;
+        greetingShown = true;
+        startupData = data || startupData || {};
+        messagesContainer.innerHTML = '';
+        showReloadNoticeIfNeeded();
+        appendBotMessage(personalize(demoNoticeText, startupData));
+
+        // 同じ端末で体験を続けている場合だけ、自分の会話の続きを復元する。
+        var previousMessages = Array.isArray(startupData.messages) ? startupData.messages : [];
+        if (previousMessages.length) {
+            renderSessionMessages(previousMessages);
+            appendBotMessage(startupData.resume_message || '前回の続きからご案内します。');
+            renderQuickReplies(startupData.quick_replies || []);
+            setInputEnabled(true);
+            crmState = null;
+            loadCrmState(true);
+            return;
+        }
+        beginFirstConsultation(startupData);
+    }
+
     function showReturningDeviceEntry(data) {
         startupData = data || startupData;
         var customerLabel = customerLabelWithSuffix(startupData, '様');
@@ -704,6 +735,16 @@
     }
 
     function showSmsAuth(reason, initialPhone) {
+        // 体験版では本人確認を行わない。サーバー側の /phone/lookup・/phone/verify も
+        // デモ名刺では 403 を返すため、ここで入口ごと塞いでおく。
+        // （エントリー時だけでなく、会話中に sms_register を促された場合もここへ来る）
+        if (isDemo) {
+            removeSmsAuthBox();
+            entryAwaitingChoice = false;
+            appendBotMessage('体験版のため、SMS認証やご登録は不要です。このまま続けてご相談いただけます。');
+            setInputEnabled(true);
+            return;
+        }
         entryAwaitingChoice = true;
         renderQuickReplies([]);
         removeSmsAuthBox();
@@ -1147,6 +1188,7 @@
                 loadingRow.remove();
                 if (data.success && data.data) {
                     sessionId = data.data.session_id;
+                    isDemo = data.data.is_demo === true || data.data.is_demo === 1 || data.data.is_demo === '1';
                     if (data.data.visitor_id) visitorId = data.data.visitor_id;
                     saveSessionId(sessionId);
                     canUseLoanSim = data.data.can_use_loan_sim !== false;
@@ -1164,7 +1206,9 @@
                     // 残っていても、SMS認証＋氏名＋メールの登録が完了していない＝誰の
                     // 履歴か確定できない場合は「おかえりなさい／このまま相談する」を
                     // 出さず、必ずSMS認証から始める（誰か分からないまま相談させない）。
-                    if (data.data.registration_complete) {
+                    if (isDemo) {
+                        showDemoEntry(data.data);
+                    } else if (data.data.registration_complete) {
                             showReturningDeviceEntry(data.data);
                         } else {
                             showFirstTimeEntry(data.data);
