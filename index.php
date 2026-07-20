@@ -136,17 +136,15 @@ if ($excludeFromSearch) {
                 </div>
                 <div class="new-lp-sec-1-right">
                     <div class="new-lp-sec-1-video-wrap">
-                        <video
-                            id="new-lp-sec-1-video"
+                        <iframe
                             class="new-lp-sec-1-video"
-                            src="assets/video/card.mp4"
-                            preload="auto"
-                            fetchpriority="high"
-                            playsinline
-                            muted
-                            loop
-                            autoplay
-                        ></video>
+                            src="https://www.youtube-nocookie.com/embed/y7MFT472KWA?rel=0&amp;playsinline=1"
+                            title="AIエージェント機能付き『不動産AI名刺』説明資料"
+                            frameborder="0"
+                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allowfullscreen
+                        ></iframe>
                     </div>
                 </div>
             </div>
