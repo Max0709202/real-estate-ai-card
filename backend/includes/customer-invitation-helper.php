@@ -264,6 +264,7 @@ function customerInviteBuildEmail(string $agentName, string $customerName, strin
         '・お取引の進捗確認',
         'などを一元管理できます。',
         '',
+        '山本太郎(顧客名)様ご本人であることを確認するため、AIエージェントページを開く際にSMS認証をお願いしております。',
         'ご相談やご要望がございましたら、「AIエージェントページ」からいつでもお気軽にご連絡ください。',
     ];
 
