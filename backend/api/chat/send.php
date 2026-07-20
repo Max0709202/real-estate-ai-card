@@ -82,7 +82,8 @@ try {
     $database = new Database();
     $db = $database->getConnection();
 
-    $stmt = $db->prepare("SELECT id, business_card_id, visitor_identifier, handoff_mode FROM chat_sessions WHERE id = ?");
+    ensureChatDemoColumns($db);
+    $stmt = $db->prepare("SELECT id, business_card_id, visitor_identifier, handoff_mode, is_demo FROM chat_sessions WHERE id = ?");
     $stmt->execute([$sessionId]);
     $session = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -99,13 +100,25 @@ try {
         sendErrorResponse('チャットボットはご利用いただけません。', 403);
     }
     $leadProfile = chatIntakeLoad($db, $sessionId, (int)$card['id']);
-    $deviceAuth = $visitorId !== '' ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
-    if ($visitorId === '' || !$deviceAuth) {
-        sendErrorResponse('SMS認証の有効期限が切れています。もう一度SMS認証を行ってください。', 403);
-    }
-    $profileComplete = chatIntakeProfileComplete($leadProfile);
-    if (!$profileComplete) {
-        sendErrorResponse('ご本人情報の登録が完了していません。SMS認証後、お名前とメールアドレスを登録してください。', 403);
+    // 体験版（デモ）名刺はSMS認証を行わないため chat_session_devices に端末行が無く、
+    // chatSessionDeviceAuth() は必ず null になる。デモでは代わりに
+    // 「このセッションの所有者本人か」だけを確認する（他人のデモセッションへの投稿を防ぐ）。
+    // 名刺とセッションの両方がデモの場合に限る。デモ化前に作られた通常セッションは
+    // 従来どおりSMS認証を要求する。
+    $isDemoSession = isDemoCard($card) && !empty($session['is_demo']);
+    if ($isDemoSession) {
+        if ($visitorId === '' || !chatSessionVisitorAuthorized($db, $sessionId, $visitorId, $session['visitor_identifier'])) {
+            sendErrorResponse('セッションを確認できません。ページを再読み込みしてください。', 403);
+        }
+    } else {
+        $deviceAuth = $visitorId !== '' ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
+        if ($visitorId === '' || !$deviceAuth) {
+            sendErrorResponse('SMS認証の有効期限が切れています。もう一度SMS認証を行ってください。', 403);
+        }
+        $profileComplete = chatIntakeProfileComplete($leadProfile);
+        if (!$profileComplete) {
+            sendErrorResponse('ご本人情報の登録が完了していません。SMS認証後、お名前とメールアドレスを登録してください。', 403);
+        }
     }
     // 送信元の端末を現所有者に更新（poll/upload の visitor 突合と整合させる）。
     $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
