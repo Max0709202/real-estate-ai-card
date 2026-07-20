@@ -46,6 +46,8 @@ if ($cardSlug === '') {
 try {
     $database = new Database();
     $db = $database->getConnection();
+    // is_demo / expires_at を参照する前に列を補完する（SQL移行が未適用の環境でも動くように）。
+    ensureChatDemoColumns($db);
     $card = getCardBySlugForChat($db, $cardSlug);
 
     if (!$card) {
@@ -56,24 +58,47 @@ try {
         sendErrorResponse('この名刺ではチャットボットはご利用いただけません。', 403);
     }
 
+    // 体験版（デモ）名刺。プロモーションで配布し、SMS認証なしで試せる。
+    // 履歴は訪問者ごとに完全に分離する（共有セッションにすると他人の会話が見える）。
+    $isDemo = isDemoCard($card);
+
     $sessionId = '';
     $isResumed = false;
 
+    if ($isDemo) {
+        // デモは visitor_id に紐づく未失効のデモセッションだけを再開する。
+        // session_id 単体では再開させない（他人のデモ session_id を送られると、
+        // 下で device_auth を無条件に有効化している都合上、履歴が読めてしまうため）。
+        if ($visitorId !== '') {
+            $stmt = $db->prepare("SELECT id FROM chat_sessions
+                WHERE business_card_id = ? AND visitor_identifier = ? AND is_demo = 1
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                ORDER BY last_seen_at DESC, created_at DESC LIMIT 1");
+            $stmt->execute([$card['id'], $visitorId]);
+            $sessionId = (string)($stmt->fetchColumn() ?: '');
+        }
+        if ($sessionId !== '') {
+            $isResumed = true;
+            $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$sessionId]);
+        }
+    }
+
     // 同じ端末・同じ訪問者のチャットは、新しい履歴を増やさず既存履歴へ戻す。
     // まず保存済み session_id を優先し、次に visitor_id の最新履歴を探す。
-    if ($currentSessionId !== '') {
+    if (!$isDemo && $currentSessionId !== '') {
         $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
         $stmt->execute([$currentSessionId, $card['id']]);
         $sessionId = (string)($stmt->fetchColumn() ?: '');
     }
 
-    if ($sessionId === '' && $visitorId !== '') {
+    if (!$isDemo && $sessionId === '' && $visitorId !== '') {
         $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE business_card_id = ? AND visitor_identifier = ? ORDER BY last_seen_at DESC, created_at DESC LIMIT 1");
         $stmt->execute([$card['id'], $visitorId]);
         $sessionId = (string)($stmt->fetchColumn() ?: '');
     }
 
-    if ($sessionId !== '') {
+    if (!$isDemo && $sessionId !== '') {
         $isResumed = true;
         $deviceAuth = $visitorId !== '' ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
         if ($visitorId !== '' && $deviceAuth) {
@@ -91,14 +116,27 @@ try {
 
     if ($sessionId === '') {
         $sessionId = generateChatSessionId();
-        $stmt = $db->prepare("INSERT INTO chat_sessions (id, business_card_id, visitor_identifier) VALUES (?, ?, ?)");
-        $stmt->execute([$sessionId, $card['id'], $visitorId !== '' ? $visitorId : null]);
+        if ($isDemo) {
+            // 体験者ごとに新しいセッションを発行し、TTL経過後に cron が削除する。
+            $expiresAt = date('Y-m-d H:i:s', time() + chatDemoSessionTtlSeconds());
+            $stmt = $db->prepare("INSERT INTO chat_sessions (id, business_card_id, visitor_identifier, is_demo, expires_at) VALUES (?, ?, ?, 1, ?)");
+            $stmt->execute([$sessionId, $card['id'], $visitorId !== '' ? $visitorId : null, $expiresAt]);
+        } else {
+            $stmt = $db->prepare("INSERT INTO chat_sessions (id, business_card_id, visitor_identifier) VALUES (?, ?, ?)");
+            $stmt->execute([$sessionId, $card['id'], $visitorId !== '' ? $visitorId : null]);
+        }
+    }
+
+    if ($isDemo) {
+        // SMS認証・お名前・メールアドレスの入力を省くため、ダミーの本人情報を入れておく。
+        chatIntakeApplyDemoRegistration($db, $sessionId, (int)$card['id']);
     }
 
     $messages = [];
     $hasPreviousMessages = false;
-    $deviceAuth = ($isResumed && $visitorId !== '') ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
-    $deviceAuthValid = (bool)$deviceAuth;
+    $deviceAuth = (!$isDemo && $isResumed && $visitorId !== '') ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
+    // デモは visitor_id 一致でしか再開しないため、この端末は常に自分のセッションの持ち主。
+    $deviceAuthValid = $isDemo ? true : (bool)$deviceAuth;
     if ($isResumed) {
         $stmt = $db->prepare("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?");
         $stmt->execute([$sessionId]);
@@ -137,7 +175,10 @@ try {
     // 同じ端末で電話番号・お名前・メールアドレスの登録が済んでいるか。
     // 済んでいれば、リロード時に再入力を求めずそのまま相談へ進める。
     $registrationComplete = false;
-    if ($isResumed && $deviceAuthValid && $resumeIntake && !empty($resumeIntake['data'])) {
+    if ($isDemo) {
+        // デモはダミー情報を投入済みなので、登録フローを一切出さない。
+        $registrationComplete = true;
+    } elseif ($isResumed && $deviceAuthValid && $resumeIntake && !empty($resumeIntake['data'])) {
         $ld = $resumeIntake['data'];
         $registrationComplete = chatIntakeProfileComplete($ld);
     }
@@ -159,6 +200,7 @@ try {
         'session_id' => $sessionId,
         'visitor_id' => $visitorId,
         'handoff_mode' => $handoffMode,
+        'is_demo' => $isDemo,
         'is_resumed' => $isResumed,
         'messages' => $messages,
         'has_previous_messages' => $hasPreviousMessages,

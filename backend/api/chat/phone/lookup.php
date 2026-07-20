@@ -40,12 +40,19 @@ if ($phone === '' || $cardSlug === '') {
 try {
     $database = new Database();
     $db = $database->getConnection();
+    ensureChatDemoColumns($db);
     $card = getCardBySlugForChat($db, $cardSlug);
     if (!$card) {
         sendErrorResponse('名刺が見つかりません', 404);
     }
     if (!canUseChatbot($card)) {
         sendErrorResponse('この名刺ではチャットボットはご利用いただけません。', 403);
+    }
+    // 体験版名刺では電話番号による本人特定を行わない。
+    // ここを通すと、電話番号1件につきセッション1件（chatFindSessionByVerifiedPhone は LIMIT 1）
+    // という制約により、体験者全員が同じセッション＝同じ履歴を共有してしまう。
+    if (isDemoCard($card)) {
+        sendErrorResponse('体験版名刺ではSMS認証は不要です。', 403);
     }
 
     $businessCardId = (int)$card['id'];

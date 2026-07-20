@@ -55,12 +55,17 @@ try {
 
     $database = new Database();
     $db = $database->getConnection();
+    ensureChatDemoColumns($db);
     $card = getCardBySlugForChat($db, $cardSlug);
     if (!$card) {
         sendErrorResponse('名刺が見つかりません', 404);
     }
     if (!canUseChatbot($card)) {
         sendErrorResponse('この名刺ではチャットボットはご利用いただけません。', 403);
+    }
+    // 体験版名刺では電話番号を保存しない（lookup.php と同じ理由。セッション共有を防ぐ）。
+    if (isDemoCard($card)) {
+        sendErrorResponse('体験版名刺ではSMS認証は不要です。', 403);
     }
 
     $businessCardId = (int)$card['id'];

@@ -1782,6 +1782,45 @@ function chatIntakeApplyVerifiedPhoneRegistration($db, $sessionId, $businessCard
     return $data;
 }
 
+/**
+ * 体験版（デモ）名刺のセッションに、ダミーの本人情報を投入する。
+ *
+ * デモではSMS認証・お名前・メールアドレスの入力をすべて省くため、ヒアリングが
+ * contact_phone / contact_name / contact_email で止まらないよう、あらかじめ登録済みの
+ * 状態にしておく。値はダミーなので contact_consent は立てず、chat_lead_contacts へも
+ * 書き出さない（営業リードとして担当者に流さないため）。
+ *
+ * @param PDO $db
+ * @param string $sessionId
+ * @param int $businessCardId
+ * @return array 更新後の intake data
+ */
+function chatIntakeApplyDemoRegistration($db, $sessionId, $businessCardId) {
+    $data = chatIntakeLoad($db, $sessionId, $businessCardId);
+    if (!empty($data['_demo_seeded'])) return $data;
+
+    $data['customer_last_name'] = '体験';
+    $data['customer_first_name'] = 'ユーザー';
+    $data['customer_name'] = '体験 ユーザー';
+    $data['customer_email'] = 'demo@example.com';
+    $data['customer_phone'] = '';
+    $data['customer_phone_verified'] = true;
+    $data['contact_status'] = 'anonymous';
+    $data['contact_consent'] = false;
+    $data['_demo_seeded'] = true;
+
+    // 質問済みとして印を付けておく。chatIntakeNextField は _asked_fields を読み飛ばすため、
+    // customer_phone が空のままでも連絡先の再質問は発生しない。
+    foreach (['contact_phone', 'contact_name', 'contact_email', 'contact_request'] as $askedField) {
+        chatIntakeMarkAsked($data, $askedField);
+    }
+    $data['_current_field'] = chatIntakeNextField($data);
+    chatIntakeEvaluateTemperature($data);
+    chatIntakeBuildSummary($data);
+    chatIntakeSave($db, $sessionId, $businessCardId, $data);
+    return $data;
+}
+
 function buildChatLeadContext($data) {
     if (!$data || !is_array($data)) return '';
     $labels = [
