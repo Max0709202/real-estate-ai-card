@@ -28,6 +28,11 @@
     var apiBase = root.getAttribute('data-api-base') || (window.location.origin + '/backend/api/chat');
     var siteBase = apiBase.replace(/\/backend\/api\/chat\/?$/, '');
     var chatOnly = root.getAttribute('data-chat-only') === '1' || document.body.classList.contains('chat-only-mode');
+    // 担当が事前に作成した顧客ページの専用URL（招待メールのリンク）から開かれた場合のトークン。
+    // これを session/start へ渡すと、事前作成済みのセッションをこの端末に引き継ぐ。
+    var inviteToken = root.getAttribute('data-invite-token') || '';
+    // 「●●様専用」とヘッダーに出すための顧客名。SMS認証前は招待時の申告値を使う。
+    var headerCustomerName = '';
 
     var toggleBtn = document.getElementById('chat-widget-toggle');
     var panel = document.getElementById('chat-widget-panel');
@@ -40,6 +45,7 @@
     var voiceStatusEl = document.getElementById('chat-widget-voice-status');
     var avatarEl = document.getElementById('chat-widget-avatar');
     var agentNameEl = document.getElementById('chat-widget-agent-name');
+    var roleEl = document.getElementById('chat-widget-role');
     var toggleAvatarEl = document.getElementById('chat-widget-toggle-avatar');
     var toggleLabelEl = document.getElementById('chat-widget-toggle-label');
     var quickActions = document.getElementById('chat-widget-quick-actions');
@@ -187,7 +193,14 @@
 
     function saveCustomerName(name) {
         var cleaned = cleanCustomerName(name);
-        if (cleaned) safeStorageSet(getCustomerNameStorageKey(), cleaned);
+        if (cleaned) {
+            safeStorageSet(getCustomerNameStorageKey(), cleaned);
+            // 本人が登録／認証した氏名が判明したら、ヘッダーの「●●様専用」もその氏名に揃える。
+            if (cleaned !== headerCustomerName) {
+                headerCustomerName = cleaned;
+                syncAgentHeader();
+            }
+        }
     }
 
     function resetVisitorIdentity() {
@@ -289,6 +302,18 @@
             }
         }
         if (agentNameEl) agentNameEl.textContent = agentName;
+        // 「あなた専用のAIエージェント」であることが伝わるよう、顧客名が分かっている間は
+        // ヘッダーの肩書きを「●●様専用 AIエージェント」に差し替える。
+        if (roleEl) {
+            if (headerCustomerName) {
+                var honorific = /(様|さん)$/.test(headerCustomerName) ? headerCustomerName : headerCustomerName + '様';
+                roleEl.textContent = honorific + '専用 AIエージェント';
+                roleEl.classList.add('is-personalized');
+            } else {
+                roleEl.textContent = 'AIエージェント';
+                roleEl.classList.remove('is-personalized');
+            }
+        }
         if (toggleLabelEl) toggleLabelEl.textContent = agentName + ' AIエージェント';
         if (toggleAvatarEl) {
             if (agentPhoto && toggleAvatarEl.tagName === 'IMG') {
@@ -583,7 +608,10 @@
         messagesContainer.innerHTML = '';
         showReloadNoticeIfNeeded();
         // 最初のアクセス時は、SMS認証→お名前→メールアドレスの順で個人情報の登録をお願いする。
-        appendBotMessage(personalize(entryNoticeText, startupData));
+        // 担当が事前に作成した顧客ページから来た場合だけ、専用の歓迎メッセージに差し替える。
+        // その後の登録の流れ（SMS認証→お名前→メールアドレス）は通常と同じ。
+        var entryText = (startupData && startupData.invite_welcome) ? startupData.invite_welcome : entryNoticeText;
+        appendBotMessage(personalize(entryText, startupData));
         showSmsAuth('upfront');
     }
 
@@ -1176,7 +1204,7 @@
         fetch(apiBase + '/session/start.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: savedSessionId, resume: !reset || !!keepSavedSession })
+            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: savedSessionId, resume: !reset || !!keepSavedSession, invite_token: inviteToken })
         })
             .then(function (res) {
                 return res.json().catch(function () {
@@ -1196,6 +1224,8 @@
                 if (data.data.agent_photo_url) {
                     agentPhoto = data.data.agent_photo_url;
                 }
+                // 本人登録済みの氏名を優先し、無ければ招待時に担当が入力した氏名を使う。
+                headerCustomerName = data.data.customer_name || data.data.invite_customer_name || '';
                 syncAgentHeader();
                 startupData = data.data;
                 if (data.data.customer_name) {

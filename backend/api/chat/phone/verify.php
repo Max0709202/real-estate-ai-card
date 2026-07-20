@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../../includes/chat-rag-helper.php';
 require_once __DIR__ . '/../../../includes/openai-chat-helper.php';
 require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
+require_once __DIR__ . '/../../../includes/customer-invitation-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -132,6 +133,13 @@ try {
         } else {
             $sessionId = chatCreateSessionForVerifiedPhone($db, $businessCardId, $visitorId);
         }
+    }
+
+    // 担当が事前作成した顧客ページから来た既存顧客は、上で既存セッションへ合流している。
+    // 取り残された空の事前作成セッションを片付け、招待レコードを合流先へ引き継ぐ。
+    if ($sessionId !== '' && $currentSessionId !== '' && $sessionId !== $currentSessionId
+        && function_exists('customerInviteTransferSession')) {
+        customerInviteTransferSession($db, $currentSessionId, $sessionId, $businessCardId);
     }
 
     if ($sessionId !== '') {

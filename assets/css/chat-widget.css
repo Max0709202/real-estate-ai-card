@@ -1256,6 +1256,18 @@
     line-height: 1.2;
 }
 
+/* 「あなた専用のAIエージェント」であることを上部の青いバーで伝える表示。
+   顧客名が判明している場合だけ付与される（syncAgentHeader）。 */
+.chat-widget-role.is-personalized {
+    display: inline-block;
+    margin-top: 0.24rem;
+    padding: 0.16rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.22);
+    font-size: 0.72rem;
+    word-break: break-word;
+}
+
 .chat-widget-badge {
     display: inline-flex;
     align-items: center;
