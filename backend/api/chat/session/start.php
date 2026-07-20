@@ -13,6 +13,7 @@ require_once __DIR__ . '/../../../includes/openai-chat-helper.php';
 require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../../includes/chat-crm-helper.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
+require_once __DIR__ . '/../../../includes/customer-invitation-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -32,6 +33,8 @@ $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $cardSlug = trim($input['card_slug'] ?? '');
 $visitorId = trim($input['visitor_id'] ?? '');
 $currentSessionId = trim($input['current_session_id'] ?? '');
+// エージェントが事前作成した顧客ページの専用URL（card.php?...&invite=...）から来た場合のトークン。
+$inviteToken = trim($input['invite_token'] ?? '');
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
     $visitorId = '';
 }
@@ -65,6 +68,48 @@ try {
     $sessionId = '';
     $isResumed = false;
 
+    // エージェントが事前作成した顧客ページ（招待メールの専用URL）。
+    // 該当セッションをこの端末に紐づけ、通常の再開ロジックより優先する。
+    // デモ名刺では事前作成を行わないため、デモ時は無視する。
+    $invite = null;
+    if (!$isDemo && $inviteToken !== '') {
+        $found = customerInviteFindByToken($db, $inviteToken);
+        // 別の名刺のトークンで他人のセッションを開かせない。
+        if ($found && (int)$found['business_card_id'] === (int)$card['id']) {
+            $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
+            $stmt->execute([$found['session_id'], $card['id']]);
+            if ($stmt->fetchColumn()) {
+                $invite = $found;
+            }
+        }
+    }
+
+    if ($invite) {
+        $sessionId = (string)$invite['session_id'];
+        $isResumed = true;
+
+        // 事前作成直後のセッションは visitor_identifier が NULL なので、URLを開いた端末を
+        // 所有者として紐づける（poll/upload の突合で visitor_id 一致が要るため、
+        // COALESCE で温存してはいけない）。
+        // ただし、既にやり取りのあるセッションでは所有者を奪わない。招待メールが第三者へ
+        // 転送された場合に、本来のお客様の端末が締め出されるのを防ぐ。
+        // その場合もSMS認証を済ませた端末なら、通常の再開と同じく所有者を更新する。
+        $stmt = $db->prepare("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?");
+        $stmt->execute([$sessionId]);
+        $inviteSessionHasMessages = ((int)$stmt->fetchColumn()) > 0;
+        $canClaimInviteSession = !$inviteSessionHasMessages
+            || ($visitorId !== '' && chatSessionDeviceAuth($db, $sessionId, $visitorId));
+
+        if ($visitorId !== '' && $canClaimInviteSession) {
+            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$visitorId, $sessionId]);
+        } else {
+            $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$sessionId]);
+        }
+        customerInviteMarkOpened($db, $sessionId);
+    }
+
     if ($isDemo) {
         // デモは visitor_id に紐づく未失効のデモセッションだけを再開する。
         // session_id 単体では再開させない（他人のデモ session_id を送られると、
@@ -86,19 +131,19 @@ try {
 
     // 同じ端末・同じ訪問者のチャットは、新しい履歴を増やさず既存履歴へ戻す。
     // まず保存済み session_id を優先し、次に visitor_id の最新履歴を探す。
-    if (!$isDemo && $currentSessionId !== '') {
+    if (!$isDemo && !$invite && $currentSessionId !== '') {
         $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
         $stmt->execute([$currentSessionId, $card['id']]);
         $sessionId = (string)($stmt->fetchColumn() ?: '');
     }
 
-    if (!$isDemo && $sessionId === '' && $visitorId !== '') {
+    if (!$isDemo && !$invite && $sessionId === '' && $visitorId !== '') {
         $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE business_card_id = ? AND visitor_identifier = ? ORDER BY last_seen_at DESC, created_at DESC LIMIT 1");
         $stmt->execute([$card['id'], $visitorId]);
         $sessionId = (string)($stmt->fetchColumn() ?: '');
     }
 
-    if (!$isDemo && $sessionId !== '') {
+    if (!$isDemo && !$invite && $sessionId !== '') {
         $isResumed = true;
         $deviceAuth = $visitorId !== '' ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
         if ($visitorId !== '' && $deviceAuth) {
@@ -190,6 +235,19 @@ try {
 
 条件整理を続ける場合は、下の選択肢から近いものを選べます。無理に答えなくても大丈夫ですし、そのまま自由に質問していただいても大丈夫です。");
     }
+    // 事前作成された顧客ページの初回表示。専用の歓迎メッセージを出し、そのあとは
+    // 通常どおり SMS認証 → お名前 → メールアドレスの登録へ進む。
+    // エージェントが申告した氏名・メールは本人に確認し直すため、ここでは登録に使わない
+    // （氏名の誤りや、別のメールアドレスで受け取りたい場合があるため）。
+    $inviteWelcome = '';
+    $inviteCustomerName = '';
+    if ($invite) {
+        $inviteCustomerName = customerInviteFullName((string)$invite['last_name'], (string)$invite['first_name']);
+        if (!$registrationComplete) {
+            $inviteWelcome = customerInviteWelcomeMessage($inviteCustomerName);
+        }
+    }
+
     $handoffMode = 'bot';
     try {
         $stmt = $db->prepare("SELECT handoff_mode FROM chat_sessions WHERE id = ? LIMIT 1");
@@ -210,6 +268,9 @@ try {
         'device_auth_expires_at' => $deviceAuth['verified_until'] ?? null,
         'agent_name' => $card['name'] ?? '',
         'customer_name' => $customerName,
+        'is_invited' => (bool)$invite,
+        'invite_welcome' => $inviteWelcome,
+        'invite_customer_name' => $inviteCustomerName,
         'resume_message' => $resumeMessage,
         'current_field' => $resumeIntake['current_field'] ?? null,
         'current_question' => $resumeIntake['current_question'] ?? '',

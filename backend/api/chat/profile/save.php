@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
+require_once __DIR__ . '/../../../includes/customer-invitation-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -84,6 +85,12 @@ try {
 
     $data['_current_field'] = chatIntakeNextField($data);
     chatIntakeSave($db, $sessionId, $businessCardId, $data);
+
+    // 事前作成された顧客ページの場合、本人の登録が済んだ時点で招待を完了扱いにする。
+    // 以降は招待の申告値ではなく、ここで登録された氏名・メールアドレスが正となる。
+    if (chatIntakeProfileComplete($data) && function_exists('customerInviteMarkRegistered')) {
+        customerInviteMarkRegistered($db, $sessionId);
+    }
 
     sendSuccessResponse([
         'customer_name' => $data['customer_name'] ?? '',
