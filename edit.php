@@ -1536,6 +1536,79 @@ $defaultGreetings = [
                     <div id="chat-history-list" class="chat-history-list">
                         <p class="chat-history-loading">読み込み中...</p>
                     </div>
+
+                    <!-- 顧客ページの事前作成（お客様のSMS認証を待たずに専用ページを用意して案内する導線）。
+                         顧客詳細を開いている間は一覧と一緒に隠すため、まとめて #customer-invite-area に入れる。 -->
+                    <div id="customer-invite-area">
+                    <div id="customer-invite-block" class="customer-invite-block">
+                        <button type="button" class="btn-primary" id="customer-invite-open">顧客アカウントを作成する</button>
+                        <p class="section-note">お客様専用のAIエージェントページを先に作成し、ご案内メールをお送りできます。</p>
+                    </div>
+
+                    <!-- ② 顧客情報入力 -->
+                    <div id="customer-invite-form" class="customer-invite-panel" style="display: none;">
+                        <h3>顧客アカウントを作成する</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>お客様の姓 <span class="required">*</span></label>
+                                <input type="text" id="customer-invite-last-name" class="form-control" maxlength="50" placeholder="例：山田" autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label>お客様の名 <span class="required">*</span></label>
+                                <input type="text" id="customer-invite-first-name" class="form-control" maxlength="50" placeholder="例：太郎" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>メールアドレス <span class="required">*</span></label>
+                            <div class="customer-invite-email-row">
+                                <input type="text" id="customer-invite-email-local" class="form-control" maxlength="128" placeholder="yamada" autocomplete="off" inputmode="email">
+                                <span class="customer-invite-at" aria-hidden="true">＠</span>
+                                <input type="text" id="customer-invite-email-domain" class="form-control" maxlength="128" placeholder="example.com" autocomplete="off" inputmode="email">
+                            </div>
+                        </div>
+                        <p id="customer-invite-form-error" class="customer-invite-error" style="display: none;"></p>
+                        <div class="customer-invite-actions">
+                            <button type="button" class="btn-secondary" id="customer-invite-cancel">キャンセル</button>
+                            <button type="button" class="btn-primary" id="customer-invite-confirm">確認</button>
+                        </div>
+                    </div>
+
+                    <!-- ③ 確認画面 -->
+                    <div id="customer-invite-review" class="customer-invite-panel" style="display: none;">
+                        <h3>入力内容の確認</h3>
+                        <dl class="customer-invite-review-list">
+                            <div class="customer-invite-review-row">
+                                <dt>お客様のお名前</dt>
+                                <dd id="customer-invite-review-name"></dd>
+                            </div>
+                            <div class="customer-invite-review-row">
+                                <dt>メールアドレス</dt>
+                                <dd id="customer-invite-review-email"></dd>
+                            </div>
+                        </dl>
+                        <p class="section-note">「送信」を押すと、このメールアドレス宛に専用ページのご案内メールをお送りします。</p>
+                        <p id="customer-invite-review-error" class="customer-invite-error" style="display: none;"></p>
+                        <div class="customer-invite-actions">
+                            <button type="button" class="btn-secondary" id="customer-invite-back">訂正</button>
+                            <button type="button" class="btn-primary" id="customer-invite-send">送信</button>
+                        </div>
+                    </div>
+
+                    <!-- ④ 送信完了 -->
+                    <div id="customer-invite-done" class="customer-invite-panel" style="display: none;">
+                        <h3>顧客ページのご案内</h3>
+                        <p id="customer-invite-done-message" class="section-note"></p>
+                        <div class="form-group">
+                            <label>お客様専用ページのURL</label>
+                            <input type="text" id="customer-invite-done-url" class="form-control" readonly>
+                            <p class="section-note">メールが届かない場合は、このURLを直接お伝えください。</p>
+                        </div>
+                        <div class="customer-invite-actions">
+                            <button type="button" class="btn-secondary" id="customer-invite-done-close">閉じる</button>
+                        </div>
+                    </div>
+                    </div>
+
                     <div id="chat-history-detail" class="chat-history-detail" style="display: none;">
                         <h3>顧客詳細</h3>
                         <div id="chat-history-detail-content"></div>
@@ -3477,6 +3550,11 @@ $defaultGreetings = [
         (function() {
             var listEl = document.getElementById('chat-history-list');
             var detailEl = document.getElementById('chat-history-detail');
+            // 顧客ページの事前作成UI。顧客詳細を開いている間は一覧と一緒に隠す。
+            var inviteAreaEl = document.getElementById('customer-invite-area');
+            function setInviteAreaVisible(visible) {
+                if (inviteAreaEl) inviteAreaEl.style.display = visible ? '' : 'none';
+            }
             var detailContent = document.getElementById('chat-history-detail-content');
             var backBtn = document.getElementById('chat-history-detail-back');
             var detailDeleteBtn = document.getElementById('chat-history-detail-delete');
@@ -3625,12 +3703,18 @@ $defaultGreetings = [
                             var leadBadge = s.has_lead ? ' <span class="chat-lead-badge">ヒアリングあり</span>' : '';
                             var contactBadge = s.has_contact ? ' <span class="chat-lead-badge">連絡先あり</span>' : '';
                             var loanBadge = s.has_loan_simulation ? ' <span class="chat-lead-badge chat-loan-badge">ローン入力あり</span>' : '';
-                            var customerName = s.customer_name ? ' <span class="chat-session-customer">' + escapeHtml(s.customer_name) + '</span>' : '';
+                            // 事前作成した顧客ページは、お客様のご登録前でも担当が入力した氏名で表示する。
+                            var displayName = s.customer_name || s.invitation_name || '';
+                            var customerName = displayName ? ' <span class="chat-session-customer">' + escapeHtml(displayName) + '</span>' : '';
+                            // お客様がまだSMS認証・ご登録を済ませていない事前作成ページの目印。
+                            var inviteBadge = (s.invitation_status && s.invitation_status !== 'registered')
+                                ? ' <span class="chat-lead-badge chat-invite-badge">' + (s.invitation_status === 'opened' ? 'ご案内済み（閲覧あり）' : 'ご案内メール送信済み') + '</span>'
+                                : '';
                             var unread = parseInt(s.unread_count, 10) || 0;
                             var unreadBadge = unread > 0 ? ' <span class="chat-unread-badge" title="未読の顧客メッセージ">' + unread + '</span>' : '';
                             html += '<li class="chat-session-item' + (unread > 0 ? ' chat-session-unread' : '') + '" data-session-id="' + escapeHtml(s.id || '') + '">';
                             html += '<label class="chat-session-select" aria-label="削除対象に選択"><input type="checkbox" class="chat-session-checkbox" value="' + escapeHtml(s.id || '') + '"></label>';
-                            html += '<div class="chat-session-main"><span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + customerName + unreadBadge + leadBadge + contactBadge + loanBadge + '</div>';
+                            html += '<div class="chat-session-main"><span class="chat-session-date">' + escapeHtml(dateStr) + '</span>' + customerName + unreadBadge + inviteBadge + leadBadge + contactBadge + loanBadge + '</div>';
                             html += '<span class="chat-session-meta">' + (s.message_count || 0) + '件</span>';
                             html += '<button type="button" class="chat-session-delete" data-session-id="' + escapeHtml(s.id || '') + '">削除</button>';
                             html += '</li>';
@@ -3780,6 +3864,7 @@ $defaultGreetings = [
                 detailContent.innerHTML = '<p>読み込み中...</p>';
                 detailEl.style.display = 'block';
                 listEl.style.display = 'none';
+                setInviteAreaVisible(false);
                 fetch(apiBase + '/session.php?id=' + encodeURIComponent(sessionId), { credentials: 'include' })
                     .then(function(r) { return r.json(); })
                     .then(function(res) {
@@ -4151,6 +4236,7 @@ $defaultGreetings = [
                             currentDetailSessionId = '';
                             detailEl.style.display = 'none';
                             listEl.style.display = '';
+                            setInviteAreaVisible(true);
                         }
                         loadSessions();
                     })
@@ -4190,6 +4276,7 @@ $defaultGreetings = [
                         currentDetailSessionId = '';
                         detailEl.style.display = 'none';
                         listEl.style.display = '';
+                        setInviteAreaVisible(true);
                     }
                     if (failed > 0) {
                         alert('削除完了: ' + succeeded + '件 / 失敗: ' + failed + '件');
@@ -4210,9 +4297,161 @@ $defaultGreetings = [
                     detailEl.style.display = 'none';
                     currentDetailSessionId = '';
                     listEl.style.display = '';
+                    setInviteAreaVisible(true);
                     loadSessions();
                 });
             }
+
+            // ---- 顧客ページの事前作成（入力 → 確認 → 送信）----
+            // お客様のSMS認証を待たずに専用ページを作り、案内メールを送る導線。
+            // 従来の「名刺→SMS認証→顧客ページ作成」の導線はそのまま残している。
+            (function initCustomerInvite() {
+                var openBtn = document.getElementById('customer-invite-open');
+                var blockEl = document.getElementById('customer-invite-block');
+                var formEl = document.getElementById('customer-invite-form');
+                var reviewEl = document.getElementById('customer-invite-review');
+                var doneEl = document.getElementById('customer-invite-done');
+                if (!openBtn || !blockEl || !formEl || !reviewEl || !doneEl) return;
+
+                var lastNameEl = document.getElementById('customer-invite-last-name');
+                var firstNameEl = document.getElementById('customer-invite-first-name');
+                var emailLocalEl = document.getElementById('customer-invite-email-local');
+                var emailDomainEl = document.getElementById('customer-invite-email-domain');
+                var formErrorEl = document.getElementById('customer-invite-form-error');
+                var reviewErrorEl = document.getElementById('customer-invite-review-error');
+                var reviewNameEl = document.getElementById('customer-invite-review-name');
+                var reviewEmailEl = document.getElementById('customer-invite-review-email');
+                var doneMessageEl = document.getElementById('customer-invite-done-message');
+                var doneUrlEl = document.getElementById('customer-invite-done-url');
+                var confirmBtn = document.getElementById('customer-invite-confirm');
+                var cancelBtn = document.getElementById('customer-invite-cancel');
+                var backBtn2 = document.getElementById('customer-invite-back');
+                var sendBtn = document.getElementById('customer-invite-send');
+                var doneCloseBtn = document.getElementById('customer-invite-done-close');
+
+                var sending = false;
+                var pending = null;
+
+                function showStep(step) {
+                    blockEl.style.display = step === 'idle' ? '' : 'none';
+                    formEl.style.display = step === 'form' ? '' : 'none';
+                    reviewEl.style.display = step === 'review' ? '' : 'none';
+                    doneEl.style.display = step === 'done' ? '' : 'none';
+                }
+
+                function setError(el, message) {
+                    if (!el) return;
+                    el.textContent = message || '';
+                    el.style.display = message ? '' : 'none';
+                }
+
+                function resetForm() {
+                    lastNameEl.value = '';
+                    firstNameEl.value = '';
+                    emailLocalEl.value = '';
+                    emailDomainEl.value = '';
+                    setError(formErrorEl, '');
+                    setError(reviewErrorEl, '');
+                    pending = null;
+                }
+
+                openBtn.addEventListener('click', function() {
+                    resetForm();
+                    showStep('form');
+                    lastNameEl.focus();
+                });
+
+                cancelBtn.addEventListener('click', function() {
+                    resetForm();
+                    showStep('idle');
+                });
+
+                // ② 入力 → ③ 確認
+                confirmBtn.addEventListener('click', function() {
+                    var lastName = (lastNameEl.value || '').trim();
+                    var firstName = (firstNameEl.value || '').trim();
+                    // 誤って「＠」を含めて入力された場合に二重にならないよう取り除く。
+                    var emailLocal = (emailLocalEl.value || '').trim().replace(/^[@＠]+/, '');
+                    var emailDomain = (emailDomainEl.value || '').trim().replace(/^[@＠]+/, '');
+
+                    if (!lastName || !firstName) {
+                        setError(formErrorEl, 'お客様のお名前（姓・名）を入力してください。');
+                        return;
+                    }
+                    if (!emailLocal || !emailDomain) {
+                        setError(formErrorEl, 'メールアドレスを＠の前後に分けて入力してください。');
+                        return;
+                    }
+                    var email = emailLocal + '@' + emailDomain;
+                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                        setError(formErrorEl, 'メールアドレスの形式をご確認ください。（例：yamada＠example.com）');
+                        return;
+                    }
+
+                    setError(formErrorEl, '');
+                    pending = {
+                        last_name: lastName,
+                        first_name: firstName,
+                        email_local: emailLocal,
+                        email_domain: emailDomain
+                    };
+                    reviewNameEl.textContent = lastName + '　' + firstName + ' 様';
+                    reviewEmailEl.textContent = email;
+                    setError(reviewErrorEl, '');
+                    showStep('review');
+                });
+
+                // ③ 訂正 → ② 入力画面へ戻る
+                backBtn2.addEventListener('click', function() {
+                    setError(reviewErrorEl, '');
+                    showStep('form');
+                    lastNameEl.focus();
+                });
+
+                // ③ 送信 → ④ メール送信
+                sendBtn.addEventListener('click', function() {
+                    if (sending || !pending) return;
+                    sending = true;
+                    sendBtn.disabled = true;
+                    setError(reviewErrorEl, '');
+
+                    fetch(apiBase + '/customer/invite.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(pending)
+                    })
+                        .then(function(r) { return r.json().catch(function() { return { success: false }; }); })
+                        .then(function(res) {
+                            sending = false;
+                            sendBtn.disabled = false;
+                            if (!res.success || !res.data) {
+                                setError(reviewErrorEl, res.message || '送信に失敗しました。時間をおいてお試しください。');
+                                return;
+                            }
+                            // 送信済み・作成済み・メール失敗のいずれもサーバーの文言をそのまま出す。
+                            doneMessageEl.textContent = (res.data.customer_name || '') + ' 様（' + (res.data.email || '') + '）\n' + (res.message || '');
+                            doneUrlEl.value = res.data.invite_url || '';
+                            showStep('done');
+                            // 作成した顧客ページを一覧へ反映する。
+                            loadSessions();
+                        })
+                        .catch(function() {
+                            sending = false;
+                            sendBtn.disabled = false;
+                            setError(reviewErrorEl, '送信に失敗しました。通信状況をご確認ください。');
+                        });
+                });
+
+                doneCloseBtn.addEventListener('click', function() {
+                    resetForm();
+                    showStep('idle');
+                });
+
+                doneUrlEl.addEventListener('focus', function() {
+                    doneUrlEl.select();
+                });
+            })();
 
             var navChat = document.querySelector('.nav-item[data-section="chat-history-section"]');
             if (navChat) {

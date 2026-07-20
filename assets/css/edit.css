@@ -1370,6 +1370,97 @@ body {
 .chat-loan-badge {
     background: #0f8b5f;
 }
+/* 担当が事前作成し、お客様がまだご登録を終えていない顧客ページの目印 */
+.chat-invite-badge {
+    background: #8a5a00;
+}
+
+/* ---- 顧客ページの事前作成（顧客アカウントを作成する）---- */
+.customer-invite-block {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #e3e7ee;
+}
+.customer-invite-block .section-note {
+    margin-top: 0.5rem;
+}
+.customer-invite-panel {
+    margin-top: 1.25rem;
+    padding: 1.25rem;
+    border: 1px solid #d7dde8;
+    border-radius: 8px;
+    background: #f8fafd;
+}
+.customer-invite-panel h3 {
+    margin: 0 0 1rem;
+    font-size: 1.05rem;
+}
+.customer-invite-email-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+}
+.customer-invite-email-row .form-control {
+    flex: 1 1 0;
+    min-width: 0;
+}
+.customer-invite-at {
+    flex: 0 0 auto;
+    font-weight: 700;
+}
+.customer-invite-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+.customer-invite-error {
+    margin: 0.75rem 0 0;
+    color: #c0392b;
+    font-size: 0.9rem;
+    white-space: pre-line;
+}
+.customer-invite-review-list {
+    margin: 0;
+}
+.customer-invite-review-row {
+    display: flex;
+    gap: 1rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid #e3e7ee;
+}
+.customer-invite-review-row dt {
+    flex: 0 0 10rem;
+    font-weight: 700;
+}
+.customer-invite-review-row dd {
+    margin: 0;
+    word-break: break-all;
+}
+#customer-invite-done-message {
+    white-space: pre-line;
+}
+@media (max-width: 600px) {
+    /* 幅が足りない端末では＠の前後で折り返す（＠は残して意味が分かるようにする） */
+    .customer-invite-email-row {
+        flex-wrap: wrap;
+    }
+    .customer-invite-email-row .form-control {
+        flex: 1 1 100%;
+    }
+    .customer-invite-at {
+        width: 100%;
+        text-align: center;
+    }
+    .customer-invite-review-row {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .customer-invite-review-row dt {
+        flex: none;
+    }
+}
 .chat-loan-data {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

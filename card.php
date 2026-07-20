@@ -62,6 +62,15 @@ $slug = $_GET['slug'] ?? '';
 $preview = isset($_GET['preview']) && $_GET['preview'] === '1';
 $previewFromPC = isset($_GET['preview_from_pc']) && $_GET['preview_from_pc'] === '1';
 $chatOnly = isset($_GET['chat']) && $_GET['chat'] === '1';
+// エージェントが事前作成した顧客ページの専用URL（招待メール内のリンク）。
+// トークンが付いている場合は名刺ページではなく AIエージェントページを最初に表示する。
+$inviteToken = trim((string)($_GET['invite'] ?? ''));
+if ($inviteToken !== '' && !preg_match('/^[a-f0-9]{64}$/', $inviteToken)) {
+    $inviteToken = '';
+}
+if ($inviteToken !== '') {
+    $chatOnly = true;
+}
 // Show install banner only on mobile (not in preview and not on desktop)
 $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $isMobile = (bool) preg_match('/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i', $ua);
@@ -1309,7 +1318,8 @@ if (!empty($card['profile_photo'])) {
          data-agent-name="<?php echo htmlspecialchars($card['name'] ?? ''); ?>"
          data-agent-photo="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>"
          data-api-base="<?php echo htmlspecialchars($chatApiBase); ?>"
-         data-chat-only="<?php echo $chatOnly ? '1' : '0'; ?>">
+         data-chat-only="<?php echo $chatOnly ? '1' : '0'; ?>"
+         data-invite-token="<?php echo htmlspecialchars($inviteToken); ?>">
         <button type="button" id="chat-widget-toggle" class="chat-widget-toggle" aria-label="チャットを開く">
             <?php if (!empty($agentPhotoUrlForChat)): ?>
                 <img id="chat-widget-toggle-avatar" class="chat-widget-toggle-avatar" src="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>" alt="" width="46" height="46">
@@ -1323,7 +1333,7 @@ if (!empty($card['profile_photo'])) {
                 <img id="chat-widget-avatar" class="chat-widget-avatar" src="" alt="" width="40" height="40">
                 <div class="chat-widget-header-text">
                     <span id="chat-widget-agent-name" class="chat-widget-agent-name"></span>
-                    <span class="chat-widget-role">AIエージェント</span>
+                    <span id="chat-widget-role" class="chat-widget-role">AIエージェント</span>
                 </div>
                 <div class="chat-widget-header-actions">
                     <button type="button" id="chat-widget-refresh" class="chat-widget-icon-btn chat-widget-refresh" aria-label="チャットを最初から始める" title="チャットを最初から始める">
