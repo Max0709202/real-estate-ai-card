@@ -75,6 +75,8 @@ try {
 
     $customerName = customerInviteFullName($lastName, $firstName);
     $agentName = trim((string)($card['name'] ?? ''));
+    // 誰からのメールか分かるよう、エージェント名の前に名刺の社名を記載する。
+    $companyName = trim((string)($card['company_name'] ?? ''));
 
     customerInviteEnsureTable($db);
 
@@ -123,7 +125,7 @@ try {
     }
 
     $inviteUrl = customerInviteUrl($cardSlug, $token);
-    $mailSent = customerInviteSendEmail($email, $agentName, $customerName, $inviteUrl, $invitationId);
+    $mailSent = customerInviteSendEmail($email, $agentName, $customerName, $inviteUrl, $invitationId, $companyName);
 
     sendSuccessResponse([
         'session_id' => $sessionId,
