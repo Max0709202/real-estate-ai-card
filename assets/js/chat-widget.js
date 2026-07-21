@@ -2731,7 +2731,7 @@
         var p = c.progress || {};
         var stages = crmArray(p.stages);
         var html = '<div class="chat-feature-head"><strong>進捗管理</strong><span>進捗率 ' + crmFields(p.progress_percent || 0) + '%</span></div>';
-        html += '<label class="chat-feature-field">基準日<input type="date" name="target_date" value="' + crmFields(p.target_date || '') + '"></label>';
+        html += '<label class="chat-feature-field">引き渡し希望日<input type="date" name="target_date" value="' + crmFields(p.target_date || '') + '"></label>';
         html += '<label class="chat-feature-field">現在のステージ<input name="current_stage" value="' + crmFields(p.current_stage || '') + '"></label>';
         html += '<label class="chat-feature-field">AIコメント<textarea name="ai_comment">' + crmFields(p.ai_comment || '') + '</textarea></label>';
         html += '<div class="chat-feature-list">';
