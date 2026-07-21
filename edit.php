@@ -3858,6 +3858,40 @@ $defaultGreetings = [
                 return html;
             }
 
+            // AIチャットの生ログではなく、AIが整理した4項目（要約 / 条件 / 温度感 / 次にやるべきこと）だけを表示する。
+            function renderAiChatSummary(d) {
+                var structured = (d.lead && d.lead.structured_data && typeof d.lead.structured_data === 'object') ? d.lead.structured_data : {};
+                var crm = (d.crm_case && typeof d.crm_case === 'object') ? d.crm_case : {};
+                var memory = (d.memory && typeof d.memory === 'object') ? d.memory : {};
+
+                var summary = crm.ai_summary || memory.last_summary || structured.summary_for_sales || '';
+                var conditions = crm.conditions_summary || '';
+                var temperatureLabels = { high: '高い', middle: '中程度', low: '低い' };
+                var temperature = temperatureLabels[structured.temperature] || '';
+                var nextAction = structured.next_action || '';
+
+                var rows = [
+                    ['AIが作成した要約', summary],
+                    ['条件', conditions],
+                    ['温度感', temperature],
+                    ['次にやるべきこと', nextAction]
+                ];
+                var hasAny = rows.some(function(row) { return String(row[1] || '').trim() !== ''; });
+
+                var html = '<h4>AIチャット履歴（AI整理サマリー・閲覧のみ）</h4>';
+                html += '<div class="chat-contact-data chat-ai-summary">';
+                if (hasAny) {
+                    rows.forEach(function(row) {
+                        var value = String(row[1] || '').trim();
+                        html += '<p><strong>' + escapeHtml(row[0]) + ':</strong> ' + escapeHtml(value || '未取得') + '</p>';
+                    });
+                } else {
+                    html += '<p class="chat-thread-empty">AIとの会話内容はまだ整理されていません。</p>';
+                }
+                html += '</div>';
+                return html;
+            }
+
             function showDetail(sessionId) {
                 if (!sessionId) return;
                 currentDetailSessionId = sessionId;
@@ -3909,17 +3943,12 @@ $defaultGreetings = [
 
                         agentChatPendingAttachments = [];
                         var msgs = d.messages || [];
-                        // AI担当（AIチャネル）と担当連絡（contactチャネル）を分けて表示する。
-                        var aiMsgs = msgs.filter(function(m) { return (m.channel || 'ai') !== 'contact'; });
+                        // 担当連絡（contactチャネル）のみチャットとして表示する。AIチャネルの会話は要約表示に置き換え。
                         var contactMsgs = msgs.filter(function(m) { return (m.channel || 'ai') === 'contact'; });
                         // ライブポーリングは担当連絡チャネルのみを返すため、since_id は担当連絡の最終IDを基準にする。
                         agentChatLastMsgId = contactMsgs.length ? (parseInt(contactMsgs[contactMsgs.length - 1].id, 10) || 0) : 0;
 
-                        html += '<h4>AIチャット履歴（顧客とAIの会話・閲覧のみ）</h4>';
-                        html += '<div class="chat-thread chat-thread-readonly">';
-                        if (aiMsgs.length) { aiMsgs.forEach(function(m) { html += messageBubbleHtml(m); }); }
-                        else { html += '<p class="chat-thread-empty">AIとの会話はまだありません。</p>'; }
-                        html += '</div>';
+                        html += renderAiChatSummary(d);
 
                         html += '<h4>担当連絡（チャット）</h4>';
                         html += '<div class="chat-thread" id="agent-chat-thread">';
