@@ -1569,6 +1569,9 @@ body {
     font-size: 0.78rem;
     font-weight: 400;
 }
+.chat-lead-confidence {
+    display: none;
+}
 .chat-lead-group-invalid {
     border-color: #f1c6c6;
     background: #fffafa;
