@@ -239,22 +239,34 @@ function customerInviteWelcomeMessage(string $customerName): string
 }
 
 /**
+ * 差出人の表示（社名＋エージェント名）。誰からのメールか分かるよう、
+ * 社名がある場合は「○○株式会社の　△△」の形にする。
+ */
+function customerInviteSenderLabel(string $agentName, string $companyName = ''): string
+{
+    $agent = trim($agentName) !== '' ? trim($agentName) : '担当者';
+    $company = trim($companyName);
+    return $company !== '' ? $company . 'の　' . $agent : $agent;
+}
+
+/**
  * 招待メールの件名・本文を組み立てる。文面は依頼どおり。
  *
  * @return array [subject, html, text]
  */
-function customerInviteBuildEmail(string $agentName, string $customerName, string $url): array
+function customerInviteBuildEmail(string $agentName, string $customerName, string $url, string $companyName = ''): array
 {
-    $agent = trim($agentName) !== '' ? trim($agentName) : '担当者';
     $customer = trim($customerName);
     $customerLabel = $customer !== '' ? $customer . '様' : 'お客様';
+    // 件名・本文とも、エージェント名の前に名刺の社名を付ける。
+    $sender = customerInviteSenderLabel($agentName, $companyName);
 
-    $subject = "{$agent}様より、メッセージが届いています";
+    $subject = "{$sender}様より、メッセージが届いています";
 
     $lines = [
         "{$customerLabel}",
         'お世話になっております。',
-        "{$agent}です。",
+        "{$sender}です。",
         "{$customerLabel}専用の「AIエージェント」をご用意いたしました。",
         '',
         'このページでは、',
@@ -303,8 +315,8 @@ function customerInviteBuildEmail(string $agentName, string $customerName, strin
  *
  * @return bool 送信できたら true
  */
-function customerInviteSendEmail(string $to, string $agentName, string $customerName, string $url, ?int $invitationId = null): bool
+function customerInviteSendEmail(string $to, string $agentName, string $customerName, string $url, ?int $invitationId = null, string $companyName = ''): bool
 {
-    [$subject, $html, $text] = customerInviteBuildEmail($agentName, $customerName, $url);
+    [$subject, $html, $text] = customerInviteBuildEmail($agentName, $customerName, $url, $companyName);
     return sendEmail($to, $subject, $html, $text, 'customer_invitation', null, $invitationId);
 }
