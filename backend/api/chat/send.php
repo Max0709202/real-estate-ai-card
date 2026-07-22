@@ -207,6 +207,26 @@ try {
     $isMansionLandRequest = function_exists('chatMessageAsksLandInfo')
         ? chatMessageAsksLandInfo($message)
         : (bool)preg_match('/(土地情報|ハザード|用途地域|建ぺい率|容積率|都市計画|浸水|土砂|液状化)/u', $message);
+    // 質問意図を軽量LLMで判定してから、マンションDB検索／一般回答／対象外を振り分ける。
+    // 正規表現だけの判定では「リフォームに関する質問も大丈夫ですか？」のような一般相談まで
+    // マンション名検索として扱われ、「該当するマンションが見つかりませんでした」になっていた。
+    // 判定を行わない（＝従来どおりの確定ルートを通す）ケース:
+    //   - 候補ボタンからのマンション選択（$selectedMansionId）：利用者の明示選択
+    //   - 添付あり：画像から物件を特定するフローが優先
+    //   - 土地/ハザード照会：専用フローが確定している
+    // 判定に失敗した場合は 'unknown' となり、従来の正規表現ルーティングにフォールバックする。
+    $intentKind = 'unknown';
+    if ($selectedMansionId === null && empty($attachmentIds) && !$isMansionLandRequest
+        && function_exists('chatClassifyMessageIntent')) {
+        $intentResult = chatClassifyMessageIntent($message, $conversationHistory, [
+            'db' => $db,
+            'session_id' => $sessionId,
+            'business_card_id' => (int)$card['id'],
+        ]);
+        $intentKind = $intentResult['intent'] ?? 'unknown';
+    }
+    // 一般相談・対象外と判定された質問では、全国マンションDBの先行照会自体を行わない。
+    $skipMansionDbLookup = ($intentKind === 'general' || $intentKind === 'out_of_scope');
     $mansionSearchTerms = chatExtractMansionSearchTerms($message);
     // 物件名を実際に含む質問だけを「マンション照会」とみなす。名称抽出は緩く、ほぼ全ての
     // 文から断片を返す（「夏季休業はいつからですか?」→「夏季休業はいつから」）ため、長さ判定
@@ -216,16 +236,26 @@ try {
     // 同ファイルを直接 require していない（推移的読み込み）。片側だけ古いまま配信されると
     // 未定義関数は Error を投げ、下の catch (Exception) では捕捉できずチャット全体が500に
     // なる。未定義時は「物件名照会ではない」＝通常AI応答へ倒す（安全側）。
-    $isMansionLookupIntent = !$isMansionLandRequest
-        && !empty($mansionSearchTerms)
+    //
+    // LLM判定がある場合はそちらを優先する。「該当するマンションが見つかりませんでした」で
+    // AI回答を上書きしてよいのは、LLMが「特定マンションの照会」と判定した場合だけに限定する。
+    $regexNamesBuilding = !empty($mansionSearchTerms)
         && chatMansionTermLooksSpecific($mansionSearchTerms, $message)
         && function_exists('chatMansionMessageNamesBuilding')
         && chatMansionMessageNamesBuilding($message, $mansionSearchTerms);
+    if ($intentKind === 'mansion') {
+        $isMansionLookupIntent = !$isMansionLandRequest && !empty($mansionSearchTerms);
+    } elseif ($intentKind !== 'unknown') {
+        // general / out_of_scope / unclear：物件名照会として扱わない。
+        $isMansionLookupIntent = false;
+    } else {
+        $isMansionLookupIntent = !$isMansionLandRequest && $regexNamesBuilding;
+    }
     // 添付がある場合はテキストからのマンション先行応答を行わない。先行応答が成立すると
     // handled=true となり、下の「添付画像から物件を特定するフロー」（chatResolvePropertyFrom
     // Attachments）へ到達せず、送信された図面・資料が黙って無視されてしまうため。
     // ※候補ボタン（mansion_id 指定）は利用者の明示選択なので添付有無に関わらず優先する。
-    $preflightMansionAnswer = $isMansionLandRequest
+    $preflightMansionAnswer = ($isMansionLandRequest || $skipMansionDbLookup)
         ? null
         : ($selectedMansionId !== null
             ? chatMansionDbDirectAnswerById($db, $selectedMansionId, $message, $agentName)
@@ -260,6 +290,11 @@ try {
         if (!empty($intake['_mansion_meta'])) {
             chatLogPublicDataAccess($db, $sessionId, (int)$card['id'], $message, $intake['_mansion_meta']);
         }
+    } elseif ($intentKind === 'out_of_scope') {
+        // 不動産・住まいと関連づけられない質問（恋愛相談・芸能・レシピ等）。
+        // ヒアリング（SMS認証・氏名/連絡先の確認など）が処理しなかった場合に限り案内する。
+        $reply = '申し訳ありませんが、私は不動産に関するご相談を中心にお答えしています。不動産に関するご質問がございましたら、お気軽にお尋ねください。';
+        $sources = [];
     } else {
         $agentName = $card['name'] ?? '担当者';
         // 画像添付がある場合は、まず添付画像から物件（物件名・所在地・マンション名等）を特定し、
@@ -311,7 +346,9 @@ try {
         // マンション名での土地/ハザード照会 → DBから住所を解決し、住所入りクエリで
         // 標準の土地情報フロー（用途地域・建ぺい率・容積率・ハザード等）を実行する。
         $mansionLand = chatMansionLandQueryAddress($db, $message);
-        $directMansionAnswer = $mansionLand === null ? chatMansionDbDirectAnswer($db, $message, $agentName) : null;
+        $directMansionAnswer = ($mansionLand === null && !$skipMansionDbLookup)
+            ? chatMansionDbDirectAnswer($db, $message, $agentName)
+            : null;
         if ($directMansionAnswer !== null) {
             $reply = $directMansionAnswer['reply'];
             $sources = $directMansionAnswer['sources'];
@@ -326,7 +363,18 @@ try {
             if ($isUnresolvedMansionLookup) {
                 // Accuracy-first policy: do not guess individual building facts
                 // from model knowledge when neither exact nor similar DB rows exist.
+                // ここに到達するのは「特定マンションの照会」と判定された質問だけ（一般相談は
+                // $isMansionLookupIntent=false のため、この文面で上書きされない）。
                 $reply = '該当するマンションが見つかりませんでした。正式名称や所在地などをご確認ください。';
+                $sources = [];
+                $result = null;
+            } elseif ($intentKind === 'unclear' && $mansionLand === null) {
+                // 特定物件の照会か一般的なご相談か判断できず、DB照会でも該当が無かった場合は、
+                // 推測で回答せずお客様に意図を確認する。
+                $reply = "恐れ入りますが、ご質問の意図を確認させてください。\n\n"
+                    . "・特定のマンション・物件についてお調べする場合：マンション名（できれば所在地も）をお知らせください。\n"
+                    . "・住宅ローンや税制、相場、リフォームなど不動産全般のご相談の場合：知りたい内容をもう少し詳しくお聞かせください。\n\n"
+                    . "どちらもお手伝いできますので、お気軽にお知らせください。";
                 $sources = [];
                 $result = null;
             } else {
