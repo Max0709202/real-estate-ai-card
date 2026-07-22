@@ -380,6 +380,96 @@ function chatOpenAICompactHistory($conversationHistory, $maxMessages = 8, $maxCh
     return $compact;
 }
 
+/** 意図判定（ルーティング）に使う軽量モデル。未設定時は light モデルを流用する。 */
+function chatOpenAIModelIntent() {
+    if (defined('OPENAI_MODEL_INTENT') && OPENAI_MODEL_INTENT !== '') return OPENAI_MODEL_INTENT;
+    return getenv('OPENAI_MODEL_INTENT') ?: chatOpenAIModelLight();
+}
+
+/**
+ * 質問の意図を軽量LLMで判定し、回答ルートを振り分けるための分類器。
+ *
+ * これまでのルーティングは正規表現だけで行っていたため、「リフォームに関する質問も
+ * 大丈夫ですか？」のような一般相談までマンション名検索として扱われ、
+ * 「該当するマンションが見つかりませんでした」で上書きされることがあった。
+ * 逆に、不動産と無関係な質問（恋愛相談など）にも通常回答してしまっていた。
+ *
+ * 返り値: [
+ *   'intent' => 'mansion' | 'general' | 'out_of_scope' | 'unclear' | 'unknown',
+ *   'building_name' => string,  // intent=mansion のとき、質問に含まれる物件名
+ * ]
+ * API未設定・タイムアウト・JSON不正など判定できない場合は 'unknown' を返す。
+ * 呼び出し側は 'unknown' のとき従来どおりの正規表現ルーティングにフォールバックする
+ * （分類器の障害でチャット全体が止まらないようにするため）。
+ */
+function chatClassifyMessageIntent($message, $conversationHistory = [], $logContext = []) {
+    $fallback = ['intent' => 'unknown', 'building_name' => ''];
+    $message = trim((string)$message);
+    if ($message === '' || !function_exists('callOpenAIChat')) return $fallback;
+
+    $model = chatOpenAIModelIntent();
+    $apiKey = chatOpenAIApiKeyForModel($model);
+    if ($apiKey === '' || $apiKey === 'YOUR_OPENAI_API_KEY_HERE') return $fallback;
+
+    $system = <<<PROMPT
+あなたは不動産エージェントのAIチャットに届いた質問を、回答ルートへ振り分ける分類器です。
+ユーザーの最新の発言を、次の4つのいずれか1つに分類してください。
+
+- "mansion": 特定のマンション・建物・物件の「名称」を挙げて、その物件そのものの情報（住所・所在地・築年月・構造・総戸数・階数・最寄り駅など）を尋ねている場合だけ。全国マンションデータベースを検索する必要がある質問。
+- "general": 不動産・住宅・土地・建物・住生活に関する一般的な相談。売買/賃貸/査定/物件選び/価格相場/住宅ローン/資金計画/税制/補助金/契約/重要事項説明/登記/相続/贈与/財産分与/共有不動産/空き家/任意売却/競売/建築/建替え/解体/リフォーム/リノベーション/修繕/インスペクション/耐震/省エネ/断熱/住宅設備/メンテナンス/火災保険/地震保険/災害/ハザード/土地/境界/測量/接道/用途地域/建築規制/再建築/借地権/区分所有/管理組合/管理規約/長期修繕計画/マンション管理/賃貸管理/原状回復/立退き/住み替え/引越し/高齢者の住まい など（例示であり、これらに限りません）。
+  また、離婚・介護・転勤・転職・退職・子育て・住環境・防犯・近隣トラブル・ペット・通勤・通学など、直接は不動産でなくても住まいや不動産取引と関連づけて答えられる相談も "general" とします。
+  さらに、会話の続きにあたる短い返答（はい／いいえ／お願いします／ありがとう など）、氏名・電話番号・メールアドレス・住所・エリア名・金額・時期の回答、これまでの会話のまとめや振り返りの依頼も "general" とします。
+- "out_of_scope": 住まい・不動産とまったく関連づけられない質問（恋愛相談、芸能、スポーツ、ゲーム、料理レシピ、医療診断、プログラミング、翻訳、宿題 など）。
+- "unclear": 上記のどれとも判断できない場合。特定の物件名なのか一般的な用語なのか判別できない、単語だけの短い入力などに限ります。不動産・住まいに関する相談だと分かる場合は、内容が漠然としていても "unclear" ではなく "general" を選んでください。
+
+判断の指針:
+- カタカナの言葉が含まれているだけでは "mansion" にしないでください。不動産用語の多くはカタカナです（リフォーム、リノベーション、インスペクション、フラット35、サブリース、バリアフリー など）。
+- 「マンションの管理費とは？」「マンションの相場を教えて」のように、特定の建物名を含まない一般論は "general" です。
+- 物件名が含まれていても、その物件の話題ではなく制度や手続きの一般論を尋ねている場合は "general" です。
+
+出力は次のJSONのみ（前後に説明やコードフェンスを付けない）:
+{"intent":"mansion|general|out_of_scope|unclear","building_name":"intentがmansionのときだけ物件名。それ以外は空文字"}
+PROMPT;
+
+    $userParts = [];
+    $recent = chatOpenAICompactHistory($conversationHistory, 6, 200);
+    if (!empty($recent)) {
+        $lines = [];
+        foreach ($recent as $msg) {
+            $lines[] = ($msg['role'] === 'assistant' ? 'AI: ' : 'お客様: ') . $msg['content'];
+        }
+        $userParts[] = "【直近の会話（参考）】\n" . implode("\n", $lines);
+    }
+    $userParts[] = "【分類対象＝お客様の最新の発言】\n" . chatOpenAITrimPromptText($message, 500);
+
+    $options = [
+        'db' => $logContext['db'] ?? null,
+        'session_id' => $logContext['session_id'] ?? '',
+        'business_card_id' => $logContext['business_card_id'] ?? null,
+        'purpose' => 'intent_router',
+        'max_tokens' => 120,
+        'temperature' => 0,
+        'timeout' => 8,
+    ];
+    $resp = callOpenAIChat([
+        ['role' => 'system', 'content' => $system],
+        ['role' => 'user', 'content' => implode("\n\n", $userParts)],
+    ], $apiKey, $model, $options);
+    if (empty($resp['reply'])) return $fallback;
+
+    $raw = trim($resp['reply']);
+    $raw = preg_replace('/^```(?:json)?|```$/m', '', $raw);
+    if (preg_match('/\{.*\}/s', $raw, $m)) $raw = $m[0];
+    $parsed = json_decode($raw, true);
+    if (!is_array($parsed)) return $fallback;
+    $intent = strtolower(trim((string)($parsed['intent'] ?? '')));
+    if (!in_array($intent, ['mansion', 'general', 'out_of_scope', 'unclear'], true)) return $fallback;
+    return [
+        'intent' => $intent,
+        'building_name' => trim((string)($parsed['building_name'] ?? '')),
+    ];
+}
+
 function sanitizeChatReferralLanguage($reply, $agentName = '担当者') {
     $reply = (string)$reply;
     if ($reply === '') return $reply;

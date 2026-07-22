@@ -153,6 +153,11 @@ if (!defined('OPENAI_MODEL_SALES')) {
 if (!defined('OPENAI_MODEL_SUMMARY')) {
     define('OPENAI_MODEL_SUMMARY', getenv('OPENAI_MODEL_SUMMARY') ?: OPENAI_MODEL_LIGHT);
 }
+// 質問意図の判定（マンション名検索／一般相談／対象外の振り分け）に使う軽量モデル。
+// 1メッセージにつき1回・JSON数十トークンだけ返させる用途なので、最も安価なモデルを使う。
+if (!defined('OPENAI_MODEL_INTENT')) {
+    define('OPENAI_MODEL_INTENT', getenv('OPENAI_MODEL_INTENT') ?: OPENAI_MODEL_LIGHT);
+}
 // マンション紹介文の生成に使うモデル（未設定時は営業モデルを流用）。
 if (!defined('OPENAI_MODEL_MANSION')) {
     define('OPENAI_MODEL_MANSION', getenv('OPENAI_MODEL_MANSION') ?: 'gpt-5.4-mini');
