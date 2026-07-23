@@ -79,6 +79,7 @@ define('IMAGE_QUALITY', 85); // JPEG/WebP quality (1-100)
 define('IMAGE_SIZES', [
     'logo' => ['maxWidth' => 400, 'maxHeight' => 400],      // ロゴ: 400x400
     'photo' => ['maxWidth' => 800, 'maxHeight' => 800],     // プロフィール写真: 800x800
+    'flyer_band' => ['maxWidth' => 1654, 'maxHeight' => 800], // 自社帯: A4横相当（アスペクト比保持）
     'free' => ['maxWidth' => 1200, 'maxHeight' => 1200],    // フリー画像: 1200x1200
     'default' => ['maxWidth' => 1024, 'maxHeight' => 1024]  // デフォルト: 1024x1024
 ]);

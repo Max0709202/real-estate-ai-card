@@ -418,9 +418,17 @@
     api('/flyer-mask.php?image_id=' + imageId).then(function (res) {
       if (!res.success || !res.data.preview_url) { m.body.innerHTML = '<div class="prop-msg prop-msg--err">プレビューを表示できませんでした。</div>'; return; }
       var d = res.data;
+      var bandUrl = d.band_url || null; // 登録済み自社帯画像URL（未登録なら null）
       var regions = (d.regions && d.regions.length) ? d.regions.map(function (r) {
-        return { x: +r.x || 0, y: +r.y || 0, w: +r.w || 0, h: +r.h || 0 };
-      }) : [Object.assign({}, PROP_DEFAULT_BAND)]; // 既定: A4横の下3cmを白抜き
+        return { x: +r.x || 0, y: +r.y || 0, w: +r.w || 0, h: +r.h || 0, t: (r.t === 'band' ? 'band' : 'mask') };
+      }) : [];
+      // 既定領域: 自社帯が登録済みなら、下端帯に自社帯をデフォルト表示（白マスクの位置）。
+      // 未登録なら従来どおり白マスク。帯が既にあれば重複追加しない。
+      if (bandUrl && !regions.some(function (r) { return r.t === 'band'; })) {
+        regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'band' }));
+      } else if (!regions.length) {
+        regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'mask' }));
+      }
 
       // ベース画像を先読み（編集・プレビュー双方で使用）
       var baseImg = new Image();
@@ -428,15 +436,23 @@
       baseImg.onerror = function () { m.body.innerHTML = '<div class="prop-msg prop-msg--err">プレビュー画像を読み込めませんでした。</div>'; };
       baseImg.src = d.preview_url;
 
+      // 自社帯画像を先読み（顧客用プレビューのcanvas描画で使用）
+      var bandImg = null;
+      if (bandUrl) { bandImg = new Image(); bandImg.src = bandUrl; }
+
       /* --- 編集画面（ドラッグで範囲設定・白抜きは半透明で下地が少し見える） --- */
       function renderEdit() {
         teardownDrag();
+        var bandNote = bandUrl
+          ? '図面下端には自社帯をデフォルト表示しています。'
+          : '<b>自社帯は未登録です。</b>「自社帯登録」画面で帯を登録すると、白マスクの代わりに自社帯を表示できます。';
         m.body.innerHTML =
-          '<div class="prop-msg prop-msg--info">マスク（見えなくなる）する範囲をドラッグで設定できます。売主仲介会社の情報など、不要な情報をマスクしてください。なお、「この内容で確定」ボタンを押さない限り、顧客には販売図面は表示されません。</div>' +
+          '<div class="prop-msg prop-msg--info">マスク（白塗り）と自社帯をドラッグで配置できます。売主仲介会社の情報などはマスクで隠し、必要に応じて自社帯を重ねてください。' + bandNote + 'なお、「この内容で確定」ボタンを押さない限り、顧客には販売図面は表示されません。</div>' +
           '<div class="prop-mask-editor"><div class="prop-mask-canvas" id="prop-mask-canvas">' +
           '<img src="' + UI.esc(d.preview_url) + '" alt="" id="prop-mask-img" draggable="false"></div></div>' +
           '<div class="prop-form-actions">' +
-          '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-add">' + UI.icon('plus') + '範囲を追加</button>' +
+          '<button type="button" class="prop-btn prop-btn--ghost" id="prop-band-add"' + (bandUrl ? '' : ' disabled title="先に「自社帯登録」で帯を登録してください"') + '>' + UI.icon('plus') + '自社帯追加</button>' +
+          '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-add">' + UI.icon('plus') + 'マスク追加</button>' +
           '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-cancel">キャンセル</button>' +
           '<button type="button" class="prop-btn prop-btn--primary" id="prop-mask-preview">顧客用プレビューを確認</button></div>';
         var canvas = m.body.querySelector('#prop-mask-canvas');
@@ -449,10 +465,16 @@
           canvas.querySelectorAll('.prop-mask-rect').forEach(function (n) { n.remove(); });
           regions.forEach(function (r, i) {
             var el = document.createElement('div');
-            el.className = 'prop-mask-rect';
+            var isBand = (r.t === 'band');
+            el.className = 'prop-mask-rect' + (isBand ? ' prop-mask-rect--band' : '');
             el.setAttribute('data-i', i);
             setRectStyle(el, r);
-            el.innerHTML = '<button type="button" class="prop-mask-del" aria-label="削除">×</button><span class="prop-mask-handle"></span>';
+            if (isBand && bandUrl) {
+              el.style.backgroundImage = 'url("' + bandUrl + '")';
+            }
+            el.innerHTML = '<button type="button" class="prop-mask-del" aria-label="削除">×</button>' +
+              (isBand ? '<span class="prop-mask-tag">自社帯</span>' : '') +
+              '<span class="prop-mask-handle"></span>';
             canvas.appendChild(el);
           });
         }
@@ -489,8 +511,14 @@
         document.addEventListener('pointermove', moveHandler);
         document.addEventListener('pointerup', upHandler);
 
+        var bandAddBtn = m.body.querySelector('#prop-band-add');
+        if (bandAddBtn && bandUrl) {
+          bandAddBtn.addEventListener('click', function () {
+            regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'band' })); render();
+          });
+        }
         m.body.querySelector('#prop-mask-add').addEventListener('click', function () {
-          regions.push(Object.assign({}, PROP_DEFAULT_BAND)); render();
+          regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'mask' })); render();
         });
         m.body.querySelector('#prop-mask-cancel').addEventListener('click', function () { m.close(); });
         m.body.querySelector('#prop-mask-preview').addEventListener('click', renderPreview);
@@ -511,8 +539,22 @@
         cv.width = nw; cv.height = nh;
         var ctx = cv.getContext('2d');
         ctx.drawImage(baseImg, 0, 0, nw, nh);
-        ctx.fillStyle = '#ffffff'; // 実際の出力は白べた
-        regions.forEach(function (r) { ctx.fillRect(r.x * nw, r.y * nh, r.w * nw, r.h * nh); });
+        // 1) マスク（白べた）を先に描画
+        ctx.fillStyle = '#ffffff';
+        regions.forEach(function (r) {
+          if (r.t === 'band') return;
+          ctx.fillRect(r.x * nw, r.y * nh, r.w * nw, r.h * nh);
+        });
+        // 2) 自社帯を上に重ねて描画（帯画像が読み込めない場合は白べたでフォールバック）
+        regions.forEach(function (r) {
+          if (r.t !== 'band') return;
+          var dx = r.x * nw, dy = r.y * nh, dw = r.w * nw, dh = r.h * nh;
+          if (bandImg && bandImg.complete && bandImg.naturalWidth > 0) {
+            ctx.drawImage(bandImg, dx, dy, dw, dh);
+          } else {
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(dx, dy, dw, dh);
+          }
+        });
 
         m.body.querySelector('#prop-reedit').addEventListener('click', renderEdit);
         m.body.querySelector('#prop-confirm').addEventListener('click', function () {

@@ -597,6 +597,11 @@ function populateEditForms(data) {
         }
     }
 
+    // 自社帯（販売図面用）preview
+    if (typeof window.renderFlyerBandPreview === 'function') {
+        window.renderFlyerBandPreview(data.flyer_band || '');
+    }
+
     // Step 6: Template selection (card header background)
     try {
         const defaultBg = 'assets/images/card-header (1).jpg';
@@ -3175,3 +3180,104 @@ document.addEventListener('change', function(e) {
         }
     }
 });
+
+/* ===== 自社帯（販売図面用）登録 =====
+   帯はA4横サイズのため正方形クロップはせず、選択したらそのまま即アップロードする。
+   保存先カラム business_cards.flyer_band は upload.php 側で更新される。 */
+(function () {
+    function toDisplayUrl(path) {
+        if (!path) return '';
+        let p = String(path);
+        if (p.startsWith('http')) return p;
+        if (window.BASE_URL && p.startsWith(window.BASE_URL)) {
+            p = p.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+        }
+        if (window.BASE_URL) return window.BASE_URL + '/' + p.replace(/^\/+/, '');
+        return (p.startsWith('../') ? p : '../' + p);
+    }
+
+    // data.flyer_band からプレビューと削除ボタン表示を復元（loadBusinessCardData から呼ばれる）
+    window.renderFlyerBandPreview = function (path) {
+        const area = document.querySelector('[data-upload-id="flyer_band"]');
+        if (!area) return;
+        const preview = area.querySelector('.upload-preview');
+        const delBtn = document.getElementById('flyer-band-delete-btn');
+        if (path) {
+            if (preview) {
+                preview.innerHTML = '<img src="' + toDisplayUrl(path) + '" alt="自社帯" style="max-width: 100%; max-height: 120px; border-radius: 8px; object-fit: contain;" onerror="this.style.display=\'none\';">';
+            }
+            area.dataset.existingImage = path;
+            if (delBtn) delBtn.style.display = '';
+        } else {
+            if (preview) preview.innerHTML = '';
+            delete area.dataset.existingImage;
+            if (delBtn) delBtn.style.display = 'none';
+        }
+    };
+
+    function uploadUrl() {
+        if (typeof window.getUploadUrl === 'function') return window.getUploadUrl();
+        if (window.BASE_URL) return window.BASE_URL + '/backend/api/business-card/upload.php';
+        return window.location.origin + '/backend/api/business-card/upload.php';
+    }
+
+    // 選択 → 即アップロード
+    document.addEventListener('change', async function (e) {
+        if (e.target.id !== 'flyer_band') return;
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        if (!file.type || !file.type.startsWith('image/')) {
+            if (typeof showWarning === 'function') showWarning('画像ファイルを選択してください');
+            else alert('画像ファイルを選択してください');
+            e.target.value = '';
+            return;
+        }
+        const area = e.target.closest('.upload-area');
+        const preview = area ? area.querySelector('.upload-preview') : null;
+        if (preview) preview.innerHTML = '<small>アップロード中...</small>';
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('file_type', 'flyer_band');
+            const res = await fetch(uploadUrl(), { method: 'POST', body: fd, credentials: 'include' });
+            const json = await res.json();
+            if (json && json.success && json.data && json.data.file_path) {
+                window.renderFlyerBandPreview(json.data.file_path);
+                if (typeof showSuccess === 'function') showSuccess('帯を登録しました');
+            } else {
+                if (preview) preview.innerHTML = '';
+                if (typeof showWarning === 'function') showWarning((json && json.message) || 'アップロードに失敗しました');
+            }
+        } catch (err) {
+            console.error('flyer_band upload error:', err);
+            if (preview) preview.innerHTML = '';
+            if (typeof showWarning === 'function') showWarning('通信に失敗しました');
+        } finally {
+            e.target.value = '';
+        }
+    });
+
+    // 削除 → flyer_band を空文字でクリア
+    document.addEventListener('click', async function (e) {
+        if (e.target.id !== 'flyer-band-delete-btn') return;
+        if (!confirm('登録した帯を削除しますか？')) return;
+        try {
+            const res = await fetch('backend/api/business-card/update.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ flyer_band: '' }),
+                credentials: 'include'
+            });
+            const json = await res.json();
+            if (json && json.success) {
+                window.renderFlyerBandPreview('');
+                if (typeof showSuccess === 'function') showSuccess('帯を削除しました');
+            } else {
+                if (typeof showWarning === 'function') showWarning((json && json.message) || '削除に失敗しました');
+            }
+        } catch (err) {
+            console.error('flyer_band delete error:', err);
+            if (typeof showWarning === 'function') showWarning('通信に失敗しました');
+        }
+    });
+})();
