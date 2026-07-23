@@ -182,6 +182,10 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 /* 編集用の領域インジケータ。白抜きを透明度10%程度（不透明度90%）で表示し、下地が少し見えるようにする。
    実際の顧客用出力は白べた（不透明）。青破線枠で領域を視認しやすくする。 */
 .prop-mask-rect { position: absolute; background: rgba(255,255,255,.9); border: 2px dashed #2d6cdf; cursor: move; box-sizing: border-box; box-shadow: 0 0 0 1px rgba(45,108,223,.35) inset; }
+/* 自社帯の領域: 帯画像を背景表示し、緑破線で白マスクと区別する */
+.prop-mask-rect--band { background: rgba(255,255,255,.95); background-size: 100% 100%; background-repeat: no-repeat; background-position: center; border-color: #1c9c5c; box-shadow: 0 0 0 1px rgba(28,156,92,.35) inset; }
+.prop-mask-rect--band .prop-mask-handle { background: #1c9c5c; }
+.prop-mask-tag { position: absolute; top: -10px; left: -2px; padding: 1px 6px; font-size: 11px; line-height: 1.5; color: #fff; background: #1c9c5c; border-radius: 4px; pointer-events: none; white-space: nowrap; }
 .prop-preview-canvas { max-width: 100%; height: auto; display: block; border: 1px solid #d6dde8; border-radius: 6px; margin: 0 auto; }
 .prop-mask-handle { position: absolute; right: -7px; bottom: -7px; width: 16px; height: 16px; background: #2d6cdf; border: 2px solid #fff; border-radius: 50%; cursor: se-resize; }
 .prop-mask-del { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; background: #e8384f; color: #fff; font-size: 13px; line-height: 1; cursor: pointer; }

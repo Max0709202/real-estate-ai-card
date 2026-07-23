@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS business_cards (
     -- ヘッダー・挨拶部
     company_name VARCHAR(255),
     company_logo VARCHAR(500),
+    flyer_band VARCHAR(500),
     profile_photo VARCHAR(500),
     
     -- 会社プロフィール部
