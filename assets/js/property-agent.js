@@ -253,6 +253,10 @@
       api('/delete.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: p.id }) })
         .then(function (res) { if (res.success) { notify('ok', '削除しました'); renderList(); } else notify('error', res.message || '削除に失敗'); });
     });
+    // 顧客が付けた「見送り」バッジを押すと、見送り理由を表示する（§5）。
+    d.querySelectorAll('[data-pass-reason]').forEach(function (el) {
+      el.addEventListener('click', function () { UI.showPassReason(p); });
+    });
     d.querySelectorAll('[data-set-status]').forEach(function (b) {
       b.addEventListener('click', function () {
         var st = b.getAttribute('data-set-status');
