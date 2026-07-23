@@ -127,7 +127,7 @@ try {
     $file = $_FILES['file'];
 
     // 許可されたファイルタイプ
-    $allowedTypes = ['logo', 'photo', 'free'];
+    $allowedTypes = ['logo', 'photo', 'flyer_band', 'free'];
     if (!in_array($fileType, $allowedTypes)) {
         $fileType = 'photo';
     }
@@ -144,7 +144,8 @@ try {
         $database = new Database();
         $db = $database->getConnection();
 
-        $fieldName = ($fileType === 'logo') ? 'company_logo' : 'profile_photo';
+        $fieldMap = ['logo' => 'company_logo', 'flyer_band' => 'flyer_band', 'photo' => 'profile_photo'];
+        $fieldName = isset($fieldMap[$fileType]) ? $fieldMap[$fileType] : 'profile_photo';
 
         // Ensure we have a business card record
         $stmt = $db->prepare("SELECT id FROM business_cards WHERE user_id = ?");

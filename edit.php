@@ -853,6 +853,9 @@ $defaultGreetings = [
                     <a href="#agent-training" class="nav-item" data-step="agent" data-section="agent-training-section">
                         <span class="step-label">AI育成</span>
                     </a>
+                    <a href="#flyer-band" class="nav-item" data-step="flyer-band" data-section="flyer-band-section">
+                        <span class="step-label">自社帯登録</span>
+                    </a>
                 </nav>
             </div>
 
@@ -1536,7 +1539,7 @@ $defaultGreetings = [
 
                 <!-- Chat history / Leads (My Page) -->
                 <div id="chat-history-section" class="edit-section<?php echo $isUtilizingUser ? ' active' : ''; ?>"<?php echo $isUtilizingUser ? '' : ' style="display: none;"'; ?>>
-                    <h2>チャット履歴・顧客一覧（工事中）</h2>
+                    <h2>チャット履歴・顧客一覧</h2>
                     <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。</p>
                     <div id="chat-history-list" class="chat-history-list">
                         <p class="chat-history-loading">読み込み中...</p>
@@ -1626,7 +1629,7 @@ $defaultGreetings = [
 
                 <!-- Agent training -->
                 <div id="agent-training-section" class="edit-section" style="display: none;">
-                    <h2>AI育成（工事中）</h2>
+                    <h2>AI育成</h2>
                     <p class="step-description">AI担当に覚えさせたい情報や、使わせたくない表現を登録できます。</p>
 
                     <div class="form-section">
@@ -1704,6 +1707,25 @@ $defaultGreetings = [
                     <div class="form-section">
                         <h3>登録済み禁止ワード</h3>
                         <div id="agent-word-list">読み込み中...</div>
+                    </div>
+                </div>
+
+                <!-- 自社販売図面用 帯登録 -->
+                <div id="flyer-band-section" class="edit-section" style="display: none;">
+                    <h2>自社販売図面用 帯登録</h2>
+                    <p class="step-description">販売図面のマスク編集で、白マスクの代わりに表示する「自社の帯」を登録します。A4横サイズの帯画像（会社名・連絡先・QR等）をアップロードしてください。登録すると、マスク編集画面で図面の下端にデフォルト表示され、移動・リサイズできます。</p>
+
+                    <div class="form-section">
+                        <h3>帯画像</h3>
+                        <div class="upload-area upload-area--band" data-upload-id="flyer_band">
+                            <input type="file" id="flyer_band" accept="image/*" style="display: none;">
+                            <button type="button" class="btn-upload" onclick="document.getElementById('flyer_band').click()">アップロード</button>
+                            <div class="upload-preview"></div>
+                            <small>横長（A4横）の帯画像を選択するか、ここにドラッグ&ドロップしてください（自動でリサイズされます）<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                        </div>
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <button type="button" class="btn-delete" id="flyer-band-delete-btn" style="display: none;">帯を削除</button>
+                        </div>
                     </div>
                 </div>
             </div>

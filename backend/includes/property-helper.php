@@ -1128,15 +1128,19 @@ if (!function_exists('propertyMaskRegionsByPage')) {
 }
 
 if (!function_exists('propertyClampRegion')) {
-    /** 正規化矩形を 0..1 に丸め、極端に小さい矩形を除外。無効なら null。 */
-    function propertyClampRegion($x, $y, $w, $h): ?array
+    /** 正規化矩形を 0..1 に丸め、極端に小さい矩形を除外。無効なら null。
+     *  $t は種別 'band'（自社帯を合成）/ 'mask'（白塗り, 既定）。 */
+    function propertyClampRegion($x, $y, $w, $h, $t = null): ?array
     {
         $x = max(0.0, min(1.0, (float)$x));
         $y = max(0.0, min(1.0, (float)$y));
         $w = max(0.0, min(1.0 - $x, (float)$w));
         $h = max(0.0, min(1.0 - $y, (float)$h));
         if ($w < 0.02 || $h < 0.01) return null;
-        return ['x' => round($x, 4), 'y' => round($y, 4), 'w' => round($w, 4), 'h' => round($h, 4)];
+        return [
+            'x' => round($x, 4), 'y' => round($y, 4), 'w' => round($w, 4), 'h' => round($h, 4),
+            't' => ($t === 'band' ? 'band' : 'mask'),
+        ];
     }
 }
 
@@ -1253,22 +1257,88 @@ if (!function_exists('propertyMultiJpegToPdf')) {
     }
 }
 
+if (!function_exists('propertyLoadImageAny')) {
+    /** jpeg/png/gif/webp を GD リソースとして読み込む。失敗時 null。 */
+    function propertyLoadImageAny(string $path)
+    {
+        if (!function_exists('imagecreatetruecolor')) return null;
+        $info = @getimagesize($path);
+        if ($info === false) return null;
+        switch ($info['mime'] ?? '') {
+            case 'image/jpeg': $im = @imagecreatefromjpeg($path); break;
+            case 'image/png':  $im = @imagecreatefrompng($path); break;
+            case 'image/gif':  $im = @imagecreatefromgif($path); break;
+            case 'image/webp': $im = function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($path) : false; break;
+            default: $im = false;
+        }
+        return $im ?: null;
+    }
+}
+
+if (!function_exists('propertyFlyerBandAbsPath')) {
+    /** business_cards.flyer_band の保存パス（例: backend/uploads/flyer_band/x.jpg）を絶対パスに解決。
+     *  名刺画像はアプリルート相対、物件画像はUPLOAD_DIR相対と規約が異なるため両方を試す。無ければ null。 */
+    function propertyFlyerBandAbsPath(?string $rel): ?string
+    {
+        $rel = trim((string)$rel);
+        if ($rel === '') return null;
+        $rel = ltrim($rel, '/');
+        // 1) アプリルート相対（backend/uploads/... の想定）
+        $appRoot = dirname(dirname(rtrim(UPLOAD_DIR, '/')));
+        $cand = $appRoot . '/' . $rel;
+        if (is_file($cand)) return $cand;
+        // 2) UPLOAD_DIR相対（backend/uploads/ を剥がして解決）
+        $stripped = preg_replace('#^backend/uploads/#', '', $rel);
+        $cand2 = rtrim(UPLOAD_DIR, '/') . '/' . $stripped;
+        if (is_file($cand2)) return $cand2;
+        return null;
+    }
+}
+
 if (!function_exists('propertyApplyMaskToJpeg')) {
-    /** JPEGに正規化矩形を白べたで塗って $outPath に保存（GD）。成功で true。 */
-    function propertyApplyMaskToJpeg(string $srcJpeg, array $regions, string $outPath): bool
+    /** JPEGに正規化矩形を適用して $outPath に保存（GD）。成功で true。
+     *  t='band' の矩形は自社帯画像を合成、それ以外は白べた。 */
+    function propertyApplyMaskToJpeg(string $srcJpeg, array $regions, string $outPath, ?string $bandAbsPath = null): bool
     {
         if (!function_exists('imagecreatefromjpeg')) return false;
         $img = @imagecreatefromjpeg($srcJpeg);
         if (!$img) return false;
         $w = imagesx($img); $h = imagesy($img);
         $fill = imagecolorallocate($img, 255, 255, 255); // 白べた（塗りつぶし感を抑える）
-        foreach ($regions as $r) {
-            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0);
-            if (!$reg) continue;
-            imagefilledrectangle($img,
-                (int)round($reg['x'] * $w), (int)round($reg['y'] * $h),
-                (int)round(($reg['x'] + $reg['w']) * $w), (int)round(($reg['y'] + $reg['h']) * $h), $fill);
+
+        // 自社帯画像（あれば）を一度だけ読み込む。読み込めない場合は白マスクにフォールバック。
+        $band = null;
+        if (!empty($bandAbsPath) && is_file($bandAbsPath)) {
+            $band = propertyLoadImageAny($bandAbsPath);
         }
+
+        // 透過PNG帯にも対応できるよう、合成先のアルファブレンドを有効化
+        imagealphablending($img, true);
+
+        // 正規化して種別ごとに仕分け
+        $masks = [];
+        $bands = [];
+        foreach ($regions as $r) {
+            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0, $r['t'] ?? null);
+            if (!$reg) continue;
+            if ($reg['t'] === 'band' && $band) $bands[] = $reg;
+            else $masks[] = $reg; // mask、または帯未登録/読込失敗時のフォールバック
+        }
+        // 1) 白マスクを先に描画
+        foreach ($masks as $reg) {
+            $x0 = (int)round($reg['x'] * $w); $y0 = (int)round($reg['y'] * $h);
+            $rw = (int)round($reg['w'] * $w); $rh = (int)round($reg['h'] * $h);
+            if ($rw < 1 || $rh < 1) continue;
+            imagefilledrectangle($img, $x0, $y0, $x0 + $rw, $y0 + $rh, $fill);
+        }
+        // 2) 自社帯を上に重ねて描画（矩形にフィット＝A4横帯を前提に引き伸ばす）
+        foreach ($bands as $reg) {
+            $x0 = (int)round($reg['x'] * $w); $y0 = (int)round($reg['y'] * $h);
+            $rw = (int)round($reg['w'] * $w); $rh = (int)round($reg['h'] * $h);
+            if ($rw < 1 || $rh < 1) continue;
+            imagecopyresampled($img, $band, $x0, $y0, 0, 0, $rw, $rh, imagesx($band), imagesy($band));
+        }
+        if ($band) imagedestroy($band);
         $ok = imagejpeg($img, $outPath, 88);
         imagedestroy($img);
         return (bool)$ok;
@@ -1519,7 +1589,7 @@ if (!function_exists('propertyFlyerBuildCustomerPdf')) {
      * @param array $maskByPage  [pageIndex => [{x,y,w,h},...]]
      * @return array  ['pdf'=>相対パス|null, 'thumb'=>相対パス|null]
      */
-    function propertyFlyerBuildCustomerPdf(array $pageAbs, array $maskByPage, int $businessCardId, int $propertyId): array
+    function propertyFlyerBuildCustomerPdf(array $pageAbs, array $maskByPage, int $businessCardId, int $propertyId, ?string $bandAbsPath = null): array
     {
         $relDir = 'property/' . $businessCardId . '/' . $propertyId;
         $absDir = rtrim(UPLOAD_DIR, '/') . '/' . $relDir;
@@ -1529,7 +1599,7 @@ if (!function_exists('propertyFlyerBuildCustomerPdf')) {
             $regions = $maskByPage[$i] ?? [];
             if (empty($regions) && $i === 0) $regions = propertyFlyerBottomBandRegions();
             $mp = $absDir . '/maskpage_' . bin2hex(random_bytes(6)) . '.jpg';
-            if (propertyApplyMaskToJpeg($page, $regions, $mp)) $maskedPages[] = $mp;
+            if (propertyApplyMaskToJpeg($page, $regions, $mp, $bandAbsPath)) $maskedPages[] = $mp;
         }
         if (!$maskedPages) return ['pdf' => null, 'thumb' => null];
 
@@ -2018,7 +2088,7 @@ if (!function_exists('propertyFlyerVerifyAgentImage')) {
     function propertyFlyerVerifyAgentImage(PDO $db, int $imageId, int $userId): array
     {
         $stmt = $db->prepare("
-            SELECT pi.* FROM property_images pi
+            SELECT pi.*, bc.flyer_band FROM property_images pi
             JOIN business_cards bc ON bc.id = pi.business_card_id
             WHERE pi.id = ? AND bc.user_id = ? AND pi.category = 'flyer' LIMIT 1
         ");

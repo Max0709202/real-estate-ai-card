@@ -57,12 +57,19 @@ try {
         $byPage = propertyMaskRegionsByPage($img['mask_regions'] ?? null);
         $regions = $byPage[0] ?? [];
 
+        // 自社帯画像の公開URL（登録済みなら）。相対パスは backend/uploads/... を前提。
+        $bandUrl = null;
+        if (!empty($img['flyer_band'])) {
+            $bandUrl = rtrim(BASE_URL, '/') . '/' . ltrim($img['flyer_band'], '/');
+        }
+
         sendSuccessResponse([
             'image_id' => $imageId,
             'preview_url' => !empty($img['preview_path']) ? (propertyImageBaseUrl() . $imageId . '&variant=preview') : null,
             'width' => $size['width'] ?? null,
             'height' => $size['height'] ?? null,
             'regions' => $regions,
+            'band_url' => $bandUrl,
             'mask_status' => $img['mask_status'] ?? 'none',
             'masked_url' => !empty($img['masked_path']) ? (propertyImageBaseUrl() . $imageId . '&variant=masked') : null,
         ], 'OK');
@@ -75,11 +82,11 @@ try {
         if ($imageId <= 0) sendErrorResponse('image_id is required', 400);
         $img = propertyFlyerVerifyAgentImage($db, $imageId, $userId);
 
-        // 編集されたページ1（index 0）の範囲を正規化
+        // 編集されたページ1（index 0）の範囲を正規化（種別 t を保持）
         $regions = [];
         foreach (($input['regions'] ?? []) as $r) {
             if (!is_array($r)) continue;
-            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0);
+            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0, $r['t'] ?? null);
             if ($reg) $regions[] = $reg;
         }
 
@@ -92,7 +99,8 @@ try {
         $isPdf = (strtolower((string)$img['mime_type']) === 'application/pdf')
             || strtolower(pathinfo($absOriginal, PATHINFO_EXTENSION)) === 'pdf';
         $pg = propertyFlyerPageImages($absOriginal, $isPdf, 6);
-        $built = $pg['pages'] ? propertyFlyerBuildCustomerPdf($pg['pages'], $byPage, (int)$img['business_card_id'], (int)$img['property_id']) : ['pdf' => null, 'thumb' => null];
+        $bandAbs = propertyFlyerBandAbsPath($img['flyer_band'] ?? null); // 自社帯の絶対パス（未登録/未検出なら null → 白マスク）
+        $built = $pg['pages'] ? propertyFlyerBuildCustomerPdf($pg['pages'], $byPage, (int)$img['business_card_id'], (int)$img['property_id'], $bandAbs) : ['pdf' => null, 'thumb' => null];
         $maskedRel = $built['pdf'];
         $maskedThumbRel = $built['thumb'];
         foreach ($pg['tmp'] as $f) { if (is_file($f)) @unlink($f); }
