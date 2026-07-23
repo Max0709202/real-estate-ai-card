@@ -27,6 +27,8 @@ if (!function_exists('propertyEnsureTables')) {
           source_media VARCHAR(32) NOT NULL DEFAULT 'manual',
           source_url VARCHAR(1024) NULL DEFAULT NULL,
           status VARCHAR(24) NULL DEFAULT NULL,
+          pass_reason VARCHAR(32) NULL DEFAULT NULL,
+          pass_reason_text VARCHAR(500) NULL DEFAULT NULL,
           property_type ENUM('mansion','house','land') NOT NULL DEFAULT 'mansion',
           property_name VARCHAR(255) NULL DEFAULT NULL,
           building_name VARCHAR(255) NULL DEFAULT NULL,
@@ -141,6 +143,9 @@ if (!function_exists('propertyEnsureRetentionColumns')) {
             ['properties', 'thumbnail_image_id', "ADD COLUMN thumbnail_image_id INT NULL DEFAULT NULL AFTER main_image_path"],
             ['properties', 'expires_at', "ADD COLUMN expires_at TIMESTAMP NULL DEFAULT NULL AFTER hazard_fetched_at"],
             ['property_images', 'expires_at', "ADD COLUMN expires_at TIMESTAMP NULL DEFAULT NULL AFTER mask_status"],
+            // 見送り(passed)理由（顧客が見送りを選んだ際に記録）
+            ['properties', 'pass_reason', "ADD COLUMN pass_reason VARCHAR(32) NULL DEFAULT NULL AFTER status"],
+            ['properties', 'pass_reason_text', "ADD COLUMN pass_reason_text VARCHAR(500) NULL DEFAULT NULL AFTER pass_reason"],
         ];
         foreach ($alters as [$table, $col, $ddl]) {
             try {
@@ -198,6 +203,23 @@ if (!function_exists('propertyStatusDefs')) {
             'application'      => ['label' => '申込検討', 'role' => 'customer', 'color' => '#f08a24', 'icon' => 'application'],
             'brokerage_ok'     => ['label' => '仲介可',   'role' => 'agent',    'color' => '#1f9d57', 'icon' => 'brokerage'],
             'not_introducible' => ['label' => 'ご紹介不可', 'role' => 'agent',  'color' => '#6b3fd1', 'icon' => 'notintro'],
+        ];
+    }
+}
+
+if (!function_exists('propertyPassReasonDefs')) {
+    /**
+     * 見送り(passed)理由の選択肢（コード => ラベル）。JS PASS_REASONS と一致させること。
+     */
+    function propertyPassReasonDefs(): array
+    {
+        return [
+            'price'      => '価格・予算が合わない',
+            'location'   => '立地・周辺環境が希望と合わない',
+            'layout'     => '間取り・広さ・使い勝手が合わない',
+            'condition'  => '建物・土地の状態に不安がある',
+            'renovation' => 'リフォーム・修繕に費用がかかりそう',
+            'other'      => 'その他',
         ];
     }
 }
@@ -405,6 +427,9 @@ if (!function_exists('propertySerialize')) {
         $st = $row['status'] ?? null;
         if ($st === null || $st === '') $st = 'considering';
 
+        $passReasons = propertyPassReasonDefs();
+        $passReasonCode = $row['pass_reason'] ?? null;
+
         $images = propertyImagesFor($db, (int)$row['id']);
         $flyers = array_values(array_filter($images, fn($i) => $i['category'] === 'flyer'));
         $photos = array_values(array_filter($images, fn($i) => $i['category'] === 'photo'));
@@ -450,6 +475,10 @@ if (!function_exists('propertySerialize')) {
             'status' => $st,
             'status_label' => $st && isset($statuses[$st]) ? $statuses[$st]['label'] : null,
             'status_color' => $st && isset($statuses[$st]) ? $statuses[$st]['color'] : null,
+            // 見送り理由（passed のときのみ意味を持つ）
+            'pass_reason' => $passReasonCode,
+            'pass_reason_text' => $row['pass_reason_text'] ?? null,
+            'pass_reason_label' => ($passReasonCode && isset($passReasons[$passReasonCode])) ? $passReasons[$passReasonCode] : null,
             'property_type' => $row['property_type'] ?? 'mansion',
             'property_type_label' => $types[$row['property_type'] ?? 'mansion'] ?? '',
             'ocr_status' => $row['ocr_status'] ?? 'none',
