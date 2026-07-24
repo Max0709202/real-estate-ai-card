@@ -29,6 +29,17 @@
     not_introducible: { label: 'ご紹介不可', role: 'agent',    color: '#6b3fd1', icon: 'notintro' }
   };
 
+  /* 見送り(passed)理由の選択肢（PHP propertyPassReasonDefs と一致） */
+  var PASS_REASONS = {
+    price:      '価格・予算が合わない',
+    location:   '立地・周辺環境が希望と合わない',
+    layout:     '間取り・広さ・使い勝手が合わない',
+    condition:  '建物・土地の状態に不安がある',
+    renovation: 'リフォーム・修繕に費用がかかりそう',
+    other:      'その他'
+  };
+  function passReasonLabel(code) { return PASS_REASONS[code] || ''; }
+
   /* 基本情報フィールド定義（PHP propertyFieldDefs と一致）
      [key, label, group, types(空=全), agentOnly] */
   var FIELDS = [
@@ -109,14 +120,19 @@
     return '<span class="prop-source prop-source--' + cls + '">' + ic + label + '</span>';
   }
 
-  /* ===== ステータスバッジ（§5） ===== */
-  function statusBadgeHtml(p) {
+  /* ===== ステータスバッジ（§5） =====
+     interactive=true かつ 見送り理由がある場合、バッジをタップで理由を確認できるボタンにする（詳細画面のみ）。 */
+  function statusBadgeHtml(p, interactive) {
     if (!p.status || !STATUS[p.status]) return '';
     var s = STATUS[p.status];
     var bg = hexToTint(s.color);
-    return '<span class="prop-badge" style="background:' + bg + ';color:' + s.color + '">' +
+    var clickable = !!interactive && p.status === 'passed' && !!p.pass_reason;
+    var attrs = 'class="prop-badge' + (clickable ? ' prop-badge--reason' : '') +
+      '" style="background:' + bg + ';color:' + s.color + '"';
+    if (clickable) attrs += ' data-pass-reason="1" role="button" tabindex="0" title="見送り理由を見る"';
+    return '<span ' + attrs + '>' +
       '<span class="prop-badge--icon" style="color:' + s.color + '">' + icon(s.icon) + '</span>' +
-      esc(s.label) + '</span>';
+      esc(s.label) + (clickable ? '<span class="prop-badge__more">理由 ›</span>' : '') + '</span>';
   }
 
   function hexToTint(hex) {
@@ -203,7 +219,7 @@
       '<div class="prop-detail__title">' + name + '</div>' +
       (p.price_text ? '<div class="prop-detail__price">' + esc(p.price_text) + '</div>' : '') +
       (sub.length ? '<div class="prop-detail__sub">' + sub.join('｜') + '</div>' : '') +
-      '<div class="prop-detail__badges">' + sourceHtml(p) + (statusBadgeHtml(p) || '') + '</div>' +
+      '<div class="prop-detail__badges">' + sourceHtml(p) + (statusBadgeHtml(p, true) || '') + '</div>' +
       (regDate ? '<div class="prop-detail__date">登録日 ' + esc(regDate) + '</div>' : '') +
     '</div>';
   }
@@ -359,8 +375,64 @@
     return { overlay: ov, body: body, close: close };
   }
 
+  /* ===== 見送り理由: 選択モーダル（顧客が「見送り」を選んだとき） =====
+     opts: { current: {reason, text}, onConfirm: fn({reason, text}) } */
+  function passReasonPicker(opts) {
+    opts = opts || {};
+    var cur = opts.current || {};
+    var rows = Object.keys(PASS_REASONS).map(function (code) {
+      var on = cur.reason === code ? ' checked' : '';
+      return '<label class="prop-reason-opt">' +
+        '<input type="radio" name="prop-pass-reason" value="' + code + '"' + on + '>' +
+        '<span class="prop-reason-opt__text">' + esc(PASS_REASONS[code]) + '</span></label>';
+    }).join('');
+    var showOther = cur.reason === 'other';
+    var otherVal = showOther ? esc(cur.text || '') : '';
+    var html =
+      '<div class="prop-reason-note">見送りの理由をお選びください。担当者の物件提案の参考になります。</div>' +
+      '<div class="prop-reason-list">' + rows + '</div>' +
+      '<textarea class="prop-reason-other" id="prop-reason-other" rows="2" maxlength="500" ' +
+        'placeholder="差し支えなければ理由をご記入ください（任意）"' +
+        (showOther ? '' : ' style="display:none"') + '>' + otherVal + '</textarea>' +
+      '<div class="prop-form-actions">' +
+        '<button type="button" class="prop-btn prop-btn--ghost" data-reason-cancel>キャンセル</button>' +
+        '<button type="button" class="prop-btn prop-btn--primary" data-reason-ok' + (cur.reason ? '' : ' disabled') + '>見送りを登録</button>' +
+      '</div>';
+    var m = modal('見送りの理由', html);
+    var other = m.body.querySelector('#prop-reason-other');
+    var okBtn = m.body.querySelector('[data-reason-ok]');
+    m.body.querySelectorAll('input[name="prop-pass-reason"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        okBtn.disabled = false;
+        var isOther = r.value === 'other';
+        other.style.display = isOther ? '' : 'none';
+        if (isOther) other.focus();
+      });
+    });
+    m.body.querySelector('[data-reason-cancel]').addEventListener('click', m.close);
+    okBtn.addEventListener('click', function () {
+      var sel = m.body.querySelector('input[name="prop-pass-reason"]:checked');
+      if (!sel) return;
+      m.close();
+      if (typeof opts.onConfirm === 'function') {
+        opts.onConfirm({ reason: sel.value, text: sel.value === 'other' ? (other.value || '').trim() : '' });
+      }
+    });
+    return m;
+  }
+
+  /* ===== 見送り理由: 表示モーダル（管理画面で「見送り」を押したとき） ===== */
+  function showPassReason(p) {
+    var label = passReasonLabel(p && p.pass_reason) || (p && p.pass_reason_label) || '（理由未選択）';
+    var text = (p && p.pass_reason_text) ? '<div class="prop-reason-view__text">' + esc(p.pass_reason_text) + '</div>' : '';
+    return modal('見送りの理由',
+      '<div class="prop-reason-view"><div class="prop-reason-view__label">' + esc(label) + '</div>' + text + '</div>');
+  }
+
   w.PropertyUI = {
     esc: esc, icon: icon, formatDate: formatDate, STATUS: STATUS, FIELDS: FIELDS, TYPES: TYPES,
+    PASS_REASONS: PASS_REASONS, passReasonLabel: passReasonLabel,
+    passReasonPicker: passReasonPicker, showPassReason: showPassReason,
     sourceHtml: sourceHtml, statusBadgeHtml: statusBadgeHtml, cardHtml: cardHtml,
     detailHeaderHtml: detailHeaderHtml, basicInfoHtml: basicInfoHtml, hazardHtml: hazardHtml,
     galleryHtml: galleryHtml, lightbox: lightbox, pdfViewer: pdfViewer, bindLightbox: bindLightbox, modal: modal,

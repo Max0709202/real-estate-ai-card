@@ -22,6 +22,8 @@ if (!is_array($input)) $input = $_POST;
 $propertyId = isset($input['property_id']) ? (int)$input['property_id'] : 0;
 $status = trim((string)($input['status'] ?? ''));
 $visitorId = trim($input['visitor_id'] ?? '');
+$passReason = trim((string)($input['pass_reason'] ?? ''));
+$passReasonText = trim((string)($input['pass_reason_text'] ?? ''));
 if ($propertyId <= 0) sendErrorResponse('property_id is required', 400);
 
 try {
@@ -53,8 +55,22 @@ try {
         }
     }
 
-    $db->prepare("UPDATE properties SET status = ? WHERE id = ?")
-       ->execute([$status === '' ? null : $status, $propertyId]);
+    // 見送り(passed)のときのみ理由を保存する。それ以外のステータス（解除含む）では理由をクリア。
+    $reasonCode = null;
+    $reasonText = null;
+    if ($status === 'passed') {
+        $reasonDefs = propertyPassReasonDefs();
+        if ($passReason !== '' && isset($reasonDefs[$passReason])) {
+            $reasonCode = $passReason;
+            // 自由入力は「その他」のみ保存（他は選択肢で十分）。最大500文字。
+            if ($passReason === 'other' && $passReasonText !== '') {
+                $reasonText = mb_substr($passReasonText, 0, 500);
+            }
+        }
+    }
+
+    $db->prepare("UPDATE properties SET status = ?, pass_reason = ?, pass_reason_text = ? WHERE id = ?")
+       ->execute([$status === '' ? null : $status, $reasonCode, $reasonText, $propertyId]);
 
     // 顧客の物件選定操作 → 担当営業へメール通知（営業自身の操作は対象外）。
     if ($role === 'customer' && !empty($row['session_id'])) {

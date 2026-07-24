@@ -132,9 +132,9 @@
 
 .new-lp-sec-1-video-wrap {
     position: relative;
-    width: 100%;
+    width: 70%;
     max-width: 640px;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 9 / 16;
     background: #1a2d4a;
     border-radius: 24px;
     display: flex;
@@ -152,6 +152,7 @@
     border: 0;
     border-radius: inherit;
     display: block;
+    object-fit: cover;
 }
 
 .new-lp-sec-1-video-label {

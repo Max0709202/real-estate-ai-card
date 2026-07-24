@@ -2824,6 +2824,20 @@
         });
     }
 
+    // ステータス更新（見送りのときは reason={reason,text} を付与）。成功時に手元の p を更新して再描画。
+    function propSetStatus(p, st, reason) {
+        var payload = { property_id: p.id, status: st, visitor_id: visitorId };
+        if (reason) { payload.pass_reason = reason.reason; payload.pass_reason_text = reason.text || ''; }
+        propApi('/status.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+            .then(function (res) {
+                if (!res || !res.success) return;
+                p.status = res.data.property.status;
+                p.pass_reason = res.data.property.pass_reason;
+                p.pass_reason_text = res.data.property.pass_reason_text;
+                propRenderDetail(p);
+            });
+    }
+
     function propRenderDetail(p) {
         var statusChips = Object.keys(PUI.STATUS).filter(function (k) { return PUI.STATUS[k].role === 'customer'; }).map(function (k) {
             var s = PUI.STATUS[k]; var on = p.status === k;
@@ -2851,12 +2865,23 @@
         var box = featurePanel.querySelector('#prop-cust');
         box.querySelector('#prop-cust-back').addEventListener('click', renderPropertiesTab);
         PUI.bindLightbox(box);
+        // 見送りバッジをタップで理由を確認
+        box.querySelectorAll('[data-pass-reason]').forEach(function (el) {
+            el.addEventListener('click', function () { PUI.showPassReason(p); });
+        });
         box.querySelectorAll('[data-cust-status]').forEach(function (b) {
             b.addEventListener('click', function () {
                 var st = b.getAttribute('data-cust-status');
-                if (p.status === st) st = '';
-                propApi('/status.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: p.id, status: st, visitor_id: visitorId }) })
-                    .then(function (res) { if (res.success) { p.status = res.data.property.status; propRenderDetail(p); } });
+                if (p.status === st) st = ''; // 再タップで解除
+                // 「見送り」を選んだときは理由を選択してから登録する（解除時は理由不要）。
+                if (st === 'passed') {
+                    PUI.passReasonPicker({
+                        current: { reason: p.pass_reason, text: p.pass_reason_text },
+                        onConfirm: function (sel) { propSetStatus(p, 'passed', sel); }
+                    });
+                    return;
+                }
+                propSetStatus(p, st, null);
             });
         });
         var tabs = box.querySelectorAll('.prop-tab');
