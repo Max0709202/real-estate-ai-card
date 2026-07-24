@@ -423,30 +423,68 @@
       if (!res.success || !res.data.preview_url) { m.body.innerHTML = '<div class="prop-msg prop-msg--err">プレビューを表示できませんでした。</div>'; return; }
       var d = res.data;
       var bandUrl = d.band_url || null; // 登録済み自社帯画像URL（未登録なら null）
+
+      // ベース画像（販売図面）と自社帯画像を先読み
+      var baseImg = new Image();
+      baseImg.onerror = function () { m.body.innerHTML = '<div class="prop-msg prop-msg--err">プレビュー画像を読み込めませんでした。</div>'; };
+      var bandImg = null;
+      if (bandUrl) { bandImg = new Image(); bandImg.src = bandUrl; }
+
+      // 自社帯の縦横比・寸法ヘルパー（縦横比は帯画像の比率で固定する）
+      var SELF_BAND_WIDTH = 0.8;   // 既定の帯幅（フル幅の80%）
+      var SELF_BAND_MARGIN = 0.02; // 下端の余白（印刷時の端切れ対策）
+      function bandAspect() {
+        return (bandImg && bandImg.naturalWidth > 0 && bandImg.naturalHeight > 0)
+          ? (bandImg.naturalWidth / bandImg.naturalHeight) : null;
+      }
+      // 帯の幅(正規化)から、図面上で縦横比を保つ高さ(正規化)を求める
+      function bandHeightForWidth(w) {
+        var fw = baseImg.naturalWidth || 0, fh = baseImg.naturalHeight || 0;
+        var asp = bandAspect();
+        if (asp && fw && fh) return (w * fw / asp) / fh;
+        return w * PROP_DEFAULT_BAND.h; // 画像未読込時のフォールバック（従来比率）
+      }
+      // 帯領域を縦横比に合わせて再フィット（高さを補正し、はみ出しを抑える）
+      function fitBandRegion(r) {
+        r.h = bandHeightForWidth(r.w);
+        if (r.y + r.h > 1) r.y = Math.max(0, 1 - r.h);
+      }
+      // 既定の自社帯領域（幅80%・中央寄せ・下端に余白）
+      function makeSelfBand() {
+        var w = SELF_BAND_WIDTH, h = bandHeightForWidth(w);
+        return { x: (1 - w) / 2, y: Math.max(0, 1 - SELF_BAND_MARGIN - h), w: w, h: h, t: 'band' };
+      }
+
       var regions = (d.regions && d.regions.length) ? d.regions.map(function (r) {
         return { x: +r.x || 0, y: +r.y || 0, w: +r.w || 0, h: +r.h || 0, t: (r.t === 'band' ? 'band' : 'mask') };
       }) : [];
-      // 既定領域: 自社帯が登録済みなら、下端帯に自社帯をデフォルト表示（白マスクの位置）。
+      // 既定領域: 自社帯が登録済みなら、下端に自社帯をデフォルト表示（幅80%・中央）。
+      // 領域が空の場合は、社名周りを確実に隠す全幅の白マスクを土台として敷く。
       // 未登録なら従来どおり白マスク。帯が既にあれば重複追加しない。
       if (bandUrl && !regions.some(function (r) { return r.t === 'band'; })) {
-        regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'band' }));
+        if (!regions.length) regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'mask' }));
+        regions.push(makeSelfBand());
       } else if (!regions.length) {
         regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'mask' }));
       }
 
-      // ベース画像を先読み（編集・プレビュー双方で使用）
-      var baseImg = new Image();
+      var rerenderEditor = null; // renderEdit 内で設定。帯画像の遅延読込後に再描画するため。
       baseImg.onload = renderEdit;
-      baseImg.onerror = function () { m.body.innerHTML = '<div class="prop-msg prop-msg--err">プレビュー画像を読み込めませんでした。</div>'; };
       baseImg.src = d.preview_url;
 
-      // 自社帯画像を先読み（顧客用プレビューのcanvas描画で使用）
-      var bandImg = null;
-      if (bandUrl) { bandImg = new Image(); bandImg.src = bandUrl; }
+      if (bandImg) {
+        bandImg.onload = function () {
+          // 帯画像の縦横比が判明したら、帯領域を再フィットして再描画
+          regions.forEach(function (r) { if (r.t === 'band') fitBandRegion(r); });
+          if (rerenderEditor) rerenderEditor();
+        };
+      }
 
       /* --- 編集画面（ドラッグで範囲設定・白抜きは半透明で下地が少し見える） --- */
       function renderEdit() {
         teardownDrag();
+        // 帯領域を縦横比に合わせて再フィット（再入時・画像読込後の整合）
+        regions.forEach(function (r) { if (r.t === 'band') fitBandRegion(r); });
         var bandNote = bandUrl
           ? '図面下端には自社帯をデフォルト表示しています。'
           : '<b>自社帯は未登録です。</b>「自社帯登録」画面で帯を登録すると、白マスクの代わりに自社帯を表示できます。';
@@ -482,6 +520,8 @@
             canvas.appendChild(el);
           });
         }
+        // 帯画像の遅延読込後などに、編集画面が表示中なら再描画する
+        rerenderEditor = function () { if (canvas && canvas.isConnected) render(); };
         var drag = null;
         canvas.addEventListener('pointerdown', function (e) {
           var del = e.target.closest('.prop-mask-del');
@@ -504,7 +544,13 @@
           var r = regions[drag.i];
           if (drag.resize) {
             r.w = Math.max(0.03, Math.min(1 - drag.orig.x, drag.orig.w + dx));
-            r.h = Math.max(0.02, Math.min(1 - drag.orig.y, drag.orig.h + dy));
+            if (r.t === 'band') {
+              // 自社帯は縦横比を固定（高さは幅から決定）
+              r.h = bandHeightForWidth(r.w);
+              if (drag.orig.y + r.h > 1) r.h = Math.max(0.01, 1 - drag.orig.y);
+            } else {
+              r.h = Math.max(0.02, Math.min(1 - drag.orig.y, drag.orig.h + dy));
+            }
           } else {
             r.x = Math.max(0, Math.min(1 - r.w, drag.orig.x + dx));
             r.y = Math.max(0, Math.min(1 - r.h, drag.orig.y + dy));
@@ -518,7 +564,7 @@
         var bandAddBtn = m.body.querySelector('#prop-band-add');
         if (bandAddBtn && bandUrl) {
           bandAddBtn.addEventListener('click', function () {
-            regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'band' })); render();
+            regions.push(makeSelfBand()); render();
           });
         }
         m.body.querySelector('#prop-mask-add').addEventListener('click', function () {
