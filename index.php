@@ -136,15 +136,16 @@ if ($excludeFromSearch) {
                 </div>
                 <div class="new-lp-sec-1-right">
                     <div class="new-lp-sec-1-video-wrap">
-                        <iframe
+                        <video
                             class="new-lp-sec-1-video"
-                            src="https://www.youtube-nocookie.com/embed/y7MFT472KWA?rel=0&amp;playsinline=1"
+                            src="assets/card.mp4"
                             title="AIエージェント機能付き『不動産AI名刺』説明資料"
-                            frameborder="0"
-                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                            referrerpolicy="strict-origin-when-cross-origin"
-                            allowfullscreen
-                        ></iframe>
+                            autoplay
+                            muted
+                            loop
+                            playsinline
+                            controls
+                        ></video>
                     </div>
                 </div>
             </div>
@@ -437,7 +438,7 @@ if ($excludeFromSearch) {
                 <!-- Video Player -->
                 <div class="video-player-container">
                     <div class="video-responsive">
-                        <iframe src="https://www.youtube.com/embed/o0jgL_4N7GM" title="不動産AI名刺の使い方"
+                        <iframe src="https://www.youtube.com/embed/y7MFT472KWA" title="不動産AI名刺の使い方"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowfullscreen>
                         </iframe>

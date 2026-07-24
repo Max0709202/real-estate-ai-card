@@ -152,6 +152,7 @@
     border: 0;
     border-radius: inherit;
     display: block;
+    object-fit: cover;
 }
 
 .new-lp-sec-1-video-label {
