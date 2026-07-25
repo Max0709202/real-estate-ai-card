@@ -233,6 +233,7 @@
       '<button type="button" class="prop-btn prop-btn--ghost" id="prop-edit-btn">' + UI.icon('edit') + '編集</button>' +
       '<button type="button" class="prop-btn prop-btn--danger" id="prop-del-btn">' + UI.icon('trash') + '削除</button></div>' +
       UI.detailHeaderHtml(p) +
+      UI.passReasonBlockHtml(p, { withAI: true }) +
       '<div class="prop-section-title">対応ステータス（エージェント）</div>' +
       '<div class="prop-status-grid" id="prop-agent-status">' + statusChips + '</div>' +
       '<div class="prop-tabs">' +
@@ -257,6 +258,25 @@
     d.querySelectorAll('[data-pass-reason]').forEach(function (el) {
       el.addEventListener('click', function () { UI.showPassReason(p); });
     });
+    // 見送り理由のAI所見が未生成なら、この画面を開いたときに生成して掲出する。
+    if (p.status === 'passed' && d.querySelector('[data-ai-pending]')) {
+      api('/pass-reason-ai.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: p.id }) })
+        .then(function (res) {
+          var block = d.querySelector('#prop-reason-block');
+          if (!block) return;
+          if (res && res.success && res.data && res.data.pass_reason_ai) {
+            p.pass_reason_ai = res.data.pass_reason_ai;
+            block.outerHTML = UI.passReasonBlockHtml(p, { withAI: true });
+          } else {
+            var ph = d.querySelector('[data-ai-pending] .prop-reason-view__ai-body');
+            if (ph) ph.textContent = 'AI所見は生成できませんでした。';
+          }
+        })
+        .catch(function () {
+          var ph = d.querySelector('[data-ai-pending] .prop-reason-view__ai-body');
+          if (ph) ph.textContent = 'AI所見の生成に失敗しました。';
+        });
+    }
     d.querySelectorAll('[data-set-status]').forEach(function (b) {
       b.addEventListener('click', function () {
         var st = b.getAttribute('data-set-status');
