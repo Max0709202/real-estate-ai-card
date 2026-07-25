@@ -3273,7 +3273,8 @@ function showRegisterImageCropper(file, fieldName, originalEvent) {
                 }
             }
             setTimeout(() => {
-                const aspectRatio = fieldName === 'company_logo' ? 1 : 1;
+                // ロゴは自由比率（長方形ロゴにも対応）。それ以外は正方形。
+                const aspectRatio = fieldName === 'company_logo' ? NaN : 1;
                 try {
                     if (typeof Cropper === 'undefined') {
                         throw new Error('Cropper.js is not loaded');
