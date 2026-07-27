@@ -216,9 +216,23 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-reason-opt input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: #8a8f98; }
 .prop-reason-opt__text { font-weight: 600; }
 .prop-reason-other { width: 100%; margin-top: 10px; padding: 10px; border-radius: 10px; border: 1px solid #d7dde8; font-size: 14px; resize: vertical; box-sizing: border-box; }
-/* 管理画面で見送り理由を表示するモーダル */
+/* 管理画面で見送り理由を表示するモーダル（複数理由） */
 .prop-reason-view__label { font-size: 16px; font-weight: 800; color: #38465c; padding: 8px 0; }
-.prop-reason-view__text { margin-top: 8px; padding: 12px; border-radius: 10px; background: #f5f7fb; color: #38465c; font-size: 14px; white-space: pre-wrap; }
+.prop-reason-view__list { margin: 4px 0 0; padding-left: 20px; color: #38465c; font-size: 14px; }
+.prop-reason-view__list li { margin: 4px 0; font-weight: 600; }
+.prop-reason-view__sub { margin-top: 12px; font-size: 12px; font-weight: 800; color: #8a93a2; }
+.prop-reason-view__text { margin-top: 4px; padding: 12px; border-radius: 10px; background: #f5f7fb; color: #38465c; font-size: 14px; white-space: pre-wrap; }
+/* AIによる所見 */
+.prop-reason-view__ai { margin-top: 14px; padding: 12px; border-radius: 10px; background: #eef4ff; border: 1px solid #d6e4ff; }
+.prop-reason-view__ai-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: #2459bd; margin-bottom: 6px; }
+.prop-reason-view__ai-title svg { width: 15px; height: 15px; }
+.prop-reason-view__ai-body { font-size: 14px; color: #263043; line-height: 1.6; white-space: pre-wrap; }
+/* 管理画面インライン掲出ブロック（お客様の見送り理由 + AI所見） */
+.prop-reason-block { margin: 12px 0; padding: 14px; border-radius: 12px; background: #fafbfd; border: 1px solid #eef1f6; }
+.prop-reason-block__head { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: #6b7280; margin-bottom: 10px; }
+.prop-reason-block__head svg { width: 16px; height: 16px; }
+.prop-reason-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.prop-reason-tag { display: inline-block; padding: 5px 10px; border-radius: 999px; background: #eef1f6; color: #38465c; font-size: 12px; font-weight: 700; }
 
 /* ===== モーダル ===== */
 .prop-modal-overlay { position: fixed; inset: 0; background: rgba(15,23,40,.55); z-index: 99990; display: flex; align-items: center; justify-content: center; padding: 16px; }

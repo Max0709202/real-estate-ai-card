@@ -27,8 +27,9 @@ if (!function_exists('propertyEnsureTables')) {
           source_media VARCHAR(32) NOT NULL DEFAULT 'manual',
           source_url VARCHAR(1024) NULL DEFAULT NULL,
           status VARCHAR(24) NULL DEFAULT NULL,
-          pass_reason VARCHAR(32) NULL DEFAULT NULL,
+          pass_reason VARCHAR(255) NULL DEFAULT NULL,
           pass_reason_text VARCHAR(500) NULL DEFAULT NULL,
+          pass_reason_ai TEXT NULL DEFAULT NULL,
           property_type ENUM('mansion','house','land') NOT NULL DEFAULT 'mansion',
           property_name VARCHAR(255) NULL DEFAULT NULL,
           building_name VARCHAR(255) NULL DEFAULT NULL,
@@ -143,9 +144,10 @@ if (!function_exists('propertyEnsureRetentionColumns')) {
             ['properties', 'thumbnail_image_id', "ADD COLUMN thumbnail_image_id INT NULL DEFAULT NULL AFTER main_image_path"],
             ['properties', 'expires_at', "ADD COLUMN expires_at TIMESTAMP NULL DEFAULT NULL AFTER hazard_fetched_at"],
             ['property_images', 'expires_at', "ADD COLUMN expires_at TIMESTAMP NULL DEFAULT NULL AFTER mask_status"],
-            // 見送り(passed)理由（顧客が見送りを選んだ際に記録）
-            ['properties', 'pass_reason', "ADD COLUMN pass_reason VARCHAR(32) NULL DEFAULT NULL AFTER status"],
+            // 見送り(passed)理由（顧客が見送りを選んだ際に記録・複数選択可のカンマ区切り）
+            ['properties', 'pass_reason', "ADD COLUMN pass_reason VARCHAR(255) NULL DEFAULT NULL AFTER status"],
             ['properties', 'pass_reason_text', "ADD COLUMN pass_reason_text VARCHAR(500) NULL DEFAULT NULL AFTER pass_reason"],
+            ['properties', 'pass_reason_ai', "ADD COLUMN pass_reason_ai TEXT NULL DEFAULT NULL AFTER pass_reason_text"],
         ];
         foreach ($alters as [$table, $col, $ddl]) {
             try {
@@ -156,6 +158,15 @@ if (!function_exists('propertyEnsureRetentionColumns')) {
                 }
             } catch (Throwable $e) { /* 無視 */ }
         }
+        // 複数選択対応: 旧バージョンで pass_reason が VARCHAR(32) の場合は 255 へ拡張（冪等）。
+        try {
+            $stmt = $db->prepare("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'properties' AND COLUMN_NAME = 'pass_reason'");
+            $stmt->execute();
+            $len = $stmt->fetchColumn();
+            if ($len !== false && (int)$len < 255) {
+                $db->exec("ALTER TABLE properties MODIFY COLUMN pass_reason VARCHAR(255) NULL DEFAULT NULL");
+            }
+        } catch (Throwable $e) { /* 無視 */ }
     }
 }
 
@@ -209,18 +220,90 @@ if (!function_exists('propertyStatusDefs')) {
 
 if (!function_exists('propertyPassReasonDefs')) {
     /**
-     * 見送り(passed)理由の選択肢（コード => ラベル）。JS PASS_REASONS と一致させること。
+     * 見送り(passed)理由の選択肢（コード => ラベル）。複数選択可。JS PASS_REASONS と一致させること。
      */
     function propertyPassReasonDefs(): array
     {
         return [
-            'price'      => '価格・予算が合わない',
-            'location'   => '立地・周辺環境が希望と合わない',
-            'layout'     => '間取り・広さ・使い勝手が合わない',
-            'condition'  => '建物・土地の状態に不安がある',
-            'renovation' => 'リフォーム・修繕に費用がかかりそう',
-            'other'      => 'その他',
+            'price_high'  => '希望の価格より高い',
+            'location'    => '立地・周辺環境が希望と合わない',
+            'narrow'      => '希望の広さより狭い',
+            'old'         => '築年数が希望より古い',
+            'disaster'    => '災害リスクや建物の状態に不安がある',
+            'renovation'  => 'リフォーム・修繕にお金がかかりそう',
+            'sunlight'    => '日当たり・眺望が悪い',
+            'station_far' => '駅から遠い・交通の便が悪い',
+            'other'       => 'その他',
         ];
+    }
+}
+
+if (!function_exists('propertyPassReasonLabels')) {
+    /** カンマ区切りの理由コード（例 "price_high,old"）を日本語ラベル配列へ変換する。 */
+    function propertyPassReasonLabels(?string $csv): array
+    {
+        if ($csv === null || trim($csv) === '') return [];
+        $defs = propertyPassReasonDefs();
+        $out = [];
+        foreach (explode(',', $csv) as $code) {
+            $code = trim($code);
+            if ($code !== '' && isset($defs[$code])) $out[] = $defs[$code];
+        }
+        return $out;
+    }
+}
+
+if (!function_exists('propertyGeneratePassReasonInsight')) {
+    /**
+     * 見送り理由（選択肢＋自由入力）と物件情報をAIに読ませ、
+     * 担当者向けの所見（NG理由の要約と次回提案のヒント）を日本語で生成する。
+     * 失敗時（APIキー未設定・通信失敗・理由なし）は null を返す。
+     */
+    function propertyGeneratePassReasonInsight(PDO $db, array $row): ?string
+    {
+        $labels = propertyPassReasonLabels($row['pass_reason'] ?? null);
+        $freeText = trim((string)($row['pass_reason_text'] ?? ''));
+        if (empty($labels) && $freeText === '') return null;
+        if (!function_exists('callOpenAIChat')) return null;
+
+        $model = function_exists('chatOpenAIModelSummary') ? chatOpenAIModelSummary() : 'gpt-4o-mini';
+        $apiKey = function_exists('chatOpenAIApiKeyForModel') ? chatOpenAIApiKeyForModel($model) : (getenv('OPENAI_API_KEY') ?: '');
+        if ($apiKey === '' || $apiKey === 'YOUR_OPENAI_API_KEY_HERE') return null;
+
+        // 物件の要点（AIに渡すコンテキスト）
+        $facts = [];
+        $map = [
+            'building_name' => '物件名', 'price_text' => '価格', 'address' => '所在地', 'transport' => '交通',
+            'exclusive_area' => '専有面積', 'land_area' => '土地面積', 'building_area' => '建物面積',
+            'layout' => '間取り', 'built_year_month' => '築年月', 'current_status' => '現況',
+        ];
+        foreach ($map as $k => $lbl) {
+            $v = trim((string)($row[$k] ?? ''));
+            if ($v !== '') $facts[] = $lbl . '：' . $v;
+        }
+        $reasonLine = empty($labels) ? '（選択なし）' : implode('、', $labels);
+        if ($freeText !== '') $reasonLine .= '／自由記入：' . $freeText;
+
+        $sys = 'あなたは不動産の営業を支援するアシスタントです。お客様がこの物件を「見送り」した理由をもとに、'
+            . '担当者向けの所見を日本語で簡潔にまとめてください。'
+            . '1) お客様が重視している条件・懸念点の要約、2) 次回提案時の具体的なヒント、の2点を'
+            . '合計2〜3文で記述します。箇条書き・記号・マークダウンは使わず、丁寧な文章で出力してください。';
+        $user = "【物件情報】\n" . (empty($facts) ? '情報なし' : implode("\n", $facts))
+            . "\n\n【お客様が選んだ見送り理由】\n" . $reasonLine;
+
+        $res = callOpenAIChat(
+            [['role' => 'system', 'content' => $sys], ['role' => 'user', 'content' => $user]],
+            $apiKey,
+            $model,
+            [
+                'purpose' => 'summary', 'max_tokens' => 300, 'temperature' => 0.3, 'timeout' => 20,
+                'db' => $db,
+                'session_id' => $row['session_id'] ?? null,
+                'business_card_id' => isset($row['business_card_id']) ? (int)$row['business_card_id'] : null,
+            ]
+        );
+        if (empty($res['reply'])) return null;
+        return mb_substr(trim($res['reply']), 0, 1000);
     }
 }
 
@@ -427,8 +510,11 @@ if (!function_exists('propertySerialize')) {
         $st = $row['status'] ?? null;
         if ($st === null || $st === '') $st = 'considering';
 
-        $passReasons = propertyPassReasonDefs();
-        $passReasonCode = $row['pass_reason'] ?? null;
+        $passReasonCsv = $row['pass_reason'] ?? null;
+        $passReasonCodes = ($passReasonCsv !== null && trim((string)$passReasonCsv) !== '')
+            ? array_values(array_filter(array_map('trim', explode(',', (string)$passReasonCsv)), fn($c) => $c !== ''))
+            : [];
+        $passReasonLabels = propertyPassReasonLabels($passReasonCsv);
 
         $images = propertyImagesFor($db, (int)$row['id']);
         $flyers = array_values(array_filter($images, fn($i) => $i['category'] === 'flyer'));
@@ -475,10 +561,13 @@ if (!function_exists('propertySerialize')) {
             'status' => $st,
             'status_label' => $st && isset($statuses[$st]) ? $statuses[$st]['label'] : null,
             'status_color' => $st && isset($statuses[$st]) ? $statuses[$st]['color'] : null,
-            // 見送り理由（passed のときのみ意味を持つ）
-            'pass_reason' => $passReasonCode,
+            // 見送り理由（passed のときのみ意味を持つ・複数選択可）
+            'pass_reason' => $passReasonCsv,                 // 生のカンマ区切りコード（後方互換）
+            'pass_reasons' => $passReasonCodes,              // コード配列
+            'pass_reason_labels' => $passReasonLabels,       // 日本語ラベル配列
             'pass_reason_text' => $row['pass_reason_text'] ?? null,
-            'pass_reason_label' => ($passReasonCode && isset($passReasons[$passReasonCode])) ? $passReasons[$passReasonCode] : null,
+            // AIが分析した所見は担当者（管理画面）にのみ表示。顧客には出さない。
+            'pass_reason_ai' => $forAgent ? ($row['pass_reason_ai'] ?? null) : null,
             'property_type' => $row['property_type'] ?? 'mansion',
             'property_type_label' => $types[$row['property_type'] ?? 'mansion'] ?? '',
             'ocr_status' => $row['ocr_status'] ?? 'none',
