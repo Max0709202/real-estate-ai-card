@@ -42,8 +42,11 @@ body {
 }
 
 .company-logo {
-    max-width: 120px;
+    /* 高さ(max-height)を基準に、横長ロゴは横に伸ばす。max-width は上限（大きくなりすぎ防止） */
+    max-width: 260px;
     max-height: 120px;
+    width: auto;
+    height: auto;
     /* margin: 0 auto 1rem; */
     display: block;
     border-radius: 14px;
@@ -750,7 +753,7 @@ ease;
     }
 
     .company-logo {
-        max-width: 100px;
+        max-width: 200px;
         max-height: 100px;
     }
 
