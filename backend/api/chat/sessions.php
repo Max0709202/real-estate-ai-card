@@ -39,7 +39,9 @@ try {
                (SELECT cc.customer_name FROM chat_lead_contacts cc WHERE cc.session_id = cs.id LIMIT 1) as customer_name,
                -- エージェントが事前作成した顧客ページ（顧客はまだSMS認証前）の情報
                (SELECT ci.status FROM chat_customer_invitations ci WHERE ci.session_id = cs.id LIMIT 1) as invitation_status,
-               (SELECT CONCAT(ci.last_name, '　', ci.first_name) FROM chat_customer_invitations ci WHERE ci.session_id = cs.id LIMIT 1) as invitation_name
+               -- 名は任意入力のため、未入力なら姓だけを返す（末尾に全角スペースが残らないように）
+               (SELECT IF(COALESCE(ci.first_name, '') = '', ci.last_name, CONCAT(ci.last_name, '　', ci.first_name))
+                  FROM chat_customer_invitations ci WHERE ci.session_id = cs.id LIMIT 1) as invitation_name
         FROM chat_sessions cs
         JOIN business_cards bc ON bc.id = cs.business_card_id
         WHERE bc.user_id = ?

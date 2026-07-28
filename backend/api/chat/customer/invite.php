@@ -1,7 +1,7 @@
 <?php
 /**
  * エージェントが顧客ページ（AIエージェントページ）を事前に作成し、専用URLをメールで送る。
- * POST { business_card_id?, last_name, first_name, email_local, email_domain }
+ * POST { business_card_id?, last_name, first_name?, email_local, email_domain }
  *   -> { session_id, invite_url, customer_name, email }
  *
  * 顧客側のSMS認証を待たずに chat_sessions を先に作るため、エージェントは
@@ -32,8 +32,9 @@ $firstName = trim((string)($input['first_name'] ?? ''));
 $emailLocal = trim((string)($input['email_local'] ?? ''));
 $emailDomain = trim((string)($input['email_domain'] ?? ''));
 
-if ($lastName === '' || $firstName === '') {
-    sendErrorResponse('お客様のお名前（姓・名）を入力してください', 400);
+// 名は任意（姓のみでも案内を送れる）。
+if ($lastName === '') {
+    sendErrorResponse('お客様の姓を入力してください', 400);
 }
 if (mb_strlen($lastName) > 50 || mb_strlen($firstName) > 50) {
     sendErrorResponse('お名前は姓・名それぞれ50文字以内で入力してください', 400);
