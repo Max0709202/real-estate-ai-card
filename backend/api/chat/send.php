@@ -225,6 +225,15 @@ try {
         ]);
         $intentKind = $intentResult['intent'] ?? 'unknown';
     }
+    // セーフティネット（育てるAIの核）：担当者が自分の名刺に登録したRAG（定休日・営業時間・
+    // 対応エリアなど）に一致する質問は、たとえ意図判定が out_of_scope でも拒否せず通常回答へ
+    // 回す。「定休日は？」のような短い質問は分類器には対象外に見えるが、担当者が登録して
+    // いれば必ず答えるべき情報のため。判定できない場合(unknown)は元の分岐を尊重する。
+    if ($intentKind === 'out_of_scope'
+        && function_exists('chatAgentHasMatchingCustomRag')
+        && chatAgentHasMatchingCustomRag($db, (int)$card['id'], $message)) {
+        $intentKind = 'general';
+    }
     // 一般相談・対象外と判定された質問では、全国マンションDBの先行照会自体を行わない。
     $skipMansionDbLookup = ($intentKind === 'general' || $intentKind === 'out_of_scope');
     $mansionSearchTerms = chatExtractMansionSearchTerms($message);

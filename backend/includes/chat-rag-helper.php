@@ -551,6 +551,51 @@ function getAgentCustomContextForChat($db, $businessCardId, $message, $limit = 5
     }
 }
 
+/**
+ * この名刺の担当者が登録したRAG（agent_custom_rag_items）の中に、質問の語句と
+ * 実際に一致する項目が1件でもあるかを軽量に判定する。
+ *
+ * getAgentCustomContextForChat() は語句一致が無くても直近RAGを読み込むフォールバックを
+ * 持つため「一致したか」の判定には使えない。ここでは語句ベースのLIKEだけを行い、
+ * フォールバックは使わない（＝本当にこの質問に関係する登録RAGがある場合だけ true）。
+ *
+ * 用途: 意図判定が out_of_scope でも、担当者が登録した情報（定休日・営業時間など）に
+ * 一致する質問は「育てるAI」の核なので、拒否せず通常回答へ回すためのセーフティネット。
+ */
+function chatAgentHasMatchingCustomRag($db, $businessCardId, $message) {
+    if (!$db instanceof PDO || !$businessCardId) return false;
+    $message = trim((string)$message);
+    if ($message === '') return false;
+    try {
+        ensureChatRagTables($db);
+        $terms = chatExtractSearchTerms($message);
+        foreach (chatRagTokenizeMessage($message) as $token) {
+            $terms[] = $token;
+        }
+        $terms = array_values(array_unique(array_filter(array_map('trim', $terms))));
+        if (empty($terms)) return false;
+
+        $likes = [];
+        $params = [(int)$businessCardId];
+        foreach (array_slice($terms, 0, 8) as $term) {
+            $likes[] = '(title LIKE ? OR content LIKE ? OR source_note LIKE ?)';
+            $like = '%' . $term . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+        $sql = "SELECT 1 FROM agent_custom_rag_items
+            WHERE business_card_id = ? AND enabled = 1 AND (" . implode(' OR ', $likes) . ")
+            LIMIT 1";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchColumn() !== false;
+    } catch (Throwable $e) {
+        error_log('Agent custom RAG match check error: ' . $e->getMessage());
+        return false;
+    }
+}
+
 function buildAgentProhibitedWordsPrompt($words) {
     if (empty($words) || !is_array($words)) return '';
     $lines = [];

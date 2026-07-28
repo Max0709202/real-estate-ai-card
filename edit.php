@@ -1562,7 +1562,7 @@ $defaultGreetings = [
                                 <input type="text" id="customer-invite-last-name" class="form-control" maxlength="50" placeholder="例：山田" autocomplete="off">
                             </div>
                             <div class="form-group">
-                                <label>お客様の名 <span class="required">*</span></label>
+                                <label>お客様の名</label>
                                 <input type="text" id="customer-invite-first-name" class="form-control" maxlength="50" placeholder="例：太郎" autocomplete="off">
                             </div>
                         </div>
@@ -4430,8 +4430,9 @@ $defaultGreetings = [
                     var emailLocal = (emailLocalEl.value || '').trim().replace(/^[@＠]+/, '');
                     var emailDomain = (emailDomainEl.value || '').trim().replace(/^[@＠]+/, '');
 
-                    if (!lastName || !firstName) {
-                        setError(formErrorEl, 'お客様のお名前（姓・名）を入力してください。');
+                    // 名は任意。姓だけでも案内を送れるようにする。
+                    if (!lastName) {
+                        setError(formErrorEl, 'お客様の姓を入力してください。');
                         return;
                     }
                     if (!emailLocal || !emailDomain) {
@@ -4451,7 +4452,7 @@ $defaultGreetings = [
                         email_local: emailLocal,
                         email_domain: emailDomain
                     };
-                    reviewNameEl.textContent = lastName + '　' + firstName + ' 様';
+                    reviewNameEl.textContent = (firstName ? lastName + '　' + firstName : lastName) + ' 様';
                     reviewEmailEl.textContent = email;
                     setError(reviewErrorEl, '');
                     showStep('review');

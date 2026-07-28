@@ -1962,7 +1962,10 @@ if (!function_exists('propertyExtractPdfImages')) {
 
             if ($isDCT) {
                 if ($isFlate) { $d = propertyInflateStream($data); if ($d !== null) $data = $d; }
-                if (@file_put_contents($out, $data) && ($gi = @getimagesize($out)) && $gi[0] >= $minEdge && $gi[1] >= $minEdge) {
+                // CMYK(4ch)のJPEGはGDが色反転・読込失敗しやすい。埋め込みからは除外し、
+                // ページラスタ(RGB)からのVision切り出しで正しい色として捕捉させる。
+                if (@file_put_contents($out, $data) && ($gi = @getimagesize($out)) && $gi[0] >= $minEdge && $gi[1] >= $minEdge
+                    && (!isset($gi['channels']) || (int)$gi['channels'] !== 4)) {
                     $saved[] = $out;
                 } else { @unlink($out); }
             } elseif ($isFlate && $bpc === 8) {
@@ -2120,7 +2123,7 @@ if (!function_exists('propertyFlyerProcessUploaded')) {
             };
 
             // ① 主たる方法: PDFから埋め込み画像を直接抽出 → ② Visionモデルで一括分類 → ③ 保存対象のみ登録
-            $usedExtraction = false;
+            $extractedCats = []; // 埋め込み抽出で取得済みのカテゴリ（Vision補完時の重複回避用）
             if ($isPdf) {
                 $exDir = rtrim(sys_get_temp_dir(), '/') . '/prop_ex_' . bin2hex(random_bytes(6));
                 $extracted = propertyExtractPdfImages($originalAbsPath, $exDir, 200, 40);
@@ -2131,24 +2134,39 @@ if (!function_exists('propertyFlyerProcessUploaded')) {
                         if ($c === null || empty($c['saveable'])) continue; // その他/不明は保存しない（売主情報混入回避）
                         if ($photoCount >= 10) break;
                         $savePhoto($path, $c['category'], !empty($c['thumbnail_candidate']));
-                        $usedExtraction = true;
+                        $extractedCats[$c['category']] = true;
                     }
                     foreach ($extracted as $p) { if (is_file($p)) @unlink($p); }
                     if (is_dir($exDir) && !glob($exDir . '/*')) @rmdir($exDir);
                 }
             }
 
-            // フォールバック: 埋め込み抽出が無い場合は、ページラスタから領域を切り出して登録
-            if (!$usedExtraction) {
-                foreach ($pageAbs as $pi => $page) {
-                    foreach (($pageItems[$pi] ?? []) as $item) {
-                        if (empty($item['saveable'])) continue;
-                        if ($photoCount >= 10) break;
-                        $cropAbs = $absDir . '/crop_' . bin2hex(random_bytes(6)) . '.jpg';
-                        if (!propertyCropRegionToJpeg($page, $item, $cropAbs, 1280)) continue;
-                        $savePhoto($cropAbs, $item['category'], !empty($item['thumbnail_candidate']));
-                        @unlink($cropAbs);
-                    }
+            // ③ Vision解析による補完（取得漏れの主因対策）:
+            //    埋め込み抽出で取得できていないカテゴリを、ページラスタから切り出して補う。
+            //    特に「間取り図」「地図」はベクター描画のことが多く埋め込み画像として抽出できないため、
+            //    埋め込み抽出が成功していても必ずこちらで捕捉する。
+            //    埋め込み抽出が無い場合（画像アップロード/写真ベースのPDF等）は全カテゴリをここで登録（従来動作）。
+            foreach ($pageAbs as $pi => $page) {
+                $items = $pageItems[$pi] ?? [];
+                // 10枚上限で溢れても間取り図・地図が確実に残るよう、優先的に処理する
+                usort($items, function ($a, $b) {
+                    $rank = function ($it) {
+                        $cat = $it['category'] ?? '';
+                        if ($cat === '間取り図') return 0;
+                        if ($cat === '地図') return 1;
+                        return 2;
+                    };
+                    return $rank($a) - $rank($b);
+                });
+                foreach ($items as $item) {
+                    if (empty($item['saveable'])) continue;
+                    if ($photoCount >= 10) break;
+                    // 埋め込み抽出で同カテゴリを取得済みなら重複回避（間取り図・地図は抽出されないため必ず捕捉される）
+                    if (!empty($extractedCats[$item['category']])) continue;
+                    $cropAbs = $absDir . '/crop_' . bin2hex(random_bytes(6)) . '.jpg';
+                    if (!propertyCropRegionToJpeg($page, $item, $cropAbs, 1280)) continue;
+                    $savePhoto($cropAbs, $item['category'], !empty($item['thumbnail_candidate']));
+                    @unlink($cropAbs);
                 }
             }
 
