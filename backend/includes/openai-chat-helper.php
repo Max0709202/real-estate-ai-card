@@ -120,6 +120,7 @@ function getBlogContextForChat($userMessage = '') {
 }
 
 require_once __DIR__ . '/chat-rag-helper.php';
+require_once __DIR__ . '/chat-faq-helper.php';
 require_once __DIR__ . '/chat-intake-helper.php';
 require_once __DIR__ . '/chat-public-data-helper.php';
 require_once __DIR__ . '/loan-simulation-helper.php';
@@ -609,6 +610,8 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
         'sources' => [],
         'prohibited_words' => [],
     ];
+    // 社内FAQ（RAG統合マスター）。会社の正式回答なので、一般知識やローカルRAGより優先する。
+    $faq = chatFaqEmptyResult($userMessage);
 
     $liveRefresh = [
         'attempted' => false,
@@ -622,6 +625,7 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
     if ($db instanceof PDO) {
         $liveRefresh = refreshChatKnowledgeForMessage($db, $userMessage, 24);
         $rag = getChatRagContextForChat($db, $userMessage, 4);
+        $faq = getChatFaqContextForChat($db, $userMessage, 5);
         if ($sessionId !== '') {
             $memory = getChatSessionMemory($db, $sessionId);
             $leadData = chatLoadLeadDataForMemory($db, $sessionId);
@@ -678,6 +682,9 @@ function getBotReplyWithOpenAI($userMessage, $conversationHistory = [], $agentNa
             . "- 登録が無い項目についてのみ、一般的な不動産実務知識で回答してください。\n\n"
             . $agentCustom['context']
         : '';
+    // 社内FAQは「回答本文＋注意事項・禁止表現」をひとまとまりで渡す（実装仕様シート）。
+    // 一致が閾値未満のときは、推測回答を止めて追加質問・第一人称の確認導線へ寄せる指示を出す。
+    $faqContext = buildChatFaqPromptBlock($faq);
     $agentProhibitedPrompt = buildAgentProhibitedWordsPrompt($agentCustom['prohibited_words'] ?? []);
     $agentProhibitedContext = $agentProhibitedPrompt !== ''
         ? "\n\n" . $agentProhibitedPrompt
@@ -874,7 +881,7 @@ e-Statの統計情報を使う場合は、自然な文脈で「政府統計に�
 
 {$loanSimulationContext}
 
-{$ragContext}{$refreshContext}{$publicDataContext}{$agentCustomContext}{$agentProhibitedContext}
+{$ragContext}{$refreshContext}{$publicDataContext}{$faqContext}{$agentCustomContext}{$agentProhibitedContext}
 PROMPT;
 
     $messages = [
@@ -906,7 +913,8 @@ PROMPT;
         }
     }
     if ($result['error'] !== null) {
-        return ['reply' => null, 'sources' => array_merge($rag['sources'], $publicDataUiSources, $agentCustom['sources']), 'freshness' => $liveRefresh, 'error' => $result['error'], 'model' => $result['model'] ?? $model];
+        chatLogFaqRetrieval($db, $sessionId, $businessCardId, $userMessage, $faq, null);
+        return ['reply' => null, 'sources' => array_merge($rag['sources'], $publicDataUiSources, $faq['sources'], $agentCustom['sources']), 'freshness' => $liveRefresh, 'error' => $result['error'], 'model' => $result['model'] ?? $model];
     }
     $safeReply = sanitizeChatReferralLanguage($result['reply'], $agentName);
     // AIと担当者を同一人格として扱う（「担当者に相談」等を第一人称へ統一）。
@@ -932,5 +940,8 @@ PROMPT;
         // 取得件数・取得日時・データセット等は画面非表示。開発ログにのみ残す。
         error_log('Geo land report data: ' . json_encode($publicDataMeta, JSON_UNESCAPED_UNICODE));
     }
-    return ['reply' => $safeReply, 'sources' => array_merge($rag['sources'], $publicDataUiSources, $agentCustom['sources']), 'freshness' => $liveRefresh, 'error' => null, 'model' => $result['model'] ?? $model, 'usage' => $result['usage'] ?? null];
+    // 実装仕様シートの「ログ」項目: 利用者質問／採用FAQ_ID／類似度／最終回答／担当者確認有無。
+    chatLogFaqRetrieval($db, $sessionId, $businessCardId, $userMessage, $faq, $safeReply);
+
+    return ['reply' => $safeReply, 'sources' => array_merge($rag['sources'], $publicDataUiSources, $faq['sources'], $agentCustom['sources']), 'freshness' => $liveRefresh, 'error' => null, 'model' => $result['model'] ?? $model, 'usage' => $result['usage'] ?? null];
 }
