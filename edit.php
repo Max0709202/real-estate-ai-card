@@ -3885,38 +3885,72 @@ $defaultGreetings = [
                 return html;
             }
 
-            // AIチャットの生ログではなく、AIが整理した4項目（要約 / 条件 / 温度感 / 次にやるべきこと）だけを表示する。
-            function renderAiChatSummary(d) {
-                var structured = (d.lead && d.lead.structured_data && typeof d.lead.structured_data === 'object') ? d.lead.structured_data : {};
-                var crm = (d.crm_case && typeof d.crm_case === 'object') ? d.crm_case : {};
-                var memory = (d.memory && typeof d.memory === 'object') ? d.memory : {};
-
-                var summary = crm.ai_summary || memory.last_summary || structured.summary_for_sales || '';
-                var conditions = crm.conditions_summary || '';
-                var temperatureLabels = { high: '高い', middle: '中程度', low: '低い' };
-                var temperature = temperatureLabels[structured.temperature] || '';
-                var nextAction = structured.next_action || '';
-
-                var rows = [
-                    ['AIが作成した要約', summary],
-                    ['条件', conditions],
-                    ['温度感', temperature],
-                    ['次にやるべきこと', nextAction]
-                ];
-                var hasAny = rows.some(function(row) { return String(row[1] || '').trim() !== ''; });
-
+            // AIチャットの生ログではなく、AIが整理した5項目のサマリーを表示する枠を作る。
+            // 中身は showDetail 後に ai-summary.php を非同期で呼び出して埋め込む。
+            function renderAiChatSummary() {
                 var html = '<h4>AIチャット履歴（AI整理サマリー・閲覧のみ）</h4>';
-                html += '<div class="chat-contact-data chat-ai-summary">';
-                if (hasAny) {
-                    rows.forEach(function(row) {
-                        var value = String(row[1] || '').trim();
-                        html += '<p><strong>' + escapeHtml(row[0]) + ':</strong> ' + escapeHtml(value || '未取得') + '</p>';
-                    });
-                } else {
-                    html += '<p class="chat-thread-empty">AIとの会話内容はまだ整理されていません。</p>';
-                }
+                html += '<div class="chat-ai-summary" id="ai-summary-panel">';
+                html += '<p class="chat-thread-empty" id="ai-summary-status">AI要約を作成しています…</p>';
                 html += '</div>';
                 return html;
+            }
+
+            function aiSummarySectionHtml(title, value, isList) {
+                var body = '';
+                if (isList) {
+                    var items = Array.isArray(value) ? value.filter(function(v) { return String(v || '').trim() !== ''; }) : [];
+                    if (!items.length) return '';
+                    body = '<ul class="ai-summary-list">';
+                    items.forEach(function(item) { body += '<li>' + escapeHtml(String(item).trim()) + '</li>'; });
+                    body += '</ul>';
+                } else {
+                    var text = String(value || '').trim();
+                    if (text === '') return '';
+                    body = '<p class="ai-summary-text">' + escapeHtml(text).replace(/\n/g, '<br>') + '</p>';
+                }
+                return '<section class="ai-summary-section"><h5>' + escapeHtml(title) + '</h5>' + body + '</section>';
+            }
+
+            function renderAiSummaryContent(summary) {
+                summary = summary && typeof summary === 'object' ? summary : {};
+                var html = '';
+                html += aiSummarySectionHtml('お客様概要', summary.customer_overview, false);
+                html += aiSummarySectionHtml('主な希望条件', summary.property_requirements, true);
+                html += aiSummarySectionHtml('資金・住宅ローン', summary.financial_status, true);
+                html += aiSummarySectionHtml('営業担当者への申し送り', summary.sales_handover, false);
+                html += aiSummarySectionHtml('次に確認すること', summary.needs_confirmation, true);
+                if (html === '') {
+                    html = '<p class="chat-thread-empty">AIとの会話内容はまだ整理されていません。</p>';
+                }
+                return html;
+            }
+
+            function loadAiChatSummary(sessionId) {
+                var panel = document.getElementById('ai-summary-panel');
+                if (!panel) return;
+                fetch(apiBase + '/ai-summary.php', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId })
+                })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        // 別セッションを開いた後に古いレスポンスが届いた場合は無視する。
+                        if (currentDetailSessionId !== sessionId) return;
+                        var target = document.getElementById('ai-summary-panel');
+                        if (!target) return;
+                        if (res && res.success && res.data && res.data.summary) {
+                            target.innerHTML = renderAiSummaryContent(res.data.summary);
+                        } else {
+                            target.innerHTML = '<p class="chat-thread-empty">AI要約を作成できませんでした。</p>';
+                        }
+                    })
+                    .catch(function() {
+                        if (currentDetailSessionId !== sessionId) return;
+                        var target = document.getElementById('ai-summary-panel');
+                        if (target) target.innerHTML = '<p class="chat-thread-empty">AI要約を作成できませんでした。</p>';
+                    });
             }
 
             function showDetail(sessionId) {
@@ -3975,7 +4009,7 @@ $defaultGreetings = [
                         // ライブポーリングは担当連絡チャネルのみを返すため、since_id は担当連絡の最終IDを基準にする。
                         agentChatLastMsgId = contactMsgs.length ? (parseInt(contactMsgs[contactMsgs.length - 1].id, 10) || 0) : 0;
 
-                        html += renderAiChatSummary(d);
+                        html += renderAiChatSummary();
 
                         html += '<h4>担当連絡（チャット）</h4>';
                         html += '<div class="chat-thread" id="agent-chat-thread">';
@@ -4000,6 +4034,7 @@ $defaultGreetings = [
 
                         detailContent.innerHTML = html;
                         initAgentChat(sessionId);
+                        loadAiChatSummary(sessionId);
                         if (window.PropertyAgent) { try { window.PropertyAgent.init(sessionId); } catch (e) { console.error(e); } }
                     })
                     .catch(function() {
