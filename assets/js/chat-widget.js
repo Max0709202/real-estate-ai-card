@@ -2064,20 +2064,28 @@
     // 丁目/番/号/条 separator (e.g. "弥平2-20-3" or "弥平2丁目20番3号"). A bare 丁目
     // number such as "弥平2" is not a pinpoint location, so it no longer matches
     // and gets no red pin / link. This rule is applied uniformly to every address.
+    //
+    // 番地の区切りに使われるハイフン類は文字コードが多岐にわたる（半角 - / ‐ ‑ ‒ – — ―
+    // / 長音 ー / 全角 － / 数学記号 −）。1文字でも取りこぼすとそこで一致が止まり、
+    // 「…4丁目22−2」の表示に対してリンクは「…4丁目22」までしか含まれず、Googleマップが
+    // 末尾（号）を欠いた地点を表示してしまう。ADDRESS_DASHES に集約し、正規表現と
+    // addressForMapsQuery の正規化で同じ集合を使う。
+    var ADDRESS_DASHES = '\\-‐‑‒–—―ー－−';
     var ADDRESS_DELIM = '\\s\\n、。，,「」『』（）()【】\\[\\]＜＞<>＆&"！!？?…：:；;／/';
     var ADDRESS_INNER = '[^' + ADDRESS_DELIM + '県]';
     var ADDRESS_RE = new RegExp(
         '((?:' + ADDRESS_PREFECTURES + ')' +
         '(?:' + ADDRESS_INNER + '{0,6}?(?:市|区|町|村|郡)){1,4}' +
-        ADDRESS_INNER + '*?[0-9０-９]+(?:[条丁目番地号西東南北\\-‐―ー－]+[0-9０-９]+)+[条丁目番地号]*)',
+        ADDRESS_INNER + '*?[0-9０-９]+(?:[条丁目番地号西東南北' + ADDRESS_DASHES + ']+[0-9０-９]+)+[条丁目番地号]*)',
         'g'
     );
+    var ADDRESS_DASH_RE = new RegExp('[' + ADDRESS_DASHES + ']', 'g');
 
     // Prefix each address with a red pin that links to Google Maps. Only the pin
     // is a link; the address text itself stays plain (per spec). 'addr' has
     // already been HTML-escaped by formatBotMessageHtml, so escape it again for
     // the aria-label/title attribute to neutralise any stray double quotes.
-    // Google マップは全角数字や特殊なハイフン（‐ ― ー －）が混じると住所を正しく
+    // Google マップは全角数字や特殊なハイフン（‐ ‑ ‒ – — ― ー － −）が混じると住所を正しく
     // ジオコーディングできず、ピンがずれる／検索できないことがある。表示テキスト自体は
     // 元のまま（addr）に保ちつつ、リンク先クエリだけ正規化する。addr は
     // formatBotMessageHtml で HTML エスケープ済みなので、まず実体参照を戻してから
@@ -2090,7 +2098,7 @@
             .replace(/&quot;/g, '"')
             .replace(/&#0?39;/g, "'")
             .replace(/[０-９]/g, function (ch) { return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); })
-            .replace(/[‐‑‒–—―ー－−]/g, '-');
+            .replace(ADDRESS_DASH_RE, '-');
     }
 
     function linkifyAddresses(html) {
