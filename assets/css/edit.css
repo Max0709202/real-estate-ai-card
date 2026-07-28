@@ -1672,6 +1672,66 @@ body {
 .chat-thread-system { text-align: center; margin: 6px auto; }
 .chat-thread-system .chat-thread-bubble { background: transparent; color: #999; font-size: 0.8rem; }
 
+/* 顧客詳細内のセクションを視覚的に区切る（各見出しの上に余白と区切り線） */
+#chat-history-detail-content > h4 {
+    margin: 1.75rem 0 0.6rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e6e8eb;
+    font-size: 1rem;
+    color: #1f2d3d;
+}
+#chat-history-detail-content > h4:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+/* AI整理サマリー（お客様概要 / 主な希望条件 / 資金・住宅ローン / 申し送り / 次に確認すること） */
+.chat-ai-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.ai-summary-section {
+    border: 1px solid #e2e6ef;
+    border-left: 4px solid #4c7ef3;
+    border-radius: 8px;
+    background: #f7f9ff;
+    padding: 0.75rem 0.9rem;
+}
+.ai-summary-section h5 {
+    margin: 0 0 0.4rem;
+    font-size: 0.9rem;
+    color: #2a3b63;
+}
+.ai-summary-text {
+    margin: 0;
+    line-height: 1.7;
+    word-break: break-word;
+}
+.ai-summary-list {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+.ai-summary-list li {
+    margin: 0.2rem 0;
+    line-height: 1.6;
+}
+.chat-thread-empty {
+    margin: 0;
+    color: #667085;
+    font-size: 0.9rem;
+}
+
+/* 担当連絡（チャット）は前後のセクションと区別できるよう下地色と余白を強める */
+#agent-chat-thread {
+    background: #eef4ff;
+    border-color: #cdddff;
+    margin-top: 0.25rem;
+    margin-bottom: 1rem;
+}
+
 .chat-thread-attachments { margin-top: 4px; }
 .chat-attach { display: inline-block; margin: 4px 4px 0 0; }
 .chat-attach-image img {
