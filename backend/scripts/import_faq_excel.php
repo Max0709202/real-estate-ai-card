@@ -21,10 +21,7 @@ if (php_sapi_name() !== 'cli') {
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/chat-faq-helper.php';
-
-const XLSX_NS_MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
-const XLSX_NS_DOC_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-const XLSX_NS_PKG_REL = 'http://schemas.openxmlformats.org/package/2006/relationships';
+require_once __DIR__ . '/../includes/xlsx-reader.php';
 
 /** 「回答（AI回答用）」のようなヘッダー名 → DB列 の対応。ヘッダー文字列は完全一致で探す。 */
 function faqHeaderMap() {
@@ -48,87 +45,6 @@ function faqHeaderMap() {
         'updated_on'      => ['更新日'],
         'adoption_status' => ['採用状態'],
     ];
-}
-
-function xlsxNodeText(SimpleXMLElement $node) {
-    $node->registerXPathNamespace('m', XLSX_NS_MAIN);
-    // ふりがな（rPh）配下の <t> は本文ではないので除外する。
-    $found = $node->xpath('.//m:t[not(ancestor::m:rPh)]');
-    if ($found === false || $found === null) return '';
-    $text = '';
-    foreach ($found as $t) $text .= (string)$t;
-    return $text;
-}
-
-function xlsxLoadSharedStrings(ZipArchive $zip) {
-    $xml = $zip->getFromName('xl/sharedStrings.xml');
-    if (!is_string($xml) || $xml === '') return [];
-    $doc = new SimpleXMLElement($xml);
-    $strings = [];
-    foreach ($doc->children(XLSX_NS_MAIN)->si as $si) {
-        $strings[] = xlsxNodeText($si);
-    }
-    return $strings;
-}
-
-function xlsxFindSheetPath(ZipArchive $zip, $sheetName) {
-    $relsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
-    $workbookXml = $zip->getFromName('xl/workbook.xml');
-    if (!is_string($relsXml) || !is_string($workbookXml)) {
-        throw new RuntimeException('workbook.xml / workbook.xml.rels を読み込めませんでした。');
-    }
-
-    $rels = [];
-    foreach ((new SimpleXMLElement($relsXml))->children(XLSX_NS_PKG_REL)->Relationship as $rel) {
-        $rels[(string)$rel['Id']] = (string)$rel['Target'];
-    }
-
-    $sheets = (new SimpleXMLElement($workbookXml))->children(XLSX_NS_MAIN)->sheets;
-    foreach ($sheets->children(XLSX_NS_MAIN)->sheet as $sheet) {
-        if ((string)$sheet['name'] !== $sheetName) continue;
-        $attrs = $sheet->attributes(XLSX_NS_DOC_REL);
-        $relId = ($attrs !== null && isset($attrs->id)) ? (string)$attrs->id : '';
-        if ($relId === '' || !isset($rels[$relId])) break;
-        $target = ltrim($rels[$relId], '/');
-        return strpos($target, 'xl/') === 0 ? $target : 'xl/' . $target;
-    }
-
-    throw new RuntimeException("シート「{$sheetName}」が見つかりませんでした。");
-}
-
-function xlsxColumnLetter($cellRef) {
-    return preg_replace('/[^A-Z]/', '', strtoupper((string)$cellRef));
-}
-
-/** シートを「列文字 => 値」の配列の配列として読み込む。空セルはキーごと存在しない。 */
-function xlsxReadSheetRows(ZipArchive $zip, $sheetPath, array $strings) {
-    $xml = $zip->getFromName($sheetPath);
-    if (!is_string($xml) || $xml === '') {
-        throw new RuntimeException("シートXMLを読み込めませんでした: {$sheetPath}");
-    }
-    $sheet = new SimpleXMLElement($xml);
-    $sheetData = $sheet->children(XLSX_NS_MAIN)->sheetData;
-    $rows = [];
-    foreach ($sheetData->children(XLSX_NS_MAIN)->row as $row) {
-        $cells = [];
-        foreach ($row->children(XLSX_NS_MAIN)->c as $c) {
-            $type = (string)$c['t'];
-            $main = $c->children(XLSX_NS_MAIN);
-            $value = '';
-            if ($type === 's') {
-                $idx = (int)(string)$main->v;
-                $value = $strings[$idx] ?? '';
-            } elseif ($type === 'inlineStr') {
-                $value = isset($main->is) ? xlsxNodeText($main->is) : '';
-            } else {
-                $value = isset($main->v) ? (string)$main->v : '';
-            }
-            $letter = xlsxColumnLetter((string)$c['r']);
-            if ($letter !== '') $cells[$letter] = $value;
-        }
-        $rows[] = $cells;
-    }
-    return $rows;
 }
 
 /** Excelのシリアル値／文字列どちらの更新日でも Y-m-d に寄せる。判別できなければ null。 */
@@ -330,6 +246,11 @@ try {
     exit('Error: database connection failed: ' . $e->getMessage() . "\n");
 }
 
+// migration を流したDBと、このスクリプトが接続するDB（config.production.php）が
+// 食い違っていると「テーブルはあるのに空」に見えるため、接続先を必ず表示する。
+$connectedDb = $db->query('SELECT DATABASE()')->fetchColumn();
+echo "database: {$connectedDb}\n\n";
+
 ensureChatFaqTables($db);
 
 // review_status は運用側でレビュー承認した結果を保持したいので、再取り込みでは
@@ -410,7 +331,7 @@ try {
     echo 'Warning: could not disable stale rows: ' . $e->getMessage() . "\n";
 }
 
-echo "\n=== Result ===\n";
+echo "\n=== Result ({$connectedDb}) ===\n";
 echo "inserted        : {$inserted}\n";
 echo "updated         : {$updated}\n";
 echo "failed          : {$failed}\n";
