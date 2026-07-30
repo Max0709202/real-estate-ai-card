@@ -1711,8 +1711,10 @@
     font-weight: 700;
 }
 
-/* 担当連絡：顧客側の「既読」表示（自分の発言に付く） */
-.chat-msg.user .chat-msg-time { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+/* 担当連絡：顧客側の「既読」表示（自分の発言に付く）
+   タイムスタンプは日付＋時刻（2026/7/29 13:39:18）を表示するため、狭い画面で
+   「編集済み」「既読」と横並びに収まらないことがある。折り返しを許可する。 */
+.chat-msg.user .chat-msg-time { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
 .chat-contact-read-wrap { display: inline-flex; }
 .chat-contact-read {
     font-size: 0.68rem;
