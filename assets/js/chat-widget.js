@@ -1267,10 +1267,14 @@
             });
     }
 
+    // AI担当・担当連絡のどちらも、何日も間があくやり取りになるため、時刻だけでは
+    // 「いつの発言か」が分からない。担当者側の管理画面（edit.php の messageBubbleHtml）と
+    // 同じ「2026/7/29 13:39:18」形式（toLocaleString('ja-JP')）で日付＋時刻を表示し、
+    // お客様側・担当者側の表記を揃える。
     function formatMessageTime(createdAt) {
         var date = createdAt ? new Date(String(createdAt).replace(' ', 'T')) : new Date();
         if (isNaN(date.getTime())) date = new Date();
-        return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+        return date.toLocaleString('ja-JP');
     }
 
     function renderSessionMessages(messages) {

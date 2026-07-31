@@ -234,6 +234,25 @@ try {
         && chatAgentHasMatchingCustomRag($db, (int)$card['id'], $message)) {
         $intentKind = 'general';
     }
+    // セーフティネット2：不動産・住宅・土地・建物・住生活に関連する語を含む質問は、意図判定が
+    // out_of_scope でも拒否しない。「ワイド団信とは何ですか？」のように不動産実務では当然の
+    // 専門用語を、軽量モデルが知らない言葉として対象外に振り分けてしまう事象への対策。
+    // 対象範囲は「関連性が認められる質問には原則として回答する」であり、取りこぼしよりも
+    // 誤って拒否する方が損失が大きいため、関連語を含む場合は必ず通常回答へ倒す。
+    if ($intentKind === 'out_of_scope'
+        && function_exists('chatMessageLooksRealEstateRelated')
+        && chatMessageLooksRealEstateRelated($message)) {
+        $intentKind = 'general';
+    }
+    // セーフティネット3：直前にAI自身が提案・案内した内容の続き（例：AIが「CIC・JICC・KSCの
+    // 取り方を整理します」と述べた直後の「CICを教えて」）は、単体では意図が読み取りにくく
+    // unclear / out_of_scope になりやすい。自分が提案した話題を「対象外」「意図を確認させて
+    // ください」と返すとお客様を失望させるため、会話の継続としてAI回答を続ける。
+    $isFollowUpContinuation = function_exists('chatMessageContinuesPreviousReply')
+        && chatMessageContinuesPreviousReply($message, $conversationHistory);
+    if ($intentKind === 'out_of_scope' && $isFollowUpContinuation) {
+        $intentKind = 'general';
+    }
     // 一般相談・対象外と判定された質問では、全国マンションDBの先行照会自体を行わない。
     $skipMansionDbLookup = ($intentKind === 'general' || $intentKind === 'out_of_scope');
     $mansionSearchTerms = chatExtractMansionSearchTerms($message);
@@ -377,9 +396,13 @@ try {
                 $reply = '該当するマンションが見つかりませんでした。正式名称や所在地などをご確認ください。';
                 $sources = [];
                 $result = null;
-            } elseif ($intentKind === 'unclear' && $mansionLand === null) {
+            } elseif ($intentKind === 'unclear' && $mansionLand === null && !$isFollowUpContinuation) {
                 // 特定物件の照会か一般的なご相談か判断できず、DB照会でも該当が無かった場合は、
                 // 推測で回答せずお客様に意図を確認する。
+                // ただし直前のAI発言の続き（$isFollowUpContinuation）の場合は聞き返さない。
+                // 自分が提案した内容を聞き返すことになり、会話が止まってしまうため、
+                // 会話履歴つきでAI回答を続ける（unclear は general と違いDB先行照会も通るので、
+                // 物件名だった場合は上の直接回答で先に解決される）。
                 $reply = "恐れ入りますが、ご質問の意図を確認させてください。\n\n"
                     . "・特定のマンション・物件についてお調べする場合：マンション名（できれば所在地も）をお知らせください。\n"
                     . "・住宅ローンや税制、相場、リフォームなど不動産全般のご相談の場合：知りたい内容をもう少し詳しくお聞かせください。\n\n"
