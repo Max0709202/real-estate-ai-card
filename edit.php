@@ -497,6 +497,22 @@ $isUtilizingUser = !$isGuestAccess
     && !empty($userId)
     && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true);
 
+// 組織階層（統括→店長→営業）での閲覧権限。
+// マネージャー（店長）・管理者（統括）にだけ「組織・配下顧客」を表示する。
+// 担当者（営業）と未設定のユーザーは従来どおり自分の顧客だけを見る。
+require_once __DIR__ . '/backend/includes/org-hierarchy-helper.php';
+$orgRole = 'staff';
+$canViewTeam = false;
+if (!$isGuestAccess && !empty($userId) && isset($db)) {
+    try {
+        $orgViewer = orgLoadViewer($db, (int)$userId);
+        $orgRole = $orgViewer['org_role'];
+        $canViewTeam = orgCanViewTeam($orgRole);
+    } catch (Exception $e) {
+        error_log('edit.php org role load error: ' . $e->getMessage());
+    }
+}
+
 // Default greeting messages
 $defaultGreetings = [
     [
@@ -850,6 +866,11 @@ $defaultGreetings = [
                     <a href="#chat-history" class="nav-item<?php echo $isUtilizingUser ? ' active' : ''; ?>" data-step="chat" data-section="chat-history-section">
                         <span class="step-label">チャット履歴</span>
                     </a>
+                    <?php if ($canViewTeam): ?>
+                    <a href="#org-team" class="nav-item" data-step="org" data-section="org-team-section">
+                        <span class="step-label">組織・配下顧客</span>
+                    </a>
+                    <?php endif; ?>
                     <a href="#agent-training" class="nav-item" data-step="agent" data-section="agent-training-section">
                         <span class="step-label">AI育成</span>
                     </a>
@@ -1626,6 +1647,41 @@ $defaultGreetings = [
                         </div>
                     </div>
                 </div>
+
+                <!-- 組織・配下顧客（マネージャー／管理者のみ。閲覧専用） -->
+                <?php if ($canViewTeam): ?>
+                <div id="org-team-section" class="edit-section" style="display: none;">
+                    <h2>組織・配下顧客</h2>
+                    <p class="step-description">
+                        あなたの配下にいる担当者と、その担当者が対応しているお客様の一覧です（<?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>）。<br>
+                        閲覧のみで、お客様情報の編集・削除やチャットの代理返信はできません。
+                    </p>
+
+                    <div id="org-team-summary" class="org-team-summary"></div>
+
+                    <div class="org-team-block">
+                        <h3>配下の担当者</h3>
+                        <div id="org-member-list" class="org-team-list">
+                            <p class="chat-history-loading">読み込み中...</p>
+                        </div>
+                    </div>
+
+                    <div class="org-team-block">
+                        <div class="org-team-toolbar">
+                            <h3>配下の顧客一覧</h3>
+                            <div class="org-team-toolbar-actions">
+                                <select id="org-customer-filter" class="form-control org-team-filter">
+                                    <option value="">配下の担当者すべて</option>
+                                </select>
+                                <a href="backend/api/org/export-customers-csv.php" id="org-customer-csv" class="btn-secondary">CSV出力</a>
+                            </div>
+                        </div>
+                        <div id="org-customer-list" class="org-team-list">
+                            <p class="chat-history-loading">読み込み中...</p>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
 
                 <!-- Agent training -->
                 <div id="agent-training-section" class="edit-section" style="display: none;">
@@ -4938,5 +4994,186 @@ $defaultGreetings = [
             }
         })();
     </script>
+<?php if ($canViewTeam): ?>
+    <script>
+        // 組織・配下顧客（マネージャー／管理者のみ）。閲覧専用のため、
+        // 取得（GET）以外の通信は行わない。
+        (function() {
+            var memberListEl = document.getElementById('org-member-list');
+            var customerListEl = document.getElementById('org-customer-list');
+            var summaryEl = document.getElementById('org-team-summary');
+            var filterEl = document.getElementById('org-customer-filter');
+            var csvLinkEl = document.getElementById('org-customer-csv');
+            if (!memberListEl || !customerListEl) return;
+
+            var apiBase = window.location.origin + '/backend/api/org';
+            var loaded = false;
+
+            function h(value) {
+                return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+                    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[ch];
+                });
+            }
+
+            function formatDateTime(value) {
+                if (!value) return '-';
+                var parsed = new Date(String(value).replace(' ', 'T'));
+                return isNaN(parsed.getTime()) ? '-' : parsed.toLocaleString('ja-JP');
+            }
+
+            var invitationLabels = {
+                sent: 'ご案内メール送信済み',
+                opened: 'ご案内済み（閲覧あり）',
+                registered: 'ご登録済み'
+            };
+
+            function updateCsvLink() {
+                if (!csvLinkEl) return;
+                var memberId = filterEl ? filterEl.value : '';
+                csvLinkEl.setAttribute(
+                    'href',
+                    apiBase + '/export-customers-csv.php' + (memberId ? '?member_id=' + encodeURIComponent(memberId) : '')
+                );
+            }
+
+            function renderMembers(members) {
+                if (!members.length) {
+                    memberListEl.innerHTML = '<p>配下の担当者が登録されていません。管理者へ組織階層の設定をご依頼ください。</p>';
+                    return;
+                }
+                var html = '<ul class="org-team-items">';
+                members.forEach(function(member) {
+                    // depth 1 = 直属、2 以降は「配下の配下」。字下げで階層が分かるようにする。
+                    var indent = Math.min(parseInt(member.depth, 10) || 1, 3) - 1;
+                    var unread = parseInt(member.unread_count, 10) || 0;
+                    html += '<li class="org-team-item org-team-depth-' + indent + '">';
+                    html += '<div class="org-team-item-main">';
+                    html += '<span class="org-team-name">' + h(member.name || member.email) + '</span>';
+                    html += '<span class="org-team-role">' + h(member.org_role_label) + '</span>';
+                    if (member.branch_department) html += '<span class="org-team-dept">' + h(member.branch_department) + '</span>';
+                    html += '</div>';
+                    html += '<div class="org-team-item-meta">';
+                    html += '<span>顧客 ' + (parseInt(member.customer_count, 10) || 0) + '件</span>';
+                    if (unread > 0) html += '<span class="chat-unread-badge" title="未読の顧客メッセージ">' + unread + '</span>';
+                    html += '<button type="button" class="org-team-view" data-member-id="' + (parseInt(member.user_id, 10) || 0) + '">顧客を見る</button>';
+                    html += '</div>';
+                    html += '</li>';
+                });
+                html += '</ul>';
+                memberListEl.innerHTML = html;
+
+                memberListEl.querySelectorAll('.org-team-view').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        if (filterEl) filterEl.value = btn.getAttribute('data-member-id');
+                        updateCsvLink();
+                        loadCustomers();
+                    });
+                });
+            }
+
+            function renderCustomers(customers) {
+                if (!customers.length) {
+                    customerListEl.innerHTML = '<p>該当するお客様がいません。</p>';
+                    return;
+                }
+                var html = '<ul class="org-team-items">';
+                customers.forEach(function(customer) {
+                    var unread = parseInt(customer.unread_count, 10) || 0;
+                    var inviteLabel = invitationLabels[customer.invitation_status] || '';
+                    html += '<li class="org-team-item">';
+                    html += '<div class="org-team-item-main">';
+                    html += '<span class="org-team-name">' + h(customer.customer_name || '（お名前未登録）') + '</span>';
+                    html += '<span class="org-team-owner">担当：' + h(customer.member_name || customer.member_email) + '</span>';
+                    if (inviteLabel && customer.invitation_status !== 'registered') {
+                        html += '<span class="chat-lead-badge chat-invite-badge">' + h(inviteLabel) + '</span>';
+                    }
+                    html += '</div>';
+                    html += '<div class="org-team-item-meta">';
+                    html += '<span>' + (parseInt(customer.message_count, 10) || 0) + '件</span>';
+                    if (unread > 0) html += '<span class="chat-unread-badge" title="未読の顧客メッセージ">' + unread + '</span>';
+                    html += '<span class="org-team-date">最終：' + h(formatDateTime(customer.last_message_at || customer.created_at)) + '</span>';
+                    html += '</div>';
+                    html += '</li>';
+                });
+                html += '</ul>';
+                customerListEl.innerHTML = html;
+            }
+
+            function loadMembers() {
+                memberListEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
+                return fetch(apiBase + '/members.php', { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (!res.success) {
+                            memberListEl.innerHTML = '<p>' + h(res.message || '取得に失敗しました') + '</p>';
+                            return;
+                        }
+                        var members = res.data.members || [];
+                        var summary = res.data.summary || {};
+                        if (summaryEl) {
+                            summaryEl.innerHTML = '<span>配下の担当者 ' + (summary.member_count || 0) + '名</span>'
+                                + '<span>顧客 ' + (summary.customer_count || 0) + '件</span>'
+                                + '<span>未読 ' + (summary.unread_count || 0) + '件</span>';
+                        }
+                        if (filterEl) {
+                            var options = '<option value="">配下の担当者すべて</option>';
+                            members.forEach(function(member) {
+                                options += '<option value="' + (parseInt(member.user_id, 10) || 0) + '">'
+                                    + h(member.name || member.email) + '</option>';
+                            });
+                            filterEl.innerHTML = options;
+                        }
+                        renderMembers(members);
+                        updateCsvLink();
+                    })
+                    .catch(function(err) {
+                        console.error(err);
+                        memberListEl.innerHTML = '<p>取得に失敗しました。</p>';
+                    });
+            }
+
+            function loadCustomers() {
+                var memberId = filterEl ? filterEl.value : '';
+                customerListEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
+                return fetch(apiBase + '/customers.php' + (memberId ? '?member_id=' + encodeURIComponent(memberId) : ''), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (!res.success) {
+                            customerListEl.innerHTML = '<p>' + h(res.message || '取得に失敗しました') + '</p>';
+                            return;
+                        }
+                        renderCustomers(res.data.customers || []);
+                    })
+                    .catch(function(err) {
+                        console.error(err);
+                        customerListEl.innerHTML = '<p>取得に失敗しました。</p>';
+                    });
+            }
+
+            function loadTeam() {
+                if (loaded) return;
+                loaded = true;
+                loadMembers().then(loadCustomers);
+            }
+
+            if (filterEl) {
+                filterEl.addEventListener('change', function() {
+                    updateCsvLink();
+                    loadCustomers();
+                });
+            }
+
+            var navOrgTeam = document.querySelector('.nav-item[data-section="org-team-section"]');
+            if (navOrgTeam) {
+                navOrgTeam.addEventListener('click', function() {
+                    setTimeout(loadTeam, 250);
+                });
+            }
+            if (window.location.hash === '#org-team') {
+                setTimeout(loadTeam, 500);
+            }
+        })();
+    </script>
+<?php endif; ?>
 </body>
 </html>

@@ -53,12 +53,26 @@ Also ensure `BASE_URL` is correct for your environment.
 - Generation helper: `generateUniqueBusinessCardUrlSlug()` in `backend/includes/functions.php`.
 - Existing slugs remain unchanged; only newly generated records use the random format.
 
+## Organization Hierarchy (統括 → 店長 → 営業)
+
+- `users.org_role` (`staff` / `manager` / `admin`) and `users.parent_user_id` express a
+  three-level sales organization. Everything is derived from the `parent_user_id` chain.
+- Admin screen to configure it: `admin/org-hierarchy.php`
+  (per-user role/supervisor edit + CSV export/import of the hierarchy).
+- Managers/admins get a read-only **組織・配下顧客** section in `edit.php`
+  (subordinate list, their customer list, CSV export). No edit/delete of subordinate data.
+- Shared logic: `backend/includes/org-hierarchy-helper.php`.
+  Read APIs: `backend/api/org/{members,customers,export-customers-csv}.php`.
+- Migration: `backend/database/migrations/20260731_add_user_org_hierarchy.sql`
+  (the helper also adds the columns at runtime if the migration has not been applied).
+
 ## Migrations / Schema Notes
 
 Run required migrations before deploying features that depend on them, especially:
 
 - `backend/database/migrations/add_payment_type_renewal.sql`
 - `backend/database/migrations/add_payments_renewal_subscription_extended.sql`
+- `backend/database/migrations/20260731_add_user_org_hierarchy.sql`
 
 Keep `backend/database/schema.sql` in sync with production DB changes.
 
