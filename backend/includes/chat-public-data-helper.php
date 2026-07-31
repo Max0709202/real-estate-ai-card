@@ -442,6 +442,39 @@ function chatStripMansionRequestSuffix($text) {
 }
 
 /**
+ * 「マンション」「戸建て」「土地」等、物件種別を表す一般名詞そのものかどうか。
+ *
+ * ヒアリングの「マンション・戸建てどちらをご希望ですか？」に対する回答（「マンション」）は
+ * 建物名ではない。しかし名称検索は該当語を名前に含む建物（マンション錦・マンション桂 …）を
+ * 部分一致で拾うため、希望種別の回答が「どの物件について確認しますか？」という候補選択の
+ * 質問にすり替わっていた。
+ *
+ * 判定は「用語と完全に一致する場合」だけに限定する。実在の建物名（マンション錦／パーク
+ * マンション等）は語を含むだけなので影響を受けない。
+ */
+function chatMansionIsGenericTypeWord($term) {
+    $term = trim((string)$term);
+    if ($term === '') return false;
+    $term = (string)preg_replace('/^[\s　「」『』"\']+|[\s　「」『』"\']+$/u', '', $term);
+    if ($term === '') return false;
+
+    // 「マンション・戸建て」「マンションか戸建て」のように種別を並べた回答も対象にする。
+    // 全ての要素が種別語である場合だけ除外するので、建物名を誤って弾くことはない。
+    $parts = preg_split('/[・、,，\/／\s　]+|または|もしくは|それとも|および|か|と/u', $term);
+    $pattern = '/^(?:新築|中古|分譲|賃貸|投資用|タワー|低層|高層|区分所有|区分)?'
+        . '(?:マンション|アパート|一戸建て?|戸建て?|一軒家|テラスハウス|タウンハウス|土地|物件|建物|住宅|不動産|ビル|店舗)'
+        . '(?:が|を|は|で|に|の|も)?(?:希望|第一希望|派|かな|いい|良い|よい|です|でお願いします|でお願い|でも)*$/u';
+    $hasPart = false;
+    foreach ($parts as $part) {
+        $part = trim((string)$part);
+        if ($part === '') continue;
+        $hasPart = true;
+        if (!preg_match($pattern, $part)) return false;
+    }
+    return $hasPart;
+}
+
+/**
  * Whether a message is just a building name typed on its own (no field word, no
  * intent, no sentence) — e.g. "キャピタルコータス南砂". These should still trigger a
  * DB lookup. Kept conservative (must contain カタカナ, be short, and not look like
@@ -453,6 +486,8 @@ function chatMansionLooksLikeBareName($message) {
     if (preg_match('/[。、，,．.！!？?\n]/u', $m)) return false;
     if (!preg_match('/[ァ-ヶｦ-ﾟ]/u', $m)) return false;
     if (preg_match('/(相場|価格|地価|ローン|いくら|教えて|どこ|おすすめ|ランキング|探|住みたい|エリア|周辺|近く|物件は|物件を|物件が)/u', $m)) return false;
+    // 種別回答（「マンション」等）は建物名ではないので名称照会に回さない。
+    if (chatMansionIsGenericTypeWord($m)) return false;
     return true;
 }
 
@@ -476,7 +511,9 @@ function chatExtractMansionSearchTerms($message) {
     $stripped = chatStripMansionRequestSuffix($message);
     if ($stripped !== '' && $stripped !== $message && mb_strlen($stripped) >= 2 && mb_strlen($stripped) <= 80) {
         $preferredTerm = chatNormalizeMansionSearchTerm($stripped);
-        if ($preferredTerm !== '') {
+        // 種別語（「マンションについて教えて」→「マンション」）は建物名ではないので確定候補に
+        // しない。以降の抽出ルートも最終フィルタで同様に除外される。
+        if ($preferredTerm !== '' && !chatMansionIsGenericTypeWord($preferredTerm)) {
             // This candidate is derived from the whole sentence rather than a
             // partial regex capture. Do not mix lower-priority legacy candidates
             // into confidence matching: one bad extra token rejects a valid row.
@@ -516,6 +553,11 @@ function chatExtractMansionSearchTerms($message) {
     $terms = array_map(function ($term) {
         return chatNormalizeMansionSearchTerm(chatStripMansionRequestSuffix($term));
     }, $terms);
+    // 物件種別そのもの（マンション／戸建て／土地 …）は建物名ではない。残すと名称の部分一致で
+    // 無関係な建物が大量にヒットし、希望種別の回答に候補選択を返してしまう。
+    $terms = array_filter($terms, function ($term) {
+        return !chatMansionIsGenericTypeWord($term);
+    });
     return array_values(array_unique(array_filter($terms)));
 }
 
@@ -792,6 +834,8 @@ function chatMansionTermLooksSpecific($terms, $message) {
     foreach ((array)$terms as $term) {
         $term = chatNormalizeMansionSearchTerm($term);
         if ($term === '') continue;
+        // 物件種別の一般名詞は、何文字あっても「特定の建物名」ではない。
+        if (chatMansionIsGenericTypeWord($term)) continue;
         // A bare short place name like "福岡市"/"中野区" is not specific enough on its
         // own. But a building name that merely ENDS in 道/町/区 (e.g. "グランドメゾン百道"
         // — 百道 is a 福岡 district) is a real proper noun and IS specific. A ≥3-char
