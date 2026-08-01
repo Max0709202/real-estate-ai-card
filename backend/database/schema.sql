@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS users (
     email_reset_token_expires_at TIMESTAMP NULL,
     email_reset_new_email VARCHAR(255),
     is_era_member TINYINT(1) DEFAULT 0 COMMENT 'ERA会員かどうか',
+    -- 組織階層（統括 → 店長 → 営業）。上長は配下の担当者と顧客を閲覧できる。
+    org_role ENUM('staff', 'manager', 'admin') NOT NULL DEFAULT 'staff' COMMENT '組織権限 staff=担当者 / manager=マネージャー(店長) / admin=管理者(統括)',
+    parent_user_id INT NULL COMMENT '直属の上長のユーザーID（営業→店長→統括）',
     agent VARCHAR(255) NULL,
     utm_source VARCHAR(255) NULL,
     utm_medium VARCHAR(255) NULL,
@@ -28,7 +31,11 @@ CREATE TABLE IF NOT EXISTS users (
     last_login_at TIMESTAMP NULL,
     INDEX idx_email (email),
     INDEX idx_status (status),
-    INDEX idx_users_agent (agent)
+    INDEX idx_users_agent (agent),
+    INDEX idx_users_parent_user (parent_user_id),
+    INDEX idx_users_org_role (org_role),
+    -- 上長が削除されても配下ユーザーは残す（親だけ空にする）。
+    CONSTRAINT fk_users_parent_user FOREIGN KEY (parent_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ビジネスカードテーブル

@@ -442,6 +442,39 @@ function chatStripMansionRequestSuffix($text) {
 }
 
 /**
+ * 「マンション」「戸建て」「土地」等、物件種別を表す一般名詞そのものかどうか。
+ *
+ * ヒアリングの「マンション・戸建てどちらをご希望ですか？」に対する回答（「マンション」）は
+ * 建物名ではない。しかし名称検索は該当語を名前に含む建物（マンション錦・マンション桂 …）を
+ * 部分一致で拾うため、希望種別の回答が「どの物件について確認しますか？」という候補選択の
+ * 質問にすり替わっていた。
+ *
+ * 判定は「用語と完全に一致する場合」だけに限定する。実在の建物名（マンション錦／パーク
+ * マンション等）は語を含むだけなので影響を受けない。
+ */
+function chatMansionIsGenericTypeWord($term) {
+    $term = trim((string)$term);
+    if ($term === '') return false;
+    $term = (string)preg_replace('/^[\s　「」『』"\']+|[\s　「」『』"\']+$/u', '', $term);
+    if ($term === '') return false;
+
+    // 「マンション・戸建て」「マンションか戸建て」のように種別を並べた回答も対象にする。
+    // 全ての要素が種別語である場合だけ除外するので、建物名を誤って弾くことはない。
+    $parts = preg_split('/[・、,，\/／\s　]+|または|もしくは|それとも|および|か|と/u', $term);
+    $pattern = '/^(?:新築|中古|分譲|賃貸|投資用|タワー|低層|高層|区分所有|区分)?'
+        . '(?:マンション|アパート|一戸建て?|戸建て?|一軒家|テラスハウス|タウンハウス|土地|物件|建物|住宅|不動産|ビル|店舗)'
+        . '(?:が|を|は|で|に|の|も)?(?:希望|第一希望|派|かな|いい|良い|よい|です|でお願いします|でお願い|でも)*$/u';
+    $hasPart = false;
+    foreach ($parts as $part) {
+        $part = trim((string)$part);
+        if ($part === '') continue;
+        $hasPart = true;
+        if (!preg_match($pattern, $part)) return false;
+    }
+    return $hasPart;
+}
+
+/**
  * Whether a message is just a building name typed on its own (no field word, no
  * intent, no sentence) — e.g. "キャピタルコータス南砂". These should still trigger a
  * DB lookup. Kept conservative (must contain カタカナ, be short, and not look like
@@ -453,6 +486,8 @@ function chatMansionLooksLikeBareName($message) {
     if (preg_match('/[。、，,．.！!？?\n]/u', $m)) return false;
     if (!preg_match('/[ァ-ヶｦ-ﾟ]/u', $m)) return false;
     if (preg_match('/(相場|価格|地価|ローン|いくら|教えて|どこ|おすすめ|ランキング|探|住みたい|エリア|周辺|近く|物件は|物件を|物件が)/u', $m)) return false;
+    // 種別回答（「マンション」等）は建物名ではないので名称照会に回さない。
+    if (chatMansionIsGenericTypeWord($m)) return false;
     return true;
 }
 
@@ -476,7 +511,9 @@ function chatExtractMansionSearchTerms($message) {
     $stripped = chatStripMansionRequestSuffix($message);
     if ($stripped !== '' && $stripped !== $message && mb_strlen($stripped) >= 2 && mb_strlen($stripped) <= 80) {
         $preferredTerm = chatNormalizeMansionSearchTerm($stripped);
-        if ($preferredTerm !== '') {
+        // 種別語（「マンションについて教えて」→「マンション」）は建物名ではないので確定候補に
+        // しない。以降の抽出ルートも最終フィルタで同様に除外される。
+        if ($preferredTerm !== '' && !chatMansionIsGenericTypeWord($preferredTerm)) {
             // This candidate is derived from the whole sentence rather than a
             // partial regex capture. Do not mix lower-priority legacy candidates
             // into confidence matching: one bad extra token rejects a valid row.
@@ -516,6 +553,11 @@ function chatExtractMansionSearchTerms($message) {
     $terms = array_map(function ($term) {
         return chatNormalizeMansionSearchTerm(chatStripMansionRequestSuffix($term));
     }, $terms);
+    // 物件種別そのもの（マンション／戸建て／土地 …）は建物名ではない。残すと名称の部分一致で
+    // 無関係な建物が大量にヒットし、希望種別の回答に候補選択を返してしまう。
+    $terms = array_filter($terms, function ($term) {
+        return !chatMansionIsGenericTypeWord($term);
+    });
     return array_values(array_unique(array_filter($terms)));
 }
 
@@ -792,6 +834,8 @@ function chatMansionTermLooksSpecific($terms, $message) {
     foreach ((array)$terms as $term) {
         $term = chatNormalizeMansionSearchTerm($term);
         if ($term === '') continue;
+        // 物件種別の一般名詞は、何文字あっても「特定の建物名」ではない。
+        if (chatMansionIsGenericTypeWord($term)) continue;
         // A bare short place name like "福岡市"/"中野区" is not specific enough on its
         // own. But a building name that merely ENDS in 道/町/区 (e.g. "グランドメゾン百道"
         // — 百道 is a 福岡 district) is a real proper noun and IS specific. A ≥3-char
@@ -1532,8 +1576,28 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
 }
 
 /** 土地/ハザード情報の照会意図があるか（用途地域・建ぺい率・浸水・災害 等）。 */
-function chatMessageAsksLandInfo($message) {
+function chatMessageAsksLandHazardInfo($message) {
     return (bool)preg_match('/(土地情報|土地の情報|土地|ハザード|災害|防災|浸水|洪水|水害|土砂|地盤|液状化|津波|高潮|急傾斜|都市計画|用途地域|建ぺい率|建蔽率|容積率|区域区分|市街化|防火|地区計画)/u', (string)$message);
+}
+
+/**
+ * 通学区域（小学校区・中学校区）の照会意図があるか。
+ * 「通学区域」「学区域」「小学校区」「中学校区」はいずれも部分文字列として
+ * 「学区」または「校区」を含むが、意図を読み取りやすくするため明示的に列挙する。
+ */
+function chatMessageAsksSchoolDistrict($message) {
+    return (bool)preg_match('/(通学区域|通学区|学区域|小学校区|中学校区|学区|校区)/u', (string)$message);
+}
+
+/**
+ * 地点（住所）に紐づく公的データの照会意図があるか。
+ * 土地/ハザードに加えて通学区域（学区）も同じ扱いにする。どちらも「建物名だけでは
+ * 答えられず、住所→座標→不動産情報ライブラリのGIS照会が必要な質問」であり、
+ * マンションDBの先行応答（＝該当が無いと「見つかりませんでした」で確定）に
+ * 横取りさせてはいけないため。
+ */
+function chatMessageAsksLandInfo($message) {
+    return chatMessageAsksLandHazardInfo($message) || chatMessageAsksSchoolDistrict($message);
 }
 
 /**
@@ -1544,8 +1608,10 @@ function chatMessageAsksLandInfo($message) {
  */
 function chatResolveMansionAddress($db, $message) {
     if (!$db instanceof PDO) return null;
-    // 土地/ハザード等の照会語を除去（建物名抽出のノイズになるため）。
-    $clean = preg_replace('/(土地の個別情報|土地情報|土地|ハザード(?:情報|マップ)?|災害|防災|浸水|洪水|水害|土砂災害|土砂|地盤|液状化|津波|高潮|急傾斜地?|都市計画|用途地域|建ぺい率|建蔽率|容積率|区域区分|市街化(?:調整)?区域|市街化|防火(?:・準防火)?地域|防火|地区計画)/u', ' ', (string)$message);
+    // 土地/ハザード/通学区域等の照会語を除去（建物名抽出のノイズになるため）。
+    // これを行わないと「エルザタワー55の通学区域」がそのまま検索語になり、
+    // 全国マンションDBのトークンAND一致（通学区域を含む建物名）で必ず0件になる。
+    $clean = preg_replace('/(通学区域|通学区|学区域|小学校区|中学校区|小学校|中学校|学区|校区|土地の個別情報|土地情報|土地|ハザード(?:情報|マップ)?|災害|防災|浸水|洪水|水害|土砂災害|土砂|地盤|液状化|津波|高潮|急傾斜地?|都市計画|用途地域|建ぺい率|建蔽率|容積率|区域区分|市街化(?:調整)?区域|市街化|防火(?:・準防火)?地域|防火|地区計画)/u', ' ', (string)$message);
     try {
         $terms = chatExtractMansionSearchTerms($clean);
         if (empty($terms) || !chatMansionTermLooksSpecific($terms, $clean)) return null;
@@ -1567,10 +1633,12 @@ function chatResolveMansionAddress($db, $message) {
 }
 
 /**
- * 「マンション名＋土地/ハザード照会」を検出し、DBから住所を解決して
- * 標準の土地情報フローに渡せるクエリ（住所入り）を組み立てる。
+ * 「マンション名＋土地/ハザード/通学区域の照会」を検出し、DBから住所を解決して
+ * 標準の公的データフローに渡せるクエリ（住所入り）を組み立てる。
  * 既に住所が含まれている場合や、マンションを特定できない場合は null（＝通常処理）。
- * @return array|null ['building_name','full_address','query']
+ * 質問のテーマ（土地/ハザード・通学区域）に応じてクエリを作り分けるため、
+ * 「通学区域を教えて」に対して用途地域・浸水想定を返すような取り違えは起こらない。
+ * @return array|null ['building_name','full_address','query','topic_label']
  */
 function chatMansionLandQueryAddress($db, $message) {
     $message = (string)$message;
@@ -1580,13 +1648,33 @@ function chatMansionLandQueryAddress($db, $message) {
     $resolved = chatResolveMansionAddress($db, $message);
     if ($resolved === null) return null;
     $addr = $resolved['full_address'];
-    // 住所＋土地キーワードを含むクエリにして、公的データ取得ゲート・ルーターを通す。
-    $query = $addr . ' の土地情報・ハザード情報（用途地域・建ぺい率・容積率・都市計画・浸水／土砂／液状化など）を教えてください';
-    chatLandDebugLog('mansion_land_resolved', ['building' => $resolved['building_name'], 'address' => $addr]);
+    // 住所＋テーマのキーワードを含むクエリにして、公的データ取得ゲート・ルーターを通す。
+    $asksSchool = chatMessageAsksSchoolDistrict($message);
+    $asksLand = chatMessageAsksLandHazardInfo($message);
+    $topics = [];
+    $labels = [];
+    if ($asksSchool) {
+        // 「通学区域（学区）」と表現する。ここに「小学校」「中学校」を含めると学校の位置
+        // データ（XKT006）まで同時に取得され、最寄りの学校を学区の学校と取り違えて
+        // 回答するおそれがあるため、通学区域ポリゴン（XKT004/XKT005）だけを対象にする。
+        $topics[] = '通学区域（学区）';
+        $labels[] = '通学区域（小学校区・中学校区）';
+    }
+    if ($asksLand || !$asksSchool) {
+        $topics[] = '土地情報・ハザード情報（用途地域・建ぺい率・容積率・都市計画・浸水／土砂／液状化など）';
+        $labels[] = '土地情報';
+    }
+    $query = $addr . ' の' . implode('、および', $topics) . 'を教えてください';
+    chatLandDebugLog('mansion_land_resolved', [
+        'building' => $resolved['building_name'],
+        'address' => $addr,
+        'topics' => $labels,
+    ]);
     return [
         'building_name' => $resolved['building_name'],
         'full_address'  => $addr,
         'query' => $query,
+        'topic_label' => implode('・', $labels),
     ];
 }
 
@@ -2316,15 +2404,20 @@ function chatReinfoApiCatalog() {
             'fields' => ['disaster_name_ja' => '災害分類', 'disaster_date' => '発生年月日', 'disaster_source' => '資料'],
         ],
         // --- 周辺施設・生活利便 ------------------------------------------
+        // 通学区域（学区）は「指定の有無」を問う区域ではなく、必ずどこかの学校区に属する
+        // 面的データ。該当ポリゴンが無い＝未指定ではなく「自治体の未整備・未公開」なので、
+        // coverage フラグで文言を分ける（chatReinfoZoneStatusItem）。
         'XKT004' => [
-            'title' => '小学校区', 'geom' => 'polygon',
-            'keywords' => '小学校区|学区',
+            'title' => '小学校区', 'geom' => 'polygon', 'coverage' => true,
+            'keywords' => '通学区域|通学区|学区域|小学校区|学区|校区',
             'description' => '小学校の通学区域（学区）',
+            'note' => 'これは指定地点を含む小学校の通学区域（学区）のGISデータです。データ内の「名称」がその通学区域の小学校名です。',
         ],
         'XKT005' => [
-            'title' => '中学校区', 'geom' => 'polygon',
-            'keywords' => '中学校区',
+            'title' => '中学校区', 'geom' => 'polygon', 'coverage' => true,
+            'keywords' => '通学区域|通学区|学区域|中学校区|学区|校区',
             'description' => '中学校の通学区域（学区）',
+            'note' => 'これは指定地点を含む中学校の通学区域（学区）のGISデータです。データ内の「名称」がその通学区域の中学校名です。',
         ],
         'XKT006' => [
             'title' => '学校', 'geom' => 'point',
@@ -2543,6 +2636,27 @@ function chatReinfoFormatRows($propsList, $def, $limit = 8) {
  */
 function chatReinfoZoneStatusItem($code, $def, $base, $status, $fetchedAt, $cached) {
     $title = $def['title'];
+    // 通学区域のような coverage レイヤは「指定の有無」を問う区域ではなく、本来どの地点も
+    // いずれかの区域に属する。ポリゴンが返らないのは自治体のデータ未整備・未公開であり、
+    // 「指定されていません」「区域外」と答えると誤答になるため文言を分ける。
+    if (!empty($def['coverage']) && $status !== 'error') {
+        return [
+            'provider' => 'reinfolib',
+            'status' => 'no_coverage',
+            'status_label' => 'データなし',
+            'title' => $title . '（' . $code . '）',
+            'notice' => $base . 'の' . $title . 'は公開データで確認できませんでした。',
+            'data' => [],
+            'record_count' => 0,
+            'total_count' => 0,
+            'count_note' => 'APIは正常に取得完了（HTTP200）ですが、この地点を含む' . $title . 'のポリゴンがデータに存在しませんでした。'
+                . $title . 'は自治体が定めるもので、公開データ（国土数値情報）に未整備・未公開の自治体があります。'
+                . 'ユーザーには「公開データでは' . $title . 'を確認できませんでした。正確には自治体（教育委員会）の学区域情報でご確認ください」と伝え、'
+                . '学校名を推測で答えないでください。「該当なし」「区域外」とは言わないでください。',
+            'fetched_at' => $fetchedAt ?: date('Y-m-d H:i:s'),
+            'cached' => $cached,
+        ];
+    }
     if ($status === 'error') {
         $notice = $base . 'の' . $title . 'は現在取得できませんでした。';
         $note = '取得失敗（APIエラー・通信エラー）。この地点が' . $title . 'に該当するかは不明です。'

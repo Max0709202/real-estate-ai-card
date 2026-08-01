@@ -200,13 +200,13 @@ try {
     // 物件名らしい問い合わせは、AIやヒアリングより先にDBで決定的に処理する。
     // DBで解決できない場合だけ従来のintake→AI解析へフォールバックする。
     $agentName = $card['name'] ?? '担当者';
-    // 土地/ハザード照会の判定は chatMessageAsksLandInfo() に一本化する。ここだけ独自の
+    // 土地/ハザード/通学区域の照会判定は chatMessageAsksLandInfo() に一本化する。ここだけ独自の
     // 狭い正規表現を持っていたため、「災害/防災/洪水/地盤/津波」等は土地照会と見なされず、
     // マンション先行応答が基礎情報だけを返して 下の 土地情報フロー（マンション名→住所→
     // ハザード）へ到達しなかった。両者の語彙を揃えて取りこぼしを無くす。
     $isMansionLandRequest = function_exists('chatMessageAsksLandInfo')
         ? chatMessageAsksLandInfo($message)
-        : (bool)preg_match('/(土地情報|ハザード|用途地域|建ぺい率|容積率|都市計画|浸水|土砂|液状化)/u', $message);
+        : (bool)preg_match('/(土地情報|ハザード|用途地域|建ぺい率|容積率|都市計画|浸水|土砂|液状化|通学区域|通学区|学区域|学区|校区)/u', $message);
     // 質問意図を軽量LLMで判定してから、マンションDB検索／一般回答／対象外を振り分ける。
     // 正規表現だけの判定では「リフォームに関する質問も大丈夫ですか？」のような一般相談まで
     // マンション名検索として扱われ、「該当するマンションが見つかりませんでした」になっていた。
@@ -421,8 +421,12 @@ try {
                 $reply = $result['reply'];
                 $sources = $result['sources'];
                 // マンション名から住所を解決して回答した場合、対象物件・住所を先頭に明示する。
+                // 見出しは質問テーマ（土地情報／通学区域）に合わせる。通学区域の質問に
+                // 「〜の土地情報です。」と付けると回答内容と食い違うため。
                 if ($mansionLand !== null) {
-                    $reply = $mansionLand['building_name'] . '（' . $mansionLand['full_address'] . '）の土地情報です。' . "\n\n" . $reply;
+                    $landTopicLabel = trim((string)($mansionLand['topic_label'] ?? ''));
+                    if ($landTopicLabel === '') $landTopicLabel = '土地情報';
+                    $reply = $mansionLand['building_name'] . '（' . $mansionLand['full_address'] . '）の' . $landTopicLabel . 'です。' . "\n\n" . $reply;
                 }
             }
         }
