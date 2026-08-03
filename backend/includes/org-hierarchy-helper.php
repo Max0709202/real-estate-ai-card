@@ -5,9 +5,15 @@
  * users.org_role       … staff=担当者 / manager=マネージャー(店長) / admin=管理者(統括)
  * users.parent_user_id … 直属の上長。親を辿ることで階層を表現する。
  *
- * 今回の要件は「配下担当者と顧客の一覧閲覧」のみ。
- * 上長が配下の顧客を編集・削除する導線はここでは一切提供しない
- * （読み取り専用のクエリしか置かない）。
+ * 上長にできるのは「配下担当者と顧客の一覧閲覧」と「自組織の階層づくり」だけ。
+ * 配下の顧客そのものを編集・削除する導線はここでは一切提供しない。
+ *
+ * 【重要】他社の情報が混ざらないための境界:
+ *   ・閲覧範囲は parent_user_id を辿った「自分の配下」に限る。他社は構造上入らない。
+ *   ・階層づくりで選べる相手も「同じ会社（会社名の正規化キーが一致）で、
+ *     まだどの上長にも紐付いていない人」だけに限る。
+ *   なお admin/ 配下の管理画面は運営（リニュアル仲介）専用で、users とは
+ *   別テーブル（admins）のログインが必要。各社の統括がそこへ入ることはない。
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -369,6 +375,150 @@ function orgFetchCustomers(PDO $db, array $memberIds, ?int $onlyUserId = null, i
     }
 
     return $customers;
+}
+
+/**
+ * 会社名の表記ゆれを吸収した比較キーを作る。
+ * 「株式会社ABC」「ＡＢＣ株式会社」「(株) ABC」が同じキーになるようにする。
+ * 判定できない（会社名未入力）場合は空文字を返し、呼び出し側で候補なし扱いにする。
+ */
+function orgCompanyKey($companyName): string
+{
+    $name = trim((string)$companyName);
+    if ($name === '') return '';
+
+    // 全角英数字・記号を半角に、全角スペースを半角に。
+    $name = mb_convert_kana($name, 'as');
+    $name = preg_replace('/\s+/u', '', $name) ?? '';
+    $name = str_replace(
+        ['株式会社', '有限会社', '合同会社', '合資会社', '合名会社', '(株)', '(有)', '㈱', '㈲'],
+        '',
+        $name
+    );
+    return mb_strtolower($name, 'UTF-8');
+}
+
+/**
+ * ユーザーの会社名（代表名刺のもの）と比較キーを返す。
+ *
+ * @return array{name:string, key:string}
+ */
+function orgCompanyForUser(PDO $db, int $userId): array
+{
+    if ($userId <= 0) return ['name' => '', 'key' => ''];
+    try {
+        $stmt = $db->prepare('
+            SELECT company_name FROM business_cards WHERE user_id = ? ORDER BY id ASC LIMIT 1
+        ');
+        $stmt->execute([$userId]);
+        $name = (string)($stmt->fetchColumn() ?: '');
+        return ['name' => $name, 'key' => orgCompanyKey($name)];
+    } catch (Exception $e) {
+        error_log('orgCompanyForUser error: ' . $e->getMessage());
+        return ['name' => '', 'key' => ''];
+    }
+}
+
+/**
+ * 配下として登録できる候補を返す。
+ * 条件は「同じ会社」かつ「まだどの上長にも紐付いていない」かつ「統括ではない」。
+ *
+ * SQLでは会社名の部分一致で粗く絞り、最終判定は orgCompanyKey() の完全一致で行う
+ * （表記ゆれをPHP側で吸収するため）。
+ */
+function orgFetchAssignCandidates(PDO $db, int $actorId, int $limit = 300): array
+{
+    $company = orgCompanyForUser($db, $actorId);
+    if ($company['key'] === '') return [];
+
+    // 「株式会社」等を除いた中核部分（＝正規化キー）で粗く絞り込む。
+    $core = $company['key'];
+    $limit = max(1, min(1000, $limit));
+
+    $sql = "
+        SELECT u.id AS user_id,
+               u.email,
+               u.org_role,
+               bc.name AS member_name,
+               bc.company_name,
+               bc.branch_department
+        FROM users u
+        LEFT JOIN (
+            SELECT user_id, MIN(id) AS id FROM business_cards GROUP BY user_id
+        ) first_card ON first_card.user_id = u.id
+        LEFT JOIN business_cards bc ON bc.id = first_card.id
+        WHERE u.id <> ?
+          AND u.parent_user_id IS NULL
+          AND u.org_role <> 'admin'
+          AND bc.company_name IS NOT NULL
+          AND bc.company_name <> ''
+          -- 空白の入れ方の違いで取りこぼさないよう、SQL側でも空白を除いて比較する。
+          -- 大文字小文字と全角半角は utf8mb4_unicode_ci の照合で吸収される。
+          AND REPLACE(REPLACE(bc.company_name, ' ', ''), '　', '') LIKE CONCAT('%', ?, '%')
+        ORDER BY u.id ASC
+        LIMIT $limit
+    ";
+
+    try {
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$actorId, $core]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log('orgFetchAssignCandidates error: ' . $e->getMessage());
+        return [];
+    }
+
+    $candidates = [];
+    foreach ($rows as $row) {
+        // 最終判定。粗い部分一致で拾った他社を、正規化キーの完全一致で落とす。
+        if (orgCompanyKey($row['company_name'] ?? '') !== $company['key']) continue;
+
+        $candidates[] = [
+            'user_id' => (int)$row['user_id'],
+            'email' => (string)$row['email'],
+            'org_role' => orgNormalizeRole($row['org_role'] ?? 'staff'),
+            'name' => (string)($row['member_name'] ?? ''),
+            'company_name' => (string)($row['company_name'] ?? ''),
+            'branch_department' => (string)($row['branch_department'] ?? ''),
+        ];
+    }
+
+    return $candidates;
+}
+
+/**
+ * 2人が同じ会社か。会社名が未入力の場合は判定できないため false（＝許可しない）。
+ * 他社のユーザーを配下に取り込めないようにするための最後の関門。
+ */
+function orgIsSameCompany(PDO $db, int $userIdA, int $userIdB): bool
+{
+    $a = orgCompanyForUser($db, $userIdA);
+    $b = orgCompanyForUser($db, $userIdB);
+    return $a['key'] !== '' && $a['key'] === $b['key'];
+}
+
+/** $targetId が $actorId の直属の配下か。 */
+function orgIsDirectChild(PDO $db, int $actorId, int $targetId): bool
+{
+    if ($actorId <= 0 || $targetId <= 0) return false;
+    try {
+        $stmt = $db->prepare('SELECT parent_user_id FROM users WHERE id = ? LIMIT 1');
+        $stmt->execute([$targetId]);
+        $parentId = $stmt->fetchColumn();
+        return $parentId !== false && $parentId !== null && (int)$parentId === $actorId;
+    } catch (Exception $e) {
+        error_log('orgIsDirectChild error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** $targetId が $actorId の配下（孫以降も含む）か。 */
+function orgIsInSubtree(PDO $db, int $actorId, int $targetId): bool
+{
+    foreach (orgDescendants($db, $actorId) as $descendant) {
+        if ((int)$descendant['id'] === $targetId) return true;
+    }
+    return false;
 }
 
 /**

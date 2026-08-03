@@ -1653,11 +1653,26 @@ $defaultGreetings = [
                 <div id="org-team-section" class="edit-section" style="display: none;">
                     <h2>組織・配下顧客</h2>
                     <p class="step-description">
-                        あなたの配下にいる担当者と、その担当者が対応しているお客様の一覧です（<?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>）。<br>
-                        閲覧のみで、お客様情報の編集・削除やチャットの代理返信はできません。
+                        あなた（<?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>）の配下にいる担当者と、その担当者が対応しているお客様の一覧です。<br>
+                        表示・登録の対象は<strong>自社のメンバーのみ</strong>で、他社の情報は表示されません。<br>
+                        お客様の情報は閲覧のみで、編集・削除やチャットの代理返信はできません。
                     </p>
 
                     <div id="org-team-summary" class="org-team-summary"></div>
+
+                    <div class="org-team-block">
+                        <h3>配下メンバーの登録</h3>
+                        <p class="section-note">
+                            同じ会社で、まだどの上長にも紐付いていない方を、あなたの配下として登録できます。<br>
+                            表示されるのは自社（会社プロフィールの会社名が一致する方）のみで、他社の情報は表示されません。
+                        </p>
+                        <div class="org-assign-row">
+                            <select id="org-candidate-select" class="form-control org-team-filter"></select>
+                            <select id="org-assign-parent" class="form-control org-team-filter" style="display: none;"></select>
+                            <button type="button" class="btn-primary" id="org-assign-btn">配下に追加</button>
+                        </div>
+                        <p id="org-assign-status" class="org-assign-status"></p>
+                    </div>
 
                     <div class="org-team-block">
                         <h3>配下の担当者</h3>
@@ -4996,18 +5011,24 @@ $defaultGreetings = [
     </script>
 <?php if ($canViewTeam): ?>
     <script>
-        // 組織・配下顧客（マネージャー／管理者のみ）。閲覧専用のため、
-        // 取得（GET）以外の通信は行わない。
+        // 組織・配下顧客（マネージャー／管理者のみ）。
+        // 顧客データは閲覧専用。書き込むのは「自組織の階層（誰が誰の配下か・権限）」だけで、
+        // 対象はいずれも自社かつ自分の配下に限られる（サーバー側でも同じ条件を検証）。
         (function() {
             var memberListEl = document.getElementById('org-member-list');
             var customerListEl = document.getElementById('org-customer-list');
             var summaryEl = document.getElementById('org-team-summary');
             var filterEl = document.getElementById('org-customer-filter');
             var csvLinkEl = document.getElementById('org-customer-csv');
+            var candidateEl = document.getElementById('org-candidate-select');
+            var assignParentEl = document.getElementById('org-assign-parent');
+            var assignBtn = document.getElementById('org-assign-btn');
+            var assignStatusEl = document.getElementById('org-assign-status');
             if (!memberListEl || !customerListEl) return;
 
             var apiBase = window.location.origin + '/backend/api/org';
             var loaded = false;
+            var viewer = { user_id: 0, org_role: 'manager' };
 
             function h(value) {
                 return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
@@ -5036,26 +5057,69 @@ $defaultGreetings = [
                 );
             }
 
+            function setAssignStatus(message, isError) {
+                if (!assignStatusEl) return;
+                assignStatusEl.textContent = message || '';
+                assignStatusEl.className = 'org-assign-status' + (isError ? ' org-assign-error' : '');
+            }
+
+            // 階層を変更する系のAPIは共通でここを通す。成功したら一覧を丸ごと読み直す。
+            function postOrg(endpoint, payload, onDone) {
+                fetch(apiBase + endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(payload)
+                })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        setAssignStatus(res.message || '', !res.success);
+                        if (res.success) reloadTeam();
+                        if (onDone) onDone(res);
+                    })
+                    .catch(function(err) {
+                        console.error(err);
+                        setAssignStatus('通信に失敗しました', true);
+                        if (onDone) onDone({ success: false });
+                    });
+            }
+
             function renderMembers(members) {
+                var isAdmin = viewer.org_role === 'admin';
                 if (!members.length) {
-                    memberListEl.innerHTML = '<p>配下の担当者が登録されていません。管理者へ組織階層の設定をご依頼ください。</p>';
+                    memberListEl.innerHTML = '<p>まだ配下の方が登録されていません。上の「配下メンバーの登録」から追加してください。</p>';
                     return;
                 }
                 var html = '<ul class="org-team-items">';
                 members.forEach(function(member) {
                     // depth 1 = 直属、2 以降は「配下の配下」。字下げで階層が分かるようにする。
-                    var indent = Math.min(parseInt(member.depth, 10) || 1, 3) - 1;
+                    var depth = parseInt(member.depth, 10) || 1;
+                    var indent = Math.min(depth, 3) - 1;
                     var unread = parseInt(member.unread_count, 10) || 0;
+                    var memberId = parseInt(member.user_id, 10) || 0;
+                    // 統括は配下全員を、店長は直属のみを操作できる（サーバー側の判定と同じ）。
+                    var canEditThis = isAdmin || depth === 1;
                     html += '<li class="org-team-item org-team-depth-' + indent + '">';
                     html += '<div class="org-team-item-main">';
                     html += '<span class="org-team-name">' + h(member.name || member.email) + '</span>';
-                    html += '<span class="org-team-role">' + h(member.org_role_label) + '</span>';
+                    if (isAdmin && depth === 1) {
+                        // 統括だけが、自分の直属を店長に指名できる（3段を超えないため直属のみ）。
+                        html += '<select class="org-team-role-select" data-member-id="' + memberId + '" data-current="' + h(member.org_role) + '">';
+                        html += '<option value="staff"' + (member.org_role === 'staff' ? ' selected' : '') + '>担当者（営業）</option>';
+                        html += '<option value="manager"' + (member.org_role === 'manager' ? ' selected' : '') + '>マネージャー（店長）</option>';
+                        html += '</select>';
+                    } else {
+                        html += '<span class="org-team-role">' + h(member.org_role_label) + '</span>';
+                    }
                     if (member.branch_department) html += '<span class="org-team-dept">' + h(member.branch_department) + '</span>';
                     html += '</div>';
                     html += '<div class="org-team-item-meta">';
                     html += '<span>顧客 ' + (parseInt(member.customer_count, 10) || 0) + '件</span>';
                     if (unread > 0) html += '<span class="chat-unread-badge" title="未読の顧客メッセージ">' + unread + '</span>';
-                    html += '<button type="button" class="org-team-view" data-member-id="' + (parseInt(member.user_id, 10) || 0) + '">顧客を見る</button>';
+                    html += '<button type="button" class="org-team-view" data-member-id="' + memberId + '">顧客を見る</button>';
+                    if (canEditThis) {
+                        html += '<button type="button" class="org-team-remove" data-member-id="' + memberId + '" data-member-name="' + h(member.name || member.email) + '">配下から外す</button>';
+                    }
                     html += '</div>';
                     html += '</li>';
                 });
@@ -5069,6 +5133,82 @@ $defaultGreetings = [
                         loadCustomers();
                     });
                 });
+
+                memberListEl.querySelectorAll('.org-team-role-select').forEach(function(select) {
+                    select.addEventListener('change', function() {
+                        var memberId = parseInt(select.getAttribute('data-member-id'), 10);
+                        var newRole = select.value;
+                        select.disabled = true;
+                        postOrg('/update-role.php', { user_id: memberId, org_role: newRole }, function(res) {
+                            select.disabled = false;
+                            // 失敗時は表示と実データがずれないよう選択を戻す。
+                            if (!res.success) select.value = select.getAttribute('data-current');
+                        });
+                    });
+                });
+
+                memberListEl.querySelectorAll('.org-team-remove').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        var memberName = btn.getAttribute('data-member-name') || '';
+                        if (!confirm(memberName + ' さんを配下から外しますか？\n（アカウントやお客様の情報は削除されません）')) return;
+                        btn.disabled = true;
+                        postOrg('/unassign.php', { user_id: parseInt(btn.getAttribute('data-member-id'), 10) }, function() {
+                            btn.disabled = false;
+                        });
+                    });
+                });
+            }
+
+            // 統括のみ「どの店長の配下に入れるか」を選べるようにする。
+            function renderAssignParents(members) {
+                if (!assignParentEl) return;
+                if (viewer.org_role !== 'admin') {
+                    assignParentEl.style.display = 'none';
+                    return;
+                }
+                var managers = members.filter(function(member) {
+                    return (parseInt(member.depth, 10) || 1) === 1 && member.org_role === 'manager';
+                });
+                var options = '<option value="">自分（' + h(viewer.org_role_label || '管理者（統括）') + '）の直下</option>';
+                managers.forEach(function(manager) {
+                    options += '<option value="' + (parseInt(manager.user_id, 10) || 0) + '">'
+                        + h(manager.name || manager.email) + ' の配下</option>';
+                });
+                assignParentEl.innerHTML = options;
+                assignParentEl.style.display = managers.length ? '' : 'none';
+            }
+
+            function loadCandidates() {
+                if (!candidateEl) return Promise.resolve();
+                return fetch(apiBase + '/candidates.php', { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (!res.success) {
+                            candidateEl.innerHTML = '<option value="">' + h(res.message || '取得に失敗しました') + '</option>';
+                            return;
+                        }
+                        if (!res.data.company_resolved) {
+                            candidateEl.innerHTML = '<option value="">会社名が未登録のため候補を表示できません</option>';
+                            setAssignStatus('「会社プロフィール」の会社名をご登録ください。同じ会社の判定に使用します。', true);
+                            return;
+                        }
+                        var candidates = res.data.candidates || [];
+                        if (!candidates.length) {
+                            candidateEl.innerHTML = '<option value="">追加できる方がいません（全員いずれかの上長に登録済みです）</option>';
+                            return;
+                        }
+                        var options = '<option value="">追加する方を選択してください</option>';
+                        candidates.forEach(function(candidate) {
+                            var suffix = candidate.branch_department ? '（' + candidate.branch_department + '）' : '';
+                            options += '<option value="' + (parseInt(candidate.user_id, 10) || 0) + '">'
+                                + h((candidate.name || candidate.email) + suffix) + '</option>';
+                        });
+                        candidateEl.innerHTML = options;
+                    })
+                    .catch(function(err) {
+                        console.error(err);
+                        candidateEl.innerHTML = '<option value="">取得に失敗しました</option>';
+                    });
             }
 
             function renderCustomers(customers) {
@@ -5110,6 +5250,7 @@ $defaultGreetings = [
                         }
                         var members = res.data.members || [];
                         var summary = res.data.summary || {};
+                        viewer = res.data.viewer || viewer;
                         if (summaryEl) {
                             summaryEl.innerHTML = '<span>配下の担当者 ' + (summary.member_count || 0) + '名</span>'
                                 + '<span>顧客 ' + (summary.customer_count || 0) + '件</span>'
@@ -5124,6 +5265,7 @@ $defaultGreetings = [
                             filterEl.innerHTML = options;
                         }
                         renderMembers(members);
+                        renderAssignParents(members);
                         updateCsvLink();
                     })
                     .catch(function(err) {
@@ -5150,10 +5292,41 @@ $defaultGreetings = [
                     });
             }
 
+            // 階層を変更した後の再読み込み。候補一覧も一緒に更新する必要がある
+            // （追加した人は候補から消え、外した人は候補に戻るため）。
+            function reloadTeam() {
+                loadMembers().then(function() {
+                    loadCandidates();
+                    loadCustomers();
+                });
+            }
+
             function loadTeam() {
                 if (loaded) return;
                 loaded = true;
-                loadMembers().then(loadCustomers);
+                loadMembers().then(function() {
+                    loadCandidates();
+                    loadCustomers();
+                });
+            }
+
+            if (assignBtn) {
+                assignBtn.addEventListener('click', function() {
+                    var targetId = candidateEl ? parseInt(candidateEl.value, 10) : 0;
+                    if (!targetId) {
+                        setAssignStatus('追加する方を選択してください', true);
+                        return;
+                    }
+                    var payload = { user_id: targetId };
+                    if (assignParentEl && assignParentEl.style.display !== 'none' && assignParentEl.value) {
+                        payload.parent_user_id = parseInt(assignParentEl.value, 10);
+                    }
+                    assignBtn.disabled = true;
+                    setAssignStatus('登録中...', false);
+                    postOrg('/assign.php', payload, function() {
+                        assignBtn.disabled = false;
+                    });
+                });
             }
 
             if (filterEl) {

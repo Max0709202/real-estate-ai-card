@@ -57,12 +57,22 @@ Also ensure `BASE_URL` is correct for your environment.
 
 - `users.org_role` (`staff` / `manager` / `admin`) and `users.parent_user_id` express a
   three-level sales organization. Everything is derived from the `parent_user_id` chain.
-- Admin screen to configure it: `admin/org-hierarchy.php`
-  (per-user role/supervisor edit + CSV export/import of the hierarchy).
-- Managers/admins get a read-only **組織・配下顧客** section in `edit.php`
-  (subordinate list, their customer list, CSV export). No edit/delete of subordinate data.
+- **Two clearly separate screens — do not mix them up:**
+  - `admin/org-hierarchy.php` — **operator (リニュアル仲介) only**. Shows every company, so it
+    is never handed to a client. Requires an `admins` row; client `users` accounts cannot reach it.
+    Its job is appointing each client company's top person as `admin` (統括).
+  - `edit.php` → **組織・配下顧客** — the client company's own screen. A 統括/店長 builds their
+    own hierarchy here, scoped to their own company.
+- Company scoping: `orgCompanyKey()` normalizes `business_cards.company_name`
+  (strips 株式会社/(株)/whitespace, folds full-width) and assignment candidates must match it
+  exactly. A user with no company name gets no candidates.
+- Tier rules enforced server-side: 統括 → 店長 → 営業 only (max 3). A 店長 may only take
+  担当者 directly under them; only a 統括 may promote a *direct* subordinate to 店長.
+- Customer data stays read-only for supervisors; the only writes are to the hierarchy itself
+  (`parent_user_id` / `org_role`) and always within the actor's own company and subtree.
 - Shared logic: `backend/includes/org-hierarchy-helper.php`.
-  Read APIs: `backend/api/org/{members,customers,export-customers-csv}.php`.
+  Read APIs: `backend/api/org/{members,customers,candidates,export-customers-csv}.php`.
+  Hierarchy writes: `backend/api/org/{assign,unassign,update-role}.php`.
 - Migration: `backend/database/migrations/20260731_add_user_org_hierarchy.sql`
   (the helper also adds the columns at runtime if the migration has not been applied).
 

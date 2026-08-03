@@ -1920,3 +1920,49 @@ body {
 .org-team-view:hover {
     background: #eef4fb;
 }
+
+/* ---- 組織メンバーの登録（統括・店長が自社の階層を作るためのUI）---- */
+.org-assign-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+.org-assign-row .org-team-filter {
+    min-width: 240px;
+}
+.org-assign-status {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    color: #2a6db0;
+    min-height: 1.2em;
+}
+.org-assign-status.org-assign-error {
+    color: #c0392b;
+}
+.org-team-role-select {
+    font-size: 0.78rem;
+    padding: 0.2rem 0.4rem;
+    border: 1px solid #d4e3f5;
+    border-radius: 4px;
+    background: #f7fbff;
+    color: #2a6db0;
+}
+.org-team-remove {
+    border: 1px solid #d9a2a2;
+    background: #fff;
+    color: #c0392b;
+    border-radius: 4px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.org-team-remove:hover {
+    background: #fdf1f1;
+}
+.org-team-remove:disabled,
+.org-team-role-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
