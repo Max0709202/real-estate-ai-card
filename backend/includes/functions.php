@@ -2318,10 +2318,113 @@ function startSessionIfNotStarted() {
             // それでも書き込みできない場合は、デフォルトのパスを使用（警告は出るが動作は続行）
         }
         
+        // クッキー有効期限を無操作タイムアウトに合わせる（毎アクセスで延長する）
+        $params = session_get_cookie_params();
+        setSessionCookieParamsCompat(getSessionIdleLimit(), $params);
+
         session_start();
+
+        // 最終アクセスからの経過時間で有効期限を判定し、クッキーを延長する
+        enforceSessionIdleTimeout();
     }
 
     if (session_status() === PHP_SESSION_ACTIVE) {
         capture_existing_invite_token_from_request();
+    }
+}
+
+/**
+ * 無操作タイムアウト秒数を返す
+ * 管理画面(admin)は従来どおり1時間、それ以外（エージェント等）は6時間。
+ */
+function getSessionIdleLimit() {
+    $isAdmin = session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['admin_id']);
+
+    if ($isAdmin) {
+        return defined('SESSION_IDLE_LIFETIME_ADMIN') ? (int) SESSION_IDLE_LIFETIME_ADMIN : 3600;
+    }
+
+    return defined('SESSION_IDLE_LIFETIME') ? (int) SESSION_IDLE_LIFETIME : 3600;
+}
+
+/**
+ * セッションクッキーのパラメータ設定（PHP 7.3未満との互換用）
+ */
+function setSessionCookieParamsCompat($lifetime, array $params) {
+    $path     = !empty($params['path']) ? $params['path'] : '/';
+    $domain   = isset($params['domain']) ? $params['domain'] : '';
+    $secure   = !empty($params['secure']);
+    $httponly = isset($params['httponly']) ? (bool) $params['httponly'] : true;
+
+    if (PHP_VERSION_ID >= 70300) {
+        $options = [
+            'lifetime' => $lifetime,
+            'path'     => $path,
+            'domain'   => $domain,
+            'secure'   => $secure,
+            'httponly' => $httponly,
+        ];
+        if (!empty($params['samesite'])) {
+            $options['samesite'] = $params['samesite'];
+        }
+        session_set_cookie_params($options);
+        return;
+    }
+
+    session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
+}
+
+/**
+ * 最終アクセスからの経過時間でセッションの有効期限を判定する。
+ * - 期限切れ: セッションを破棄して新しい空のセッションを開始（＝ログアウト状態）
+ * - 有効: 最終アクセス時刻を更新し、クッキーの有効期限も延長（スライド式）
+ */
+function enforceSessionIdleTimeout() {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    $limit        = getSessionIdleLimit();
+    $lastActivity = isset($_SESSION['last_activity']) ? (int) $_SESSION['last_activity'] : 0;
+
+    if ($lastActivity > 0 && (time() - $lastActivity) > $limit) {
+        // ログイン情報を含む中身を破棄し、新しいIDの空セッションに切り替える
+        $_SESSION = [];
+        if (!headers_sent()) {
+            session_regenerate_id(true); // 古いセッションファイルも削除
+        }
+        $limit = getSessionIdleLimit(); // 管理者セッションが破棄された場合に再判定
+    }
+
+    $_SESSION['last_activity'] = time();
+
+    // アクセスのたびにクッキーの期限を延長する（最終アクセスから $limit 秒）
+    if (!headers_sent() && ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        $path   = !empty($params['path']) ? $params['path'] : '/';
+
+        if (PHP_VERSION_ID >= 70300) {
+            $options = [
+                'expires'  => time() + $limit,
+                'path'     => $path,
+                'domain'   => isset($params['domain']) ? $params['domain'] : '',
+                'secure'   => !empty($params['secure']),
+                'httponly' => isset($params['httponly']) ? (bool) $params['httponly'] : true,
+            ];
+            if (!empty($params['samesite'])) {
+                $options['samesite'] = $params['samesite'];
+            }
+            setcookie(session_name(), session_id(), $options);
+        } else {
+            setcookie(
+                session_name(),
+                session_id(),
+                time() + $limit,
+                $path,
+                isset($params['domain']) ? $params['domain'] : '',
+                !empty($params['secure']),
+                isset($params['httponly']) ? (bool) $params['httponly'] : true
+            );
+        }
     }
 }
