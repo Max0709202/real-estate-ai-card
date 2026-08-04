@@ -29,6 +29,8 @@ if (!is_array($input)) $input = $_POST;
 
 $propertyId = isset($input['property_id']) ? (int)$input['property_id'] : 0;
 $fields = isset($input['fields']) && is_array($input['fields']) ? $input['fields'] : [];
+// 重複提案の確認を通過した（「再提案する」を押した）場合に true。
+$confirmDuplicate = !empty($input['confirm_duplicate']);
 
 try {
     $db = (new Database())->getConnection();
@@ -39,6 +41,17 @@ try {
         $row = propertyVerifyAgentProperty($db, $propertyId, $userId);
         propertyApplyFields($db, $propertyId, $fields);
         if (!empty($input['confirm_ocr'])) {
+            // 販売図面/URLからの下書きを「確認して保存」= 顧客へ提案する瞬間。
+            // このお客様へ同じ物件を過去に提案済みなら、確認メッセージを出す（エラーにはしない）。
+            if (($row['ocr_status'] ?? '') === 'draft' && !$confirmDuplicate) {
+                $curStmt = $db->prepare("SELECT * FROM properties WHERE id = ? LIMIT 1");
+                $curStmt->execute([$propertyId]);
+                $cur = $curStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+                $dup = propertyFindDuplicate($db, (string)$row['session_id'], $cur, $propertyId);
+                if ($dup) {
+                    sendSuccessResponse(propertyDuplicatePayload($dup, $cur), 'この物件は、すでに同じお客様へ提案済みです。');
+                }
+            }
             $db->prepare("UPDATE properties SET ocr_status = 'confirmed' WHERE id = ?")->execute([$propertyId]);
             // ドラフト確認時を「顧客へ共有された」時点として初めて通知する。
             if (($row['ocr_status'] ?? '') === 'draft') {
@@ -50,6 +63,14 @@ try {
         $sessionId = trim($input['session_id'] ?? '');
         if ($sessionId === '') sendErrorResponse('session_id is required', 400);
         $cardId = propertyVerifyAgentSession($db, $sessionId, $userId);
+        // 同じお客様へ同じ物件を過去に提案済みなら、確認メッセージを出す（エラーにはしない）。
+        // 「再提案する」を押した場合（confirm_duplicate）はそのまま登録を続行する。
+        if (!$confirmDuplicate) {
+            $dup = propertyFindDuplicate($db, $sessionId, $fields, 0);
+            if ($dup) {
+                sendSuccessResponse(propertyDuplicatePayload($dup, $fields), 'この物件は、すでに同じお客様へ提案済みです。');
+            }
+        }
         $propertyId = propertyCreate($db, [
             'business_card_id' => $cardId,
             'session_id' => $sessionId,
