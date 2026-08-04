@@ -2280,3 +2280,199 @@ if (!function_exists('propertyCreate')) {
         return $id;
     }
 }
+
+/* ============================================================
+ * 同一物件の重複提案チェック（§ 追加要望）
+ * 同じお客様（session_id）へ過去に提案した物件を、表記ゆれを吸収したうえで
+ * 判定する。エラーにはせず、確認メッセージを表示して再提案できるようにするための
+ * 判定ロジック（実際の確認ダイアログは save.php / property-agent.js 側）。
+ * ============================================================ */
+
+if (!function_exists('propertyNormalizeText')) {
+    /**
+     * 住所・物件名などの表記ゆれを吸収して比較用キーに正規化する。
+     * 全角英数→半角 / 全角スペース除去 / ハイフン類の統一 /
+     * 丁目・番地・番・号→区切り / 号室の除去 / 空白除去 / 英字小文字化。
+     * ※あくまで比較の前処理。両側に同じ正規化をかけて完全一致で比較する。
+     */
+    function propertyNormalizeText($value): string
+    {
+        $v = trim((string)$value);
+        if ($v === '') return '';
+        // 全角英数字→半角、全角スペース→半角。
+        if (function_exists('mb_convert_kana')) $v = mb_convert_kana($v, 'as');
+        $v = function_exists('mb_strtolower') ? mb_strtolower($v) : strtolower($v);
+        // ハイフン／ダッシュ類を半角ハイフンへ統一（カタカナ長音符は対象外）。
+        $v = preg_replace('/[\x{2010}\x{2011}\x{2012}\x{2013}\x{2014}\x{2015}\x{2212}\x{FF0D}]/u', '-', $v);
+        // 住所表記: 号室を削除 → 丁目/番地/番/号 を区切りへ。
+        $v = preg_replace('/号室/u', '', $v);
+        $v = preg_replace('/丁目/u', '-', $v);
+        $v = preg_replace('/番地|番/u', '-', $v);
+        $v = preg_replace('/号/u', '-', $v);
+        // 空白（半角・全角）を除去。
+        $v = preg_replace('/[\s\x{3000}]+/u', '', $v);
+        // 連続ハイフンをまとめ、前後のハイフンを除去。
+        $v = preg_replace('/-+/', '-', (string)$v);
+        return trim((string)$v, '-');
+    }
+}
+
+if (!function_exists('propertyNormalizeArea')) {
+    /** 面積文字列（「74.76㎡」「７４．７６」等）から数値を取り出す。取れなければ null。 */
+    function propertyNormalizeArea($value): ?float
+    {
+        $v = trim((string)$value);
+        if ($v === '') return null;
+        if (function_exists('mb_convert_kana')) $v = mb_convert_kana($v, 'n'); // 全角数字→半角
+        if (preg_match('/([0-9]+(?:\.[0-9]+)?)/', $v, $m)) return (float)$m[1];
+        return null;
+    }
+}
+
+if (!function_exists('propertyNormalizeYearMonth')) {
+    /** 築年月を YYYY-MM（月不明は YYYY）に正規化する。取れなければ ''。 */
+    function propertyNormalizeYearMonth($value): string
+    {
+        $v = trim((string)$value);
+        if ($v === '') return '';
+        if (function_exists('mb_convert_kana')) $v = mb_convert_kana($v, 'n');
+        if (preg_match('/(\d{4})\s*[年\/\.\-]\s*(\d{1,2})/u', $v, $m)) {
+            return sprintf('%04d-%02d', (int)$m[1], (int)$m[2]);
+        }
+        if (preg_match('/(\d{4})\s*年/u', $v, $m)) return sprintf('%04d', (int)$m[1]);
+        if (preg_match('/(\d{4})/', $v, $m)) return (string)$m[1];
+        return '';
+    }
+}
+
+if (!function_exists('propertyAreaMatches')) {
+    /** 面積が許容誤差（既定 0.1㎡）以内で一致するか。どちらかが未取得なら不一致扱い。 */
+    function propertyAreaMatches(?float $a, ?float $b, float $tolerance = 0.1): bool
+    {
+        if ($a === null || $b === null) return false;
+        return abs($a - $b) <= $tolerance + 1e-9;
+    }
+}
+
+if (!function_exists('propertyFindDuplicate')) {
+    /**
+     * 同一お客様（session_id）内で、正規化して一致する既提案物件を探す（§ 追加要望）。
+     * ステータス（提案中/見送り/販売終了/非表示 等）に関わらず、そのお客様への
+     * すべての提案履歴を対象にする。
+     *
+     * 判定キー（表記ゆれを吸収して比較）:
+     *   マンション : 所在地 + マンション名(棟名含む) + 所在階 + 専有面積(±0.1㎡)
+     *   一戸建て   : 所在地 + 土地面積(±0.1㎡) + 建物面積(±0.1㎡) + 築年月
+     *   土地       : 所在地 + 土地面積(±0.1㎡)
+     *
+     * @param array $fields address / building_name / floor / exclusive_area /
+     *                      land_area / building_area / built_year_month / property_type
+     * @param int   $excludeId 判定から除外する物件id（自分自身。新規時は 0）
+     * @return array|null 一致した既存物件行（created_at, price_text, price_man 等を含む）
+     */
+    function propertyFindDuplicate(PDO $db, string $sessionId, array $fields, int $excludeId = 0): ?array
+    {
+        $sessionId = trim($sessionId);
+        if ($sessionId === '') return null;
+        $type = (string)($fields['property_type'] ?? 'mansion');
+        if (!in_array($type, ['mansion', 'house', 'land'], true)) $type = 'mansion';
+
+        $newAddr = propertyNormalizeText($fields['address'] ?? '');
+        // 所在地が無い場合は誤検出を避けるため判定しない（住所は全種別で必須キー）。
+        if ($newAddr === '') return null;
+        $newName  = propertyNormalizeText($fields['building_name'] ?? '');
+        $newFloor = propertyNormalizeText($fields['floor'] ?? '');
+        $newExc   = propertyNormalizeArea($fields['exclusive_area'] ?? '');
+        $newLand  = propertyNormalizeArea($fields['land_area'] ?? '');
+        $newBldg  = propertyNormalizeArea($fields['building_area'] ?? '');
+        $newYm    = propertyNormalizeYearMonth($fields['built_year_month'] ?? '');
+
+        try {
+            // ocr_status='draft'（販売図面/URLの未確認下書き）は、まだお客様へ提案されて
+            // いないため対象外にする。手入力(none)・確認済(confirmed)のみを提案履歴とみなす。
+            $stmt = $db->prepare(
+                "SELECT id, property_type, address, building_name, floor,
+                        exclusive_area, land_area, building_area, built_year_month,
+                        price_text, price_man, status, created_at
+                 FROM properties
+                 WHERE session_id = ? AND property_type = ? AND id <> ? AND ocr_status <> 'draft'
+                 ORDER BY created_at DESC, id DESC"
+            );
+            $stmt->execute([$sessionId, $type, $excludeId]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            error_log('propertyFindDuplicate query error: ' . $e->getMessage());
+            return null;
+        }
+
+        foreach ($rows as $c) {
+            if (propertyNormalizeText($c['address'] ?? '') !== $newAddr) continue;
+            if ($type === 'mansion') {
+                if (propertyNormalizeText($c['building_name'] ?? '') !== $newName) continue;
+                if (propertyNormalizeText($c['floor'] ?? '') !== $newFloor) continue;
+                if (!propertyAreaMatches(propertyNormalizeArea($c['exclusive_area'] ?? ''), $newExc)) continue;
+                return $c;
+            }
+            if ($type === 'house') {
+                if (!propertyAreaMatches(propertyNormalizeArea($c['land_area'] ?? ''), $newLand)) continue;
+                if (!propertyAreaMatches(propertyNormalizeArea($c['building_area'] ?? ''), $newBldg)) continue;
+                if (propertyNormalizeYearMonth($c['built_year_month'] ?? '') !== $newYm) continue;
+                return $c;
+            }
+            // land: 所在地 + 土地面積
+            if (!propertyAreaMatches(propertyNormalizeArea($c['land_area'] ?? ''), $newLand)) continue;
+            return $c;
+        }
+        return null;
+    }
+}
+
+if (!function_exists('propertyDuplicatePayload')) {
+    /**
+     * 重複確認ダイアログ用のペイロードを組み立てる。
+     * 前回提案日・前回提案価格・現在価格・価格変更有無を返す。
+     *
+     * @param array $existing propertyFindDuplicate が返した既存物件行
+     * @param array $currentFields 今回登録しようとしているフィールド（または現物件の行）
+     */
+    function propertyDuplicatePayload(array $existing, array $currentFields): array
+    {
+        $prevMan = (isset($existing['price_man']) && $existing['price_man'] !== null && $existing['price_man'] !== '')
+            ? (int)$existing['price_man'] : null;
+        $prevText = trim((string)($existing['price_text'] ?? ''));
+
+        $curText = trim((string)($currentFields['price_text'] ?? ''));
+        $curMan = (isset($currentFields['price_man']) && $currentFields['price_man'] !== '' && $currentFields['price_man'] !== null)
+            ? (int)$currentFields['price_man']
+            : (function_exists('propertyPriceToMan') ? propertyPriceToMan($curText !== '' ? $curText : null) : null);
+
+        if ($prevMan !== null && $curMan !== null) {
+            $priceChanged = ($prevMan !== $curMan);
+        } else {
+            $priceChanged = ($curText !== '' && $prevText !== '' && $curText !== $prevText);
+        }
+
+        $created = (string)($existing['created_at'] ?? '');
+        $dateLabel = '';
+        if ($created !== '') {
+            $ts = strtotime($created);
+            // date() のフォーマットに日本語を直接入れると文字化けし得るため、要素ごとに組み立てる。
+            if ($ts !== false) $dateLabel = date('Y', $ts) . '年' . date('n', $ts) . '月' . date('j', $ts) . '日';
+        }
+
+        return [
+            'duplicate' => true,
+            'previous' => [
+                'date' => $created,
+                'date_label' => $dateLabel,
+                'price_text' => $prevText,
+                'price_man' => $prevMan,
+            ],
+            'current' => [
+                'price_text' => $curText,
+                'price_man' => $curMan,
+            ],
+            'price_changed' => (bool)$priceChanged,
+        ];
+    }
+}

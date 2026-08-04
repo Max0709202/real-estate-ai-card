@@ -202,12 +202,57 @@
       else payload.session_id = SID;
       if (isOcrDraft) payload.confirm_ocr = true;
       var btn = m.body.querySelector('button[type=submit]'); btn.disabled = true;
-      api('/save.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-        .then(function (res) {
-          if (!res.success) { notify('error', res.message || '保存に失敗しました'); btn.disabled = false; return; }
-          m.close(); notify('ok', '保存しました');
-          if (prop.id && P.querySelector('#prop-detail')) openDetail(prop.id); else renderList();
-        }).catch(function () { notify('error', '通信に失敗しました'); btn.disabled = false; });
+      savePropertyWithDuplicateCheck(payload, m, btn, prop);
+    });
+  }
+
+  // 保存API呼び出し。同じお客様へ同じ物件を過去に提案済みの場合、サーバーは
+  // 保存せず duplicate=true を返す。その時は確認ダイアログを挟み、「再提案する」で
+  // confirm_duplicate=true を付けて再送する（§ 追加要望：エラーにはせず確認後に続行）。
+  function savePropertyWithDuplicateCheck(payload, m, btn, prop) {
+    api('/save.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      .then(function (res) {
+        if (res && res.success && res.data && res.data.duplicate) {
+          btn.disabled = false;
+          showDuplicateConfirm(res.data, payload, m, btn, prop);
+          return;
+        }
+        if (!res || !res.success) { notify('error', (res && res.message) || '保存に失敗しました'); btn.disabled = false; return; }
+        m.close(); notify('ok', '保存しました');
+        if (prop.id && P.querySelector('#prop-detail')) openDetail(prop.id); else renderList();
+      }).catch(function () { notify('error', '通信に失敗しました'); btn.disabled = false; });
+  }
+
+  // 重複提案の確認ダイアログ。前回提案日・前回提案価格・現在価格を表示し、
+  // 価格が変わっている場合はその旨を強調する。
+  function showDuplicateConfirm(info, payload, m, btn, prop) {
+    var prev = info.previous || {};
+    var cur = info.current || {};
+    var rows = '';
+    if (prev.date_label) rows += '<div>前回提案日：' + esc(prev.date_label) + '</div>';
+    if (prev.price_text) rows += '<div>前回提案価格：' + esc(prev.price_text) + '</div>';
+    if (cur.price_text) {
+      rows += '<div>現在価格：' + esc(cur.price_text) +
+        (info.price_changed ? ' <span style="color:#d9534f;font-weight:600;">（価格が変更されています）</span>' : '') + '</div>';
+    }
+    var html = '<div class="prop-msg prop-msg--info full">この物件は、すでに同じお客様へ提案済みです。</div>' +
+      (rows ? '<div style="margin:12px 0;line-height:1.9;">' + rows + '</div>' : '') +
+      '<div style="margin-bottom:4px;">価格変更などの理由で、再度提案しますか？</div>' +
+      '<div class="prop-form-actions" style="margin-top:14px;">' +
+        '<button type="button" class="prop-btn prop-btn--ghost" id="prop-dup-cancel">キャンセル</button>' +
+        '<button type="button" class="prop-btn prop-btn--primary" id="prop-dup-ok">再提案する</button>' +
+      '</div>';
+    var cm = UI.modal('提案済みの物件です', html);
+    // キャンセル: 確認ダイアログを閉じ、物件選定（入力）画面に戻る（入力内容は保持）。
+    cm.body.querySelector('#prop-dup-cancel').addEventListener('click', function () { cm.close(); });
+    // 再提案する: confirm_duplicate を付けてそのまま登録を続行する。
+    cm.body.querySelector('#prop-dup-ok').addEventListener('click', function () {
+      cm.close();
+      btn.disabled = true;
+      var p2 = {};
+      for (var k in payload) { if (Object.prototype.hasOwnProperty.call(payload, k)) p2[k] = payload[k]; }
+      p2.confirm_duplicate = true;
+      savePropertyWithDuplicateCheck(p2, m, btn, prop);
     });
   }
 
