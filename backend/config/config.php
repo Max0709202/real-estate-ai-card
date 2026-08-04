@@ -25,11 +25,17 @@ if (ENVIRONMENT === 'development') {
 date_default_timezone_set('Asia/Tokyo');
 
 // セッション設定
+// 無操作タイムアウト（最終アクセスからの経過時間）
+define('SESSION_IDLE_LIFETIME', 6 * 3600);        // 一般ユーザー（エージェント）: 6時間
+define('SESSION_IDLE_LIFETIME_ADMIN', 3600);      // 管理画面: 1時間（セキュリティのため据え置き）
+
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0); // HTTPS使用時は1に変更
-ini_set('session.gc_maxlifetime', 3600); // セッション有効期限: 1時間 (3600秒)
-ini_set('session.cookie_lifetime', 3600); // クッキー有効期限: 1時間 (3600秒)
+// GC は最長のタイムアウトに合わせる（実際の期限判定は startSessionIfNotStarted() で行う）
+ini_set('session.gc_maxlifetime', SESSION_IDLE_LIFETIME);
+// クッキー有効期限もアクセスのたびに延長する（startSessionIfNotStarted() で再送出）
+ini_set('session.cookie_lifetime', SESSION_IDLE_LIFETIME);
 
 // セッション保存パスをプロジェクト内に設定（権限エラーを回避）
 $sessionPath = __DIR__ . '/../sessions';
