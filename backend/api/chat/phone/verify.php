@@ -12,6 +12,7 @@ require_once __DIR__ . '/../../../includes/openai-chat-helper.php';
 require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../../includes/customer-invitation-helper.php';
+require_once __DIR__ . '/../../../includes/session-participant-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -32,6 +33,8 @@ $cardSlug = trim($input['card_slug'] ?? '');
 $visitorId = trim($input['visitor_id'] ?? '');
 $reason = trim($input['reason'] ?? '');
 $currentSessionId = trim($input['current_session_id'] ?? '');
+// 2人目（ご家族）の招待URL(card.php?...&couple=<token>)から来た場合の招待トークン。
+$coupleToken = trim($input['couple_invite'] ?? '');
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
     $visitorId = '';
 }
@@ -76,6 +79,54 @@ try {
     $registrationCompleted = false;
     $needsProfile = false;
     $customerName = $found['customer_name'] ?? null;
+
+    // ─────────────────────────────────────────────────────────────
+    // 2人目（ご家族）の招待経由でのSMS認証。
+    // 招待URL(card.php?...&couple=<token>)から来た2人目は、本人(primary)の連絡先
+    // （chat_lead_contacts）を上書きせず、同じ共有セッションへ合流させる。
+    // 氏名・メールは招待時の申告値を使うため、お名前・メールの入力は求めない。
+    // ─────────────────────────────────────────────────────────────
+    if ($coupleToken !== '' && participantIsValidToken($coupleToken)) {
+        $partnerPhoneKey = chatPhoneLookupKey($phone);
+        $coupleSessionId = participantRegisterPartnerByToken($db, $coupleToken, $businessCardId, $partnerPhoneKey, $uid);
+        if ($coupleSessionId !== '') {
+            $partnerRow = participantFindByToken($db, $coupleToken);
+            $partnerName = $partnerRow ? chatCleanCustomerNameValue($partnerRow['display_name'] ?? '') : '';
+
+            // 電話番号→共有セッションの対応を保存（次回は招待URLなしで同じ案件へ戻れる）。
+            chatRegisterVerifiedPhone($db, $businessCardId, $phone, $uid, $coupleSessionId, $partnerName);
+            // 2人目の端末を認可（履歴・機能タブを本人と共有）。所有者(primary)は奪わない。
+            if ($visitorId !== '') {
+                chatSessionRegisterDevice($db, $coupleSessionId, $visitorId, $phone, $partnerName, 10800);
+            }
+            $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$coupleSessionId]);
+
+            $agentName = $card['name'] ?? '担当者';
+            $intake = chatIntakeInitialPayload($agentName);
+            $resumeMessage = getChatResumeMessageForSession($db, $coupleSessionId, $agentName, $businessCardId, true);
+            $messages = loadRecentChatMessagesForResume($db, $coupleSessionId, 40);
+
+            sendSuccessResponse([
+                'matched' => true,
+                'registration_completed' => false,
+                'needs_profile' => false,
+                'has_name' => true,
+                'has_email' => true,
+                'session_id' => $coupleSessionId,
+                'phone' => $phone,
+                'customer_name' => $partnerName,
+                'resume_message' => $resumeMessage,
+                'messages' => $messages,
+                'quick_replies' => [],
+                'initial_message' => $intake['initial_message'],
+                'current_field' => null,
+                'current_question' => '',
+                'can_ask_next' => false,
+                'is_couple_partner' => true,
+            ], 'OK');
+        }
+    }
 
     // 最初のアクセス時の事前登録フロー（SMS認証→お名前→メールアドレス）。
     // 既に登録済みの電話番号なら過去の相談を引き継ぎ、未登録なら現在のセッションへ登録する。

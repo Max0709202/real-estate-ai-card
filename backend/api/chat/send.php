@@ -14,6 +14,7 @@ require_once __DIR__ . '/../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../includes/notification-helper.php';
 require_once __DIR__ . '/../../includes/property-helper.php';
 require_once __DIR__ . '/../../includes/chat-phone-helper.php';
+require_once __DIR__ . '/../../includes/session-participant-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -106,6 +107,9 @@ try {
     // 名刺とセッションの両方がデモの場合に限る。デモ化前に作られた通常セッションは
     // 従来どおりSMS認証を要求する。
     $isDemoSession = isDemoCard($card) && !empty($session['is_demo']);
+    // 2名対応: この発言が「本人(primary)」「ご家族(partner)」のどちらかを記録する。
+    // 参加者が1名の案件では常に null（＝従来どおり投稿者ラベルなし）。
+    $authorParticipantId = null;
     if ($isDemoSession) {
         if ($visitorId === '' || !chatSessionVisitorAuthorized($db, $sessionId, $visitorId, $session['visitor_identifier'])) {
             sendErrorResponse('セッションを確認できません。ページを再読み込みしてください。', 403);
@@ -119,6 +123,7 @@ try {
         if (!$profileComplete) {
             sendErrorResponse('ご本人情報の登録が完了していません。SMS認証後、お名前とメールアドレスを登録してください。', 403);
         }
+        $authorParticipantId = participantResolveAuthorId($db, $sessionId, $deviceAuth['phone_normalized'] ?? null);
     }
     // 送信元の端末を現所有者に更新（poll/upload の visitor 突合と整合させる）。
     $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
@@ -129,6 +134,7 @@ try {
     // AI担当チャネルとは独立しているため、AIは別途このチャネルを文脈として捕捉する。
     if ($channel === 'contact') {
         $userMessageId = agentMsgInsertMessage($db, $sessionId, 'user', $message, null, 'contact');
+        chatStampMessageAuthor($db, $userMessageId, $authorParticipantId);
         if (!empty($attachmentIds)) {
             agentMsgAttachMessageId($db, $attachmentIds, $userMessageId, $sessionId, 'customer');
         }
@@ -150,8 +156,10 @@ try {
     // Save user message (AIチャネル)
     $stmt = $db->prepare("INSERT INTO chat_messages (session_id, role, channel, message) VALUES (?, 'user', 'ai', ?)");
     $stmt->execute([$sessionId, $message]);
+    $userAiMessageId = (int)$db->lastInsertId();
+    chatStampMessageAuthor($db, $userAiMessageId, $authorParticipantId);
     if (!empty($attachmentIds)) {
-        agentMsgAttachMessageId($db, $attachmentIds, (int)$db->lastInsertId(), $sessionId, 'customer');
+        agentMsgAttachMessageId($db, $attachmentIds, $userAiMessageId, $sessionId, 'customer');
     }
 
     // Give the model the actual conversation so it analyzes the user's own sentences rather than a

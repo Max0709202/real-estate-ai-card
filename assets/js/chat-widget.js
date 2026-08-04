@@ -31,6 +31,9 @@
     // 担当が事前に作成した顧客ページの専用URL（招待メールのリンク）から開かれた場合のトークン。
     // これを session/start へ渡すと、事前作成済みのセッションをこの端末に引き継ぐ。
     var inviteToken = root.getAttribute('data-invite-token') || '';
+    // 2人目（ご家族）の招待URL（card.php?...&couple=<token>）から開かれた場合のトークン。
+    // session/start・phone/verify へ渡すと、同じ案件（共有セッション）へ合流する。
+    var coupleToken = root.getAttribute('data-couple-token') || '';
     // 「●●様専用」とヘッダーに出すための顧客名。SMS認証前は招待時の申告値を使う。
     var headerCustomerName = '';
 
@@ -955,7 +958,7 @@
         return fetch(apiBase + '/phone/verify.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id_token: idToken, card_slug: cardSlug, visitor_id: visitorId, reason: reason || '', current_session_id: sessionId || '' })
+            body: JSON.stringify({ id_token: idToken, card_slug: cardSlug, visitor_id: visitorId, reason: reason || '', current_session_id: sessionId || '', couple_invite: coupleToken })
         }).then(function (res) {
             return res.json().catch(function () { return { success: false, message: 'サーバーから正しい応答を受け取れませんでした。' }; });
         }).then(function (data) {
@@ -981,6 +984,9 @@
                 continueProfileRegistration(startupData);
                 return;
             }
+            // 本人確認が済んだ（お名前・メール登録も不要）ので「ご家族を招待」を表示可能にする。
+            inviteReady = true;
+            updateInviteButtonVisibility();
             if (reason === 'upfront') {
                 if (data.data.matched) {
                     // 登録済みの電話番号: 別端末・機種変更でも前回の相談を引き継いで再開する。
@@ -1110,6 +1116,9 @@
                 appendUserMessage(email);
                 registrationFlow = false;
                 appendBotMessage(registrationCompleteText);
+                // 本人登録が完了したので「ご家族を招待」を表示可能にする。
+                inviteReady = true;
+                updateInviteButtonVisibility();
                 beginFirstConsultation(startupData);
             }).catch(function (error) {
                 submit.disabled = false;
@@ -1204,7 +1213,7 @@
         fetch(apiBase + '/session/start.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: savedSessionId, resume: !reset || !!keepSavedSession, invite_token: inviteToken })
+            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: savedSessionId, resume: !reset || !!keepSavedSession, invite_token: inviteToken, couple_invite: coupleToken })
         })
             .then(function (res) {
                 return res.json().catch(function () {
@@ -1248,6 +1257,11 @@
                     loadCrmState(false);
                     if (!canUseLoanSim && quickActions) quickActions.style.display = 'none';
                     startAgentPoll();
+                    // 本人確認済み（登録完了 or 認証済み端末）なら「ご家族を招待」ボタンを表示。
+                    if (data.data.registration_complete || data.data.device_auth_valid) {
+                        inviteReady = true;
+                    }
+                    updateInviteButtonVisibility();
                     maybeRequestNotificationPermission();
                     // メール通知リンク（&open=contact|property）から開いた場合、該当タブを自動表示。
                     if (deepLinkTab && !deepLinkHandled) {
@@ -1285,13 +1299,13 @@
             var mid = parseInt(message.id, 10) || 0;
             // 担当連絡チャネルは別スレッド（contactMessages）に積む。
             if (channel === 'contact') {
-                contactMessages.push({ id: mid, role: role, message: message.message || '', created_at: message.created_at || '', attachments: atts });
+                contactMessages.push({ id: mid, role: role, message: message.message || '', created_at: message.created_at || '', attachments: atts, author_name: message.author_name || '' });
                 if (role === 'agent' && mid > lastAgentMsgId) lastAgentMsgId = mid;
                 return;
             }
             // AI担当チャネル
             if (role === 'user') {
-                appendUserMessage(message.message || '', message.created_at || '', atts);
+                appendUserMessage(message.message || '', message.created_at || '', atts, message.author_name || '');
             } else if (role === 'bot' || role === 'assistant') {
                 appendBotMessage(message.message || '', false, null, message.created_at || '');
             }
@@ -1580,13 +1594,18 @@
         files.forEach(function (f) { uploadFn(f); });
     }
 
-    function appendUserMessage(text, createdAt, attachments) {
+    function appendUserMessage(text, createdAt, attachments, authorName) {
         var wrap = document.createElement('div');
         wrap.className = 'chat-msg user';
         var time = formatMessageTime(createdAt);
         var body = (text && text !== '[ファイルを送信しました]') ? escapeHtml(text) : '';
         var atts = widgetAttachmentHtml(attachments);
-        wrap.innerHTML = '<div class="chat-msg-avatar"></div><div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div>';
+        // 2名対応: 誰の発言か分かるよう、投稿者名がある場合はバブル上に表示する
+        // （夫婦など2名で参加している案件のみ author_name が付く）。
+        var authorLabel = (authorName && String(authorName).trim() !== '')
+            ? '<div class="chat-msg-author-label" style="font-size:11px;color:#8a8a8a;margin:0 0 3px;text-align:right;">' + escapeHtml(authorName) + '</div>'
+            : '';
+        wrap.innerHTML = '<div class="chat-msg-avatar"></div><div>' + authorLabel + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + '</div></div>';
         messagesContainer.appendChild(wrap);
         scrollMessagesToBottom();
     }
@@ -1595,6 +1614,177 @@
         var div = document.createElement('div');
         div.textContent = s;
         return div.innerHTML;
+    }
+
+    // ===== 2名対応: ご家族の招待 / 参加者の管理 =====
+    var inviteBtn = document.getElementById('chat-widget-invite');
+    // 本人確認（SMS認証・登録）が済んで招待可能になったか。
+    var inviteReady = false;
+
+    // 招待ボタンの表示可否。本人確認が済んだ通常セッションでのみ表示する。
+    function updateInviteButtonVisibility() {
+        if (!inviteBtn) return;
+        inviteBtn.hidden = !(inviteReady && !isDemo && !!sessionId);
+    }
+
+    function closeInvitePanel() {
+        var el = document.getElementById('chat-widget-invite-overlay');
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+    }
+
+    function showInvitePanel() {
+        if (!sessionId || isDemo) return;
+        closeInvitePanel();
+        var host = document.getElementById('chat-widget-panel') || document.body;
+        var overlay = document.createElement('div');
+        overlay.id = 'chat-widget-invite-overlay';
+        overlay.setAttribute('style', 'position:absolute;inset:0;z-index:50;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px;');
+        overlay.innerHTML = ''
+            + '<div role="dialog" aria-label="ご家族を招待" style="background:#fff;max-width:420px;width:100%;max-height:90%;overflow:auto;border-radius:10px;padding:20px;box-sizing:border-box;font-size:14px;color:#333;">'
+            + '  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+            + '    <strong style="font-size:15px;">ご家族を招待</strong>'
+            + '    <button type="button" id="chat-invite-close" aria-label="閉じる" style="border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:#888;">&times;</button>'
+            + '  </div>'
+            + '  <p style="margin:0 0 12px;font-size:12px;color:#666;line-height:1.7;">この案件には、ご本人を含めて2名まで参加できます。ご家族のメールアドレス宛に招待をお送りします。招待された方はご自身の電話番号でSMS認証を行い、同じご相談・資料・進捗を共有できます。</p>'
+            + '  <div id="chat-invite-body" style="min-height:40px;">読み込み中...</div>'
+            + '</div>';
+        host.appendChild(overlay);
+        var closeX = document.getElementById('chat-invite-close');
+        if (closeX) closeX.addEventListener('click', closeInvitePanel);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) closeInvitePanel(); });
+        loadInviteBody();
+    }
+
+    function inviteRoleLabel(role) {
+        if (role === 'primary') return 'ご本人';
+        if (role === 'partner') return 'ご家族';
+        return '';
+    }
+
+    function loadInviteBody() {
+        var body = document.getElementById('chat-invite-body');
+        if (!body) return;
+        body.textContent = '読み込み中...';
+        var url = apiBase + '/customer/participants.php?session_id=' + encodeURIComponent(sessionId)
+            + '&visitor_id=' + encodeURIComponent(visitorId || '');
+        fetch(url)
+            .then(function (res) { return res.json().catch(function () { return { success: false }; }); })
+            .then(function (data) {
+                if (!data.success || !data.data) {
+                    body.innerHTML = '<p style="color:#c0392b;">' + escapeHtml(data.message || '読み込みに失敗しました。') + '</p>';
+                    return;
+                }
+                renderInviteBody(data.data);
+            })
+            .catch(function () { body.innerHTML = '<p style="color:#c0392b;">通信に失敗しました。</p>'; });
+    }
+
+    function renderInviteBody(info) {
+        var body = document.getElementById('chat-invite-body');
+        if (!body) return;
+        var parts = info.participants || [];
+        var canInvite = !!info.can_invite;
+        var selfRole = info.self_role || '';
+        var html = '';
+
+        if (parts.length) {
+        html += '<div style="margin-bottom:14px;">';
+        html += '<div style="font-size:12px;color:#888;margin-bottom:4px;">現在の参加者</div>';
+        parts.forEach(function (p) {
+            var nm = (p.display_name && p.display_name.trim() !== '') ? p.display_name : (p.role === 'partner' ? 'ご家族' : 'ご本人');
+            var tag = inviteRoleLabel(p.role);
+            var self = p.is_self ? '<span style="color:#0757d7;">（あなた）</span>' : '';
+            var mail = p.email_masked ? '<span style="color:#aaa;font-size:11px;"> ' + escapeHtml(p.email_masked) + '</span>' : '';
+            var removeBtn = (p.role === 'partner' && selfRole === 'primary')
+                ? '<button type="button" id="chat-invite-remove" style="margin-left:auto;border:1px solid #d9534f;color:#d9534f;background:#fff;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">参加を解除</button>'
+                : '';
+            html += '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid #f0f0f0;">'
+                + '<span style="display:inline-block;min-width:44px;text-align:center;font-size:11px;color:#fff;background:' + (p.role === 'primary' ? '#0757d7' : '#5bb85b') + ';border-radius:10px;padding:2px 6px;">' + escapeHtml(tag) + '</span>'
+                + '<span>' + escapeHtml(nm) + ' ' + self + mail + '</span>'
+                + removeBtn
+                + '</div>';
+        });
+        html += '</div>';
+        }
+
+        if (canInvite) {
+            html += '<div id="chat-invite-form">'
+                + '<div style="font-size:12px;color:#888;margin-bottom:6px;">ご家族を招待する</div>'
+                + '<input type="text" id="chat-invite-name" placeholder="お名前（任意）" maxlength="50" style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:8px;border:1px solid #ccc;border-radius:4px;">'
+                + '<input type="email" id="chat-invite-email" placeholder="メールアドレス" maxlength="255" style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:8px;border:1px solid #ccc;border-radius:4px;">'
+                + '<button type="button" id="chat-invite-send" style="width:100%;background:#0757d7;color:#fff;border:none;border-radius:4px;padding:10px;font-size:14px;cursor:pointer;">招待メールを送信</button>'
+                + '<div id="chat-invite-result" style="margin-top:10px;font-size:12px;"></div>'
+                + '</div>';
+        } else if (selfRole === 'partner') {
+            html += '<p style="font-size:12px;color:#666;">あなたはこの案件にご家族として参加しています。</p>';
+        } else {
+            html += '<p style="font-size:12px;color:#666;">すでに2名がご参加中のため、これ以上は招待できません。</p>';
+        }
+
+        body.innerHTML = html;
+
+        var sendBtnEl = document.getElementById('chat-invite-send');
+        if (sendBtnEl) sendBtnEl.addEventListener('click', submitInvite);
+        var removeBtnEl = document.getElementById('chat-invite-remove');
+        if (removeBtnEl) removeBtnEl.addEventListener('click', submitRemovePartner);
+    }
+
+    function submitInvite() {
+        var nameEl = document.getElementById('chat-invite-name');
+        var emailEl = document.getElementById('chat-invite-email');
+        var resultEl = document.getElementById('chat-invite-result');
+        var sendBtnEl = document.getElementById('chat-invite-send');
+        var email = emailEl ? emailEl.value.trim() : '';
+        if (!email) { if (resultEl) resultEl.innerHTML = '<span style="color:#c0392b;">メールアドレスを入力してください。</span>'; return; }
+        if (sendBtnEl) { sendBtnEl.disabled = true; sendBtnEl.textContent = '送信中...'; }
+        fetch(apiBase + '/customer/invite-partner.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, visitor_id: visitorId, email: email, name: nameEl ? nameEl.value.trim() : '' })
+        })
+            .then(function (res) { return res.json().catch(function () { return { success: false }; }); })
+            .then(function (data) {
+                if (sendBtnEl) { sendBtnEl.disabled = false; sendBtnEl.textContent = '招待メールを送信'; }
+                if (!resultEl) return;
+                if (data.success && data.data) {
+                    var link = data.data.invite_url || '';
+                    resultEl.innerHTML = '<div style="color:#2e7d32;margin-bottom:6px;">' + escapeHtml(data.message || '招待を送信しました。') + '</div>'
+                        + (link ? '<div style="word-break:break-all;background:#f6f8fc;border:1px solid #dbe4f3;border-radius:4px;padding:8px;font-size:11px;">' + escapeHtml(link) + '</div>'
+                            + '<button type="button" id="chat-invite-copy" style="margin-top:6px;border:1px solid #0757d7;color:#0757d7;background:#fff;border-radius:4px;padding:6px 10px;font-size:12px;cursor:pointer;">リンクをコピー</button>' : '');
+                    var copyBtn = document.getElementById('chat-invite-copy');
+                    if (copyBtn && link) {
+                        copyBtn.addEventListener('click', function () {
+                            try {
+                                if (navigator.clipboard && navigator.clipboard.writeText) {
+                                    navigator.clipboard.writeText(link).then(function () { copyBtn.textContent = 'コピーしました'; });
+                                } else {
+                                    copyBtn.textContent = 'コピーできませんでした';
+                                }
+                            } catch (e) { copyBtn.textContent = 'コピーできませんでした'; }
+                        });
+                    }
+                    // 参加者一覧を最新化（新しい2人目を反映）。
+                    setTimeout(loadInviteBody, 1200);
+                } else {
+                    resultEl.innerHTML = '<span style="color:#c0392b;">' + escapeHtml(data.message || '招待に失敗しました。') + '</span>';
+                }
+            })
+            .catch(function () {
+                if (sendBtnEl) { sendBtnEl.disabled = false; sendBtnEl.textContent = '招待メールを送信'; }
+                if (resultEl) resultEl.innerHTML = '<span style="color:#c0392b;">通信に失敗しました。</span>';
+            });
+    }
+
+    function submitRemovePartner() {
+        if (!window.confirm('ご家族の参加を解除します。よろしいですか？')) return;
+        fetch(apiBase + '/customer/participants.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, visitor_id: visitorId, action: 'remove' })
+        })
+            .then(function (res) { return res.json().catch(function () { return { success: false }; }); })
+            .then(function () { loadInviteBody(); })
+            .catch(function () { loadInviteBody(); });
     }
 
     // ===== 担当連絡（人間担当↔顧客）チャネルのチャットUI =====
@@ -1627,11 +1817,15 @@
         }
         var body = (m.message && m.message !== '[ファイルを送信しました]') ? escapeHtml(m.message) : '';
         var atts = widgetAttachmentHtml(m.attachments || []);
+        // 2名対応: 誰の発言か分かるよう、投稿者名がある場合はバブル上に表示する。
+        var authorLabel = (m.author_name && String(m.author_name).trim() !== '')
+            ? '<div class="chat-msg-author-label" style="font-size:11px;color:#8a8a8a;margin:0 0 3px;text-align:right;">' + escapeHtml(m.author_name) + '</div>'
+            : '';
         // 確定IDがある自分の発言にだけ「編集」「取り消し」操作を付ける。
         var actions = mid > 0
             ? '<div class="chat-contact-msg-actions"><button type="button" class="chat-contact-msg-action" data-contact-edit="' + mid + '">編集</button><button type="button" class="chat-contact-msg-action" data-contact-del="' + mid + '">取り消し</button></div>'
             : '';
-        return '<div class="chat-msg user" data-msg-id="' + mid + '"><div class="chat-msg-avatar"></div><div>' + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + editedMark + '<span class="chat-contact-read-wrap">' + contactReadMarkHtml(m) + '</span></div>' + actions + '</div></div>';
+        return '<div class="chat-msg user" data-msg-id="' + mid + '"><div class="chat-msg-avatar"></div><div>' + authorLabel + (body ? '<div class="chat-msg-bubble">' + body + '</div>' : '') + atts + '<div class="chat-msg-time">' + time + editedMark + '<span class="chat-contact-read-wrap">' + contactReadMarkHtml(m) + '</span></div>' + actions + '</div></div>';
     }
 
     // contactMessages から指定IDのメッセージを取得（Array.find非依存）。
@@ -1952,7 +2146,8 @@
                         created_at: m.created_at || '',
                         attachments: m.attachments || [],
                         edited: m.edited ? 1 : 0,
-                        deleted: m.deleted ? 1 : 0
+                        deleted: m.deleted ? 1 : 0,
+                        author_name: m.author_name || ''
                     };
                 });
                 // ポーリングが既読済みの担当発言を再度追加しないよう、最大の担当発言IDを記録。
@@ -3210,6 +3405,9 @@
             if (isListening) stopVoiceInput();
             startSession(true, true);
         });
+    }
+    if (inviteBtn) {
+        inviteBtn.addEventListener('click', function () { showInvitePanel(); });
     }
 
     sendBtn.addEventListener('click', function () {
