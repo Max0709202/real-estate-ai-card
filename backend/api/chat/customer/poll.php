@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../../includes/customer-notification-helper.php';
 require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
+require_once __DIR__ . '/../../../includes/session-participant-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -50,11 +51,17 @@ try {
         sendErrorResponse('セッションを確認できません', 403);
     }
 
+    // 2名対応: 投稿者（本人/ご家族）の表示名を付けるため author_participant_id を含める。
+    // 列の存在を保証する（SQL移行が未適用の環境でも動くように）。
+    $hasAuthorColumn = false;
+    try { participantEnsureSchema($db); $hasAuthorColumn = true; } catch (Throwable $e) { $hasAuthorColumn = false; }
+    $authorCol = $hasAuthorColumn ? ', author_participant_id' : '';
+
     if ($history) {
         // 担当連絡チャネルの全メッセージ（顧客=user / 担当=agent の両方）を時系列で取得。
         // 取り消し済みも含めて返し、クライアントで「取り消し」表示にする。
         $stmt = $db->prepare("
-            SELECT id, role, message, created_at, edited_at, deleted_at
+            SELECT id, role, message, created_at, edited_at, deleted_at{$authorCol}
             FROM chat_messages
             WHERE session_id = ? AND channel = 'contact' AND role IN ('user','agent')
             ORDER BY id ASC LIMIT 500
@@ -63,7 +70,7 @@ try {
     } else {
         // 担当の新着発言を取得（担当連絡チャネルの人間担当発言のみ）
         $stmt = $db->prepare("
-            SELECT id, role, message, created_at, edited_at, deleted_at
+            SELECT id, role, message, created_at, edited_at, deleted_at{$authorCol}
             FROM chat_messages
             WHERE session_id = ? AND role = 'agent' AND channel = 'contact' AND id > ?
             ORDER BY id ASC LIMIT 200
@@ -73,8 +80,16 @@ try {
     $newMessages = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if ($newMessages) {
         $attach = agentMsgLoadAttachments($db, array_column($newMessages, 'id'));
+        // 投稿者の表示名を解決（本人/ご家族の見分け）。
+        $authorNames = [];
+        if ($hasAuthorColumn && function_exists('participantNamesByIds')) {
+            $authorIds = array_filter(array_map(function ($m) { return (int)($m['author_participant_id'] ?? 0); }, $newMessages));
+            $authorNames = $authorIds ? participantNamesByIds($db, $authorIds) : [];
+        }
         foreach ($newMessages as &$m) {
             $m['attachments'] = $attach[(int)$m['id']] ?? [];
+            $aid = (int)($m['author_participant_id'] ?? 0);
+            $m['author_name'] = ($aid && isset($authorNames[$aid])) ? $authorNames[$aid]['name'] : '';
             // 編集/取り消し状態を付与し、取り消し済みは本文・添付をマスク（フラグで描画）。
             $m = agentMsgApplyEditState($m, true);
         }

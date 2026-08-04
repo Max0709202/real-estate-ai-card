@@ -71,6 +71,15 @@ if ($inviteToken !== '' && !preg_match('/^[a-f0-9]{64}$/', $inviteToken)) {
 if ($inviteToken !== '') {
     $chatOnly = true;
 }
+// 2人目（ご家族）の招待URL（card.php?...&couple=<token>）。本人が招待した家族が開くリンク。
+// 名刺ページではなくAIエージェントページを最初に表示し、SMS認証で同じ案件へ合流させる。
+$coupleToken = trim((string)($_GET['couple'] ?? ''));
+if ($coupleToken !== '' && !preg_match('/^[a-f0-9]{64}$/', $coupleToken)) {
+    $coupleToken = '';
+}
+if ($coupleToken !== '') {
+    $chatOnly = true;
+}
 // Show install banner only on mobile (not in preview and not on desktop)
 $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $isMobile = (bool) preg_match('/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i', $ua);
@@ -1319,7 +1328,8 @@ if (!empty($card['profile_photo'])) {
          data-agent-photo="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>"
          data-api-base="<?php echo htmlspecialchars($chatApiBase); ?>"
          data-chat-only="<?php echo $chatOnly ? '1' : '0'; ?>"
-         data-invite-token="<?php echo htmlspecialchars($inviteToken); ?>">
+         data-invite-token="<?php echo htmlspecialchars($inviteToken); ?>"
+         data-couple-token="<?php echo htmlspecialchars($coupleToken); ?>">
         <button type="button" id="chat-widget-toggle" class="chat-widget-toggle" aria-label="チャットを開く">
             <?php if (!empty($agentPhotoUrlForChat)): ?>
                 <img id="chat-widget-toggle-avatar" class="chat-widget-toggle-avatar" src="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>" alt="" width="46" height="46">
@@ -1336,6 +1346,11 @@ if (!empty($card['profile_photo'])) {
                     <span id="chat-widget-role" class="chat-widget-role">AIエージェント</span>
                 </div>
                 <div class="chat-widget-header-actions">
+                    <button type="button" id="chat-widget-invite" class="chat-widget-icon-btn chat-widget-invite" aria-label="ご家族を招待する" title="ご家族を招待する" hidden>
+                        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                            <path d="M15 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path>
+                        </svg>
+                    </button>
                     <button type="button" id="chat-widget-refresh" class="chat-widget-icon-btn chat-widget-refresh" aria-label="チャットを最初から始める" title="チャットを最初から始める">
                         <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                             <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h8V3l-3.35 3.35z"></path>

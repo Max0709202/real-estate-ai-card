@@ -19,6 +19,7 @@
  */
 
 require_once __DIR__ . '/functions.php'; // sendEmail()
+require_once __DIR__ . '/session-participant-helper.php'; // participantActiveEmails()（2名対応の通知配信先）
 
 if (!defined('CUSTOMER_NOTIFY_WAIT_SECONDS')) {
     // 顧客向け通知のバッチ集約時間（既定5分）。担当向け（NOTIFY_WAIT_SECONDS）とは独立。
@@ -141,7 +142,46 @@ function customerNotifyResolveEmail(PDO $db, string $sessionId, int $cardId): st
         // 無視。
     }
 
+    // 3) 案件の参加者（2名対応: primary/partner）のメール。本人の連絡先が未登録でも、
+    //    もう一方にメールがあれば通知できるようにする。
+    if (function_exists('participantActiveEmails')) {
+        try {
+            $emails = participantActiveEmails($db, $sessionId);
+            if (!empty($emails)) {
+                return $emails[0];
+            }
+        } catch (Throwable $e) {
+            // 無視。
+        }
+    }
+
     return '';
+}
+
+/**
+ * 案件の通知配信先メール（重複排除）を全参加者ぶん返す。
+ * 夫婦など2名で参加している場合、それぞれのメールアドレスへ個別に届けるために使う。
+ * @return string[]
+ */
+function customerNotifyAllRecipientEmails(PDO $db, string $sessionId, string $primaryEmail = ''): array
+{
+    $out = [];
+    $primaryEmail = trim($primaryEmail);
+    if ($primaryEmail !== '' && filter_var($primaryEmail, FILTER_VALIDATE_EMAIL)) {
+        $out[strtolower($primaryEmail)] = $primaryEmail;
+    }
+    if (function_exists('participantActiveEmails')) {
+        try {
+            foreach (participantActiveEmails($db, $sessionId) as $email) {
+                if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $out[strtolower($email)] = $email;
+                }
+            }
+        } catch (Throwable $e) {
+            // 無視。
+        }
+    }
+    return array_values($out);
 }
 
 /**
@@ -316,15 +356,27 @@ function customerNotifyFlushDue(PDO $db, int $limit = 20): array
         $subject = customerNotifySubject($feature, $agentName);
         [$html, $text] = customerNotifyBuildBody($feature, $agentName, $cardSlug);
 
-        $ok = sendEmail(
-            (string)$job['recipient_email'],
-            $subject,
-            $html,
-            $text,
-            'customer_' . $feature,
-            null,
-            (int)$job['id']
-        );
+        // 2名対応: 案件の参加者全員へ個別に送る（本人＋招待された家族）。
+        // 参加者が1名なら従来どおり1通（recipient_email のみ）。
+        $recipients = customerNotifyAllRecipientEmails($db, (string)$job['session_id'], (string)$job['recipient_email']);
+        if (empty($recipients)) {
+            $recipients = [(string)$job['recipient_email']];
+        }
+        $ok = false;
+        foreach ($recipients as $recipient) {
+            if (trim($recipient) === '') continue;
+            $sentOne = sendEmail(
+                $recipient,
+                $subject,
+                $html,
+                $text,
+                'customer_' . $feature,
+                null,
+                (int)$job['id']
+            );
+            // 1人でも送信できればジョブは送信済みとして扱う（未読抑制の状態遷移を進める）。
+            if ($sentOne) $ok = true;
+        }
 
         if ($ok) {
             $upd = $db->prepare(
