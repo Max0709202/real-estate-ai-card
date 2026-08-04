@@ -146,11 +146,18 @@ function generateChatSessionId() {
 function loadRecentChatMessagesForResume($db, $sessionId, $limit = 40) {
     if (!$db instanceof PDO || $sessionId === '') return [];
     $limit = max(1, min(100, (int)$limit));
+    // author_participant_id 列（2名対応）を SELECT する前に、列の存在を保証する（SQL移行が
+    // 未適用の環境でも動くように）。ヘルパー未読み込み時は列選択を行わないフォールバックに倒す。
+    $hasAuthorColumn = false;
+    if (function_exists('participantEnsureSchema')) {
+        try { participantEnsureSchema($db); $hasAuthorColumn = true; } catch (Throwable $e) { $hasAuthorColumn = false; }
+    }
     try {
+        $authorCol = $hasAuthorColumn ? ', author_participant_id' : '';
         $stmt = $db->prepare("
-            SELECT id, role, channel, message, created_at, edited_at, deleted_at
+            SELECT id, role, channel, message, created_at, edited_at, deleted_at{$authorCol}
             FROM (
-                SELECT id, role, channel, message, created_at, edited_at, deleted_at
+                SELECT id, role, channel, message, created_at, edited_at, deleted_at{$authorCol}
                 FROM chat_messages
                 WHERE session_id = ?
                 ORDER BY id DESC
@@ -160,6 +167,26 @@ function loadRecentChatMessagesForResume($db, $sessionId, $limit = 40) {
         ");
         $stmt->execute([$sessionId]);
         $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // 2名対応: 投稿者（本人/ご家族）の表示名を付与する（誰の発言か表示するため）。
+        if ($messages && $hasAuthorColumn && function_exists('participantNamesByIds')) {
+            $authorIds = array_filter(array_map(function ($m) { return (int)($m['author_participant_id'] ?? 0); }, $messages));
+            $names = $authorIds ? participantNamesByIds($db, $authorIds) : [];
+            foreach ($messages as &$m) {
+                $aid = (int)($m['author_participant_id'] ?? 0);
+                $m['author_name'] = ($aid && isset($names[$aid])) ? $names[$aid]['name'] : '';
+            }
+            unset($m);
+        }
+        return loadRecentChatMessagesForResumeFinalize($db, $messages);
+    } catch (Throwable $e) {
+        error_log('Chat resume messages load error: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/** loadRecentChatMessagesForResume の添付・編集状態の後処理（共通化）。 */
+function loadRecentChatMessagesForResumeFinalize($db, $messages) {
+    try {
         // 担当連絡チャネルの添付（画像/PDF等）も再開時に復元できるよう補完する。
         if ($messages && function_exists('agentMsgLoadAttachments')) {
             $attach = agentMsgLoadAttachments($db, array_column($messages, 'id'));
@@ -175,7 +202,8 @@ function loadRecentChatMessagesForResume($db, $sessionId, $limit = 40) {
         }
         return $messages;
     } catch (Throwable $e) {
-        error_log('Chat resume messages load error: ' . $e->getMessage());
-        return [];
+        error_log('Chat resume messages finalize error: ' . $e->getMessage());
+        return is_array($messages) ? $messages : [];
     }
 }
+

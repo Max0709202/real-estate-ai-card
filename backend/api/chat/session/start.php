@@ -14,6 +14,7 @@ require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../../includes/chat-crm-helper.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../../includes/customer-invitation-helper.php';
+require_once __DIR__ . '/../../../includes/session-participant-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -35,6 +36,8 @@ $visitorId = trim($input['visitor_id'] ?? '');
 $currentSessionId = trim($input['current_session_id'] ?? '');
 // エージェントが事前作成した顧客ページの専用URL（card.php?...&invite=...）から来た場合のトークン。
 $inviteToken = trim($input['invite_token'] ?? '');
+// 2人目（ご家族）の招待URL（card.php?...&couple=...）から来た場合のトークン。
+$coupleInviteToken = trim($input['couple_invite'] ?? '');
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
     $visitorId = '';
 }
@@ -110,6 +113,27 @@ try {
         customerInviteMarkOpened($db, $sessionId);
     }
 
+    // 2人目（ご家族）の招待URL（&couple=...）。合流先の共有セッションをこの端末に表示する。
+    // ただし所有者(primary)の visitor_identifier は奪わない。2人目はこの後SMS認証を行い、
+    // verify.php が電話番号を共有セッションへ紐づけて履歴・機能を共有できるようにする。
+    $coupleInvite = null;
+    if (!$isDemo && !$invite && $coupleInviteToken !== '' && participantIsValidToken($coupleInviteToken)) {
+        $foundCouple = participantFindByToken($db, $coupleInviteToken);
+        if ($foundCouple && (int)$foundCouple['business_card_id'] === (int)$card['id']) {
+            $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
+            $stmt->execute([$foundCouple['session_id'], $card['id']]);
+            if ($stmt->fetchColumn()) {
+                $coupleInvite = $foundCouple;
+            }
+        }
+    }
+    if ($coupleInvite) {
+        $sessionId = (string)$coupleInvite['session_id'];
+        $isResumed = true;
+        $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$sessionId]);
+    }
+
     if ($isDemo) {
         // デモは visitor_id に紐づく未失効のデモセッションだけを再開する。
         // session_id 単体では再開させない（他人のデモ session_id を送られると、
@@ -131,19 +155,19 @@ try {
 
     // 同じ端末・同じ訪問者のチャットは、新しい履歴を増やさず既存履歴へ戻す。
     // まず保存済み session_id を優先し、次に visitor_id の最新履歴を探す。
-    if (!$isDemo && !$invite && $currentSessionId !== '') {
+    if (!$isDemo && !$invite && !$coupleInvite && $currentSessionId !== '') {
         $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
         $stmt->execute([$currentSessionId, $card['id']]);
         $sessionId = (string)($stmt->fetchColumn() ?: '');
     }
 
-    if (!$isDemo && !$invite && $sessionId === '' && $visitorId !== '') {
+    if (!$isDemo && !$invite && !$coupleInvite && $sessionId === '' && $visitorId !== '') {
         $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE business_card_id = ? AND visitor_identifier = ? ORDER BY last_seen_at DESC, created_at DESC LIMIT 1");
         $stmt->execute([$card['id'], $visitorId]);
         $sessionId = (string)($stmt->fetchColumn() ?: '');
     }
 
-    if (!$isDemo && !$invite && $sessionId !== '') {
+    if (!$isDemo && !$invite && !$coupleInvite && $sessionId !== '') {
         $isResumed = true;
         $deviceAuth = $visitorId !== '' ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
         if ($visitorId !== '' && $deviceAuth) {
@@ -208,6 +232,12 @@ try {
         if ($customerName === '' && !empty($deviceAuth['customer_name'])) {
             $customerName = chatCleanCustomerNameValue($deviceAuth['customer_name']);
         }
+        // 2名対応: 共有セッションを開いた端末が「本人」か「ご家族」かで、その方ご自身のお名前を優先する
+        // （chat_lead_contacts は本人の氏名しか持てないため、招待された家族に本人名を出さない）。
+        if (!empty($deviceAuth['phone_normalized']) && function_exists('participantNameForPhone')) {
+            $ownName = participantNameForPhone($db, $sessionId, $deviceAuth['phone_normalized']);
+            if ($ownName !== '') $customerName = $ownName;
+        }
         $sessionMemory = getChatSessionMemory($db, $sessionId);
         if (is_array($sessionMemory)) {
             foreach (['last_summary', 'intent', 'property_type', 'budget', 'preferred_area', 'family', 'loan_plan', 'income_range', 'lead_summary'] as $memKey) {
@@ -247,6 +277,13 @@ try {
             $inviteWelcome = customerInviteWelcomeMessage($inviteCustomerName);
         }
     }
+    // 2人目（ご家族）の招待。専用の歓迎メッセージを出し、そのあと通常どおりSMS認証へ進む
+    // （2人目は自分の電話番号で認証し、同じ案件に合流する）。氏名・メールは招待時の申告値を使う。
+    if ($coupleInvite && !$registrationComplete) {
+        $coupleInviteName = chatCleanCustomerNameValue($coupleInvite['display_name'] ?? '');
+        $inviteWelcome = participantCoupleWelcomeMessage($coupleInviteName, $agentName);
+        if ($inviteCustomerName === '') $inviteCustomerName = $coupleInviteName;
+    }
 
     $handoffMode = 'bot';
     try {
@@ -269,6 +306,7 @@ try {
         'agent_name' => $card['name'] ?? '',
         'customer_name' => $customerName,
         'is_invited' => (bool)$invite,
+        'is_couple_invite' => (bool)$coupleInvite,
         'invite_welcome' => $inviteWelcome,
         'invite_customer_name' => $inviteCustomerName,
         'resume_message' => $resumeMessage,
