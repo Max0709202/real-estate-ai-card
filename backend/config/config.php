@@ -178,6 +178,48 @@ if (!defined('CHAT_BLOG_BASE_URL')) {
     define('CHAT_BLOG_BASE_URL', 'https://smile.re-agent.info/blog/');
 }
 
+// ---------------------------------------------------------------------------
+// 全国マンションデータベース（db.self-in.com）実ページ参照
+//
+// 取り込み済みのXLSX基礎情報（mansion_buildings）だけでは、販売履歴・価格推移・
+// 賃料履歴・口コミ・管理費/修繕積立金などに答えられない。これらは実際の
+// マンションページにしか存在しないため、建物を特定できた場合に限り実ページを
+// 取得して回答根拠にする。
+//
+// URL形式： {BASE}{マンションID}.html?cid={CID}&on={ON}
+// 【重要】on は必ず 0（リニュアル仲介専用のマスク解除パラメータ）。1は使用しない。
+// ---------------------------------------------------------------------------
+if (!defined('MANSION_DB_WEB_ENABLED')) {
+    // 既定は有効。ただし後述の「マンションIDの解決手段」が無い環境では
+    // 1度も外部リクエストを行わず、従来どおりDB基礎情報だけで回答する。
+    define('MANSION_DB_WEB_ENABLED', getenv('MANSION_DB_WEB_ENABLED') !== '0');
+}
+if (!defined('MANSION_DB_WEB_BASE_URL')) {
+    define('MANSION_DB_WEB_BASE_URL', getenv('MANSION_DB_WEB_BASE_URL') ?: 'https://db.self-in.com/mansion/');
+}
+if (!defined('MANSION_DB_WEB_CID')) {
+    define('MANSION_DB_WEB_CID', getenv('MANSION_DB_WEB_CID') ?: 'rchukai');
+}
+// マスク解除パラメータ。仕様上 0 固定（1 は使用しない）。定数にしているのは
+// 将来ベンダー側で名称が変わった場合に一箇所で追随するためだけの目的。
+if (!defined('MANSION_DB_WEB_ON')) {
+    define('MANSION_DB_WEB_ON', '0');
+}
+// マンション名／住所からマンションIDを引くための検索URL。
+// {name} {address} {pref} {city} をURLエンコードして差し込む。
+// 未設定（空）の間はID検索を行わない＝外部リクエストは一切発生しない。
+// ※ベンダー（リニュアル仲介）から検索エンドポイントの提供を受けてから設定する。
+if (!defined('MANSION_DB_WEB_SEARCH_URL')) {
+    define('MANSION_DB_WEB_SEARCH_URL', getenv('MANSION_DB_WEB_SEARCH_URL') ?: '');
+}
+// 実ページのキャッシュTTL（秒）。販売履歴・口コミは頻繁には変わらないため既定6時間。
+if (!defined('MANSION_DB_WEB_CACHE_TTL')) {
+    define('MANSION_DB_WEB_CACHE_TTL', (int)(getenv('MANSION_DB_WEB_CACHE_TTL') ?: 21600));
+}
+if (!defined('MANSION_DB_WEB_TIMEOUT')) {
+    define('MANSION_DB_WEB_TIMEOUT', (int)(getenv('MANSION_DB_WEB_TIMEOUT') ?: 12));
+}
+
 // チャットボット: Firebase SMS認証（Phone Authentication）
 if (!defined('FIREBASE_API_KEY')) {
     define('FIREBASE_API_KEY', getenv('FIREBASE_API_KEY') ?: '');
