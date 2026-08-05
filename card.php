@@ -318,6 +318,10 @@ if (!empty($card['profile_photo'])) {
     <link rel="stylesheet" href="assets/css/card.css">
     <link rel="stylesheet" href="assets/css/mobile.css">
     <link rel="stylesheet" href="assets/css/pwa.css?v=<?php echo filemtime(__DIR__ . '/assets/css/pwa.css'); ?>">
+    <!-- 文字サイズ切替（標準／大／特大）。既定は標準＝従来と同じ表示。
+         defer を付けないのは、描画前に html[data-font-scale] を適用してちらつきを防ぐため。 -->
+    <link rel="stylesheet" href="assets/css/font-scale.css?v=<?php echo filemtime(__DIR__ . '/assets/css/font-scale.css'); ?>">
+    <script src="assets/js/font-scale.js?v=<?php echo filemtime(__DIR__ . '/assets/js/font-scale.js'); ?>"></script>
     <?php if ($chatbotEnabled): ?>
     <link rel="stylesheet" href="assets/css/chat-widget.css?v=<?php echo filemtime(__DIR__ . '/assets/css/chat-widget.css'); ?>">
     <link rel="stylesheet" href="assets/css/property.css?v=<?php echo filemtime(__DIR__ . '/assets/css/property.css'); ?>">

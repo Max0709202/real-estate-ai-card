@@ -2231,6 +2231,21 @@
         return /(現在地|現在位置|現在の場所|今いる場所|今の場所|今いるところ|いまいる場所|ここはどこ|ここはどの|ここの(土地|場所|情報|住所|地域|エリア)|この場所|この土地|この付近|この周辺|ここら辺|この辺り|この辺|周辺の情報)/.test(t);
     }
 
+    // 「周辺の物件の売り出し情報を教えて」のように、場所を明示しないまま周辺の物件を
+    // 尋ねる質問。基準となる地点が無いと答えようがないため、現在地（GPS）取得フローへ回す。
+    // ただし「中野駅周辺の物件」「杉並区の物件」のように地名・駅名を含む場合は、
+    // 利用者が指定した場所を優先すべきなので GPS へは回さない（通常のAI回答へ）。
+    function isNearbyPropertyIntent(text) {
+        if (!text) return false;
+        var t = String(text).replace(/\s+/g, '');
+        var vicinity = /(周辺|近く|近隣|付近|最寄り)/.test(t);
+        if (!vicinity) return false;
+        if (!/(物件|不動産|マンション|売り出し|売出|売り物件|販売中|中古|新築|分譲|相場)/.test(t)) return false;
+        // 地名・駅名らしき指定を含むか（都道府県／市区町村／駅／丁目）。含むなら GPS 不要。
+        if (/(都|道|府|県|市|区|町|村|駅|丁目)/.test(t)) return false;
+        return true;
+    }
+
     // GPS取得失敗の理由を切り分けて、具体的な対処を案内する。原因が分からないと
     // 「位置情報が取得できない」だけで詰まってしまうため、許可拒否／取得不可／
     // タイムアウト／非セキュア接続 を区別してメッセージを出す。
@@ -2261,7 +2276,9 @@
     // 十分な精度（GOOD_ACCURACY以下）が得られたら即採用、最長 MAX_WAIT_MS まで待って
     // その時点の最良読み取りを採用する。粗すぎる（MAX_ACCURACY超）場合はWi‑Fi/IP由来の
     // 概略位置とみなし、正確な位置情報を有効化して取り直すよう促す。
-    function startCurrentLocationFlow() {
+    // @param {string} originalText 利用者が実際に入力した質問文。GPS取得後にそのまま
+    //   サーバーへ送るため引き回す（定型文へ置き換えない。理由は runCurrentLocationQuery）。
+    function startCurrentLocationFlow(originalText) {
         if (!navigator.geolocation) {
             appendBotMessage('お使いのブラウザが位置情報（GPS）に対応していないため、現在地を取得できませんでした。住所を直接ご入力ください。');
             return;
@@ -2298,7 +2315,7 @@
             if (window.console && console.log) console.log('[chat-widget] geolocation fix (used):', { latitude: fix.lat, longitude: fix.lon, accuracy: fix.accuracy });
             // 常に最新の測位結果で上書きし、そのGPS座標（緯度経度）をそのまま照会に使う。
             sessionGeo = { lat: fix.lat, lon: fix.lon, accuracy: fix.accuracy };
-            runCurrentLocationLandInfo(sessionGeo);
+            runCurrentLocationQuery(sessionGeo, originalText);
         }
 
         function fail(err) {
@@ -2343,10 +2360,18 @@
         }, MAX_WAIT_MS);
     }
 
-    // 取得済み座標を使って土地情報を取得する。ユーザー発言は呼び出し側で既に表示済みのため、
-    // ここでは二重表示しない（skipUserEcho）。
-    function runCurrentLocationLandInfo(geo) {
-        sendMessage('現在地の土地情報を教えてください', { geo: geo, skipUserEcho: true });
+    // 取得済み座標を使って、利用者が実際に入力した質問をそのままサーバーへ送る。
+    // ユーザー発言は呼び出し側で既に表示済みのため、ここでは二重表示しない（skipUserEcho）。
+    //
+    // 以前はここで質問文を '現在地の土地情報を教えてください' に固定で置き換えていた。
+    // そのため「現在地」を含む質問はすべて土地情報レポートになり、たとえば
+    // 「現在地の周辺の不動産情報を教えて」と入力しても用途地域・ハザードの回答が返る、
+    // という報告どおりの症状になっていた。質問文は書き換えず、緯度経度は付帯情報として
+    // 渡すだけにして、何を聞かれたかはサーバー側の意図判定に委ねる。
+    // 質問文が空（クイックリプライ等からの起動）のときだけ従来の定型文にフォールバックする。
+    function runCurrentLocationQuery(geo, originalText) {
+        var text = (originalText || '').trim();
+        sendMessage(text !== '' ? text : '現在地の土地情報を教えてください', { geo: geo, skipUserEcho: true });
     }
 
     function sendMessage(text, options) {
@@ -2366,11 +2391,11 @@
 
         // 現在地に関する質問はLLMへ投げず、必ずアプリ側のGPS取得フローへ回す（決定的処理）。
         // options.geo 付きの送信（=GPS取得後の本送信）は対象外にして無限ループを防ぐ。
-        if (!options.geo && isCurrentLocationIntent(text)) {
+        if (!options.geo && (isCurrentLocationIntent(text) || isNearbyPropertyIntent(text))) {
             appendUserMessage(text, '', []);
             inputEl.value = '';
             renderQuickReplies([]);
-            startCurrentLocationFlow();
+            startCurrentLocationFlow(text);
             return;
         }
 
@@ -2387,7 +2412,9 @@
         // 現在地フロー（skipUserEcho）では呼び出し側で既にユーザー発言を表示済みのため重複表示しない。
         if (!options.skipUserEcho) appendUserMessage(text, '', sentAttachments);
         inputEl.value = '';
-        var loadingRow = (agentMode || (!text.trim() && !options.geo)) ? null : appendBotMessage(options.geo ? '現在地の土地情報を取得しています' : '回答を考えています', true);
+        // 現在地フローでも質問内容は土地情報とは限らない（周辺物件・ハザード等）ため、
+        // 待機メッセージは内容を限定しない表現にする。
+        var loadingRow = (agentMode || (!text.trim() && !options.geo)) ? null : appendBotMessage(options.geo ? '現在地の情報を確認しています' : '回答を考えています', true);
 
         var payload = { session_id: sessionId, visitor_id: visitorId, message: text };
         if (attachmentIds.length) payload.attachment_ids = attachmentIds;

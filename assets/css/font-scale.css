@@ -1,0 +1,108 @@
+/*
+ * 文字サイズ切替（標準／大／特大）
+ *
+ * 50代以上の決裁者がスマートフォンで閲覧する際に文字が小さい、というご指摘への対応。
+ * 既定値は「標準」＝これまでと完全に同じ表示のまま（デフォルトは変更しない、というご要望）。
+ *
+ * 実装方針：ルート要素の font-size を変えるだけ。本アプリのCSSは font-size 指定の
+ * 大半（757箇所中646箇所）が rem 単位のため、html の font-size を変更するだけで
+ * 画面全体の文字が比例して大きくなる。zoom や transform: scale() は 100vh/100dvh を
+ * 使う全画面チャット等のレイアウトを崩すため使わない。
+ */
+
+/* 標準（未指定時も含む）：ブラウザ既定の16px。従来表示と1pxも変わらない。 */
+html[data-font-scale="normal"],
+html:not([data-font-scale]) {
+    font-size: 100%;
+}
+
+/* 大：約18px相当 */
+html[data-font-scale="large"] {
+    font-size: 112.5%;
+}
+
+/* 特大：約20px相当 */
+html[data-font-scale="xlarge"] {
+    font-size: 125%;
+}
+
+/* --- 切替ボタン本体 ------------------------------------------------------- */
+
+/* 画面左下に固定。右下はAIチャットの起動ボタン（z-index:9999）、右中央はローン
+   シミュレータのフローティングボタンが占めているため、左下に置いて重ならないようにする。
+   z-index はチャットより下（9990）にして、チャット展開時に前面へ出ないようにする。 */
+.font-scale-switch {
+    position: fixed;
+    left: 0.75rem;
+    bottom: 1.25rem;
+    z-index: 9990;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.5rem;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid #d5d8e0;
+    border-radius: 999px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', Meiryo, sans-serif;
+    /* ボタン自身は文字サイズ変更の影響を受けないよう固定値にする。
+       切替UIが一緒に大きくなると画面を圧迫し、元に戻す操作がしづらくなるため。 */
+    font-size: 13px;
+    line-height: 1;
+}
+
+.font-scale-switch-label {
+    color: #4a5568;
+    white-space: nowrap;
+    padding-left: 0.25rem;
+    font-size: 13px;
+}
+
+.font-scale-switch-buttons {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.font-scale-switch button {
+    /* 44px以上のタップ領域（老眼・手元が不安定な状態でも押せる大きさ）。 */
+    min-width: 44px;
+    min-height: 40px;
+    padding: 0 0.5rem;
+    border: 1px solid #cbd2dc;
+    border-radius: 999px;
+    background: #fff;
+    color: #2d3748;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+/* 選択肢そのものの大きさで「標準／大／特大」の違いが一目で分かるようにする。 */
+.font-scale-switch button[data-scale="normal"] { font-size: 13px; }
+.font-scale-switch button[data-scale="large"]  { font-size: 15px; }
+.font-scale-switch button[data-scale="xlarge"] { font-size: 17px; }
+
+.font-scale-switch button:hover {
+    background: #eef2f7;
+}
+
+.font-scale-switch button[aria-pressed="true"] {
+    background: #667eea;
+    border-color: #667eea;
+    color: #fff;
+}
+
+.font-scale-switch button:focus-visible {
+    outline: 3px solid #2b6cb0;
+    outline-offset: 2px;
+}
+
+/* 全画面チャット（chat-only）表示では画面をチャットが占有するため切替UIを隠す。 */
+body.chat-only-mode .font-scale-switch {
+    display: none;
+}
+
+@media print {
+    .font-scale-switch { display: none; }
+}
