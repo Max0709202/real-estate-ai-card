@@ -195,14 +195,32 @@ try {
         // 繰り返してしまう。その結果、移動後・別セッションでも前の住所が表示され、名刺（＝
         // セッション）ごとに挙動が変わる。毎回その時の緯度経度から生成させる。
         $agentName = $card['name'] ?? '担当者';
-        $result = getBotReplyWithOpenAI($message, [], $agentName, $db, $sessionId, $geo);
-        if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
-            error_log('Chat OpenAI error (geo): ' . ($result['error'] ?? 'empty reply'));
-            $reply = getBotReplyPlaceholder($message);
-            $sources = [['url' => CHAT_BLOG_BASE_URL, 'title' => '戸建てリノベINFO']];
+        // 「周辺の物件／不動産情報を教えて」は土地情報レポートではなく、全国マンション
+        // データベースからの周辺物件案内で答える。座標→住所（逆ジオコード）→市区町村・
+        // 町丁目でDB検索、という確定処理で、LLMには通さない（無い項目を作らせないため）。
+        // 該当が無い・住所を解決できない場合は null が返り、従来の土地情報フローへ落ちる。
+        $nearbyAnswer = null;
+        if (function_exists('chatMessageAsksNearbyProperties') && chatMessageAsksNearbyProperties($message)) {
+            $rev = chatGoogleReverseGeocode($db, $geo['lat'], $geo['lon']);
+            if ($rev === null) $rev = chatReverseGeocode($db, $geo['lat'], $geo['lon']);
+            $revTitle = is_array($rev) ? trim((string)($rev['title'] ?? '')) : '';
+            if ($revTitle !== '') {
+                $nearbyAnswer = chatMansionNearbyAnswer($db, $revTitle, $agentName);
+            }
+        }
+        if ($nearbyAnswer !== null) {
+            $reply = $nearbyAnswer['reply'];
+            $sources = $nearbyAnswer['sources'];
         } else {
-            $reply = $result['reply'];
-            $sources = $result['sources'];
+            $result = getBotReplyWithOpenAI($message, [], $agentName, $db, $sessionId, $geo);
+            if ($result['error'] !== null || $result['reply'] === null || $result['reply'] === '') {
+                error_log('Chat OpenAI error (geo): ' . ($result['error'] ?? 'empty reply'));
+                $reply = getBotReplyPlaceholder($message);
+                $sources = [['url' => CHAT_BLOG_BASE_URL, 'title' => '戸建てリノベINFO']];
+            } else {
+                $reply = $result['reply'];
+                $sources = $result['sources'];
+            }
         }
     } else {
     // 物件名らしい問い合わせは、AIやヒアリングより先にDBで決定的に処理する。

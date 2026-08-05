@@ -127,6 +127,10 @@ if ($isLoggedIn) {
 <!-- Modal Notification CSS -->
 <link rel="stylesheet" href="assets/css/modal.css">
 <link rel="stylesheet" href="/new_lp.css">
+<!-- 文字サイズ切替（標準／大／特大）。既定は標準＝従来と同じ表示。
+     script に defer を付けないのは、描画前に html[data-font-scale] を適用してちらつきを防ぐため。 -->
+<link rel="stylesheet" href="assets/css/font-scale.css">
+<script src="assets/js/font-scale.js"></script>
 <!-- Modal Notification Script (load early so functions are available) -->
 <script src="assets/js/modal.js"></script>
 <script src="assets/js/referral-tracking.js"></script>

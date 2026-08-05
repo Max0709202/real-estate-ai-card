@@ -1601,6 +1601,156 @@ function chatMessageAsksLandInfo($message) {
 }
 
 /**
+ * 「周辺にどんな物件があるか」を尋ねる質問か。
+ * 「周辺の物件の売り出し情報を教えて」「現在地の周辺の不動産情報を教えて」のように、
+ * 一般の生成AI（Web検索）へ聞くのと同じ感覚で入力される質問を捕捉するのが目的。
+ * 従来はこの種の質問も「現在地」を含むだけで土地情報レポートに固定されていた。
+ *
+ * 近傍語（周辺・近く・この辺・現在地 など）と対象語（物件・不動産・マンション・
+ * 売り出し など）の両方を含むときだけ真とする。「〇〇マンションの築年数は？」のような
+ * 特定物件の照会を巻き込まないための条件。
+ */
+function chatMessageAsksNearbyProperties($message) {
+    $text = preg_replace('/\s+/u', '', (string)$message);
+    if ($text === '') return false;
+    $hasVicinity = (bool)preg_match('/(周辺|近く|近隣|付近|この辺|ここら辺|最寄り|現在地|現在位置|今いる場所|エリア内)/u', $text);
+    if (!$hasVicinity) return false;
+    return (bool)preg_match('/(物件|不動産|マンション|売り出し|売出|売り物件|販売中|売買|中古|新築|分譲|相場)/u', $text);
+}
+
+/**
+ * 日本の住所文字列を 都道府県／市区町村／それ以降 に分割する。
+ * 逆ジオコーダ（GSI/Google）は「東京都中野区本町6丁目27-14」のような連結文字列しか
+ * 返さないため、全国マンションDB（prefecture, city, town 列 + idx_mansion_pref_city）の
+ * 検索キーを取り出すために使う。郡部（〇〇郡〇〇町）は郡まで含めて市区町村扱いにする。
+ * @return array ['prefecture' => string, 'city' => string, 'town' => string]
+ */
+function chatSplitJapaneseAddress($address) {
+    $empty = ['prefecture' => '', 'city' => '', 'town' => ''];
+    $addr = trim((string)$address);
+    if ($addr === '') return $empty;
+    if (!preg_match('/^(北海道|東京都|京都府|大阪府|.{2,3}?県)(.*)$/u', $addr, $m)) return $empty;
+    $pref = $m[1];
+    $rest = $m[2];
+    // 政令市の行政区（〇〇市〇〇区）は「市＋区」までを1つの市区町村として扱う。
+    if (preg_match('/^(.+?市.+?区)(.*)$/u', $rest, $c)
+        || preg_match('/^(.+?郡.+?[町村])(.*)$/u', $rest, $c)
+        || preg_match('/^(.+?[市区町村])(.*)$/u', $rest, $c)) {
+        return ['prefecture' => $pref, 'city' => $c[1], 'town' => trim($c[2])];
+    }
+    return ['prefecture' => $pref, 'city' => '', 'town' => trim($rest)];
+}
+
+/**
+ * 全国マンションDBから、指定エリア（市区町村。可能なら町丁目）の建物を取得する。
+ * 距離順ではなく「同じ町丁目 → 同じ市区町村」の順に広げる段階検索。
+ * マンションDBに緯度経度列が無いため半径検索はできず、行政区画での近似に留める
+ * （回答文でもその旨を明示する）。
+ */
+function chatMansionDbNearbyRows($db, $prefecture, $city, $town, $limit = 5) {
+    if (!$db instanceof PDO) return [];
+    $limit = max(1, min(10, (int)$limit));
+    $prefecture = trim((string)$prefecture);
+    $city = trim((string)$city);
+    if ($prefecture === '' || $city === '') return [];
+
+    $columns = 'id, building_name, full_address, town, structure, floors_above, floors_below,
+                built_year_month, total_units, nearest_line, nearest_station,
+                nearest_access_method, nearest_minutes';
+    $rows = [];
+    $seen = [];
+
+    // 「本町6丁目」→「本町」。DB側の表記が丁目ありなし両方あり得るため前方一致で寄せる。
+    $townBase = preg_replace('/[0-9０-９]+丁目.*$/u', '', trim((string)$town));
+    $townBase = trim($townBase);
+
+    $queries = [];
+    if ($townBase !== '') {
+        $queries[] = [
+            "SELECT {$columns} FROM mansion_buildings
+             WHERE prefecture = :pref AND city = :city AND town LIKE :town
+             ORDER BY total_units DESC, building_name ASC LIMIT {$limit}",
+            [':pref' => $prefecture, ':city' => $city, ':town' => $townBase . '%'],
+        ];
+    }
+    $queries[] = [
+        "SELECT {$columns} FROM mansion_buildings
+         WHERE prefecture = :pref AND city = :city
+         ORDER BY total_units DESC, building_name ASC LIMIT {$limit}",
+        [':pref' => $prefecture, ':city' => $city],
+    ];
+    // prefecture/city 列が未整備な取り込み分に備えたフォールバック（full_address 前方一致）。
+    $queries[] = [
+        "SELECT {$columns} FROM mansion_buildings
+         WHERE full_address LIKE :addr
+         ORDER BY total_units DESC, building_name ASC LIMIT {$limit}",
+        [':addr' => $prefecture . $city . '%'],
+    ];
+
+    foreach ($queries as $q) {
+        if (count($rows) >= $limit) break;
+        try {
+            $stmt = $db->prepare($q[0]);
+            $stmt->execute($q[1]);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $key = (string)($row['id'] ?? '');
+                if ($key === '' || isset($seen[$key])) continue;
+                $seen[$key] = true;
+                $rows[] = $row;
+                if (count($rows) >= $limit) break;
+            }
+        } catch (Exception $e) {
+            chatMansionDebugLog('nearby_query_failed', $e->getMessage());
+        }
+    }
+    return $rows;
+}
+
+/**
+ * 「周辺の物件を教えて」への確定回答を組み立てる。
+ *
+ * 意図的にLLMを通さない。当社データベースに無い項目（売出価格・間取り・専有面積）を
+ * 生成AIに書かせると、もっともらしい数値を作ってしまい「正確さが足りない」という
+ * 指摘そのものを悪化させるため。持っている事実だけを出し、持っていない情報は
+ * 持っていないと明示して担当者へつなぐ。
+ *
+ * @return array|null ['reply' => string, 'sources' => array] 該当なし・住所不明時は null
+ */
+function chatMansionNearbyAnswer($db, $address, $agentName = '担当者') {
+    $parts = chatSplitJapaneseAddress($address);
+    if ($parts['prefecture'] === '' || $parts['city'] === '') return null;
+    $rows = chatMansionDbNearbyRows($db, $parts['prefecture'], $parts['city'], $parts['town'], 5);
+    if (empty($rows)) return null;
+
+    $areaLabel = $parts['prefecture'] . $parts['city'];
+    $lines = [];
+    $lines[] = $areaLabel . '周辺のマンションを、当社の全国マンションデータベースからご案内します。';
+    $lines[] = '';
+    foreach ($rows as $i => $row) {
+        $name = trim((string)($row['building_name'] ?? ''));
+        if ($name === '') continue;
+        $lines[] = ($i + 1) . '. ' . $name;
+        foreach (chatMansionFormatFacts($row, ['address', 'built', 'station', 'structure', 'floors', 'units']) as $fact) {
+            $lines[] = '　　' . $fact;
+        }
+    }
+    $lines[] = '';
+    // 期待とのズレを最初に埋める。ここを書かないと「売り出し情報が出てこない＝使えない」に
+    // 直結するため、何が出せて何が出せないのかを必ず明示する。
+    $lines[] = '※こちらは建物そのものの情報（築年月・総戸数・最寄り駅など）です。';
+    $lines[] = '　現在売り出し中の住戸の価格・間取り・専有面積は、当社データベースの収録対象外のため、';
+    $lines[] = '　最新の売出情報は' . $agentName . 'が個別にお調べしてご連絡します。';
+    $lines[] = '　気になる建物名をお知らせいただければ、その建物の売出状況をお調べします。';
+    $lines[] = '';
+    $lines[] = '（掲載順は所在エリアが一致する建物のうち規模の大きい順です。距離順ではありません）';
+
+    return [
+        'reply' => implode("\n", $lines),
+        'sources' => [['url' => '', 'title' => '全国マンションデータベース（当社独自データ）']],
+    ];
+}
+
+/**
  * メッセージ中のマンション名を全国マンションDBで解決し、正式な住所を返す。
  * 「土地」「ハザード」等の照会語を除去してから建物名を抽出するため、
  * 「エルザタワー55の土地情報」からでも建物を特定できる。
