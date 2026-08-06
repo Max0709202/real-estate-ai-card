@@ -174,9 +174,15 @@ if ($row !== null) {
 }
 
 // 7) プロンプトへ渡す内容 ------------------------------------------------------
-$context = chatMansionWebSelectSections($sections, $message, 12000);
+$context = chatMansionWebSelectSections($sections, $message);
 line('');
 line('[7] プロンプトへ渡す文字数 : ' . mb_strlen($context));
+line('    採用された見出し :');
+foreach (preg_split('/\R/u', $context) as $contextLine) {
+    if (preg_match('/^【(.+)】$/u', trim($contextLine), $titleMatch)) {
+        line('      ・' . $titleMatch[1]);
+    }
+}
 if ($dump) {
     line('------------------------------------------------------------------');
     line($context);

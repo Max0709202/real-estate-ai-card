@@ -1514,6 +1514,11 @@ function chatMansionWebHtmlToSections($html) {
 
     $sections = [];
     $current = ['title' => '基本情報', 'lines' => []];
+    // 見出しの無い長大な領域（賃料履歴の明細など）を分割したときの通し番号。
+    // 「（続き）（続き）（続き）…」と接尾辞が積み重なると、見出しが本文より長くなり、
+    // 後段のスコアリングでも同じ節として扱えなくなるため、基準名＋番号で管理する。
+    $baseTitle = $current['title'];
+    $continuation = 0;
     $seen = [];
     foreach (explode("\n", $html) as $rawLine) {
         $line = trim(preg_replace('/[ \t\x{3000}]+/u', ' ', $rawLine));
@@ -1524,7 +1529,9 @@ function chatMansionWebHtmlToSections($html) {
         if ($isHeading) {
             $title = trim(str_replace("\x01", '', $line));
             if (!empty($current['lines'])) $sections[] = $current;
-            $current = ['title' => $title !== '' ? $title : '（見出しなし）', 'lines' => []];
+            $baseTitle = $title !== '' ? $title : '（見出しなし）';
+            $continuation = 0;
+            $current = ['title' => $baseTitle, 'lines' => []];
             $seen = [];
             continue;
         }
@@ -1538,9 +1545,10 @@ function chatMansionWebHtmlToSections($html) {
             $seen[$line] = true;
         }
         $current['lines'][] = $line;
-        if (count($current['lines']) >= 200) {
+        if (count($current['lines']) >= 400) {
             $sections[] = $current;
-            $current = ['title' => $current['title'] . '（続き）', 'lines' => []];
+            $continuation++;
+            $current = ['title' => $baseTitle . '（続き' . $continuation . '）', 'lines' => []];
             $seen = [];
         }
     }
@@ -2043,7 +2051,25 @@ function chatMansionWebResolveId($db, $row) {
  * ページ全文をそのままプロンプトへ入れるとAPIコストと遅延が跳ね上がるため、
  * 概要は常に含めたうえで、質問に関連するセクションから文字数上限まで詰める。
  */
-function chatMansionWebSelectSections($sections, $message, $maxChars = 12000) {
+/**
+ * 1つの節が長すぎるときに、先頭と末尾の両方を残して中間を省略する。
+ *
+ * 賃料履歴・販売履歴の明細は数百行になり、先頭だけを切り出すと、表が古い順に
+ * 並んでいた場合に「最新の価格」が丸ごと落ちてしまう（利用ルール8で最新価格・
+ * 最高/最低・推移を求められているため致命的）。並び順が分からない以上、
+ * 両端を残すのが唯一安全な削り方になる。
+ */
+function chatMansionWebTrimSectionBlock($block, $maxChars) {
+    $length = mb_strlen($block);
+    if ($length <= $maxChars || $maxChars < 200) return $block;
+    $headChars = (int)floor($maxChars * 0.6);
+    $tailChars = $maxChars - $headChars;
+    return mb_substr($block, 0, $headChars)
+        . "\n…（中略）…\n"
+        . mb_substr($block, $length - $tailChars);
+}
+
+function chatMansionWebSelectSections($sections, $message, $maxChars = 16000, $maxCharsPerSection = 3500) {
     $message = (string)$message;
     $topics = [
         '/(価格|販売|売出|売り出し|成約|履歴|推移|相場|坪単価|単価|いくら|資産価値|値上がり|値下がり|売却|購入)/u'
@@ -2081,6 +2107,9 @@ function chatMansionWebSelectSections($sections, $message, $maxChars = 12000) {
     foreach ($scored as $entry) {
         $section = $entry['section'];
         $block = '【' . $section['title'] . '】' . "\n" . implode("\n", $section['lines']);
+        // 1つの節（例：数百行ある賃料履歴）が予算を独占し、口コミ・販売履歴が
+        // 1行も入らなくなるのを防ぐ。節ごとに上限を設け、超過分は中間を省略する。
+        $block = chatMansionWebTrimSectionBlock($block, $maxCharsPerSection);
         $length = mb_strlen($block);
         if ($used + $length > $maxChars) {
             $remain = $maxChars - $used;
@@ -2189,7 +2218,7 @@ function chatMansionWebAnswer($db, $row, $message, $agentName = '担当者') {
             chatMansionDebugLog('web_page_mismatch', ['mdb_id' => $mdbId, 'name' => $row['building_name'] ?? '']);
             return null;
         }
-        $context = chatMansionWebSelectSections($sections, $message, 12000);
+        $context = chatMansionWebSelectSections($sections, $message);
         $reply = chatMansionWebGenerateAnswer($context, $row, $message, $agentName);
         if ($reply === null) return null;
         return [
