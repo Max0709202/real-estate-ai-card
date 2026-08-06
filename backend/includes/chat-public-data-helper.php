@@ -1570,6 +1570,51 @@ function chatMansionWebPageMatchesRow($sections, $row) {
     return false;
 }
 
+/**
+ * 全国マンションデータベース専用のHTTP GET。
+ *
+ * 公的データAPI用の chatPublicDataHttpGet() を使い回さないのは、送信するヘッダーを
+ * この参照だけ独立して調整できるようにするため（共通関数を触ると国土交通省・
+ * e-Stat 側の取得に影響が出る）。Accept-Language と Referer を付け、User-Agent は
+ * MANSION_DB_WEB_USER_AGENT で差し替えられる。
+ *
+ * 注意：db.self-in.com はサーバーからのアクセスをIPで拒否している場合がある
+ * （nginx の素の 403「You don't have permission to access this resource.」が返る）。
+ * これはヘッダーでは回避できないため、先方にサーバーIPの許可を依頼すること。
+ *
+ * @return array{ok:bool, status:int, error:string, body:string}
+ */
+function chatMansionWebHttpGet($url, $timeout = 12) {
+    if (!function_exists('curl_init')) {
+        return ['ok' => false, 'status' => 0, 'error' => 'curl is not available', 'body' => ''];
+    }
+    $origin = chatMansionWebOrigin();
+    $headers = [
+        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language: ja,en-US;q=0.9,en;q=0.8',
+    ];
+    if ($origin !== '') $headers[] = 'Referer: ' . $origin . '/';
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_TIMEOUT => max(1, (int)$timeout),
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_ENCODING => '',
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_USERAGENT => defined('MANSION_DB_WEB_USER_AGENT') ? MANSION_DB_WEB_USER_AGENT : 'Mozilla/5.0',
+    ]);
+    $body = curl_exec($ch);
+    $error = $body === false ? curl_error($ch) : '';
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($body === false) {
+        return ['ok' => false, 'status' => $status, 'error' => $error ?: 'request failed', 'body' => ''];
+    }
+    return ['ok' => $status >= 200 && $status < 300, 'status' => $status, 'error' => '', 'body' => (string)$body];
+}
+
 /** キャッシュ付きのHTML取得。chat_public_data_cache にHTML本文をそのまま保持する。 */
 function chatMansionWebCachedHtml($db, $url, $ttlSeconds) {
     $key = hash('sha256', 'mansion_db_web|' . $url);
@@ -1594,7 +1639,7 @@ function chatMansionWebCachedHtml($db, $url, $ttlSeconds) {
         }
     }
     $timeout = defined('MANSION_DB_WEB_TIMEOUT') ? (int)MANSION_DB_WEB_TIMEOUT : 12;
-    $result = chatPublicDataHttpGet($url, ['Accept' => 'text/html,application/xhtml+xml'], $timeout);
+    $result = chatMansionWebHttpGet($url, $timeout);
     $html = (string)($result['body'] ?? '');
     $ok = !empty($result['ok']) && $html !== '';
     if ($db instanceof PDO) {
@@ -1625,16 +1670,253 @@ function chatMansionWebCachedHtml($db, $url, $ttlSeconds) {
     ];
 }
 
+/** マンションページのオリジン（scheme://host）。相対URLの解決に使う。 */
+function chatMansionWebOrigin() {
+    $base = defined('MANSION_DB_WEB_BASE_URL') ? MANSION_DB_WEB_BASE_URL : 'https://db.self-in.com/mansion/';
+    $parts = parse_url($base);
+    if (empty($parts['scheme']) || empty($parts['host'])) return '';
+    return $parts['scheme'] . '://' . $parts['host'] . (!empty($parts['port']) ? ':' . $parts['port'] : '');
+}
+
+/** ページ内の href/action（相対・ルート相対・絶対）を絶対URLへ解決する。 */
+function chatMansionWebAbsoluteUrl($href, $pageUrl) {
+    $href = trim((string)$href);
+    if ($href === '') return $pageUrl;
+    if (preg_match('#^https?://#i', $href)) return $href;
+    $origin = chatMansionWebOrigin();
+    if ($href[0] === '/') return $origin . $href;
+    $base = preg_replace('#[^/]*$#', '', (string)strtok($pageUrl, '?'));
+    if ($base === null || $base === '') $base = $origin . '/';
+    return $base . $href;
+}
+
+/**
+ * 検索窓のあるページから検索URLのテンプレートを自動生成する。
+ *
+ * ベンダーにマンションID一覧を請求すると高額な費用が発生するため、公開されている
+ * 検索窓（マンション名を入れると候補が出る、あの入力欄）をそのまま利用して自力で
+ * IDを引く。<form> の action と、テキスト入力欄の name を読み取り、
+ * 「action?hidden項目…&入力欄name={name}」という形のテンプレートを組み立てる。
+ *
+ * 解析結果はキャッシュに保存するので、毎回HTMLを解析することはない。
+ * 検索窓がPOSTのみ／JavaScriptのみで動く場合は null を返し、その旨をログに残す
+ * （その場合は MANSION_DB_WEB_SEARCH_URL に実URLを設定してもらう運用に切り替える）。
+ *
+ * @return string|null 例: 'https://db.self-in.com/search.html?cid=rchukai&on=0&keyword={name}'
+ */
+function chatMansionWebDiscoverSearchTemplate($db) {
+    $pageUrl = defined('MANSION_DB_WEB_SEARCH_PAGE_URL') ? trim((string)MANSION_DB_WEB_SEARCH_PAGE_URL) : '';
+    if ($pageUrl === '') return null;
+    $cacheKey = hash('sha256', 'mansion_db_web_search_template|' . $pageUrl);
+    if ($db instanceof PDO) {
+        try {
+            ensureChatPublicDataCacheTable($db);
+            $stmt = $db->prepare('SELECT response_json FROM chat_public_data_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1');
+            $stmt->execute([$cacheKey]);
+            $hit = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($hit) {
+                $stored = trim((string)($hit['response_json'] ?? ''));
+                return $stored !== '' ? $stored : null;
+            }
+        } catch (Throwable $e) {
+            error_log('chatMansionWebDiscoverSearchTemplate read error: ' . $e->getMessage());
+        }
+    }
+
+    $template = null;
+    $page = chatMansionWebCachedHtml($db, $pageUrl, 3600);
+    if (!empty($page['ok'])) {
+        $html = chatMansionWebToUtf8($page['html']);
+        if (preg_match_all('#<form\b[^>]*>.*?</form\s*>#is', $html, $forms)) {
+            $best = null;
+            $bestScore = -1;
+            foreach ($forms[0] as $form) {
+                // GETで引けるフォームだけを対象にする（POSTはこの経路では扱えない）。
+                if (preg_match('#\bmethod\s*=\s*["\']?\s*post#i', $form)) continue;
+                if (!preg_match('#<form\b[^>]*\baction\s*=\s*["\']([^"\']*)["\']#i', $form, $am)) {
+                    $action = $pageUrl;
+                } else {
+                    $action = chatMansionWebAbsoluteUrl($am[1], $pageUrl);
+                }
+                $queryName = '';
+                $score = 0;
+                $hidden = [];
+                if (preg_match_all('#<input\b[^>]*>#i', $form, $inputs)) {
+                    foreach ($inputs[0] as $input) {
+                        if (!preg_match('#\bname\s*=\s*["\']([^"\']+)["\']#i', $input, $nm)) continue;
+                        $inputName = $nm[1];
+                        $type = preg_match('#\btype\s*=\s*["\']?([a-z]+)#i', $input, $tm) ? strtolower($tm[1]) : 'text';
+                        if ($type === 'hidden') {
+                            $value = preg_match('#\bvalue\s*=\s*["\']([^"\']*)["\']#i', $input, $vm) ? $vm[1] : '';
+                            $hidden[$inputName] = $value;
+                            continue;
+                        }
+                        if (!in_array($type, ['text', 'search'], true)) continue;
+                        if ($queryName !== '') continue;
+                        $queryName = $inputName;
+                        // 「マンション名の検索窓」らしい name ほど高く評価する。
+                        if (preg_match('#(mansion|bukken|建物|物件)#iu', $inputName)) $score += 5;
+                        if (preg_match('#(keyword|freeword|search|word|query|^q$|name|kw)#i', $inputName)) $score += 3;
+                    }
+                }
+                if ($queryName === '') continue;
+                if (preg_match('#(search|find|mansion|list)#i', $action)) $score += 2;
+                if ($score <= $bestScore) continue;
+                $bestScore = $score;
+                // 検索窓と同じ画面に置かれている hidden 項目（cid 等）はそのまま引き継ぐ。
+                // 引き継がないと会員コンテキストが外れ、候補が出ないことがある。
+                $query = [];
+                foreach ($hidden as $hiddenName => $hiddenValue) {
+                    $query[] = rawurlencode($hiddenName) . '=' . rawurlencode($hiddenValue);
+                }
+                $existing = parse_url($action, PHP_URL_QUERY);
+                if (!empty($existing)) array_unshift($query, $existing);
+                $joined = implode('&', array_filter($query));
+                if (stripos($joined, 'cid=') === false && defined('MANSION_DB_WEB_CID')) {
+                    $joined .= ($joined !== '' ? '&' : '') . 'cid=' . rawurlencode(MANSION_DB_WEB_CID);
+                }
+                $actionPath = strtok($action, '?');
+                $best = $actionPath . '?' . ($joined !== '' ? $joined . '&' : '') . rawurlencode($queryName) . '={name}';
+            }
+            $template = $best;
+        }
+        if ($template === null) {
+            chatMansionDebugLog('web_search_form_not_found', $pageUrl);
+        }
+    }
+
+    if ($db instanceof PDO) {
+        try {
+            $stmt = $db->prepare("INSERT INTO chat_public_data_cache (cache_key, provider, request_url, response_json, http_status, expires_at)
+                VALUES (?, 'mansion_db_web', ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))
+                ON DUPLICATE KEY UPDATE response_json = VALUES(response_json), http_status = VALUES(http_status), expires_at = VALUES(expires_at), updated_at = CURRENT_TIMESTAMP");
+            // 見つかった場合は長め（7日）、見つからない場合は短め（1時間）に保持し、
+            // サイト側の改修に自動追随できるようにする。
+            $stmt->execute([$cacheKey, $pageUrl, (string)$template, $template !== null ? 200 : 404, $template !== null ? 604800 : 3600]);
+        } catch (Throwable $e) {
+            error_log('chatMansionWebDiscoverSearchTemplate write error: ' . $e->getMessage());
+        }
+    }
+    chatMansionDebugLog('web_search_template', $template);
+    return $template;
+}
+
+/**
+ * 検索窓ページの構造を調査して報告する（診断スクリプト専用。チャットからは呼ばない）。
+ *
+ * 「マンション名で検索」の窓は、候補をJavaScriptで取得するインクリメンタルサーチの
+ * 可能性がある。その場合 <form> の自動解析では検索URLを組み立てられないため、
+ * ページ内のフォーム定義・JS内のURLらしき文字列・外部JSの一覧をそのまま出力して、
+ * 実際にサイトへ到達できる環境で「どれが候補取得APIか」を判断できるようにする。
+ *
+ * @return array{ok:bool, status:int, forms:array, endpoints:string[], scripts:string[]}
+ */
+function chatMansionWebProbeSearchEndpoints($db) {
+    $pageUrl = defined('MANSION_DB_WEB_SEARCH_PAGE_URL') ? trim((string)MANSION_DB_WEB_SEARCH_PAGE_URL) : '';
+    $report = ['ok' => false, 'status' => 0, 'forms' => [], 'endpoints' => [], 'scripts' => []];
+    if ($pageUrl === '') return $report;
+    $page = chatMansionWebCachedHtml($db, $pageUrl, 3600);
+    $report['status'] = (int)($page['status'] ?? 0);
+    if (empty($page['ok'])) return $report;
+    $report['ok'] = true;
+    $html = chatMansionWebToUtf8($page['html']);
+
+    if (preg_match_all('#<form\b[^>]*>.*?</form\s*>#is', $html, $forms)) {
+        foreach ($forms[0] as $form) {
+            $entry = [
+                'method' => preg_match('#\bmethod\s*=\s*["\']?([a-z]+)#i', $form, $mm) ? strtolower($mm[1]) : 'get',
+                'action' => preg_match('#<form\b[^>]*\baction\s*=\s*["\']([^"\']*)["\']#i', $form, $am)
+                    ? chatMansionWebAbsoluteUrl($am[1], $pageUrl) : $pageUrl,
+                'inputs' => [],
+            ];
+            if (preg_match_all('#<input\b[^>]*>#i', $form, $inputs)) {
+                foreach ($inputs[0] as $input) {
+                    if (!preg_match('#\bname\s*=\s*["\']([^"\']+)["\']#i', $input, $nm)) continue;
+                    $type = preg_match('#\btype\s*=\s*["\']?([a-z]+)#i', $input, $tm) ? strtolower($tm[1]) : 'text';
+                    $value = preg_match('#\bvalue\s*=\s*["\']([^"\']*)["\']#i', $input, $vm) ? $vm[1] : '';
+                    $entry['inputs'][] = ['name' => $nm[1], 'type' => $type, 'value' => $value];
+                }
+            }
+            $report['forms'][] = $entry;
+        }
+    }
+
+    // インクリメンタルサーチの候補取得URLらしき文字列（JS内のパス・APIエンドポイント）。
+    if (preg_match_all('#["\']([^"\'\s<>]*(?:search|suggest|autocomplete|incremental|keyword|ajax|api)[^"\'\s<>]*)["\']#i', $html, $urls)) {
+        $seen = [];
+        foreach ($urls[1] as $candidate) {
+            if (strpos($candidate, '/') === false) continue;
+            if (preg_match('#\.(css|png|jpe?g|gif|svg|woff2?|ico)(\?|$)#i', $candidate)) continue;
+            $candidate = html_entity_decode($candidate, ENT_QUOTES, 'UTF-8');
+            if (isset($seen[$candidate])) continue;
+            $seen[$candidate] = true;
+            $report['endpoints'][] = $candidate;
+            if (count($report['endpoints']) >= 20) break;
+        }
+    }
+    if (preg_match_all('#<script\b[^>]*\bsrc\s*=\s*["\']([^"\']+)["\']#i', $html, $scripts)) {
+        $report['scripts'] = array_values(array_unique(array_slice($scripts[1], 0, 20)));
+    }
+    return $report;
+}
+
+/** 設定された検索URL優先、無ければ検索窓から自動生成したテンプレートを返す。 */
+function chatMansionWebSearchTemplate($db) {
+    $configured = defined('MANSION_DB_WEB_SEARCH_URL') ? trim((string)MANSION_DB_WEB_SEARCH_URL) : '';
+    if ($configured !== '') return $configured;
+    return chatMansionWebDiscoverSearchTemplate($db);
+}
+
+/**
+ * 検索応答からマンションID候補を取り出す。検索結果がHTMLのリンク一覧でも、
+ * サジェスト（インクリメンタルサーチ）のJSONでも拾えるようにしている。
+ * アンカーテキスト（＝候補として画面に出るマンション名）も一緒に返し、
+ * 候補が多いときの並べ替えに使う。
+ *
+ * @return array<int, array{id:int, label:string}>
+ */
+function chatMansionWebExtractCandidates($body) {
+    $body = chatMansionWebToUtf8($body);
+    if ($body === '') return [];
+    // JSON応答はスラッシュが \/ でエスケープされているため戻しておく。
+    $normalized = str_replace(['\\/', '\\u002F', '\\u002f'], '/', $body);
+    $candidates = [];
+    $push = function ($id, $label) use (&$candidates) {
+        $id = (int)$id;
+        if ($id <= 0) return;
+        $label = trim(preg_replace('/\s+/u', ' ', strip_tags((string)$label)));
+        if (!isset($candidates[$id]) || ($candidates[$id] === '' && $label !== '')) {
+            $candidates[$id] = $label;
+        }
+    };
+    // 1) <a href="…/mansion/123.html">マンション名</a>
+    if (preg_match_all('#<a\b[^>]*href\s*=\s*["\'][^"\']*?/mansion/(\d+)\.html[^"\']*["\'][^>]*>(.*?)</a\s*>#is', $normalized, $anchors, PREG_SET_ORDER)) {
+        foreach ($anchors as $a) $push($a[1], $a[2]);
+    }
+    // 2) リンク以外（JSON中のURL文字列など）に現れる /mansion/123.html
+    if (preg_match_all('#/mansion/(\d+)\.html#i', $normalized, $urls)) {
+        foreach ($urls[1] as $id) $push($id, '');
+    }
+    // 3) サジェストAPIのJSON（{"id":123,"name":"○○マンション"} 等）
+    if (preg_match_all('#["\'](?:mansion_id|mansionId|bukken_id|id)["\']\s*:\s*["\']?(\d+)["\']?(?:\s*,\s*["\'](?:name|title|mansion_name|building_name)["\']\s*:\s*["\']([^"\']*)["\'])?#i', $normalized, $jsons, PREG_SET_ORDER)) {
+        foreach ($jsons as $j) $push($j[1], $j[2] ?? '');
+    }
+    $out = [];
+    foreach ($candidates as $id => $label) $out[] = ['id' => $id, 'label' => $label];
+    return $out;
+}
+
 /**
  * マンション名・住所からマンションIDを検索する（利用ルール1）。
  *
- * MANSION_DB_WEB_SEARCH_URL が未設定の間は何もしない＝外部リクエストを発生させない。
- * 検索結果HTMLから /mansion/{id}.html を拾い、候補ページを実際に取得して
- * 建物名＋住所が一致したものだけを採用する（複数候補からの取り違え防止）。
+ * 検索URL（設定 or 検索窓から自動生成）に建物名を渡し、返ってきた候補の中から
+ * 名称の近い順に実ページを取得して、建物名＋所在地が一致したものだけを採用する。
+ * 候補をそのまま信用せず必ず実ページで裏取りするのは、IDの取り違え＝別マンションの
+ * 販売履歴を回答する事故を防ぐため。
  */
 function chatMansionWebSearchId($db, $row) {
-    $template = defined('MANSION_DB_WEB_SEARCH_URL') ? trim((string)MANSION_DB_WEB_SEARCH_URL) : '';
-    if ($template === '') return null;
+    $template = chatMansionWebSearchTemplate($db);
+    if ($template === null || $template === '') return null;
     $name = trim((string)($row['building_name'] ?? ''));
     if ($name === '') return null;
     $url = strtr($template, [
@@ -1649,10 +1931,32 @@ function chatMansionWebSearchId($db, $row) {
         chatMansionDebugLog('web_search_failed', ['url' => $url, 'status' => $search['status'] ?? 0]);
         return null;
     }
-    if (!preg_match_all('#/mansion/(\d+)\.html#i', $search['html'], $m)) return null;
-    $candidates = array_values(array_unique(array_map('intval', $m[1])));
-    chatMansionDebugLog('web_search_candidates', $candidates);
-    foreach (array_slice($candidates, 0, 3) as $candidateId) {
+    $candidates = chatMansionWebExtractCandidates($search['html']);
+    if (empty($candidates)) {
+        chatMansionDebugLog('web_search_no_candidates', $url);
+        return null;
+    }
+    // 候補名が取れているものは名称一致度で並べ替える。検索結果が多いときに、
+    // 先頭から順に総当たりして無関係なページを何枚も取りに行かないようにする。
+    $target = chatMansionNormalizeText($name);
+    foreach ($candidates as $i => $candidate) {
+        $label = chatMansionNormalizeText($candidate['label']);
+        $score = 0;
+        if ($label !== '' && $target !== '') {
+            if ($label === $target) $score = 3;
+            elseif (mb_strpos($label, $target) === 0) $score = 2;
+            elseif (mb_strpos($label, $target) !== false) $score = 1;
+        }
+        $candidates[$i]['score'] = $score;
+        $candidates[$i]['order'] = $i;
+    }
+    usort($candidates, static function ($a, $b) {
+        if ($a['score'] === $b['score']) return $a['order'] <=> $b['order'];
+        return $b['score'] <=> $a['score'];
+    });
+    chatMansionDebugLog('web_search_candidates', array_slice($candidates, 0, 5));
+    foreach (array_slice($candidates, 0, 5) as $candidate) {
+        $candidateId = (int)$candidate['id'];
         if ($candidateId <= 0) continue;
         $page = chatMansionWebCachedHtml($db, chatMansionWebPageUrl($candidateId), $ttl);
         if (empty($page['ok'])) continue;
@@ -1665,9 +1969,12 @@ function chatMansionWebSearchId($db, $row) {
 
 /**
  * この建物のマンションIDを解決する。
- *   1) mansion_buildings.mdb_id（マスタ配布 or 解決済み）
- *   2) 検索URLが設定されていれば検索して解決し、書き戻す
+ *   1) mansion_buildings.mdb_id（解決済み／マスタ配布）
+ *   2) 検索窓（自動生成 or 設定済みURL）で検索し、実ページで裏取りして書き戻す
  * どちらも得られなければ null（＝実ページ参照は行わず、従来のDB基礎情報で回答）。
+ *
+ * 一度解決したIDは mdb_id に保存されるため、同じマンションで検索が再実行される
+ * ことはない（＝先方サーバーへのアクセスは1棟につき実質1回）。
  */
 function chatMansionWebResolveId($db, $row) {
     if (!$db instanceof PDO) return null;
@@ -1678,7 +1985,6 @@ function chatMansionWebResolveId($db, $row) {
         // マンションIDが配布されるまで実ページ参照は行わない。
         return null;
     }
-    $canSearch = defined('MANSION_DB_WEB_SEARCH_URL') && trim((string)MANSION_DB_WEB_SEARCH_URL) !== '';
     $status = '';
     if ($localId > 0) {
         try {
@@ -1697,10 +2003,13 @@ function chatMansionWebResolveId($db, $row) {
             return null;
         }
     }
-    // 検索URLが未設定の間は「検索したが見つからなかった」と記録してはいけない。
-    // 記録すると、後日ベンダーから検索エンドポイントの提供を受けて設定しても、
-    // notfound の再試行抑止（7日間）でしばらく解決できないままになる。
-    if (!$canSearch) return null;
+    // 実際に検索できるURLが手元にあるかを、ここで初めて確認する（解決済みの棟で
+    // 無駄な検索窓解析を走らせないため、DB照会の後に置いている）。
+    // 検索できない状態で「検索したが見つからなかった」と記録してはいけない。
+    // 記録すると、後で検索URLを設定しても notfound の再試行抑止（7日間）が効いて
+    // しばらく解決できないままになる。
+    $template = chatMansionWebSearchTemplate($db);
+    if ($template === null || $template === '') return null;
     $found = chatMansionWebSearchId($db, $row);
     chatMansionWebStoreId($db, $localId, $found, $found ? 'confirmed' : 'notfound');
     return $found;

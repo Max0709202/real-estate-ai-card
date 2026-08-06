@@ -44,11 +44,47 @@ line('    MANSION_DB_WEB_ENABLED    : ' . (MANSION_DB_WEB_ENABLED ? 'true' : 'fa
 line('    MANSION_DB_WEB_BASE_URL   : ' . MANSION_DB_WEB_BASE_URL);
 line('    MANSION_DB_WEB_CID        : ' . MANSION_DB_WEB_CID);
 line('    MANSION_DB_WEB_ON         : ' . MANSION_DB_WEB_ON . '  (必ず0／1は使用しない)');
-line('    MANSION_DB_WEB_SEARCH_URL : ' . (MANSION_DB_WEB_SEARCH_URL !== '' ? MANSION_DB_WEB_SEARCH_URL : '(未設定 → ID検索は行わない)'));
+line('    MANSION_DB_WEB_SEARCH_URL : ' . (MANSION_DB_WEB_SEARCH_URL !== '' ? MANSION_DB_WEB_SEARCH_URL : '(未設定 → 検索窓から自動生成)'));
+line('    MANSION_DB_WEB_SEARCH_PAGE_URL : ' . MANSION_DB_WEB_SEARCH_PAGE_URL);
+line('    User-Agent                : ' . MANSION_DB_WEB_USER_AGENT);
 line('    curl                      : ' . (function_exists('curl_init') ? 'あり' : 'なし'));
 if (!chatMansionWebEnabled()) {
     line('    >>> 実ページ参照は無効です。従来のDB基礎情報のみで回答されます。');
     exit;
+}
+
+// 1b) 検索窓の自動解析 --------------------------------------------------------
+line('');
+line('[1b] 検索URLの特定（マンションID取得の入口）');
+$template = chatMansionWebSearchTemplate($db);
+if ($template === null || $template === '') {
+    line('    >>> 検索URLを自動生成できませんでした。');
+    line('    >>> 検索窓がPOST送信、またはJavaScriptで候補を取得している可能性があります。');
+    line('');
+    line('    --- 検索窓ページの調査結果 ---');
+    $probe = chatMansionWebProbeSearchEndpoints($db);
+    line('    ページ取得 : ' . ($probe['ok'] ? 'OK' : '失敗') . ' (HTTP ' . $probe['status'] . ')');
+    if ($probe['ok']) {
+        line('    <form> : ' . count($probe['forms']) . ' 件');
+        foreach ($probe['forms'] as $i => $form) {
+            line('      [' . ($i + 1) . '] method=' . $form['method'] . ' action=' . $form['action']);
+            foreach ($form['inputs'] as $input) {
+                line('           input name=' . $input['name'] . ' type=' . $input['type']
+                    . ($input['value'] !== '' ? ' value=' . $input['value'] : ''));
+            }
+        }
+        line('    候補取得URLらしき文字列 : ' . count($probe['endpoints']) . ' 件');
+        foreach ($probe['endpoints'] as $endpoint) line('      - ' . $endpoint);
+        line('    読み込まれているJS :');
+        foreach ($probe['scripts'] as $script) line('      - ' . $script);
+    }
+    line('    ------------------------------');
+    line('    >>> 上記に候補取得URLが見当たらない場合は、ブラウザで検索窓に');
+    line('    >>> マンション名を入力し、開発者ツールの[ネットワーク]タブに現れる');
+    line('    >>> リクエストURLを MANSION_DB_WEB_SEARCH_URL に設定してください');
+    line('    >>> （マンション名の箇所を {name} に置き換える）。');
+} else {
+    line('    テンプレート : ' . $template);
 }
 
 // 2) 連携列 ------------------------------------------------------------------
@@ -63,10 +99,7 @@ if (!$hasCols) {
     $linked = (int)$db->query('SELECT COUNT(*) FROM mansion_buildings WHERE mdb_id IS NOT NULL')->fetchColumn();
     $total = (int)$db->query('SELECT COUNT(*) FROM mansion_buildings')->fetchColumn();
     line('    マンションID保有件数 : ' . $linked . ' / ' . $total);
-    if ($linked === 0 && MANSION_DB_WEB_SEARCH_URL === '') {
-        line('    >>> マンションIDの入手経路がありません（マスタ配布・検索URLのどちらも未設定）。');
-        line('    >>> 実ページ参照は行われず、外部リクエストも発生しません。');
-    }
+    line('    ※ 一括解決は backend/scripts/backfill_mansion_mdb_id.php で行えます。');
 }
 
 // 3) 建物の特定 --------------------------------------------------------------
@@ -85,9 +118,32 @@ if ($mdbId === 0) {
     line('    local id      : ' . ($row['id'] ?? ''));
 
     line('');
-    line('[4] マンションIDの解決');
+    line('[4] マンションIDの解決（検索窓 → 候補 → 実ページで裏取り）');
+    if ($template !== null && $template !== '') {
+        $searchUrl = str_replace('{name}', rawurlencode((string)$row['building_name']), $template);
+        line('    検索URL : ' . $searchUrl);
+        $searchResponse = chatMansionWebCachedHtml($db, $searchUrl, MANSION_DB_WEB_CACHE_TTL);
+        line('    HTTP    : ' . ($searchResponse['status'] ?? 0) . ' / bytes=' . strlen((string)$searchResponse['html']));
+        if ((int)($searchResponse['status'] ?? 0) === 403) {
+            line('      >>> 403 Forbidden。このサーバーからのアクセスが拒否されています。');
+            line('      >>> db.self-in.com はサーバー経由のアクセスをIPで拒否することがあります');
+            line('      >>> （nginx の素の403が返る＝User-Agent等のヘッダーでは回避できません）。');
+            line('      >>> 先方に、このサーバーのIPアドレスからのアクセス許可をご依頼ください。');
+        }
+        $candidates = chatMansionWebExtractCandidates($searchResponse['html']);
+        line('    候補    : ' . count($candidates) . ' 件');
+        foreach (array_slice($candidates, 0, 10) as $candidate) {
+            line('      - id=' . $candidate['id'] . ' ' . $candidate['label']);
+        }
+        if (empty($candidates) && !empty($searchResponse['ok'])) {
+            line('      >>> 応答は取得できましたが候補リンクが見つかりません。');
+            line('      >>> 候補がJavaScriptで後から描画されている可能性があります。');
+            line('      >>> ブラウザの開発者ツール（ネットワーク）で候補取得のURLを確認し、');
+            line('      >>> そのURLを MANSION_DB_WEB_SEARCH_URL に設定してください。');
+        }
+    }
     $mdbId = (int)chatMansionWebResolveId($db, $row);
-    line('    mdb_id : ' . ($mdbId > 0 ? $mdbId : '解決できず'));
+    line('    mdb_id  : ' . ($mdbId > 0 ? $mdbId : '解決できず'));
     if ($mdbId <= 0) {
         line('    >>> マンションIDが無いため実ページは取得しません（従来回答へフォールバック）。');
         exit;

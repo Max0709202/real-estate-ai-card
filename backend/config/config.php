@@ -205,12 +205,25 @@ if (!defined('MANSION_DB_WEB_CID')) {
 if (!defined('MANSION_DB_WEB_ON')) {
     define('MANSION_DB_WEB_ON', '0');
 }
-// マンション名／住所からマンションIDを引くための検索URL。
+// マンション名からマンションIDを引くための検索URL。
+// db.self-in.com トップの「マンション名で検索」窓が実際に投げているリクエスト
+// （GET /search/?mname=マンション名）をそのまま利用する。
 // {name} {address} {pref} {city} をURLエンコードして差し込む。
-// 未設定（空）の間はID検索を行わない＝外部リクエストは一切発生しない。
-// ※ベンダー（リニュアル仲介）から検索エンドポイントの提供を受けてから設定する。
+// 未設定にすると MANSION_DB_WEB_SEARCH_PAGE_URL の検索窓から自動生成を試みる。
 if (!defined('MANSION_DB_WEB_SEARCH_URL')) {
-    define('MANSION_DB_WEB_SEARCH_URL', getenv('MANSION_DB_WEB_SEARCH_URL') ?: '');
+    define('MANSION_DB_WEB_SEARCH_URL', getenv('MANSION_DB_WEB_SEARCH_URL') ?: 'https://db.self-in.com/search/?mname={name}');
+}
+// マンション名の「検索窓」があるページ（db.self-in.com トップの
+// 「マンション名で検索」の入力欄）。ここから <form> の action と入力欄の name を
+// 読み取り、検索URLを自動生成する（＝ベンダーにID一覧を請求せず自社で解決するため）。
+// 生成した検索URLテンプレートはキャッシュされ、毎回の解析は発生しない。
+if (!defined('MANSION_DB_WEB_SEARCH_PAGE_URL')) {
+    define('MANSION_DB_WEB_SEARCH_PAGE_URL', getenv('MANSION_DB_WEB_SEARCH_PAGE_URL') ?: 'https://db.self-in.com/');
+}
+// ID一括解決（backfill_mansion_mdb_id.php）でのリクエスト間隔（ミリ秒）。
+// 先方に頻度制限は無いとのことだが、相手サーバーへの配慮として既定200ms。
+if (!defined('MANSION_DB_WEB_SEARCH_DELAY_MS')) {
+    define('MANSION_DB_WEB_SEARCH_DELAY_MS', (int)(getenv('MANSION_DB_WEB_SEARCH_DELAY_MS') ?: 200));
 }
 // 実ページのキャッシュTTL（秒）。販売履歴・口コミは頻繁には変わらないため既定6時間。
 if (!defined('MANSION_DB_WEB_CACHE_TTL')) {
@@ -218,6 +231,14 @@ if (!defined('MANSION_DB_WEB_CACHE_TTL')) {
 }
 if (!defined('MANSION_DB_WEB_TIMEOUT')) {
     define('MANSION_DB_WEB_TIMEOUT', (int)(getenv('MANSION_DB_WEB_TIMEOUT') ?: 12));
+}
+// db.self-in.com へ名乗るUser-Agent。先方が誰からのアクセスかを識別できるよう、
+// 素性の分かる名前にしている（IP許可の相談時にログで突合しやすくするため）。
+// ※万一 User-Agent で弾かれる場合は、環境変数 MANSION_DB_WEB_USER_AGENT で
+//   ブラウザ相当の文字列に差し替えられる。
+if (!defined('MANSION_DB_WEB_USER_AGENT')) {
+    define('MANSION_DB_WEB_USER_AGENT', getenv('MANSION_DB_WEB_USER_AGENT')
+        ?: 'AI-Fcard-MansionDB/1.0 (+https://www.ai-fcard.com/)');
 }
 
 // チャットボット: Firebase SMS認証（Phone Authentication）
