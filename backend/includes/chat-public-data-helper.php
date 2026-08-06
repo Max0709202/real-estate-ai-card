@@ -1907,6 +1907,26 @@ function chatMansionWebExtractCandidates($body) {
 }
 
 /**
+ * 検索に使う建物名の表記ゆれ候補。
+ *
+ * 自社マスタは全角（「エルザタワー５５」）、先方サイトは半角（「エルザタワー55」）で
+ * 登録されていることが実測で分かっている。先方の検索が全角を吸収してくれる場合も
+ * あるが、全物件で同じ保証はないため、0件だったときの再検索用に半角化した表記を
+ * 用意する。1回目でヒットすれば2つ目は使われない（＝通常は1リクエストのまま）。
+ *
+ * @return string[]
+ */
+function chatMansionWebSearchNameVariants($name) {
+    $name = trim((string)$name);
+    if ($name === '') return [];
+    $variants = [$name];
+    // 'a' = 全角英数を半角へ、's' = 全角スペースを半角へ。カナは変換しない。
+    $halfWidth = trim(mb_convert_kana($name, 'as'));
+    if ($halfWidth !== '' && $halfWidth !== $name) $variants[] = $halfWidth;
+    return $variants;
+}
+
+/**
  * マンション名・住所からマンションIDを検索する（利用ルール1）。
  *
  * 検索URL（設定 or 検索窓から自動生成）に建物名を渡し、返ってきた候補の中から
@@ -1919,23 +1939,26 @@ function chatMansionWebSearchId($db, $row) {
     if ($template === null || $template === '') return null;
     $name = trim((string)($row['building_name'] ?? ''));
     if ($name === '') return null;
-    $url = strtr($template, [
-        '{name}' => rawurlencode($name),
+    $ttl = defined('MANSION_DB_WEB_CACHE_TTL') ? (int)MANSION_DB_WEB_CACHE_TTL : 21600;
+    $replacements = [
         '{address}' => rawurlencode(trim((string)($row['full_address'] ?? ''))),
         '{pref}' => rawurlencode(trim((string)($row['prefecture'] ?? ''))),
         '{city}' => rawurlencode(trim((string)($row['city'] ?? ''))),
-    ]);
-    $ttl = defined('MANSION_DB_WEB_CACHE_TTL') ? (int)MANSION_DB_WEB_CACHE_TTL : 21600;
-    $search = chatMansionWebCachedHtml($db, $url, $ttl);
-    if (empty($search['ok'])) {
-        chatMansionDebugLog('web_search_failed', ['url' => $url, 'status' => $search['status'] ?? 0]);
-        return null;
-    }
-    $candidates = chatMansionWebExtractCandidates($search['html']);
-    if (empty($candidates)) {
+    ];
+    // 表記ゆれ（全角／半角）で順に検索し、候補が取れた時点で打ち切る。
+    $candidates = [];
+    foreach (chatMansionWebSearchNameVariants($name) as $variant) {
+        $url = strtr($template, ['{name}' => rawurlencode($variant)] + $replacements);
+        $search = chatMansionWebCachedHtml($db, $url, $ttl);
+        if (empty($search['ok'])) {
+            chatMansionDebugLog('web_search_failed', ['url' => $url, 'status' => $search['status'] ?? 0]);
+            continue;
+        }
+        $candidates = chatMansionWebExtractCandidates($search['html']);
+        if (!empty($candidates)) break;
         chatMansionDebugLog('web_search_no_candidates', $url);
-        return null;
     }
+    if (empty($candidates)) return null;
     // 候補名が取れているものは名称一致度で並べ替える。検索結果が多いときに、
     // 先頭から順に総当たりして無関係なページを何枚も取りに行かないようにする。
     $target = chatMansionNormalizeText($name);
