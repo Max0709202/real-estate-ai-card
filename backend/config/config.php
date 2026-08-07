@@ -117,6 +117,39 @@ define('TECH_TOOL_SLP_BASE', 'https://self-in.net/slp/index.php?id=');
 define('TECH_TOOL_OLP_BASE', 'https://self-in.net/olp/index.php?id=');
 define('TECH_TOOL_ALP_BASE', 'https://self-in.net/alp/index.php?id=');
 
+// ---------------------------------------------------------------------------
+// セルフィンPro 会員判定API（self-in.com）
+//
+// チャットでお客様に登録いただいたメールアドレスが、セルフィンProに登録済みか
+// どうかだけを問い合わせ、結果に応じてチャット内の案内文を出し分ける。
+// 返却されるのは登録有無のみで、会社名・契約情報等は受け取らない。
+//
+//   POST {SELFIN_MEMBER_CHECK_URL}
+//   Body: key={APIキー}&mail={メールアドレス}   （APIキーはヘッダーではなくPOSTパラメータ）
+//   Response: {"exists": true} / {"exists": false}
+//
+// 先方はアクセス元IP（本番Xserverのグローバルアドレス 85.131.209.117）をホワイト
+// リスト登録しているため、必ずサーバー側から呼び出す（ブラウザから直接呼ばない）。
+// 401が返る場合はIP制限またはAPIキーの問題なので、先方へ状況確認を依頼する。
+//
+// APIキーはリポジトリに含めない。backend/config/secrets.php または環境変数
+// SELFIN_MEMBER_CHECK_KEY で設定する。未設定の場合は連携を行わず、チャットの
+// 挙動は連携前と同じ（案内文を出さない）。
+// ---------------------------------------------------------------------------
+if (!defined('SELFIN_MEMBER_CHECK_URL')) {
+    define('SELFIN_MEMBER_CHECK_URL', getenv('SELFIN_MEMBER_CHECK_URL') ?: 'https://self-in.com/api/v1/member/check');
+}
+if (!defined('SELFIN_MEMBER_CHECK_KEY')) {
+    define('SELFIN_MEMBER_CHECK_KEY', getenv('SELFIN_MEMBER_CHECK_KEY') ?: '');
+}
+if (!defined('SELFIN_MEMBER_CHECK_TIMEOUT')) {
+    define('SELFIN_MEMBER_CHECK_TIMEOUT', (int)(getenv('SELFIN_MEMBER_CHECK_TIMEOUT') ?: 8));
+}
+// 障害時に連携だけを止められるようにする（'0' で無効）。既定は有効。
+if (!defined('SELFIN_MEMBER_CHECK_ENABLED')) {
+    define('SELFIN_MEMBER_CHECK_ENABLED', getenv('SELFIN_MEMBER_CHECK_ENABLED') !== '0');
+}
+
 // 通知メール設定
 define('NOTIFICATION_EMAIL', 'info@ai-fcard.com');
 

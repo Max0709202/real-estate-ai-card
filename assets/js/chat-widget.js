@@ -1111,11 +1111,14 @@
             if (!email) { status.textContent = 'メールアドレスを入力してください。'; return; }
             submit.disabled = true;
             status.textContent = '登録しています...';
-            saveProfile({ email: email }).then(function () {
+            saveProfile({ email: email }).then(function (result) {
                 box.remove();
                 appendUserMessage(email);
                 registrationFlow = false;
                 appendBotMessage(registrationCompleteText);
+                // セルフィンPro会員判定の結果に応じた案内（サーバー側で判定）。
+                // 判定できなかった場合は空文字が返るため、何も表示しない。
+                if (result && result.selfin_message) appendBotMessage(result.selfin_message);
                 // 本人登録が完了したので「ご家族を招待」を表示可能にする。
                 inviteReady = true;
                 updateInviteButtonVisibility();
