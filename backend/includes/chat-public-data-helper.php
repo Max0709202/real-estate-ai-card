@@ -65,6 +65,7 @@ function chatPublicDataSourceLabel($provider) {
         'mlit_dpf' => '国土交通データプラットフォーム',
         'estat' => '政府統計の総合窓口 e-Stat',
         'mansion_db' => '当社 全国マンションデータベース',
+        'mansion_db_web' => '当社 全国マンションデータベース（物件ページ）',
     ];
     return $map[$provider] ?? $provider;
 }
@@ -1368,21 +1369,903 @@ function chatMansionSiblingCandidates($db, $row, $limit = 5) {
     }
 }
 
+/* ==========================================================================
+ * 全国マンションデータベース（db.self-in.com）実ページ参照
+ *
+ * mansion_buildings は配布XLSXの「基礎情報」だけを保持しているため、販売履歴・
+ * 価格推移・賃料履歴・賃貸募集履歴・口コミ・管理費/修繕積立金・管理会社・土地権利
+ * などには答えられない。これらは実際のマンションページにしか存在しない。
+ * そこで「建物を1件に特定できた」場合に限り実ページを取得し、そこに書かれている
+ * 内容だけを根拠に回答する。
+ *
+ * URL形式（仕様どおり固定）:
+ *   https://db.self-in.com/mansion/{マンションID}.html?cid=rchukai&on=0
+ *   on=0 はリニュアル仲介専用のマスク解除パラメータ。on=1 は使用しない。
+ *
+ * 事故防止の設計:
+ * - 取得できなければ必ず null を返し、従来のDB基礎情報回答へフォールバックする
+ *   （実ページ参照はあくまで上積みで、既存動作を壊さない）。
+ * - 取得したページが本当にその建物かを名称＋住所で照合してからでないと採用しない。
+ * - マスクされたままの値（＊＊＊/非公開/会員登録…）は事実として扱わず捨てる。
+ * ========================================================================== */
+
+/** 実ページ参照が有効か（設定フラグ＋curl の存在）。 */
+function chatMansionWebEnabled() {
+    if (!defined('MANSION_DB_WEB_ENABLED') || !MANSION_DB_WEB_ENABLED) return false;
+    return function_exists('curl_init');
+}
+
+/**
+ * マンションページのURLを組み立てる。on は仕様上 0 固定（マスク解除）。
+ * 設定で 0 以外が入っていても 0 に矯正する（on=1 を絶対に使わないため）。
+ */
+function chatMansionWebPageUrl($mdbId) {
+    $mdbId = (int)$mdbId;
+    if ($mdbId <= 0) return '';
+    $base = defined('MANSION_DB_WEB_BASE_URL') ? MANSION_DB_WEB_BASE_URL : 'https://db.self-in.com/mansion/';
+    $cid = defined('MANSION_DB_WEB_CID') ? MANSION_DB_WEB_CID : 'rchukai';
+    // on は仕様上 0 固定。設定ミスで 1 が入っても採用しない。
+    $on = (defined('MANSION_DB_WEB_ON') && (string)MANSION_DB_WEB_ON === '0') ? MANSION_DB_WEB_ON : '0';
+    return rtrim($base, '/') . '/' . $mdbId . '.html?cid=' . rawurlencode($cid) . '&on=' . rawurlencode($on);
+}
+
+/**
+ * mansion_buildings にマンションID連携用の列（add_mansion_db_page_link.sql）が
+ * あるか。列が無い環境でも例外を出さずに機能全体を静かに無効化するための判定。
+ * 実行中プロセス内で1度だけ SHOW COLUMNS する。
+ */
+function chatMansionWebHasIdColumns($db) {
+    static $has = null;
+    if ($has !== null) return $has;
+    $has = false;
+    if (!$db instanceof PDO) return false;
+    try {
+        $cols = $db->query("SHOW COLUMNS FROM mansion_buildings LIKE 'mdb_id'")->fetchAll(PDO::FETCH_ASSOC);
+        $has = !empty($cols);
+    } catch (Throwable $e) {
+        error_log('chatMansionWebHasIdColumns error: ' . $e->getMessage());
+        $has = false;
+    }
+    return $has;
+}
+
+/** 解決できたマンションID（または notfound）を書き戻し、次回以降の再検索を避ける。 */
+function chatMansionWebStoreId($db, $localId, $mdbId, $status) {
+    if (!$db instanceof PDO || (int)$localId <= 0) return;
+    if (!chatMansionWebHasIdColumns($db)) return;
+    try {
+        $stmt = $db->prepare('UPDATE mansion_buildings SET mdb_id = :mdb, mdb_id_status = :st, mdb_id_checked_at = NOW() WHERE id = :id');
+        $stmt->execute([
+            ':mdb' => (int)$mdbId > 0 ? (int)$mdbId : null,
+            ':st' => $status,
+            ':id' => (int)$localId,
+        ]);
+    } catch (Throwable $e) {
+        error_log('chatMansionWebStoreId error: ' . $e->getMessage());
+    }
+}
+
+/**
+ * HTMLをUTF-8へ寄せる。meta charset が Shift_JIS/EUC-JP のページでも文字化けした
+ * ままプロンプトへ流さないため。不正バイトは除去する（preg の /u が失敗するため）。
+ */
+function chatMansionWebToUtf8($html) {
+    $html = (string)$html;
+    if ($html === '') return '';
+    $charset = '';
+    if (preg_match('#<meta[^>]+charset\s*=\s*["\']?\s*([a-z0-9_\-]+)#i', $html, $m)) {
+        $charset = strtolower(trim($m[1]));
+    }
+    if ($charset !== '' && !in_array($charset, ['utf-8', 'utf8'], true)) {
+        $map = ['shift_jis' => 'SJIS-win', 'shift-jis' => 'SJIS-win', 'sjis' => 'SJIS-win',
+                'x-sjis' => 'SJIS-win', 'windows-31j' => 'SJIS-win', 'cp932' => 'SJIS-win',
+                'euc-jp' => 'EUC-JP', 'eucjp' => 'EUC-JP', 'iso-2022-jp' => 'ISO-2022-JP'];
+        if (isset($map[$charset])) {
+            $converted = @mb_convert_encoding($html, 'UTF-8', $map[$charset]);
+            if (is_string($converted) && $converted !== '') $html = $converted;
+        }
+    }
+    if (!mb_check_encoding($html, 'UTF-8')) {
+        $html = @mb_convert_encoding($html, 'UTF-8', 'UTF-8');
+    }
+    return is_string($html) ? $html : '';
+}
+
+/**
+ * マスクされたままの値かどうか。on=0 が効いていれば出ないはずだが、万一マスクが
+ * 残っていた場合に「＊＊＊」を事実として回答しないよう、その行ごと捨てる。
+ */
+function chatMansionWebLineIsMasked($line) {
+    $line = trim((string)$line);
+    if ($line === '') return true;
+    if (preg_match('/(会員登録|会員限定|ログイン(?:して|後)|無料登録|非公開|マスク)/u', $line)) return true;
+    // 記号だけ・伏字だけの値（「価格：＊＊＊＊」等）
+    if (preg_match('/^[^：:|]{0,20}[：:|]?\s*[\*＊●○×✕\-‐ー―─＿_\.．]{2,}\s*$/u', $line)) return true;
+    return false;
+}
+
+/**
+ * マンションページのHTMLを「見出し → 本文行」の配列へ変換する。
+ * 表（販売履歴・賃料履歴）は 1行 = 「値 | 値 | 値」として保持し、
+ * 履歴の行構造がプロンプト上でも読めるようにする。
+ *
+ * @return array<int, array{title:string, lines:string[]}>
+ */
+function chatMansionWebHtmlToSections($html) {
+    $html = chatMansionWebToUtf8($html);
+    if ($html === '') return [];
+
+    // 巨大ページで PCRE のバックトラック上限に当たると preg_replace は null を返す。
+    // null のまま処理を続けると PHP 8.1+ で警告が出るため、段階ごとに元へ戻す。
+    $step = static function ($pattern, $replacement, $subject) {
+        $out = preg_replace($pattern, $replacement, $subject);
+        return is_string($out) ? $out : $subject;
+    };
+    $html = $step('#<(script|style|noscript|svg|iframe|head|select)\b[^>]*>.*?</\1\s*>#is', ' ', $html);
+    $html = $step('#<!--.*?-->#s', ' ', $html);
+    // 構造（改行・セル区切り・見出し）を先にテキストへ写してからタグを落とす。
+    $html = $step('#<(?:br|hr)\s*/?>#i', "\n", $html);
+    $html = $step('#<h[1-6]\b[^>]*>#i', "\n\x01", $html);
+    $html = $step('#</(?:td|th)\s*>#i', ' | ', $html);
+    $html = $step('#</(?:p|div|li|tr|table|section|article|ul|ol|dl|dd|dt|h[1-6])\s*>#i', "\n", $html);
+    $html = strip_tags($html);
+    $html = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $html = str_replace(["\xc2\xa0", "\r\n", "\r"], [' ', "\n", "\n"], $html);
+
+    $sections = [];
+    $current = ['title' => '基本情報', 'lines' => []];
+    // 見出しの無い長大な領域（賃料履歴の明細など）を分割したときの通し番号。
+    // 「（続き）（続き）（続き）…」と接尾辞が積み重なると、見出しが本文より長くなり、
+    // 後段のスコアリングでも同じ節として扱えなくなるため、基準名＋番号で管理する。
+    $baseTitle = $current['title'];
+    $continuation = 0;
+    $seen = [];
+    foreach (explode("\n", $html) as $rawLine) {
+        $line = trim(preg_replace('/[ \t\x{3000}]+/u', ' ', $rawLine));
+        $line = trim($line, " |");
+        $line = trim(preg_replace('/\s*\|\s*(\|\s*)+/u', ' | ', $line));
+        if ($line === '' || $line === '|') continue;
+        $isHeading = strpos($line, "\x01") === 0;
+        if ($isHeading) {
+            $title = trim(str_replace("\x01", '', $line));
+            if (!empty($current['lines'])) $sections[] = $current;
+            $baseTitle = $title !== '' ? $title : '（見出しなし）';
+            $continuation = 0;
+            $current = ['title' => $baseTitle, 'lines' => []];
+            $seen = [];
+            continue;
+        }
+        $line = str_replace("\x01", '', $line);
+        if (mb_strlen($line) > 400) $line = mb_substr($line, 0, 400) . '…';
+        if (chatMansionWebLineIsMasked($line)) continue;
+        // ナビゲーション・ラベル由来の短い繰り返しだけを落とす。販売履歴・賃料履歴の
+        // 明細行（長い行）は、たまたま同一内容でも件数が変わるため重複除去しない。
+        if (mb_strlen($line) < 30) {
+            if (isset($seen[$line])) continue;
+            $seen[$line] = true;
+        }
+        $current['lines'][] = $line;
+        if (count($current['lines']) >= 400) {
+            $sections[] = $current;
+            $continuation++;
+            $current = ['title' => $baseTitle . '（続き' . $continuation . '）', 'lines' => []];
+            $seen = [];
+        }
+    }
+    if (!empty($current['lines'])) $sections[] = $current;
+    return $sections;
+}
+
+/**
+ * 取得したページが本当にこの建物のページかを照合する。マンションIDの取り違えは
+ * 「別マンションの販売履歴を自信満々に答える」という最悪の事故になるため、
+ * 建物名（正規化一致）と、市区町村または町名のいずれかの一致を必須にする。
+ */
+function chatMansionWebPageMatchesRow($sections, $row) {
+    $name = chatMansionNormalizeText($row['building_name'] ?? '');
+    if ($name === '' || mb_strlen($name) < 2) return false;
+    $text = '';
+    foreach ((array)$sections as $s) {
+        $text .= $s['title'] . "\n" . implode("\n", $s['lines']) . "\n";
+        if (mb_strlen($text) > 60000) break;
+    }
+    $norm = chatMansionNormalizeText($text);
+    if ($norm === '' || mb_strpos($norm, $name) === false) return false;
+    foreach (['city', 'town', 'prefecture'] as $col) {
+        $part = chatMansionNormalizeText($row[$col] ?? '');
+        if ($part !== '' && mb_strpos($norm, $part) !== false) return true;
+    }
+    return false;
+}
+
+/**
+ * 全国マンションデータベース専用のHTTP GET。
+ *
+ * 公的データAPI用の chatPublicDataHttpGet() を使い回さないのは、送信するヘッダーを
+ * この参照だけ独立して調整できるようにするため（共通関数を触ると国土交通省・
+ * e-Stat 側の取得に影響が出る）。Accept-Language と Referer を付け、User-Agent は
+ * MANSION_DB_WEB_USER_AGENT で差し替えられる。
+ *
+ * 注意：db.self-in.com はサーバーからのアクセスをIPで拒否している場合がある
+ * （nginx の素の 403「You don't have permission to access this resource.」が返る）。
+ * これはヘッダーでは回避できないため、先方にサーバーIPの許可を依頼すること。
+ *
+ * @return array{ok:bool, status:int, error:string, body:string}
+ */
+function chatMansionWebHttpGet($url, $timeout = 12) {
+    if (!function_exists('curl_init')) {
+        return ['ok' => false, 'status' => 0, 'error' => 'curl is not available', 'body' => ''];
+    }
+    $origin = chatMansionWebOrigin();
+    $headers = [
+        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language: ja,en-US;q=0.9,en;q=0.8',
+    ];
+    if ($origin !== '') $headers[] = 'Referer: ' . $origin . '/';
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_TIMEOUT => max(1, (int)$timeout),
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_ENCODING => '',
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_USERAGENT => defined('MANSION_DB_WEB_USER_AGENT') ? MANSION_DB_WEB_USER_AGENT : 'Mozilla/5.0',
+    ]);
+    $body = curl_exec($ch);
+    $error = $body === false ? curl_error($ch) : '';
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($body === false) {
+        return ['ok' => false, 'status' => $status, 'error' => $error ?: 'request failed', 'body' => ''];
+    }
+    return ['ok' => $status >= 200 && $status < 300, 'status' => $status, 'error' => '', 'body' => (string)$body];
+}
+
+/** キャッシュ付きのHTML取得。chat_public_data_cache にHTML本文をそのまま保持する。 */
+function chatMansionWebCachedHtml($db, $url, $ttlSeconds) {
+    $key = hash('sha256', 'mansion_db_web|' . $url);
+    if ($db instanceof PDO) {
+        try {
+            ensureChatPublicDataCacheTable($db);
+            $stmt = $db->prepare('SELECT response_json, http_status, updated_at FROM chat_public_data_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1');
+            $stmt->execute([$key]);
+            $cached = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($cached) {
+                $status = (int)($cached['http_status'] ?? 0);
+                return [
+                    'ok' => $status >= 200 && $status < 300,
+                    'status' => $status,
+                    'html' => (string)($cached['response_json'] ?? ''),
+                    'cached' => true,
+                    'fetched_at' => $cached['updated_at'] ?? null,
+                ];
+            }
+        } catch (Throwable $e) {
+            error_log('chatMansionWebCachedHtml read error: ' . $e->getMessage());
+        }
+    }
+    $timeout = defined('MANSION_DB_WEB_TIMEOUT') ? (int)MANSION_DB_WEB_TIMEOUT : 12;
+    $result = chatMansionWebHttpGet($url, $timeout);
+    $html = (string)($result['body'] ?? '');
+    $ok = !empty($result['ok']) && $html !== '';
+    if ($db instanceof PDO) {
+        try {
+            $stmt = $db->prepare("INSERT INTO chat_public_data_cache (cache_key, provider, request_url, response_json, http_status, error_message, expires_at)
+                VALUES (?, 'mansion_db_web', ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))
+                ON DUPLICATE KEY UPDATE response_json = VALUES(response_json), http_status = VALUES(http_status), error_message = VALUES(error_message), expires_at = VALUES(expires_at), updated_at = CURRENT_TIMESTAMP");
+            $stmt->execute([
+                $key,
+                $url,
+                $ok ? $html : '',
+                $result['status'] ?? null,
+                $result['error'] ?? null,
+                // 取得失敗を長く保持すると「一度失敗すると同じ物件がしばらく失敗し続ける」
+                // 不安定さの原因になるため、失敗時だけ極短TTLにする（他プロバイダと同方針）。
+                $ok ? max(60, (int)$ttlSeconds) : 20,
+            ]);
+        } catch (Throwable $e) {
+            error_log('chatMansionWebCachedHtml write error: ' . $e->getMessage());
+        }
+    }
+    return [
+        'ok' => $ok,
+        'status' => $result['status'] ?? 0,
+        'html' => $ok ? $html : '',
+        'cached' => false,
+        'fetched_at' => date('Y-m-d H:i:s'),
+    ];
+}
+
+/** マンションページのオリジン（scheme://host）。相対URLの解決に使う。 */
+function chatMansionWebOrigin() {
+    $base = defined('MANSION_DB_WEB_BASE_URL') ? MANSION_DB_WEB_BASE_URL : 'https://db.self-in.com/mansion/';
+    $parts = parse_url($base);
+    if (empty($parts['scheme']) || empty($parts['host'])) return '';
+    return $parts['scheme'] . '://' . $parts['host'] . (!empty($parts['port']) ? ':' . $parts['port'] : '');
+}
+
+/** ページ内の href/action（相対・ルート相対・絶対）を絶対URLへ解決する。 */
+function chatMansionWebAbsoluteUrl($href, $pageUrl) {
+    $href = trim((string)$href);
+    if ($href === '') return $pageUrl;
+    if (preg_match('#^https?://#i', $href)) return $href;
+    $origin = chatMansionWebOrigin();
+    if ($href[0] === '/') return $origin . $href;
+    $base = preg_replace('#[^/]*$#', '', (string)strtok($pageUrl, '?'));
+    if ($base === null || $base === '') $base = $origin . '/';
+    return $base . $href;
+}
+
+/**
+ * 検索窓のあるページから検索URLのテンプレートを自動生成する。
+ *
+ * ベンダーにマンションID一覧を請求すると高額な費用が発生するため、公開されている
+ * 検索窓（マンション名を入れると候補が出る、あの入力欄）をそのまま利用して自力で
+ * IDを引く。<form> の action と、テキスト入力欄の name を読み取り、
+ * 「action?hidden項目…&入力欄name={name}」という形のテンプレートを組み立てる。
+ *
+ * 解析結果はキャッシュに保存するので、毎回HTMLを解析することはない。
+ * 検索窓がPOSTのみ／JavaScriptのみで動く場合は null を返し、その旨をログに残す
+ * （その場合は MANSION_DB_WEB_SEARCH_URL に実URLを設定してもらう運用に切り替える）。
+ *
+ * @return string|null 例: 'https://db.self-in.com/search.html?cid=rchukai&on=0&keyword={name}'
+ */
+function chatMansionWebDiscoverSearchTemplate($db) {
+    $pageUrl = defined('MANSION_DB_WEB_SEARCH_PAGE_URL') ? trim((string)MANSION_DB_WEB_SEARCH_PAGE_URL) : '';
+    if ($pageUrl === '') return null;
+    $cacheKey = hash('sha256', 'mansion_db_web_search_template|' . $pageUrl);
+    if ($db instanceof PDO) {
+        try {
+            ensureChatPublicDataCacheTable($db);
+            $stmt = $db->prepare('SELECT response_json FROM chat_public_data_cache WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1');
+            $stmt->execute([$cacheKey]);
+            $hit = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($hit) {
+                $stored = trim((string)($hit['response_json'] ?? ''));
+                return $stored !== '' ? $stored : null;
+            }
+        } catch (Throwable $e) {
+            error_log('chatMansionWebDiscoverSearchTemplate read error: ' . $e->getMessage());
+        }
+    }
+
+    $template = null;
+    $page = chatMansionWebCachedHtml($db, $pageUrl, 3600);
+    if (!empty($page['ok'])) {
+        $html = chatMansionWebToUtf8($page['html']);
+        if (preg_match_all('#<form\b[^>]*>.*?</form\s*>#is', $html, $forms)) {
+            $best = null;
+            $bestScore = -1;
+            foreach ($forms[0] as $form) {
+                // GETで引けるフォームだけを対象にする（POSTはこの経路では扱えない）。
+                if (preg_match('#\bmethod\s*=\s*["\']?\s*post#i', $form)) continue;
+                if (!preg_match('#<form\b[^>]*\baction\s*=\s*["\']([^"\']*)["\']#i', $form, $am)) {
+                    $action = $pageUrl;
+                } else {
+                    $action = chatMansionWebAbsoluteUrl($am[1], $pageUrl);
+                }
+                $queryName = '';
+                $score = 0;
+                $hidden = [];
+                if (preg_match_all('#<input\b[^>]*>#i', $form, $inputs)) {
+                    foreach ($inputs[0] as $input) {
+                        if (!preg_match('#\bname\s*=\s*["\']([^"\']+)["\']#i', $input, $nm)) continue;
+                        $inputName = $nm[1];
+                        $type = preg_match('#\btype\s*=\s*["\']?([a-z]+)#i', $input, $tm) ? strtolower($tm[1]) : 'text';
+                        if ($type === 'hidden') {
+                            $value = preg_match('#\bvalue\s*=\s*["\']([^"\']*)["\']#i', $input, $vm) ? $vm[1] : '';
+                            $hidden[$inputName] = $value;
+                            continue;
+                        }
+                        if (!in_array($type, ['text', 'search'], true)) continue;
+                        if ($queryName !== '') continue;
+                        $queryName = $inputName;
+                        // 「マンション名の検索窓」らしい name ほど高く評価する。
+                        if (preg_match('#(mansion|bukken|建物|物件)#iu', $inputName)) $score += 5;
+                        if (preg_match('#(keyword|freeword|search|word|query|^q$|name|kw)#i', $inputName)) $score += 3;
+                    }
+                }
+                if ($queryName === '') continue;
+                if (preg_match('#(search|find|mansion|list)#i', $action)) $score += 2;
+                if ($score <= $bestScore) continue;
+                $bestScore = $score;
+                // 検索窓と同じ画面に置かれている hidden 項目（cid 等）はそのまま引き継ぐ。
+                // 引き継がないと会員コンテキストが外れ、候補が出ないことがある。
+                $query = [];
+                foreach ($hidden as $hiddenName => $hiddenValue) {
+                    $query[] = rawurlencode($hiddenName) . '=' . rawurlencode($hiddenValue);
+                }
+                $existing = parse_url($action, PHP_URL_QUERY);
+                if (!empty($existing)) array_unshift($query, $existing);
+                $joined = implode('&', array_filter($query));
+                if (stripos($joined, 'cid=') === false && defined('MANSION_DB_WEB_CID')) {
+                    $joined .= ($joined !== '' ? '&' : '') . 'cid=' . rawurlencode(MANSION_DB_WEB_CID);
+                }
+                $actionPath = strtok($action, '?');
+                $best = $actionPath . '?' . ($joined !== '' ? $joined . '&' : '') . rawurlencode($queryName) . '={name}';
+            }
+            $template = $best;
+        }
+        if ($template === null) {
+            chatMansionDebugLog('web_search_form_not_found', $pageUrl);
+        }
+    }
+
+    if ($db instanceof PDO) {
+        try {
+            $stmt = $db->prepare("INSERT INTO chat_public_data_cache (cache_key, provider, request_url, response_json, http_status, expires_at)
+                VALUES (?, 'mansion_db_web', ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))
+                ON DUPLICATE KEY UPDATE response_json = VALUES(response_json), http_status = VALUES(http_status), expires_at = VALUES(expires_at), updated_at = CURRENT_TIMESTAMP");
+            // 見つかった場合は長め（7日）、見つからない場合は短め（1時間）に保持し、
+            // サイト側の改修に自動追随できるようにする。
+            $stmt->execute([$cacheKey, $pageUrl, (string)$template, $template !== null ? 200 : 404, $template !== null ? 604800 : 3600]);
+        } catch (Throwable $e) {
+            error_log('chatMansionWebDiscoverSearchTemplate write error: ' . $e->getMessage());
+        }
+    }
+    chatMansionDebugLog('web_search_template', $template);
+    return $template;
+}
+
+/**
+ * 検索窓ページの構造を調査して報告する（診断スクリプト専用。チャットからは呼ばない）。
+ *
+ * 「マンション名で検索」の窓は、候補をJavaScriptで取得するインクリメンタルサーチの
+ * 可能性がある。その場合 <form> の自動解析では検索URLを組み立てられないため、
+ * ページ内のフォーム定義・JS内のURLらしき文字列・外部JSの一覧をそのまま出力して、
+ * 実際にサイトへ到達できる環境で「どれが候補取得APIか」を判断できるようにする。
+ *
+ * @return array{ok:bool, status:int, forms:array, endpoints:string[], scripts:string[]}
+ */
+function chatMansionWebProbeSearchEndpoints($db) {
+    $pageUrl = defined('MANSION_DB_WEB_SEARCH_PAGE_URL') ? trim((string)MANSION_DB_WEB_SEARCH_PAGE_URL) : '';
+    $report = ['ok' => false, 'status' => 0, 'forms' => [], 'endpoints' => [], 'scripts' => []];
+    if ($pageUrl === '') return $report;
+    $page = chatMansionWebCachedHtml($db, $pageUrl, 3600);
+    $report['status'] = (int)($page['status'] ?? 0);
+    if (empty($page['ok'])) return $report;
+    $report['ok'] = true;
+    $html = chatMansionWebToUtf8($page['html']);
+
+    if (preg_match_all('#<form\b[^>]*>.*?</form\s*>#is', $html, $forms)) {
+        foreach ($forms[0] as $form) {
+            $entry = [
+                'method' => preg_match('#\bmethod\s*=\s*["\']?([a-z]+)#i', $form, $mm) ? strtolower($mm[1]) : 'get',
+                'action' => preg_match('#<form\b[^>]*\baction\s*=\s*["\']([^"\']*)["\']#i', $form, $am)
+                    ? chatMansionWebAbsoluteUrl($am[1], $pageUrl) : $pageUrl,
+                'inputs' => [],
+            ];
+            if (preg_match_all('#<input\b[^>]*>#i', $form, $inputs)) {
+                foreach ($inputs[0] as $input) {
+                    if (!preg_match('#\bname\s*=\s*["\']([^"\']+)["\']#i', $input, $nm)) continue;
+                    $type = preg_match('#\btype\s*=\s*["\']?([a-z]+)#i', $input, $tm) ? strtolower($tm[1]) : 'text';
+                    $value = preg_match('#\bvalue\s*=\s*["\']([^"\']*)["\']#i', $input, $vm) ? $vm[1] : '';
+                    $entry['inputs'][] = ['name' => $nm[1], 'type' => $type, 'value' => $value];
+                }
+            }
+            $report['forms'][] = $entry;
+        }
+    }
+
+    // インクリメンタルサーチの候補取得URLらしき文字列（JS内のパス・APIエンドポイント）。
+    if (preg_match_all('#["\']([^"\'\s<>]*(?:search|suggest|autocomplete|incremental|keyword|ajax|api)[^"\'\s<>]*)["\']#i', $html, $urls)) {
+        $seen = [];
+        foreach ($urls[1] as $candidate) {
+            if (strpos($candidate, '/') === false) continue;
+            if (preg_match('#\.(css|png|jpe?g|gif|svg|woff2?|ico)(\?|$)#i', $candidate)) continue;
+            $candidate = html_entity_decode($candidate, ENT_QUOTES, 'UTF-8');
+            if (isset($seen[$candidate])) continue;
+            $seen[$candidate] = true;
+            $report['endpoints'][] = $candidate;
+            if (count($report['endpoints']) >= 20) break;
+        }
+    }
+    if (preg_match_all('#<script\b[^>]*\bsrc\s*=\s*["\']([^"\']+)["\']#i', $html, $scripts)) {
+        $report['scripts'] = array_values(array_unique(array_slice($scripts[1], 0, 20)));
+    }
+    return $report;
+}
+
+/** 設定された検索URL優先、無ければ検索窓から自動生成したテンプレートを返す。 */
+function chatMansionWebSearchTemplate($db) {
+    $configured = defined('MANSION_DB_WEB_SEARCH_URL') ? trim((string)MANSION_DB_WEB_SEARCH_URL) : '';
+    if ($configured !== '') return $configured;
+    return chatMansionWebDiscoverSearchTemplate($db);
+}
+
+/**
+ * 検索応答からマンションID候補を取り出す。検索結果がHTMLのリンク一覧でも、
+ * サジェスト（インクリメンタルサーチ）のJSONでも拾えるようにしている。
+ * アンカーテキスト（＝候補として画面に出るマンション名）も一緒に返し、
+ * 候補が多いときの並べ替えに使う。
+ *
+ * @return array<int, array{id:int, label:string}>
+ */
+function chatMansionWebExtractCandidates($body) {
+    $body = chatMansionWebToUtf8($body);
+    if ($body === '') return [];
+    // JSON応答はスラッシュが \/ でエスケープされているため戻しておく。
+    $normalized = str_replace(['\\/', '\\u002F', '\\u002f'], '/', $body);
+    $candidates = [];
+    $push = function ($id, $label) use (&$candidates) {
+        $id = (int)$id;
+        if ($id <= 0) return;
+        $label = trim(preg_replace('/\s+/u', ' ', strip_tags((string)$label)));
+        if (!isset($candidates[$id]) || ($candidates[$id] === '' && $label !== '')) {
+            $candidates[$id] = $label;
+        }
+    };
+    // 1) <a href="…/mansion/123.html">マンション名</a>
+    if (preg_match_all('#<a\b[^>]*href\s*=\s*["\'][^"\']*?/mansion/(\d+)\.html[^"\']*["\'][^>]*>(.*?)</a\s*>#is', $normalized, $anchors, PREG_SET_ORDER)) {
+        foreach ($anchors as $a) $push($a[1], $a[2]);
+    }
+    // 2) リンク以外（JSON中のURL文字列など）に現れる /mansion/123.html
+    if (preg_match_all('#/mansion/(\d+)\.html#i', $normalized, $urls)) {
+        foreach ($urls[1] as $id) $push($id, '');
+    }
+    // 3) サジェストAPIのJSON（{"id":123,"name":"○○マンション"} 等）
+    if (preg_match_all('#["\'](?:mansion_id|mansionId|bukken_id|id)["\']\s*:\s*["\']?(\d+)["\']?(?:\s*,\s*["\'](?:name|title|mansion_name|building_name)["\']\s*:\s*["\']([^"\']*)["\'])?#i', $normalized, $jsons, PREG_SET_ORDER)) {
+        foreach ($jsons as $j) $push($j[1], $j[2] ?? '');
+    }
+    $out = [];
+    foreach ($candidates as $id => $label) $out[] = ['id' => $id, 'label' => $label];
+    return $out;
+}
+
+/**
+ * 検索に使う建物名の表記ゆれ候補。
+ *
+ * 自社マスタは全角（「エルザタワー５５」）、先方サイトは半角（「エルザタワー55」）で
+ * 登録されていることが実測で分かっている。先方の検索が全角を吸収してくれる場合も
+ * あるが、全物件で同じ保証はないため、0件だったときの再検索用に半角化した表記を
+ * 用意する。1回目でヒットすれば2つ目は使われない（＝通常は1リクエストのまま）。
+ *
+ * @return string[]
+ */
+function chatMansionWebSearchNameVariants($name) {
+    $name = trim((string)$name);
+    if ($name === '') return [];
+    $variants = [$name];
+    // 'a' = 全角英数を半角へ、's' = 全角スペースを半角へ。カナは変換しない。
+    $halfWidth = trim(mb_convert_kana($name, 'as'));
+    if ($halfWidth !== '' && $halfWidth !== $name) $variants[] = $halfWidth;
+    return $variants;
+}
+
+/**
+ * マンション名・住所からマンションIDを検索する（利用ルール1）。
+ *
+ * 検索URL（設定 or 検索窓から自動生成）に建物名を渡し、返ってきた候補の中から
+ * 名称の近い順に実ページを取得して、建物名＋所在地が一致したものだけを採用する。
+ * 候補をそのまま信用せず必ず実ページで裏取りするのは、IDの取り違え＝別マンションの
+ * 販売履歴を回答する事故を防ぐため。
+ */
+function chatMansionWebSearchId($db, $row) {
+    $template = chatMansionWebSearchTemplate($db);
+    if ($template === null || $template === '') return null;
+    $name = trim((string)($row['building_name'] ?? ''));
+    if ($name === '') return null;
+    $ttl = defined('MANSION_DB_WEB_CACHE_TTL') ? (int)MANSION_DB_WEB_CACHE_TTL : 21600;
+    $replacements = [
+        '{address}' => rawurlencode(trim((string)($row['full_address'] ?? ''))),
+        '{pref}' => rawurlencode(trim((string)($row['prefecture'] ?? ''))),
+        '{city}' => rawurlencode(trim((string)($row['city'] ?? ''))),
+    ];
+    // 表記ゆれ（全角／半角）で順に検索し、候補が取れた時点で打ち切る。
+    $candidates = [];
+    foreach (chatMansionWebSearchNameVariants($name) as $variant) {
+        $url = strtr($template, ['{name}' => rawurlencode($variant)] + $replacements);
+        $search = chatMansionWebCachedHtml($db, $url, $ttl);
+        if (empty($search['ok'])) {
+            chatMansionDebugLog('web_search_failed', ['url' => $url, 'status' => $search['status'] ?? 0]);
+            continue;
+        }
+        $candidates = chatMansionWebExtractCandidates($search['html']);
+        if (!empty($candidates)) break;
+        chatMansionDebugLog('web_search_no_candidates', $url);
+    }
+    if (empty($candidates)) return null;
+    // 候補名が取れているものは名称一致度で並べ替える。検索結果が多いときに、
+    // 先頭から順に総当たりして無関係なページを何枚も取りに行かないようにする。
+    $target = chatMansionNormalizeText($name);
+    foreach ($candidates as $i => $candidate) {
+        $label = chatMansionNormalizeText($candidate['label']);
+        $score = 0;
+        if ($label !== '' && $target !== '') {
+            if ($label === $target) $score = 3;
+            elseif (mb_strpos($label, $target) === 0) $score = 2;
+            elseif (mb_strpos($label, $target) !== false) $score = 1;
+        }
+        $candidates[$i]['score'] = $score;
+        $candidates[$i]['order'] = $i;
+    }
+    usort($candidates, static function ($a, $b) {
+        if ($a['score'] === $b['score']) return $a['order'] <=> $b['order'];
+        return $b['score'] <=> $a['score'];
+    });
+    chatMansionDebugLog('web_search_candidates', array_slice($candidates, 0, 5));
+    foreach (array_slice($candidates, 0, 5) as $candidate) {
+        $candidateId = (int)$candidate['id'];
+        if ($candidateId <= 0) continue;
+        $page = chatMansionWebCachedHtml($db, chatMansionWebPageUrl($candidateId), $ttl);
+        if (empty($page['ok'])) continue;
+        if (chatMansionWebPageMatchesRow(chatMansionWebHtmlToSections($page['html']), $row)) {
+            return $candidateId;
+        }
+    }
+    return null;
+}
+
+/**
+ * この建物のマンションIDを解決する。
+ *   1) mansion_buildings.mdb_id（解決済み／マスタ配布）
+ *   2) 検索窓（自動生成 or 設定済みURL）で検索し、実ページで裏取りして書き戻す
+ * どちらも得られなければ null（＝実ページ参照は行わず、従来のDB基礎情報で回答）。
+ *
+ * 一度解決したIDは mdb_id に保存されるため、同じマンションで検索が再実行される
+ * ことはない（＝先方サーバーへのアクセスは1棟につき実質1回）。
+ */
+function chatMansionWebResolveId($db, $row) {
+    if (!$db instanceof PDO) return null;
+    $localId = (int)($row['id'] ?? 0);
+    if (array_key_exists('mdb_id', $row) && (int)$row['mdb_id'] > 0) return (int)$row['mdb_id'];
+    if (!chatMansionWebHasIdColumns($db)) {
+        // 連携列が無い環境では、検索して覚えることもできない。マスタ側で
+        // マンションIDが配布されるまで実ページ参照は行わない。
+        return null;
+    }
+    $status = '';
+    if ($localId > 0) {
+        try {
+            $stmt = $db->prepare('SELECT mdb_id, mdb_id_status, mdb_id_checked_at FROM mansion_buildings WHERE id = ? LIMIT 1');
+            $stmt->execute([$localId]);
+            $link = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            if ((int)($link['mdb_id'] ?? 0) > 0) return (int)$link['mdb_id'];
+            $status = (string)($link['mdb_id_status'] ?? '');
+            // 本家に存在しないと判定済みの建物を毎回検索し直さない（7日間は再試行しない）。
+            if ($status === 'notfound' && !empty($link['mdb_id_checked_at'])
+                && strtotime((string)$link['mdb_id_checked_at']) > time() - 7 * 86400) {
+                return null;
+            }
+        } catch (Throwable $e) {
+            error_log('chatMansionWebResolveId error: ' . $e->getMessage());
+            return null;
+        }
+    }
+    // 実際に検索できるURLが手元にあるかを、ここで初めて確認する（解決済みの棟で
+    // 無駄な検索窓解析を走らせないため、DB照会の後に置いている）。
+    // 検索できない状態で「検索したが見つからなかった」と記録してはいけない。
+    // 記録すると、後で検索URLを設定しても notfound の再試行抑止（7日間）が効いて
+    // しばらく解決できないままになる。
+    $template = chatMansionWebSearchTemplate($db);
+    if ($template === null || $template === '') return null;
+    $found = chatMansionWebSearchId($db, $row);
+    chatMansionWebStoreId($db, $localId, $found, $found ? 'confirmed' : 'notfound');
+    return $found;
+}
+
+/**
+ * 質問内容に合わせて実ページのセクションを取捨選択する（利用ルール9：回答の優先順位）。
+ * ページ全文をそのままプロンプトへ入れるとAPIコストと遅延が跳ね上がるため、
+ * 概要は常に含めたうえで、質問に関連するセクションから文字数上限まで詰める。
+ */
+/**
+ * 1つの節が長すぎるときに、先頭と末尾の両方を残して中間を省略する。
+ *
+ * 賃料履歴・販売履歴の明細は数百行になり、先頭だけを切り出すと、表が古い順に
+ * 並んでいた場合に「最新の価格」が丸ごと落ちてしまう（利用ルール8で最新価格・
+ * 最高/最低・推移を求められているため致命的）。並び順が分からない以上、
+ * 両端を残すのが唯一安全な削り方になる。
+ */
+function chatMansionWebTrimSectionBlock($block, $maxChars) {
+    $length = mb_strlen($block);
+    if ($length <= $maxChars || $maxChars < 200) return $block;
+    $headChars = (int)floor($maxChars * 0.6);
+    $tailChars = $maxChars - $headChars;
+    return mb_substr($block, 0, $headChars)
+        . "\n…（中略）…\n"
+        . mb_substr($block, $length - $tailChars);
+}
+
+function chatMansionWebSelectSections($sections, $message, $maxChars = 16000, $maxCharsPerSection = 3500) {
+    $message = (string)$message;
+    $topics = [
+        '/(価格|販売|売出|売り出し|成約|履歴|推移|相場|坪単価|単価|いくら|資産価値|値上がり|値下がり|売却|購入)/u'
+            => '/(価格|販売|売出|売り出し|成約|履歴|推移|相場|坪単価|単価|分譲|取引)/u',
+        '/(賃料|家賃|賃貸|利回り|投資|貸)/u' => '/(賃料|家賃|賃貸|募集|利回り)/u',
+        '/(口コミ|評判|住み心地|住みやすい|評価|レビュー)/u' => '/(口コミ|評判|レビュー|評価)/u',
+        '/(管理|修繕|積立|管理費|管理会社)/u' => '/(管理|修繕|積立)/u',
+        '/(周辺|環境|学区|通学|施設|買い物|スーパー)/u' => '/(周辺|環境|学区|通学|施設)/u',
+        '/(ハザード|災害|浸水|洪水|土砂|地盤|液状化)/u' => '/(ハザード|災害|浸水|洪水|土砂|地盤|液状化)/u',
+    ];
+    $wanted = [];
+    foreach ($topics as $ask => $sectionPattern) {
+        if (preg_match($ask, $message)) $wanted[] = $sectionPattern;
+    }
+    $scored = [];
+    foreach ((array)$sections as $index => $section) {
+        $title = (string)($section['title'] ?? '');
+        $score = 0;
+        // 概要・基本情報は質問に関わらず常に最優先（回答の前提になるため）。
+        if (preg_match('/(概要|基本情報|物件情報|建物|マンション情報)/u', $title)) $score += 100;
+        foreach ($wanted as $pattern) {
+            if (preg_match($pattern, $title)) $score += 50;
+        }
+        // 質問に特定テーマが無い（「このマンションについて教えて」等）場合は全体を総合的に。
+        if (empty($wanted) && preg_match('/(価格|販売|賃料|口コミ|履歴|管理|周辺)/u', $title)) $score += 20;
+        $scored[] = ['score' => $score, 'index' => $index, 'section' => $section];
+    }
+    usort($scored, static function ($a, $b) {
+        if ($a['score'] === $b['score']) return $a['index'] <=> $b['index'];
+        return $b['score'] <=> $a['score'];
+    });
+
+    $chunks = [];
+    $used = 0;
+    foreach ($scored as $entry) {
+        $section = $entry['section'];
+        $block = '【' . $section['title'] . '】' . "\n" . implode("\n", $section['lines']);
+        // 1つの節（例：数百行ある賃料履歴）が予算を独占し、口コミ・販売履歴が
+        // 1行も入らなくなるのを防ぐ。節ごとに上限を設け、超過分は中間を省略する。
+        $block = chatMansionWebTrimSectionBlock($block, $maxCharsPerSection);
+        $length = mb_strlen($block);
+        if ($used + $length > $maxChars) {
+            $remain = $maxChars - $used;
+            if ($remain < 200) continue;
+            $block = mb_substr($block, 0, $remain) . "\n…（以下省略）";
+            $length = $remain;
+        }
+        $chunks[$entry['index']] = $block;
+        $used += $length;
+        if ($used >= $maxChars) break;
+    }
+    ksort($chunks); // ページ上の並び順に戻す
+    return implode("\n\n", $chunks);
+}
+
+/**
+ * 実ページの内容だけを根拠に、お客様向けの回答を生成する（利用ルール4・5・7・8）。
+ * ページに無い項目は推測させず「全国マンションデータベースでは確認できませんでした。」
+ * と言わせる（利用ルール6）。失敗時は null を返し、呼び出し側が従来回答へ戻す。
+ */
+function chatMansionWebGenerateAnswer($pageContext, $row, $message, $agentName = '担当者') {
+    if (!function_exists('callOpenAIChat')) return null;
+    $pageContext = trim((string)$pageContext);
+    if ($pageContext === '') return null;
+    $model = function_exists('chatOpenAIModelMansion') ? chatOpenAIModelMansion()
+        : (defined('OPENAI_CHAT_MODEL') ? OPENAI_CHAT_MODEL : 'gpt-4o-mini');
+    $apiKey = function_exists('chatOpenAIApiKeyForModel') ? chatOpenAIApiKeyForModel($model)
+        : (defined('OPENAI_API_KEY') ? OPENAI_API_KEY : '');
+    if ($apiKey === '') return null;
+    $name = trim((string)($row['building_name'] ?? '')) ?: 'このマンション';
+    $agentLabel = trim((string)$agentName) !== '' ? trim((string)$agentName) : '担当者';
+
+    $system = <<<SYS
+あなたはリニュアル仲介の不動産AIアシスタントであり、お客様の担当者「{$agentLabel}」です。
+下記【マンションページ】は、当社の全国マンションデータベースの当該マンションのページから取得した実データです。回答はこの内容だけを根拠にしてください。
+
+絶対ルール：
+- 【マンションページ】に書かれていない内容は、推測・補完・一般論での穴埋めを一切しない。
+- 確認できない項目について触れる必要がある場合は「全国マンションデータベースでは確認できませんでした。」と明記する。章立てを埋めるために憶測を書かない。
+- 数値・固有名詞・年月は改変しない。所在地は丁目・番地・号まで省略しない。
+- 口コミは原文をそのまま転載せず、必ず要約する（・良い評価／・気になる点／・全体的な評価）。
+- 価格・賃料の履歴が複数ある場合は、最新価格・最高価格・最低価格・価格推移・募集件数・賃料相場・㎡単価（または坪単価）のうち、ページから読み取れるものを整理する。読み取れないものは書かない。
+- 出典表記やデータ取得情報のフッターは付けない（システム側で付与する）。
+
+出力の構成（データがある項目だけを立てる。無い章は省略してよい）：
+【マンション概要】
+【過去の販売履歴】
+【賃料履歴】
+【口コミ】
+【AI分析】
+
+【AI分析】では、価格推移・資産価値の傾向・賃貸需要・人気度・管理状態・周辺環境・購入時のメリット・注意点の観点から述べる。ただし必ず【マンションページ】の記載を根拠とし、根拠のない推測はしない。
+お客様のご質問に直接関係する章を厚く、それ以外は簡潔に。箇条書き・表を適宜使い、読みやすく整理する。
+SYS;
+
+    $user = "【マンションページ】\n" . $pageContext . "\n\n"
+        . "【お客様のご質問】\n" . trim((string)$message) . "\n\n"
+        . "上記の「{$name}」について、ご質問に沿って回答してください。";
+    chatMansionDebugLog('web_gpt_model', $model);
+    chatMansionDebugLog('web_gpt_context_chars', mb_strlen($pageContext));
+    $result = callOpenAIChat([
+        ['role' => 'system', 'content' => $system],
+        ['role' => 'user', 'content' => $user],
+    ], $apiKey, $model, [
+        'purpose' => 'mansion_db_page',
+        'max_tokens' => 1600,
+        'temperature' => 0.3,
+        'timeout' => 45,
+    ]);
+    if (!empty($result['error']) || empty($result['reply'])) {
+        chatMansionDebugLog('web_gpt_error', $result['error'] ?? 'empty reply');
+        return null;
+    }
+    $reply = $result['reply'];
+    if (function_exists('sanitizeChatReferralLanguage')) $reply = sanitizeChatReferralLanguage($reply, $agentLabel);
+    if (function_exists('unifyAgentPersonaLanguage')) $reply = unifyAgentPersonaLanguage($reply, $agentLabel);
+    $reply = trim($reply);
+    chatMansionDebugLog('web_gpt_reply_chars', mb_strlen($reply));
+    return $reply !== '' ? $reply : null;
+}
+
+/**
+ * 特定済みの1棟について実ページを参照して回答を作る。
+ * 実ページを使えなかった場合は必ず null を返し、呼び出し側が従来のDB基礎情報
+ * 回答へフォールバックする（既存動作を絶対に壊さないための契約）。
+ *
+ * @return array|null ['reply','meta','mdb_id','url']
+ */
+function chatMansionWebAnswer($db, $row, $message, $agentName = '担当者') {
+    if (!chatMansionWebEnabled() || !$db instanceof PDO || !is_array($row)) return null;
+    try {
+        $mdbId = chatMansionWebResolveId($db, $row);
+        if (!$mdbId) return null;
+        $url = chatMansionWebPageUrl($mdbId);
+        if ($url === '') return null;
+        chatMansionDebugLog('web_page_url', $url);
+        $ttl = defined('MANSION_DB_WEB_CACHE_TTL') ? (int)MANSION_DB_WEB_CACHE_TTL : 21600;
+        $page = chatMansionWebCachedHtml($db, $url, $ttl);
+        if (empty($page['ok'])) return null;
+        $sections = chatMansionWebHtmlToSections($page['html']);
+        if (empty($sections)) return null;
+        if (!chatMansionWebPageMatchesRow($sections, $row)) {
+            // IDが別物件を指している。誤回答より「基礎情報のみ」の方が安全。
+            // ここで mdb_id を消さないこと：マスタから配布されたIDを照合の
+            // 誤判定（false negative）で失うと、復旧に再配布が必要になる。
+            chatMansionDebugLog('web_page_mismatch', ['mdb_id' => $mdbId, 'name' => $row['building_name'] ?? '']);
+            return null;
+        }
+        $context = chatMansionWebSelectSections($sections, $message);
+        $reply = chatMansionWebGenerateAnswer($context, $row, $message, $agentName);
+        if ($reply === null) return null;
+        return [
+            'reply' => $reply,
+            'mdb_id' => $mdbId,
+            'url' => $url,
+            'meta' => [[
+                'provider' => 'mansion_db_web',
+                'label' => chatPublicDataSourceLabel('mansion_db_web'),
+                'record_count' => 1,
+                'total_count' => 1,
+                'fetched_at' => $page['fetched_at'] ?? date('Y-m-d H:i:s'),
+                'cached' => !empty($page['cached']),
+            ]],
+        ];
+    } catch (Throwable $e) {
+        error_log('chatMansionWebAnswer error: ' . $e->getMessage());
+        return null;
+    }
+}
+
 /** Build the final answer from one already-retrieved DB row (the generation stage of RAG). */
-function chatMansionBuildAnswerFromRow($row, $fields, $agentName = '担当者', $recordCount = 1, $hasSimilarRows = false, $similarRows = []) {
+function chatMansionBuildAnswerFromRow($row, $fields, $agentName = '担当者', $recordCount = 1, $hasSimilarRows = false, $similarRows = [], $db = null, $message = '') {
     if (!is_array($row) || empty($row['building_name'])) return null;
     $facts = chatMansionFormatFacts($row, $fields);
     $source = chatPublicDataSourceLabel('mansion_db');
     $fetchedAt = date('Y-m-d H:i:s');
 
-    // Only this retrieved row is passed to the LLM. The prompt explicitly forbids
-    // adding facts which are absent from chatMansionGatherFacts().
-    $intro = chatMansionGenerateIntroduction(chatMansionGatherFacts($row), $agentName);
-    if ($intro !== null && $intro !== '') {
-        $reply = $intro;
+    // 実ページ参照（販売履歴・価格推移・賃料履歴・口コミ等）を最優先で試みる。
+    // 使えなかった場合は必ず null が返るので、従来のDB基礎情報回答へ落ちる。
+    $webAnswer = chatMansionWebAnswer($db, $row, $message, $agentName);
+    if ($webAnswer !== null) {
+        $reply = $webAnswer['reply'];
+        $source = chatPublicDataSourceLabel('mansion_db_web');
+        $webMeta = $webAnswer['meta'];
+        $fetchedAt = $webMeta[0]['fetched_at'] ?? $fetchedAt;
     } else {
-        if (empty($facts)) return null;
-        $reply = $row['building_name'] . 'について、当社データベースでは次の内容を確認できます。' . "\n\n・" . implode("\n・", $facts);
+        $webMeta = null;
+        // Only this retrieved row is passed to the LLM. The prompt explicitly forbids
+        // adding facts which are absent from chatMansionGatherFacts().
+        $intro = chatMansionGenerateIntroduction(chatMansionGatherFacts($row), $agentName);
+        if ($intro !== null && $intro !== '') {
+            $reply = $intro;
+        } else {
+            if (empty($facts)) return null;
+            $reply = $row['building_name'] . 'について、当社データベースでは次の内容を確認できます。' . "\n\n・" . implode("\n・", $facts);
+        }
     }
 
     $fullAddr = trim((string)($row['full_address'] ?? ''));
@@ -1421,7 +2304,7 @@ function chatMansionBuildAnswerFromRow($row, $fields, $agentName = '担当者', 
         $reply .= "\n\n※似た名称の候補が他にもあります。別の物件の場合は、住所やエリアを添えていただくと、より正確に絞り込めます。";
     }
     $reply .= "\n\n出典：" . $source;
-    $meta = [[
+    $meta = $webMeta !== null ? $webMeta : [[
         'provider' => 'mansion_db',
         'label' => $source,
         'record_count' => max(1, (int)$recordCount),
@@ -1459,7 +2342,7 @@ function chatMansionDbDirectAnswerById($db, $id, $message, $agentName = '担当�
     if (empty($fields)) $fields = ['address', 'built', 'station', 'structure', 'floors', 'units'];
     chatMansionDebugLog('chosen_building_id', (int)$id . ' | ' . ($row['building_name'] ?? ''));
     $siblingCandidates = chatMansionSiblingCandidates($db, $row, 5);
-    return chatMansionBuildAnswerFromRow($row, $fields, $agentName, 1, false, $siblingCandidates);
+    return chatMansionBuildAnswerFromRow($row, $fields, $agentName, 1, false, $siblingCandidates, $db, $message);
 }
 
 function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
@@ -1566,7 +2449,9 @@ function chatMansionDbDirectAnswer($db, $message, $agentName = '担当者') {
             $agentName,
             count($rows),
             count($rows) > count($confident),
-            $siblingCandidates
+            $siblingCandidates,
+            $db,
+            $message
         );
     } catch (Throwable $e) {
         error_log('Mansion DB direct answer error: ' . $e->getMessage());
@@ -1598,6 +2483,156 @@ function chatMessageAsksSchoolDistrict($message) {
  */
 function chatMessageAsksLandInfo($message) {
     return chatMessageAsksLandHazardInfo($message) || chatMessageAsksSchoolDistrict($message);
+}
+
+/**
+ * 「周辺にどんな物件があるか」を尋ねる質問か。
+ * 「周辺の物件の売り出し情報を教えて」「現在地の周辺の不動産情報を教えて」のように、
+ * 一般の生成AI（Web検索）へ聞くのと同じ感覚で入力される質問を捕捉するのが目的。
+ * 従来はこの種の質問も「現在地」を含むだけで土地情報レポートに固定されていた。
+ *
+ * 近傍語（周辺・近く・この辺・現在地 など）と対象語（物件・不動産・マンション・
+ * 売り出し など）の両方を含むときだけ真とする。「〇〇マンションの築年数は？」のような
+ * 特定物件の照会を巻き込まないための条件。
+ */
+function chatMessageAsksNearbyProperties($message) {
+    $text = preg_replace('/\s+/u', '', (string)$message);
+    if ($text === '') return false;
+    $hasVicinity = (bool)preg_match('/(周辺|近く|近隣|付近|この辺|ここら辺|最寄り|現在地|現在位置|今いる場所|エリア内)/u', $text);
+    if (!$hasVicinity) return false;
+    return (bool)preg_match('/(物件|不動産|マンション|売り出し|売出|売り物件|販売中|売買|中古|新築|分譲|相場)/u', $text);
+}
+
+/**
+ * 日本の住所文字列を 都道府県／市区町村／それ以降 に分割する。
+ * 逆ジオコーダ（GSI/Google）は「東京都中野区本町6丁目27-14」のような連結文字列しか
+ * 返さないため、全国マンションDB（prefecture, city, town 列 + idx_mansion_pref_city）の
+ * 検索キーを取り出すために使う。郡部（〇〇郡〇〇町）は郡まで含めて市区町村扱いにする。
+ * @return array ['prefecture' => string, 'city' => string, 'town' => string]
+ */
+function chatSplitJapaneseAddress($address) {
+    $empty = ['prefecture' => '', 'city' => '', 'town' => ''];
+    $addr = trim((string)$address);
+    if ($addr === '') return $empty;
+    if (!preg_match('/^(北海道|東京都|京都府|大阪府|.{2,3}?県)(.*)$/u', $addr, $m)) return $empty;
+    $pref = $m[1];
+    $rest = $m[2];
+    // 政令市の行政区（〇〇市〇〇区）は「市＋区」までを1つの市区町村として扱う。
+    if (preg_match('/^(.+?市.+?区)(.*)$/u', $rest, $c)
+        || preg_match('/^(.+?郡.+?[町村])(.*)$/u', $rest, $c)
+        || preg_match('/^(.+?[市区町村])(.*)$/u', $rest, $c)) {
+        return ['prefecture' => $pref, 'city' => $c[1], 'town' => trim($c[2])];
+    }
+    return ['prefecture' => $pref, 'city' => '', 'town' => trim($rest)];
+}
+
+/**
+ * 全国マンションDBから、指定エリア（市区町村。可能なら町丁目）の建物を取得する。
+ * 距離順ではなく「同じ町丁目 → 同じ市区町村」の順に広げる段階検索。
+ * マンションDBに緯度経度列が無いため半径検索はできず、行政区画での近似に留める
+ * （回答文でもその旨を明示する）。
+ */
+function chatMansionDbNearbyRows($db, $prefecture, $city, $town, $limit = 5) {
+    if (!$db instanceof PDO) return [];
+    $limit = max(1, min(10, (int)$limit));
+    $prefecture = trim((string)$prefecture);
+    $city = trim((string)$city);
+    if ($prefecture === '' || $city === '') return [];
+
+    $columns = 'id, building_name, full_address, town, structure, floors_above, floors_below,
+                built_year_month, total_units, nearest_line, nearest_station,
+                nearest_access_method, nearest_minutes';
+    $rows = [];
+    $seen = [];
+
+    // 「本町6丁目」→「本町」。DB側の表記が丁目ありなし両方あり得るため前方一致で寄せる。
+    $townBase = preg_replace('/[0-9０-９]+丁目.*$/u', '', trim((string)$town));
+    $townBase = trim($townBase);
+
+    $queries = [];
+    if ($townBase !== '') {
+        $queries[] = [
+            "SELECT {$columns} FROM mansion_buildings
+             WHERE prefecture = :pref AND city = :city AND town LIKE :town
+             ORDER BY total_units DESC, building_name ASC LIMIT {$limit}",
+            [':pref' => $prefecture, ':city' => $city, ':town' => $townBase . '%'],
+        ];
+    }
+    $queries[] = [
+        "SELECT {$columns} FROM mansion_buildings
+         WHERE prefecture = :pref AND city = :city
+         ORDER BY total_units DESC, building_name ASC LIMIT {$limit}",
+        [':pref' => $prefecture, ':city' => $city],
+    ];
+    // prefecture/city 列が未整備な取り込み分に備えたフォールバック（full_address 前方一致）。
+    $queries[] = [
+        "SELECT {$columns} FROM mansion_buildings
+         WHERE full_address LIKE :addr
+         ORDER BY total_units DESC, building_name ASC LIMIT {$limit}",
+        [':addr' => $prefecture . $city . '%'],
+    ];
+
+    foreach ($queries as $q) {
+        if (count($rows) >= $limit) break;
+        try {
+            $stmt = $db->prepare($q[0]);
+            $stmt->execute($q[1]);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $key = (string)($row['id'] ?? '');
+                if ($key === '' || isset($seen[$key])) continue;
+                $seen[$key] = true;
+                $rows[] = $row;
+                if (count($rows) >= $limit) break;
+            }
+        } catch (Exception $e) {
+            chatMansionDebugLog('nearby_query_failed', $e->getMessage());
+        }
+    }
+    return $rows;
+}
+
+/**
+ * 「周辺の物件を教えて」への確定回答を組み立てる。
+ *
+ * 意図的にLLMを通さない。当社データベースに無い項目（売出価格・間取り・専有面積）を
+ * 生成AIに書かせると、もっともらしい数値を作ってしまい「正確さが足りない」という
+ * 指摘そのものを悪化させるため。持っている事実だけを出し、持っていない情報は
+ * 持っていないと明示して担当者へつなぐ。
+ *
+ * @return array|null ['reply' => string, 'sources' => array] 該当なし・住所不明時は null
+ */
+function chatMansionNearbyAnswer($db, $address, $agentName = '担当者') {
+    $parts = chatSplitJapaneseAddress($address);
+    if ($parts['prefecture'] === '' || $parts['city'] === '') return null;
+    $rows = chatMansionDbNearbyRows($db, $parts['prefecture'], $parts['city'], $parts['town'], 5);
+    if (empty($rows)) return null;
+
+    $areaLabel = $parts['prefecture'] . $parts['city'];
+    $lines = [];
+    $lines[] = $areaLabel . '周辺のマンションを、当社の全国マンションデータベースからご案内します。';
+    $lines[] = '';
+    foreach ($rows as $i => $row) {
+        $name = trim((string)($row['building_name'] ?? ''));
+        if ($name === '') continue;
+        $lines[] = ($i + 1) . '. ' . $name;
+        foreach (chatMansionFormatFacts($row, ['address', 'built', 'station', 'structure', 'floors', 'units']) as $fact) {
+            $lines[] = '　　' . $fact;
+        }
+    }
+    $lines[] = '';
+    // 期待とのズレを最初に埋める。ここを書かないと「売り出し情報が出てこない＝使えない」に
+    // 直結するため、何が出せて何が出せないのかを必ず明示する。
+    $lines[] = '※こちらは建物そのものの情報（築年月・総戸数・最寄り駅など）です。';
+    $lines[] = '　現在売り出し中の住戸の価格・間取り・専有面積は、当社データベースの収録対象外のため、';
+    $lines[] = '　最新の売出情報は' . $agentName . 'が個別にお調べしてご連絡します。';
+    $lines[] = '　気になる建物名をお知らせいただければ、その建物の売出状況をお調べします。';
+    $lines[] = '';
+    $lines[] = '（掲載順は所在エリアが一致する建物のうち規模の大きい順です。距離順ではありません）';
+
+    return [
+        'reply' => implode("\n", $lines),
+        'sources' => [['url' => '', 'title' => '全国マンションデータベース（当社独自データ）']],
+    ];
 }
 
 /**
@@ -3189,6 +4224,8 @@ function chatPublicDataSourcesForUi($sources, $meta = []) {
         '国土交通データプラットフォーム' => 'https://data-platform.mlit.go.jp/',
         '政府統計の総合窓口 e-Stat' => 'https://www.e-stat.go.jp/',
         '当社 全国マンションデータベース' => '',
+        // マスク解除URL（on=0）はお客様のブラウザへ渡さない。出典名のみ表示する。
+        '当社 全国マンションデータベース（物件ページ）' => '',
     ];
     // Several reinfolib layers share one source label. Keep the most informative
     // entry per label (a layer WITH data beats a 該当なし/区域外/取得失敗 one) so the
