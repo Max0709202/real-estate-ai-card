@@ -9,9 +9,10 @@
  *
  * notification-helper.php（担当向け）と対になる「顧客向け」実装。
  * 仕様は同じ:
- *   ① 操作後すぐ送らず一定時間待機（NOTIFY_WAIT_SECONDS）
+ *   ① 操作後すぐ送らず一定時間待機（CUSTOMER_NOTIFY_WAIT_SECONDS）
  *   ② 待機中の同種操作は1通にまとめる（最後の操作から待機時間を再計測）
- *   ③ 送信済み・未読(status='sent')の間は追加通知しない
+ *   ③ 担当の新しい操作があれば、送信済み(sent)でも再び通知対象に戻す
+ *      （物件提案・担当連絡とも共通。2件目以降の取りこぼしを作らない）
  *   ④ 顧客が該当画面を開いたら未読解除(status='read')、以降の新操作は再び通知対象
  *
  * 宛先は「その顧客のメールアドレス」（chat_lead_contacts.email、無ければ
@@ -208,10 +209,11 @@ function customerNotifyEnqueue(PDO $db, string $sessionId, string $feature): boo
         $wait = (int)CUSTOMER_NOTIFY_WAIT_SECONDS;
         // notification-helper.php と同じく、ON DUPLICATE KEY の右辺は「更新前」の値を参照し、
         // status を最後に代入することで全ての IF(status=...) が旧statusを見る。
-        // 担当連絡は新しいメッセージごとに再通知可能にする。従来は一度 sent になると、
-        // 顧客が画面を開くまで後続メッセージが永久に抑止され、最初のメールを見失った
-        // 顧客へ以後まったく通知できなかった。待機中の複数送信は従来どおり1通に集約する。
-        $keepSent = $feature === 'contact' ? '0' : "status='sent'";
+        // 担当連絡・物件提案とも、担当の新しい操作ごとに再通知できるよう pending へ戻す。
+        // 従来は物件提案だけ「一度 sent になったら据え置き」だったため、顧客が物件選定を
+        // 開かない限り2件目以降の提案が永久に抑止され、メールがまったく届かなかった。
+        // （担当連絡は先に抑止を解除済み。物件提案も同じ扱いに揃える。）
+        // 待機中（pending）の複数操作は従来どおり1通に集約する。
         $sql = "INSERT INTO customer_notification_jobs
                   (session_id, feature, business_card_id, recipient_email, agent_name, card_slug,
                    status, event_count, first_event_at, last_event_at, scheduled_at)
@@ -222,13 +224,13 @@ function customerNotifyEnqueue(PDO $db, string $sessionId, string $feature): boo
                   recipient_email  = VALUES(recipient_email),
                   agent_name       = VALUES(agent_name),
                   card_slug        = VALUES(card_slug),
-                  event_count    = IF({$keepSent}, event_count, IF(status='pending', event_count + 1, 1)),
-                  first_event_at = IF({$keepSent}, first_event_at, IF(status='pending', first_event_at, NOW())),
-                  last_event_at  = IF({$keepSent}, last_event_at, NOW()),
-                  scheduled_at   = IF({$keepSent}, scheduled_at, DATE_ADD(NOW(), INTERVAL {$wait} SECOND)),
-                  sent_at        = IF({$keepSent}, sent_at, NULL),
-                  read_at        = IF({$keepSent}, read_at, NULL),
-                  status         = IF({$keepSent}, 'sent', 'pending')";
+                  event_count    = IF(status='pending', event_count + 1, 1),
+                  first_event_at = IF(status='pending', first_event_at, NOW()),
+                  last_event_at  = NOW(),
+                  scheduled_at   = DATE_ADD(NOW(), INTERVAL {$wait} SECOND),
+                  sent_at        = NULL,
+                  read_at        = NULL,
+                  status         = 'pending'";
         $stmt = $db->prepare($sql);
         $stmt->execute([
             $sessionId,

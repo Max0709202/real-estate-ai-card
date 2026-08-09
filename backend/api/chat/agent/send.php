@@ -51,7 +51,7 @@ try {
     // 顧客発言を既読化（担当が読んだ）
     agentMsgMarkRead($db, $sessionId, 'user');
 
-    // 顧客へメール通知（60秒バッチ・未読中は抑制）。メール未登録・失敗は握りつぶす。
+    // 顧客へメール通知（待機時間ぶんバッチ集約）。メール未登録・失敗は握りつぶす。
     customerNotifyEnqueue($db, $sessionId, 'contact');
 
     // ホーム画面アイコンのアプリバッジ用に、顧客端末へ空Push（tickle）を送る。
