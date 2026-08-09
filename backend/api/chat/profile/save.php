@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../../includes/customer-invitation-helper.php';
+require_once __DIR__ . '/../../../includes/selfin-member-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -83,6 +84,20 @@ try {
         chatIntakeSetField($data, 'contact_email', $email, ['source' => 'typed']);
     }
 
+    // セルフィンPro会員判定：登録いただいたメールアドレスをサーバー側から
+    // セルフィンPro確認APIへ送り、登録有無に応じた案内文をチャットへ返す。
+    // 判定できない場合（未設定・通信失敗・401など）は空文字となり、案内は表示しない。
+    $selfinMessage = '';
+    if ($email !== '' && function_exists('selfinMemberChatGuidance')) {
+        try {
+            $selfinMessage = selfinMemberChatGuidance($data['customer_email'] ?? $email, $data);
+        } catch (Throwable $e) {
+            // 会員判定の失敗で本人情報の登録自体を止めない。
+            error_log('Selfin member guidance error: ' . $e->getMessage());
+            $selfinMessage = '';
+        }
+    }
+
     $data['_current_field'] = chatIntakeNextField($data);
     chatIntakeSave($db, $sessionId, $businessCardId, $data);
 
@@ -96,6 +111,7 @@ try {
         'customer_name' => $data['customer_name'] ?? '',
         'has_name' => chatIntakeHasCustomerName($data),
         'has_email' => chatIntakeHasCustomerEmail($data),
+        'selfin_message' => $selfinMessage,
     ], 'OK');
 } catch (Exception $e) {
     error_log('Chat profile save error: ' . $e->getMessage());
