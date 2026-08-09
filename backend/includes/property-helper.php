@@ -2262,7 +2262,7 @@ if (!function_exists('propertyCreate')) {
         $id = (int)$db->lastInsertId();
         if ($fields) propertyApplyFields($db, $id, $fields);
 
-        // 担当が物件を追加 → 顧客へメール通知（60秒バッチ・未読中は抑制）。
+        // 担当が物件を追加 → 顧客へメール通知（待機時間ぶんバッチ集約）。
         // 顧客のメール未登録・失敗は内部で握りつぶす（業務処理は壊さない）。
         // OCR・URL解析の draft は担当の確認前であり、まだ顧客へ共有した扱いにしない。
         // 手動登録または確認済み物件だけを通知対象にする。
