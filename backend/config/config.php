@@ -150,6 +150,19 @@ if (!defined('SELFIN_MEMBER_CHECK_ENABLED')) {
     define('SELFIN_MEMBER_CHECK_ENABLED', getenv('SELFIN_MEMBER_CHECK_ENABLED') !== '0');
 }
 
+// 案内の再表示（登録直後の1回に加えて表示する条件）。
+//   SELFIN_MEMBER_CHECK_REPEAT_DAYS  : 前回の案内からこの日数が経過したら再度案内する。
+//                                      判定結果の再確認（キャッシュ有効期間）にも同じ値を使う。
+//                                      0以下にすると再表示を行わない（登録直後の1回のみ）。
+//   SELFIN_MEMBER_CHECK_MIN_GAP_HOURS: 「不動産テックツール」等のご質問による案内の下限間隔。
+//                                      直前の案内からこの時間が経過するまでは繰り返さない。
+if (!defined('SELFIN_MEMBER_CHECK_REPEAT_DAYS')) {
+    define('SELFIN_MEMBER_CHECK_REPEAT_DAYS', (int)(getenv('SELFIN_MEMBER_CHECK_REPEAT_DAYS') ?: 7));
+}
+if (!defined('SELFIN_MEMBER_CHECK_MIN_GAP_HOURS')) {
+    define('SELFIN_MEMBER_CHECK_MIN_GAP_HOURS', (int)(getenv('SELFIN_MEMBER_CHECK_MIN_GAP_HOURS') ?: 24));
+}
+
 // 通知メール設定
 define('NOTIFICATION_EMAIL', 'info@ai-fcard.com');
 
