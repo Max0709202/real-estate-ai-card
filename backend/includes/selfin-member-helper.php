@@ -6,6 +6,15 @@
  * セルフィンProに登録済みかどうかをセルフィンPro側の確認APIへ問い合わせ、
  * 結果に応じてチャット内の案内文を出し分ける。
  *
+ * 【案内を表示するタイミング】
+ *   1. メールアドレスのご登録直後（selfinMemberChatGuidance / profile/save.php）
+ *   2. 「不動産テックツール」「セルフィンPro」に関するご質問をいただいたとき
+ *   3. 前回の案内から一定期間（既定7日）が経過したとき
+ *      （2・3は selfinMemberChatMessageGuidance / chat/send.php）
+ * 2・3で案内する際は判定結果を再確認するため、未登録だった方がその後セルフィンProへ
+ * ご登録された場合は、次回から「ご利用ありがとうございます」の案内へ切り替わる。
+ * 間隔は SELFIN_MEMBER_CHECK_REPEAT_DAYS / SELFIN_MEMBER_CHECK_MIN_GAP_HOURS で調整できる。
+ *
  * 【呼び出し仕様（セルフィンPro側からの提示内容）】
  *   POST https://self-in.com/api/v1/member/check
  *   Content-Type: application/x-www-form-urlencoded
@@ -149,13 +158,90 @@ function selfinMemberGuidanceMessage($exists) {
 }
 
 /**
- * チャットのリード情報（chat_leads.structured_data）に判定結果をキャッシュしつつ、
- * まだ案内していない場合に限り案内文を返す。
+ * 案内を出し直す間隔（秒）。0以下の場合は出し直さない（登録直後の1回のみ）。
+ *
+ * 判定結果のキャッシュ期間（＝再確認の間隔）にも同じ値を用いる。案内を出し直す際は
+ * その時点の登録状況で判定し、以前は未登録だった方がセルフィンProへご登録された場合に、
+ * 次回から「ご利用ありがとうございます」の案内へ自動的に切り替わるようにするため。
+ */
+function selfinMemberRepeatIntervalSeconds() {
+    $days = defined('SELFIN_MEMBER_CHECK_REPEAT_DAYS') ? (int)SELFIN_MEMBER_CHECK_REPEAT_DAYS : 7;
+    return $days > 0 ? $days * 86400 : 0;
+}
+
+/**
+ * 直前の案内からこの時間が経過していない場合は、テックツールに関するご質問があっても
+ * 案内を繰り返さない。登録直後の案内と続けて表示されるのを防ぐための下限間隔。
+ */
+function selfinMemberMinIntervalSeconds() {
+    $hours = defined('SELFIN_MEMBER_CHECK_MIN_GAP_HOURS') ? (int)SELFIN_MEMBER_CHECK_MIN_GAP_HOURS : 24;
+    return $hours > 0 ? $hours * 3600 : 0;
+}
+
+/**
+ * 保存済みのISO8601日時をUNIX時刻に変換する。未設定・不正な値はnull。
+ */
+function selfinMemberParseTime($value) {
+    if (!is_string($value)) return null;
+    $value = trim($value);
+    if ($value === '') return null;
+    $timestamp = strtotime($value);
+    return $timestamp === false ? null : $timestamp;
+}
+
+/**
+ * 「不動産テックツール」「セルフィンPro」に関するご質問かどうか。
+ * 該当する場合は、判定結果に応じた案内をAIの回答に添える。
+ */
+function selfinMemberMessageAsksTechTools($message) {
+    $text = trim((string)$message);
+    if ($text === '') return false;
+    // 「self-in」「selfin」は直後がアルファベットの場合（selfindex等）を除外して拾う。
+    return (bool)preg_match('/(セルフィン|ｾﾙﾌｨﾝ|\bself\s?-?\s?in(?![A-Za-z])|不動産テック|テックツール)/iu', $text);
+}
+
+/**
+ * 判定結果を取得する。
+ * キャッシュが有効な間はAPIを呼ばず、期限（selfinMemberRepeatIntervalSeconds）を過ぎている
+ * 場合と、メールアドレスが変わった場合のみ確認APIへ問い合わせる。
+ *
+ * @return bool|null 判定できなかった場合はnull（案内は行わない）。
+ */
+function selfinMemberResolveExists($email, array &$data, $now) {
+    $emailHash = hash('sha256', strtolower($email));
+    $sameEmail = (($data['_selfin_pro_email_hash'] ?? '') === $emailHash);
+
+    $cached = ($sameEmail && array_key_exists('_selfin_pro_exists', $data) && is_bool($data['_selfin_pro_exists']))
+        ? $data['_selfin_pro_exists']
+        : null;
+    $checkedAt = $sameEmail ? selfinMemberParseTime($data['_selfin_pro_checked_at'] ?? null) : null;
+    $ttl = selfinMemberRepeatIntervalSeconds();
+    if ($cached !== null && ($ttl <= 0 || ($checkedAt !== null && ($now - $checkedAt) < $ttl))) {
+        return $cached;
+    }
+
+    $result = selfinMemberCheck($email);
+    if (!is_bool($result['exists'])) {
+        // 判定できなかった場合は、以前の判定結果もそのまま残し、次の機会に再試行する。
+        return null;
+    }
+    if (!$sameEmail) {
+        // メールアドレスが変わった場合は、案内履歴もリセットして改めてご案内する。
+        unset($data['_selfin_pro_notified_at']);
+    }
+    $data['_selfin_pro_exists'] = $result['exists'];
+    $data['_selfin_pro_email_hash'] = $emailHash;
+    $data['_selfin_pro_checked_at'] = date('c', $now);
+    return $result['exists'];
+}
+
+/**
+ * メールアドレスをご登録いただいた直後の案内。
  *
  * - 同じメールアドレスに対して外部APIを何度も叩かない。
- * - 同じ案内をチャット内で繰り返さない（案内済みフラグを持つ）。
+ * - 登録直後の案内はチャット内で1回だけ（案内済みフラグを持つ）。
  * - メールアドレスそのものは重複保存せず、ハッシュだけを突合用に保持する。
- * - 判定できなかった場合はキャッシュも案内も行わず、次回の登録時に再試行する。
+ * - 判定できなかった場合はキャッシュも案内も行わず、次の機会に再試行する。
  *
  * @param string $email 登録されたメールアドレス
  * @param array  $data  chatIntakeLoad() で読み込んだリードデータ（参照渡し・呼び出し側で保存すること）
@@ -166,27 +252,61 @@ function selfinMemberChatGuidance($email, array &$data) {
     if ($email === '') return '';
     if (!selfinMemberCheckEnabled()) return '';
 
+    // 同じメールアドレスで既に案内済みなら、確認APIも呼ばずに終了する。
     $emailHash = hash('sha256', strtolower($email));
-    $sameEmail = (($data['_selfin_pro_email_hash'] ?? '') === $emailHash);
-
-    if ($sameEmail && array_key_exists('_selfin_pro_exists', $data) && is_bool($data['_selfin_pro_exists'])) {
-        // 判定済み。案内済みなら繰り返さない。
-        if (!empty($data['_selfin_pro_notified_at'])) return '';
-        $exists = $data['_selfin_pro_exists'];
-    } else {
-        $result = selfinMemberCheck($email);
-        if (!is_bool($result['exists'])) return '';
-        $exists = $result['exists'];
-        $data['_selfin_pro_exists'] = $exists;
-        $data['_selfin_pro_email_hash'] = $emailHash;
-        $data['_selfin_pro_checked_at'] = date('c');
-        unset($data['_selfin_pro_notified_at']);
+    if (($data['_selfin_pro_email_hash'] ?? '') === $emailHash && !empty($data['_selfin_pro_notified_at'])) {
+        return '';
     }
+
+    $now = time();
+    $exists = selfinMemberResolveExists($email, $data, $now);
+    if (!is_bool($exists)) return '';
 
     $message = selfinMemberGuidanceMessage($exists);
     if ($message === '') return '';
-    $data['_selfin_pro_notified_at'] = date('c');
+    $data['_selfin_pro_notified_at'] = date('c', $now);
     return $message;
+}
+
+/**
+ * 会話中の案内（登録直後の1回に加えて表示するもの）。
+ *
+ * 次のいずれかに当てはまる場合に、判定結果に応じた案内文を返す。
+ *   1. 「不動産テックツール」「セルフィンPro」に関するご質問をいただいたとき
+ *      （直前の案内から selfinMemberMinIntervalSeconds() 未満の場合は繰り返さない）
+ *   2. 前回の案内から一定期間（既定7日）が経過したとき
+ *
+ * メールアドレスが未登録の間は判定できないため案内しない（登録時に selfinMemberChatGuidance
+ * が案内する）。判定できなかった場合も案内せず、チャットはそのまま継続する。
+ *
+ * @param string $message お客様の発言
+ * @param array  $data    chatIntakeLoad() で読み込んだリードデータ（参照渡し・呼び出し側で保存すること）
+ * @return string 案内文（案内しない場合は空文字）
+ */
+function selfinMemberChatMessageGuidance($message, array &$data) {
+    if (!selfinMemberCheckEnabled()) return '';
+    $email = trim((string)($data['customer_email'] ?? ''));
+    if ($email === '') return '';
+
+    $now = time();
+    $notifiedAt = selfinMemberParseTime($data['_selfin_pro_notified_at'] ?? null);
+    $elapsed = $notifiedAt === null ? null : ($now - $notifiedAt);
+
+    $minInterval = selfinMemberMinIntervalSeconds();
+    $repeatInterval = selfinMemberRepeatIntervalSeconds();
+    $dueByQuestion = selfinMemberMessageAsksTechTools($message)
+        && ($elapsed === null || $elapsed >= $minInterval);
+    $dueByInterval = $repeatInterval > 0
+        && ($elapsed === null || $elapsed >= $repeatInterval);
+    if (!$dueByQuestion && !$dueByInterval) return '';
+
+    $exists = selfinMemberResolveExists($email, $data, $now);
+    if (!is_bool($exists)) return '';
+
+    $guidance = selfinMemberGuidanceMessage($exists);
+    if ($guidance === '') return '';
+    $data['_selfin_pro_notified_at'] = date('c', $now);
+    return $guidance;
 }
 
 }

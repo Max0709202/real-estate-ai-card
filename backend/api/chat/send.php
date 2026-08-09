@@ -15,6 +15,7 @@ require_once __DIR__ . '/../../includes/notification-helper.php';
 require_once __DIR__ . '/../../includes/property-helper.php';
 require_once __DIR__ . '/../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../includes/session-participant-helper.php';
+require_once __DIR__ . '/../../includes/selfin-member-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -475,6 +476,29 @@ try {
         if ($conditionReminder !== '') {
             $reply = rtrim($reply) . "\n\n" . $conditionReminder;
             chatCrmMarkConditionReminderShown($db, $sessionId, (int)$card['id']);
+        }
+    }
+
+    // セルフィンPro会員判定：メールアドレスご登録直後の案内に加えて、
+    //   ・「不動産テックツール」「セルフィンPro」に関するご質問をいただいたとき
+    //   ・前回の案内から一定期間（既定7日）が経過したとき
+    // に、判定結果に応じた案内をAIの回答へ添える。
+    // 判定できない場合（未設定・通信失敗・401など）は何も添えず、チャットはそのまま継続する。
+    // 体験版（デモ）名刺と、SMS認証・本人情報のご登録が済んでいない段階では案内しない。
+    if (!$isDemoSession && empty($intake['sms_auth_required'])
+        && !empty($leadProfile['customer_email'])
+        && function_exists('selfinMemberChatMessageGuidance')) {
+        try {
+            // ヒアリング処理が同一リクエスト内でリードを更新しているため、保存前に読み直す。
+            $selfinLead = chatIntakeLoad($db, $sessionId, (int)$card['id']);
+            $selfinGuidance = selfinMemberChatMessageGuidance($message, $selfinLead);
+            if ($selfinGuidance !== '') {
+                $reply = rtrim($reply) . "\n\n" . $selfinGuidance;
+                chatIntakeSave($db, $sessionId, (int)$card['id'], $selfinLead);
+            }
+        } catch (Throwable $e) {
+            // 会員判定の失敗でAIの回答自体を止めない。
+            error_log('Selfin member guidance error (send): ' . $e->getMessage());
         }
     }
 
