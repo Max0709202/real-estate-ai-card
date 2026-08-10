@@ -21,6 +21,7 @@
 
 require_once __DIR__ . '/functions.php'; // sendEmail()
 require_once __DIR__ . '/session-participant-helper.php'; // participantActiveEmails()（2名対応の通知配信先）
+require_once __DIR__ . '/property-view-helper.php'; // propertyViewTokenFor()（物件提案リンクの閲覧トークン）
 
 if (!defined('CUSTOMER_NOTIFY_WAIT_SECONDS')) {
     // 顧客向け通知のバッチ集約時間（既定5分）。担当向け（NOTIFY_WAIT_SECONDS）とは独立。
@@ -291,19 +292,27 @@ function customerNotifySubject(string $feature, string $agentName): string
     return NOTIFY_SUBJECT_PREFIX . $body;
 }
 
-/** メール内の確認リンク（カードページを開き、該当タブを自動表示）。 */
-function customerNotifyDeepLinkUrl(string $feature, string $cardSlug): string
+/**
+ * メール内の確認リンク（カードページを開き、該当タブを自動表示）。
+ * 物件提案は、SMS認証なしで提案物件の詳細を閲覧できるよう、顧客ごとの閲覧トークン（pv）を付ける。
+ * トークンは物件情報の閲覧のみに使え、他の機能はこれまで通りSMS認証が必要。
+ */
+function customerNotifyDeepLinkUrl(string $feature, string $cardSlug, string $viewToken = ''): string
 {
     $base = rtrim(BASE_URL, '/') . '/card.php?slug=' . rawurlencode($cardSlug);
     $open = $feature === 'property' ? 'property' : 'contact';
-    return $base . '&open=' . rawurlencode($open);
+    $url = $base . '&open=' . rawurlencode($open);
+    if ($feature === 'property' && $viewToken !== '') {
+        $url .= '&pv=' . rawurlencode($viewToken);
+    }
+    return $url;
 }
 
 /** メール本文（HTML / テキスト）を組み立てる。文面は社内要望どおり。 */
-function customerNotifyBuildBody(string $feature, string $agentName, string $cardSlug): array
+function customerNotifyBuildBody(string $feature, string $agentName, string $cardSlug, string $viewToken = ''): array
 {
     $name = customerNotifyAgentDisplay($agentName);
-    $url = customerNotifyDeepLinkUrl($feature, $cardSlug);
+    $url = customerNotifyDeepLinkUrl($feature, $cardSlug, $viewToken);
     $lead = $feature === 'property'
         ? "{$name}より、物件の提案が届いています。"
         : "{$name}より、メッセージが届いています。";
@@ -356,7 +365,9 @@ function customerNotifyFlushDue(PDO $db, int $limit = 20): array
         $agentName = (string)($job['agent_name'] ?? '');
         $cardSlug = (string)($job['card_slug'] ?? '');
         $subject = customerNotifySubject($feature, $agentName);
-        [$html, $text] = customerNotifyBuildBody($feature, $agentName, $cardSlug);
+        // 物件提案のリンクには、顧客ごとの閲覧トークンを付ける（SMS認証なしで物件詳細を閲覧できるようにする）。
+        $viewToken = $feature === 'property' ? propertyViewTokenFor($db, (string)$job['session_id']) : '';
+        [$html, $text] = customerNotifyBuildBody($feature, $agentName, $cardSlug, $viewToken);
 
         // 2名対応: 案件の参加者全員へ個別に送る（本人＋招待された家族）。
         // 参加者が1名なら従来どおり1通（recipient_email のみ）。

@@ -71,6 +71,13 @@ if ($inviteToken !== '' && !preg_match('/^[a-f0-9]{64}$/', $inviteToken)) {
 if ($inviteToken !== '') {
     $chatOnly = true;
 }
+// 物件提案メールのリンク（card.php?...&open=property&pv=<token>）。
+// このトークンが付いている場合、提案物件の詳細（基本情報・ハザード等情報・販売図面・写真/資料）を
+// SMS認証なしで閲覧できる。トークンは閲覧専用で、他の機能はこれまで通りSMS認証が必要。
+$propertyViewToken = trim((string)($_GET['pv'] ?? ''));
+if ($propertyViewToken !== '' && !preg_match('/^[a-f0-9]{64}$/', $propertyViewToken)) {
+    $propertyViewToken = '';
+}
 // 2人目（ご家族）の招待URL（card.php?...&couple=<token>）。本人が招待した家族が開くリンク。
 // 名刺ページではなくAIエージェントページを最初に表示し、SMS認証で同じ案件へ合流させる。
 $coupleToken = trim((string)($_GET['couple'] ?? ''));
@@ -1333,7 +1340,8 @@ if (!empty($card['profile_photo'])) {
          data-api-base="<?php echo htmlspecialchars($chatApiBase); ?>"
          data-chat-only="<?php echo $chatOnly ? '1' : '0'; ?>"
          data-invite-token="<?php echo htmlspecialchars($inviteToken); ?>"
-         data-couple-token="<?php echo htmlspecialchars($coupleToken); ?>">
+         data-couple-token="<?php echo htmlspecialchars($coupleToken); ?>"
+         data-property-view-token="<?php echo htmlspecialchars($propertyViewToken); ?>">
         <button type="button" id="chat-widget-toggle" class="chat-widget-toggle" aria-label="チャットを開く">
             <?php if (!empty($agentPhotoUrlForChat)): ?>
                 <img id="chat-widget-toggle-avatar" class="chat-widget-toggle-avatar" src="<?php echo htmlspecialchars($agentPhotoUrlForChat); ?>" alt="" width="46" height="46">

@@ -1,8 +1,9 @@
 <?php
 /**
  * 物件選定: 提案物件一覧（§1）。
- * GET ?session_id=&visitor_id=
+ * GET ?session_id=&visitor_id=  /  GET ?view_token=
  *  - 顧客（visitor_id あり）: 自分のセッションの物件一覧（売主情報は非表示）
+ *  - 顧客（view_token）: 物件提案メールのリンクから来た未認証の閲覧（読み取り専用・売主情報は非表示）
  *  - 担当（ログイン）: 当該セッションの物件一覧（全情報）
  */
 require_once __DIR__ . '/../../config/config.php';
@@ -18,14 +19,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit();
 
 $sessionId = trim($_GET['session_id'] ?? '');
 $visitorId = trim($_GET['visitor_id'] ?? '');
-if ($sessionId === '') sendErrorResponse('session_id is required', 400);
+// 物件提案メールのリンク（card.php?...&open=property&pv=<token>）から来た未認証の閲覧。
+// トークンから顧客のセッションを引くため、session_id は不要。
+$viewToken = trim($_GET['view_token'] ?? '');
+if ($sessionId === '' && $viewToken === '') sendErrorResponse('session_id is required', 400);
 
 try {
     $db = (new Database())->getConnection();
     propertyEnsureTables($db);
 
     $forAgent = false;
-    if ($visitorId !== '') {
+    if ($viewToken !== '') {
+        $tokenSession = propertyViewTokenSession($db, $viewToken);
+        if ($tokenSession === '') sendErrorResponse('アクセス権がありません', 403);
+        $sessionId = $tokenSession;
+        // 顧客が物件提案（メール）を開いた → 顧客向けメール通知の未読解除。
+        customerNotifyMarkRead($db, $sessionId, 'property');
+    } elseif ($visitorId !== '') {
         propertyVerifyCustomerSession($db, $sessionId, $visitorId);
         // 顧客が物件選定画面を開いた → 顧客向けメール通知の未読解除（送信前ならキャンセル）。
         customerNotifyMarkRead($db, $sessionId, 'property');
