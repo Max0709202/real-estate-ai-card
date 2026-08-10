@@ -10,6 +10,7 @@ require_once __DIR__ . '/../backend/includes/chat-phone-helper.php';
 require_once __DIR__ . '/../backend/includes/loan-simulation-helper.php';
 require_once __DIR__ . '/../backend/includes/chat-crm-helper.php';
 require_once __DIR__ . '/../backend/includes/referral-tracking-helper.php';
+require_once __DIR__ . '/../backend/includes/org-hierarchy-helper.php';
 
 startSessionIfNotStarted();
 
@@ -205,6 +206,28 @@ $stmt = $db->prepare($sql);
 Database::bindValues($stmt, $queryParams);
 $stmt->execute();
 $users = $stmt->fetchAll();
+
+// 組織権限（統括（全閲覧）の指名用）。一覧の主クエリには手を入れず、表示中のユーザー分だけ別途取得する。
+$orgRoleByUserId = [];
+try {
+    orgEnsureUserColumns($db);
+    $orgUserIds = [];
+    foreach ($users as $orgRow) {
+        $orgUserIds[(int)$orgRow['user_id']] = true;
+    }
+    $orgUserIds = array_keys($orgUserIds);
+    if (!empty($orgUserIds)) {
+        $orgPlaceholders = implode(',', array_fill(0, count($orgUserIds), '?'));
+        $orgStmt = $db->prepare("SELECT id, org_role FROM users WHERE id IN ($orgPlaceholders)");
+        $orgStmt->execute($orgUserIds);
+        foreach ($orgStmt->fetchAll(PDO::FETCH_ASSOC) as $orgRow) {
+            $orgRoleByUserId[(int)$orgRow['id']] = orgNormalizeRole($orgRow['org_role'] ?? 'staff');
+        }
+    }
+} catch (Exception $e) {
+    // 取得できなくても一覧そのものは表示する（☑が出ないだけ）。
+    error_log('dashboard org role load error: ' . $e->getMessage());
+}
 
 $referralSummarySql = "
     SELECT
@@ -735,12 +758,35 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                             </div>
                         </td>
                         <td data-label="名前">
+                            <?php
+                            // 組織階層の最上層「統括（全閲覧）」の指名。チェックすると同じ免許番号の
+                            // メンバー全員（と、その担当顧客）をマイページから閲覧できるようになる。
+                            $orgRole = $orgRoleByUserId[(int)$user['user_id']] ?? 'staff';
+                            $isOrgAdmin = ($orgRole === 'admin');
+                            ?>
+                            <?php if ($isAdmin): ?>
+                            <input type="checkbox" class="org-admin-checkbox"
+                                   data-user-id="<?php echo (int)$user['user_id']; ?>"
+                                   data-user-name="<?php echo htmlspecialchars($user['name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                   <?php echo $isOrgAdmin ? 'checked' : ''; ?>
+                                   title="統括（全閲覧）に指名する"
+                                   style="margin-right: 6px; vertical-align: middle;">
+                            <?php elseif ($isOrgAdmin): ?>
+                            <span title="統括（全閲覧）" style="margin-right: 4px;">☑</span>
+                            <?php endif; ?>
                             <?php $cardSlug = $user['url_slug'] ?? ''; if (!empty($cardSlug)): ?>
                                 <a href="<?php echo BASE_URL; ?>/card.php?slug=<?php echo htmlspecialchars($cardSlug); ?>" target="_blank" style="color: #0066cc; text-decoration: underline; cursor: pointer;">
                                     <?php echo htmlspecialchars($user['name'] ?? ''); ?>
                                 </a>
                             <?php else: ?>
                                 <?php echo htmlspecialchars($user['name'] ?? ''); ?>
+                            <?php endif; ?>
+                            <?php if ($orgRole !== 'staff'): ?>
+                                <div class="org-role-label" data-user-id="<?php echo (int)$user['user_id']; ?>" style="font-size: 0.75rem; color: #0066cc; margin-top: 0.2rem;">
+                                    <?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="org-role-label" data-user-id="<?php echo (int)$user['user_id']; ?>" style="font-size: 0.75rem; color: #0066cc; margin-top: 0.2rem;"></div>
                             <?php endif; ?>
                             <?php if ($usagePeriodDisplay): ?>
                                 <div style="font-size: 0.875rem; color: #666; margin-top: 0.25rem;">

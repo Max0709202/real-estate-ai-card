@@ -498,7 +498,7 @@ $isUtilizingUser = !$isGuestAccess
     && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true);
 
 // 組織階層（統括→店長→営業）での閲覧権限。
-// マネージャー（店長）・管理者（統括）にだけ「組織・配下顧客」を表示する。
+// 統括（全閲覧）・マネージャー（店長）にだけ「組織・配下顧客」を表示する。
 // 担当者（営業）と未設定のユーザーは従来どおり自分の顧客だけを見る。
 require_once __DIR__ . '/backend/includes/org-hierarchy-helper.php';
 $orgRole = 'staff';
@@ -1653,8 +1653,10 @@ $defaultGreetings = [
                 <div id="org-team-section" class="edit-section" style="display: none;">
                     <h2>組織・配下顧客</h2>
                     <p class="step-description">
-                        あなた（<?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>）の配下にいる担当者と、その担当者が対応しているお客様の一覧です。<br>
-                        表示・登録の対象は<strong>自社のメンバーのみ</strong>で、他社の情報は表示されません。<br>
+                        あなた（<?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>）が閲覧できる自社メンバーと、その方が対応しているお客様の一覧です。<br>
+                        統括（全閲覧）は<strong>自社の全員</strong>を、マネージャー（店長）は<strong>自分の配下</strong>を閲覧できます。<br>
+                        自社かどうかは<strong>宅建業免許番号（都道府県＋登録番号）</strong>が一致するかで判定します。会社名の表記ゆれには影響されません。<br>
+                        一覧に出るのは<strong>入金済み（CR／振込済／ST送金）かつ OPEN</strong> の方のみで、他社の情報は表示されません。<br>
                         お客様の情報は閲覧のみで、編集・削除やチャットの代理返信はできません。
                     </p>
 
@@ -1663,8 +1665,8 @@ $defaultGreetings = [
                     <div class="org-team-block">
                         <h3>配下メンバーの登録</h3>
                         <p class="section-note">
-                            同じ会社で、まだどの上長にも紐付いていない方を、あなたの配下として登録できます。<br>
-                            表示されるのは自社（会社プロフィールの会社名が一致する方）のみで、他社の情報は表示されません。
+                            自社（会社プロフィールの<strong>宅建業者番号</strong>が一致する方）で、入金済みかつOPENの方を配下として登録できます。<br>
+                            すでに他の店長の配下にいる方も選べます（選ぶとその店舗から異動します）。他社の方は候補に表示されません。
                         </p>
                         <div class="org-assign-row">
                             <select id="org-candidate-select" class="form-control org-team-filter"></select>
@@ -1675,7 +1677,7 @@ $defaultGreetings = [
                     </div>
 
                     <div class="org-team-block">
-                        <h3>配下の担当者</h3>
+                        <h3 id="org-member-heading">配下の担当者</h3>
                         <div id="org-member-list" class="org-team-list">
                             <p class="chat-history-loading">読み込み中...</p>
                         </div>
@@ -5021,6 +5023,7 @@ $defaultGreetings = [
             var memberListEl = document.getElementById('org-member-list');
             var customerListEl = document.getElementById('org-customer-list');
             var summaryEl = document.getElementById('org-team-summary');
+            var memberHeadingEl = document.getElementById('org-member-heading');
             var filterEl = document.getElementById('org-customer-filter');
             var csvLinkEl = document.getElementById('org-customer-csv');
             var candidateEl = document.getElementById('org-candidate-select');
@@ -5097,7 +5100,9 @@ $defaultGreetings = [
             function renderMembers(members) {
                 var isAdmin = viewer.org_role === 'admin';
                 if (!members.length) {
-                    memberListEl.innerHTML = '<p>まだ配下の方が登録されていません。上の「配下メンバーの登録」から追加してください。</p>';
+                    memberListEl.innerHTML = isAdmin
+                        ? '<p>該当する自社メンバーがいません。宅建業者番号が一致し、入金済みかつOPENの方が対象です。</p>'
+                        : '<p>まだ配下の方が登録されていません。上の「配下メンバーの登録」から追加してください。</p>';
                     return;
                 }
                 var html = '<ul class="org-team-items">';
@@ -5107,13 +5112,15 @@ $defaultGreetings = [
                     var indent = Math.min(depth, 3) - 1;
                     var unread = parseInt(member.unread_count, 10) || 0;
                     var memberId = parseInt(member.user_id, 10) || 0;
-                    // 統括は配下全員を、店長は直属のみを操作できる（サーバー側の判定と同じ）。
-                    var canEditThis = isAdmin || depth === 1;
+                    // 統括は自社の全員を、店長は直属のみを操作できる（サーバー側の判定と同じ）。
+                    // 他の統括の行は触れない（統括の指名・解除は運営側の管理画面で行うため）。
+                    var isAdminMember = member.org_role === 'admin';
+                    var canEditThis = !isAdminMember && (isAdmin || depth === 1);
                     html += '<li class="org-team-item org-team-depth-' + indent + '">';
                     html += '<div class="org-team-item-main">';
                     html += '<span class="org-team-name">' + h(member.name || member.email) + '</span>';
-                    if (isAdmin && depth === 1) {
-                        // 統括だけが、自分の直属を店長に指名できる（3段を超えないため直属のみ）。
+                    if (isAdmin && !isAdminMember) {
+                        // 統括だけが、自社の方を店長に指名できる（指名すると統括の直下へ移る）。
                         html += '<select class="org-team-role-select" data-member-id="' + memberId + '" data-current="' + h(member.org_role) + '">';
                         html += '<option value="staff"' + (member.org_role === 'staff' ? ' selected' : '') + '>担当者（営業）</option>';
                         html += '<option value="manager"' + (member.org_role === 'manager' ? ' selected' : '') + '>マネージャー（店長）</option>';
@@ -5133,7 +5140,8 @@ $defaultGreetings = [
                     // 店長は店舗まるごと、営業は本人ぶんの顧客を開く。
                     var viewFilterValue = member.org_role === 'manager' ? ('team-' + memberId) : String(memberId);
                     html += '<button type="button" class="org-team-view" data-filter-value="' + viewFilterValue + '">顧客を見る</button>';
-                    if (canEditThis) {
+                    // 上長が付いていない方（未所属）には外すボタンを出さない。
+                    if (canEditThis && member.parent_user_id) {
                         html += '<button type="button" class="org-team-remove" data-member-id="' + memberId + '" data-member-name="' + h(member.name || member.email) + '">配下から外す</button>';
                     }
                     html += '</div>';
@@ -5183,9 +5191,9 @@ $defaultGreetings = [
                     return;
                 }
                 var managers = members.filter(function(member) {
-                    return (parseInt(member.depth, 10) || 1) === 1 && member.org_role === 'manager';
+                    return member.org_role === 'manager';
                 });
-                var options = '<option value="">自分（' + h(viewer.org_role_label || '管理者（統括）') + '）の直下</option>';
+                var options = '<option value="">自分（' + h(viewer.org_role_label || '統括（全閲覧）') + '）の直下</option>';
                 managers.forEach(function(manager) {
                     options += '<option value="' + (parseInt(manager.user_id, 10) || 0) + '">'
                         + h(manager.name || manager.email) + ' の配下</option>';
@@ -5203,21 +5211,28 @@ $defaultGreetings = [
                             candidateEl.innerHTML = '<option value="">' + h(res.message || '取得に失敗しました') + '</option>';
                             return;
                         }
-                        if (!res.data.company_resolved) {
-                            candidateEl.innerHTML = '<option value="">会社名が未登録のため候補を表示できません</option>';
-                            setAssignStatus('「会社プロフィール」の会社名をご登録ください。同じ会社の判定に使用します。', true);
+                        if (!res.data.license_resolved) {
+                            candidateEl.innerHTML = '<option value="">宅建業者番号が未登録のため候補を表示できません</option>';
+                            setAssignStatus('「会社プロフィール」の宅建業者番号をご登録ください。自社かどうかの判定に使用します。', true);
                             return;
                         }
                         var candidates = res.data.candidates || [];
                         if (!candidates.length) {
-                            candidateEl.innerHTML = '<option value="">追加できる方がいません（全員いずれかの上長に登録済みです）</option>';
+                            candidateEl.innerHTML = '<option value="">追加できる方がいません（入金済み・OPENの自社メンバーが対象です）</option>';
                             return;
                         }
                         var options = '<option value="">追加する方を選択してください</option>';
                         candidates.forEach(function(candidate) {
-                            var suffix = candidate.branch_department ? '（' + candidate.branch_department + '）' : '';
+                            var label = candidate.name || candidate.email;
+                            if (candidate.branch_department) label += '（' + candidate.branch_department + '）';
+                            // すでに他の店長の配下にいる方は、異動になることが分かるよう現在の上長を添える。
+                            if (candidate.parent_name) {
+                                label += '［現在：' + candidate.parent_name + ' の配下］';
+                            } else if (candidate.org_role === 'manager') {
+                                label += '［' + candidate.org_role_label + '］';
+                            }
                             options += '<option value="' + (parseInt(candidate.user_id, 10) || 0) + '">'
-                                + h((candidate.name || candidate.email) + suffix) + '</option>';
+                                + h(label) + '</option>';
                         });
                         candidateEl.innerHTML = options;
                     })
@@ -5267,13 +5282,18 @@ $defaultGreetings = [
                         var members = res.data.members || [];
                         var summary = res.data.summary || {};
                         viewer = res.data.viewer || viewer;
+                        var viewerIsAdmin = viewer.org_role === 'admin';
+                        if (memberHeadingEl) {
+                            memberHeadingEl.textContent = viewerIsAdmin ? '自社メンバー（全閲覧）' : '配下の担当者';
+                        }
                         if (summaryEl) {
-                            summaryEl.innerHTML = '<span>配下の担当者 ' + (summary.member_count || 0) + '名</span>'
+                            summaryEl.innerHTML = '<span>' + (viewerIsAdmin ? '自社メンバー ' : '配下の担当者 ') + (summary.member_count || 0) + '名</span>'
                                 + '<span>顧客 ' + (summary.customer_count || 0) + '件</span>'
-                                + '<span>未読 ' + (summary.unread_count || 0) + '件</span>';
+                                + '<span>未読 ' + (summary.unread_count || 0) + '件</span>'
+                                + (viewer.license_text ? '<span>免許番号 ' + h(viewer.license_text) + '</span>' : '');
                         }
                         if (filterEl) {
-                            var options = '<option value="">配下の担当者すべて</option>';
+                            var options = '<option value="">' + (viewerIsAdmin ? '自社メンバーすべて' : '配下の担当者すべて') + '</option>';
                             members.forEach(function(member) {
                                 var optionMemberId = parseInt(member.user_id, 10) || 0;
                                 var optionLabel = member.name || member.email;

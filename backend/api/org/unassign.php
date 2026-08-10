@@ -4,7 +4,7 @@
  *
  * POST { user_id: int }
  *
- * 管理者（統括）は自分の配下の誰でも外せる。
+ * 統括（全閲覧）は自社（同じ免許番号）のメンバーを外せる。
  * マネージャー（店長）は自分の直属の配下のみ外せる。
  * 外れた方は「未所属」に戻るだけで、アカウントや顧客情報は一切消えない。
  */
@@ -38,11 +38,8 @@ try {
         sendErrorResponse('対象のユーザーを指定してください', 400);
     }
 
-    $allowed = ($viewer['org_role'] === 'admin')
-        ? orgIsInSubtree($db, $actorId, $targetId)
-        : orgIsDirectChild($db, $actorId, $targetId);
-    if (!$allowed) {
-        sendErrorResponse('この方はあなたの配下ではありません', 403);
+    if (!orgCanManageMember($db, $viewer, $targetId)) {
+        sendErrorResponse('この方の所属は変更できません', 403);
     }
 
     $stmt = $db->prepare('UPDATE users SET parent_user_id = NULL WHERE id = ?');
