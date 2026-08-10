@@ -1691,6 +1691,9 @@ $defaultGreetings = [
                                 <a href="backend/api/org/export-customers-csv.php" id="org-customer-csv" class="btn-secondary">CSV出力</a>
                             </div>
                         </div>
+                        <p class="section-note">
+                            店長を選ぶと「店舗全体（店長＋その配下の営業）」の顧客をまとめて確認できます。CSV出力も同じ範囲です。
+                        </p>
                         <div id="org-customer-list" class="org-team-list">
                             <p class="chat-history-loading">読み込み中...</p>
                         </div>
@@ -5048,13 +5051,20 @@ $defaultGreetings = [
                 registered: 'ご登録済み'
             };
 
+            // 絞り込みの値は「担当者ID」か「team-<店長ID>」（＝その店舗ぶん）。
+            // 店長本人が顧客を持たない運用でも、店舗の顧客が空にならないようにするための区別。
+            function customerQuery() {
+                var raw = filterEl ? String(filterEl.value || '') : '';
+                if (!raw) return '';
+                if (raw.indexOf('team-') === 0) {
+                    return '?member_id=' + encodeURIComponent(raw.slice(5)) + '&scope=team';
+                }
+                return '?member_id=' + encodeURIComponent(raw);
+            }
+
             function updateCsvLink() {
                 if (!csvLinkEl) return;
-                var memberId = filterEl ? filterEl.value : '';
-                csvLinkEl.setAttribute(
-                    'href',
-                    apiBase + '/export-customers-csv.php' + (memberId ? '?member_id=' + encodeURIComponent(memberId) : '')
-                );
+                csvLinkEl.setAttribute('href', apiBase + '/export-customers-csv.php' + customerQuery());
             }
 
             function setAssignStatus(message, isError) {
@@ -5111,12 +5121,18 @@ $defaultGreetings = [
                     } else {
                         html += '<span class="org-team-role">' + h(member.org_role_label) + '</span>';
                     }
+                    // 統括から見ると営業が複数店舗ぶん並ぶため、所属する店長を明記する。
+                    if (depth > 1 && (member.parent_name || member.parent_email)) {
+                        html += '<span class="org-team-owner">' + h(member.parent_name || member.parent_email) + ' の配下</span>';
+                    }
                     if (member.branch_department) html += '<span class="org-team-dept">' + h(member.branch_department) + '</span>';
                     html += '</div>';
                     html += '<div class="org-team-item-meta">';
                     html += '<span>顧客 ' + (parseInt(member.customer_count, 10) || 0) + '件</span>';
                     if (unread > 0) html += '<span class="chat-unread-badge" title="未読の顧客メッセージ">' + unread + '</span>';
-                    html += '<button type="button" class="org-team-view" data-member-id="' + memberId + '">顧客を見る</button>';
+                    // 店長は店舗まるごと、営業は本人ぶんの顧客を開く。
+                    var viewFilterValue = member.org_role === 'manager' ? ('team-' + memberId) : String(memberId);
+                    html += '<button type="button" class="org-team-view" data-filter-value="' + viewFilterValue + '">顧客を見る</button>';
                     if (canEditThis) {
                         html += '<button type="button" class="org-team-remove" data-member-id="' + memberId + '" data-member-name="' + h(member.name || member.email) + '">配下から外す</button>';
                     }
@@ -5128,7 +5144,7 @@ $defaultGreetings = [
 
                 memberListEl.querySelectorAll('.org-team-view').forEach(function(btn) {
                     btn.addEventListener('click', function() {
-                        if (filterEl) filterEl.value = btn.getAttribute('data-member-id');
+                        if (filterEl) filterEl.value = btn.getAttribute('data-filter-value');
                         updateCsvLink();
                         loadCustomers();
                     });
@@ -5259,8 +5275,18 @@ $defaultGreetings = [
                         if (filterEl) {
                             var options = '<option value="">配下の担当者すべて</option>';
                             members.forEach(function(member) {
-                                options += '<option value="' + (parseInt(member.user_id, 10) || 0) + '">'
-                                    + h(member.name || member.email) + '</option>';
+                                var optionMemberId = parseInt(member.user_id, 10) || 0;
+                                var optionLabel = member.name || member.email;
+                                // 店長は「店舗全体（本人＋配下の営業）」と「本人のみ」を選べるようにする。
+                                if (member.org_role === 'manager') {
+                                    options += '<option value="team-' + optionMemberId + '">'
+                                        + h(optionLabel) + ' の店舗全体</option>';
+                                    options += '<option value="' + optionMemberId + '">'
+                                        + h(optionLabel) + '（本人のみ）</option>';
+                                } else {
+                                    options += '<option value="' + optionMemberId + '">'
+                                        + h(optionLabel) + '</option>';
+                                }
                             });
                             filterEl.innerHTML = options;
                         }
@@ -5275,9 +5301,8 @@ $defaultGreetings = [
             }
 
             function loadCustomers() {
-                var memberId = filterEl ? filterEl.value : '';
                 customerListEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
-                return fetch(apiBase + '/customers.php' + (memberId ? '?member_id=' + encodeURIComponent(memberId) : ''), { credentials: 'include' })
+                return fetch(apiBase + '/customers.php' + customerQuery(), { credentials: 'include' })
                     .then(function(r) { return r.json(); })
                     .then(function(res) {
                         if (!res.success) {

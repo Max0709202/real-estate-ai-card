@@ -231,6 +231,7 @@ function orgFetchMembers(PDO $db, array $descendants): array
                u.status,
                u.last_login_at,
                parent.email AS parent_email,
+               parent_bc.name AS parent_name,
                bc.id AS business_card_id,
                bc.name AS member_name,
                bc.company_name,
@@ -257,6 +258,11 @@ function orgFetchMembers(PDO $db, array $descendants): array
             SELECT user_id, MIN(id) AS id FROM business_cards GROUP BY user_id
         ) first_card ON first_card.user_id = u.id
         LEFT JOIN business_cards bc ON bc.id = first_card.id
+        -- 上長の氏名。統括から見たときに「どの店長の配下の営業か」を出すために使う。
+        LEFT JOIN (
+            SELECT user_id, MIN(id) AS id FROM business_cards GROUP BY user_id
+        ) parent_card ON parent_card.user_id = u.parent_user_id
+        LEFT JOIN business_cards parent_bc ON parent_bc.id = parent_card.id
         WHERE u.id IN ($placeholders)
         ORDER BY u.id ASC
     ";
@@ -276,6 +282,7 @@ function orgFetchMembers(PDO $db, array $descendants): array
             'org_role_label' => orgRoleLabel($row['org_role'] ?? 'staff'),
             'parent_user_id' => $row['parent_user_id'] !== null ? (int)$row['parent_user_id'] : null,
             'parent_email' => $row['parent_email'] ?? '',
+            'parent_name' => (string)($row['parent_name'] ?? ''),
             'status' => (string)$row['status'],
             'last_login_at' => $row['last_login_at'],
             'business_card_id' => $row['business_card_id'] !== null ? (int)$row['business_card_id'] : null,
@@ -288,13 +295,57 @@ function orgFetchMembers(PDO $db, array $descendants): array
         ];
     }
 
-    // 階層順（店長 → その配下の営業）に並べ替えると一覧が読みやすい。
-    usort($members, function ($a, $b) {
-        if ($a['depth'] !== $b['depth']) return $a['depth'] <=> $b['depth'];
-        return $a['user_id'] <=> $b['user_id'];
-    });
+    // 並び順は「店長 → その店長の配下の営業 → 次の店長」。
+    // depth だけで並べると、統括から見たとき全店舗の営業がひとまとめになり、
+    // どの店舗の誰なのか読み取れなくなるため、親子を辿って組み立てる。
+    return orgSortMembersAsTree($members);
+}
 
-    return $members;
+/**
+ * 配下メンバーを階層順（親のすぐ後ろにその子）に並べ替える。
+ *
+ * @param array $members orgFetchMembers() が組み立てた配列
+ */
+function orgSortMembersAsTree(array $members): array
+{
+    $childrenOf = [];
+    foreach ($members as $member) {
+        $parentId = $member['parent_user_id'] !== null ? (int)$member['parent_user_id'] : 0;
+        $childrenOf[$parentId][] = $member;
+    }
+    foreach ($childrenOf as $parentId => $children) {
+        usort($children, function ($a, $b) { return $a['user_id'] <=> $b['user_id']; });
+        $childrenOf[$parentId] = $children;
+    }
+
+    $ordered = [];
+    $visited = [];
+    $appendSubtree = function (array $node) use (&$appendSubtree, &$ordered, &$visited, $childrenOf) {
+        $id = (int)$node['user_id'];
+        if (isset($visited[$id])) return;
+        $visited[$id] = true;
+        $ordered[] = $node;
+        foreach ($childrenOf[$id] ?? [] as $child) {
+            $appendSubtree($child);
+        }
+    };
+
+    // 起点は直属（depth 1）。ここから親子を辿ると店舗単位のまとまりになる。
+    $roots = [];
+    foreach ($members as $member) {
+        if ((int)($member['depth'] ?? 1) === 1) $roots[] = $member;
+    }
+    usort($roots, function ($a, $b) { return $a['user_id'] <=> $b['user_id']; });
+    foreach ($roots as $root) {
+        $appendSubtree($root);
+    }
+
+    // 親子が壊れているデータでも件数が減らないよう、辿れなかった分は末尾に足す。
+    foreach ($members as $member) {
+        if (!isset($visited[(int)$member['user_id']])) $ordered[] = $member;
+    }
+
+    return $ordered;
 }
 
 /**
@@ -378,6 +429,30 @@ function orgFetchCustomers(PDO $db, array $memberIds, ?int $onlyUserId = null, i
 }
 
 /**
+ * 「その方の店舗ぶん」の担当者IDを返す（店長本人＋その配下の営業）。
+ *
+ * 統括が店長を選んだときに、店舗まるごとの顧客を見るために使う。
+ * 店長本人が顧客を持たない運用でも、店舗の顧客が空にならないようにする狙い。
+ *
+ * @param int[] $allowedIds 閲覧を許可された担当者IDの集合。ここに無いIDは必ず落とす。
+ * @return int[]
+ */
+function orgTeamScopeIds(PDO $db, int $memberId, array $allowedIds): array
+{
+    $allowed = array_flip(array_map('intval', $allowedIds));
+    if ($memberId <= 0 || !isset($allowed[$memberId])) return [];
+
+    $ids = [$memberId];
+    foreach (orgDescendants($db, $memberId) as $descendant) {
+        $id = (int)$descendant['id'];
+        // 許可集合との積を取るので、閲覧範囲の外が混ざることはない。
+        if (isset($allowed[$id])) $ids[] = $id;
+    }
+
+    return array_values(array_unique($ids));
+}
+
+/**
  * 会社名の表記ゆれを吸収した比較キーを作る。
  * 「株式会社ABC」「ＡＢＣ株式会社」「(株) ABC」が同じキーになるようにする。
  * 判定できない（会社名未入力）場合は空文字を返し、呼び出し側で候補なし扱いにする。
@@ -423,10 +498,13 @@ function orgCompanyForUser(PDO $db, int $userId): array
  * 配下として登録できる候補を返す。
  * 条件は「同じ会社」かつ「まだどの上長にも紐付いていない」かつ「統括ではない」。
  *
+ * さらに実行者の権限で絞る。店長（マネージャー）の配下に置けるのは営業（担当者）だけなので、
+ * 店長には営業しか出さない（出しても登録時に必ず弾かれ、選べるのに追加できない状態になるため）。
+ *
  * SQLでは会社名の部分一致で粗く絞り、最終判定は orgCompanyKey() の完全一致で行う
  * （表記ゆれをPHP側で吸収するため）。
  */
-function orgFetchAssignCandidates(PDO $db, int $actorId, int $limit = 300): array
+function orgFetchAssignCandidates(PDO $db, int $actorId, string $actorRole = 'admin', int $limit = 300): array
 {
     $company = orgCompanyForUser($db, $actorId);
     if ($company['key'] === '') return [];
@@ -434,6 +512,10 @@ function orgFetchAssignCandidates(PDO $db, int $actorId, int $limit = 300): arra
     // 「株式会社」等を除いた中核部分（＝正規化キー）で粗く絞り込む。
     $core = $company['key'];
     $limit = max(1, min(1000, $limit));
+    // 統括は店長候補も選ぶため担当者・店長の両方、店長は担当者のみ。
+    $roleCondition = orgNormalizeRole($actorRole) === 'admin'
+        ? "u.org_role <> 'admin'"
+        : "u.org_role = 'staff'";
 
     $sql = "
         SELECT u.id AS user_id,
@@ -449,7 +531,7 @@ function orgFetchAssignCandidates(PDO $db, int $actorId, int $limit = 300): arra
         LEFT JOIN business_cards bc ON bc.id = first_card.id
         WHERE u.id <> ?
           AND u.parent_user_id IS NULL
-          AND u.org_role <> 'admin'
+          AND $roleCondition
           AND bc.company_name IS NOT NULL
           AND bc.company_name <> ''
           -- 空白の入れ方の違いで取りこぼさないよう、SQL側でも空白を除いて比較する。

@@ -4,6 +4,7 @@
  *
  * 返すのは「自分と同じ会社」かつ「まだどの上長にも紐付いていない」ユーザーのみ。
  * 他社のユーザーは会社名の正規化キーが一致しないため、ここに現れない。
+ * 店長（マネージャー）には、その配下に置ける営業（担当者）だけを返す。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -26,7 +27,7 @@ try {
     }
 
     $company = orgCompanyForUser($db, $userId);
-    $candidates = orgFetchAssignCandidates($db, $userId);
+    $candidates = orgFetchAssignCandidates($db, $userId, $viewer['org_role']);
 
     sendSuccessResponse([
         'company_name' => $company['name'],
