@@ -9,9 +9,11 @@
  * 配下の顧客そのものを編集・削除する導線はここでは一切提供しない。
  *
  * 【重要】他社の情報が混ざらないための境界:
- *   ・閲覧範囲は parent_user_id を辿った「自分の配下」に限る。他社は構造上入らない。
- *   ・階層づくりで選べる相手も「同じ会社（会社名の正規化キーが一致）で、
- *     まだどの上長にも紐付いていない人」だけに限る。
+ *   ・同一会社の判定は「宅建業免許番号（都道府県＋登録番号）」で行う。
+ *     会社名は表記ゆれ（株式会社の有無・全角半角・支店名の付記）が避けられないため使わない。
+ *   ・統括（全閲覧）は同じ免許番号のメンバー全員を、
+ *     マネージャー（店長）は parent_user_id を辿った自分の配下だけを閲覧できる。
+ *   ・一覧・候補に出るのは「入金済み（CR / 振込済 / ST送金）かつ OPEN」の方だけ。
  *   なお admin/ 配下の管理画面は運営（リニュアル仲介）専用で、users とは
  *   別テーブル（admins）のログインが必要。各社の統括がそこへ入ることはない。
  */
@@ -92,7 +94,7 @@ function orgRoleLabel($role): string
 {
     switch (orgNormalizeRole($role)) {
         case 'admin':
-            return '管理者（統括）';
+            return '統括（全閲覧）';
         case 'manager':
             return 'マネージャー（店長）';
         default:
@@ -100,7 +102,7 @@ function orgRoleLabel($role): string
     }
 }
 
-/** 配下の担当者・顧客を閲覧できるのはマネージャーと管理者のみ。 */
+/** 配下の担当者・顧客を閲覧できるのは統括（全閲覧）とマネージャー（店長）のみ。担当者（営業）は不可。 */
 function orgCanViewTeam($role): bool
 {
     return in_array(orgNormalizeRole($role), ['manager', 'admin'], true);
@@ -453,97 +455,359 @@ function orgTeamScopeIds(PDO $db, int $memberId, array $allowedIds): array
 }
 
 /**
- * 会社名の表記ゆれを吸収した比較キーを作る。
- * 「株式会社ABC」「ＡＢＣ株式会社」「(株) ABC」が同じキーになるようにする。
- * 判定できない（会社名未入力）場合は空文字を返し、呼び出し側で候補なし扱いにする。
+ * 免許番号（宅建業者番号）の比較キーを作る。
+ *
+ * 同一会社の判定は会社名ではなく免許番号で行う。会社名は「株式会社の位置」「全角半角」
+ * 「支店名の付記」などの表記ゆれが避けられず、同じ会社を別会社と誤判定するため。
+ * 更新回数（東京都知事「(3)」第12345号 の (3) 部分）は5年ごとの免許更新で変わり、
+ * 同じ会社でも名刺を作った時期で食い違うので、意図的にキーへ含めない。
+ *
+ * @return array{prefecture:string, number:string, key:string} key が空なら判定不能
  */
-function orgCompanyKey($companyName): string
+function orgLicenseParts($prefecture, $registrationNumber): array
 {
-    $name = trim((string)$companyName);
-    if ($name === '') return '';
+    $blank = ['prefecture' => '', 'number' => '', 'key' => ''];
 
-    // 全角英数字・記号を半角に、全角スペースを半角に。
-    $name = mb_convert_kana($name, 'as');
-    $name = preg_replace('/\s+/u', '', $name) ?? '';
-    $name = str_replace(
-        ['株式会社', '有限会社', '合同会社', '合資会社', '合名会社', '(株)', '(有)', '㈱', '㈲'],
-        '',
-        $name
-    );
-    return mb_strtolower($name, 'UTF-8');
+    $prefecture = trim((string)$prefecture);
+    $number = trim((string)$registrationNumber);
+    if ($prefecture === '' || $number === '') return $blank;
+
+    // 全角を半角に寄せ、空白を落とす。
+    $prefecture = preg_replace('/\s+/u', '', mb_convert_kana($prefecture, 'as')) ?? '';
+    // 「第12345号」「No.12345」などの飾りを落として英数字だけにする。
+    $number = preg_replace('/[^0-9A-Za-z]/u', '', mb_convert_kana($number, 'as')) ?? '';
+    // 「012345」と「12345」は同じ会社として扱う。ただし全部0のときは落としすぎない。
+    $withoutZeros = ltrim($number, '0');
+    if ($withoutZeros !== '') $number = $withoutZeros;
+
+    if ($prefecture === '' || $number === '') return $blank;
+
+    $number = mb_strtolower($number, 'UTF-8');
+    return [
+        'prefecture' => $prefecture,
+        'number' => $number,
+        'key' => $prefecture . '|' . $number,
+    ];
 }
 
 /**
- * ユーザーの会社名（代表名刺のもの）と比較キーを返す。
+ * ユーザーの免許番号（代表名刺のもの）を返す。
  *
- * @return array{name:string, key:string}
+ * @return array{text:string, prefecture:string, number:string, key:string}
  */
-function orgCompanyForUser(PDO $db, int $userId): array
+function orgLicenseForUser(PDO $db, int $userId): array
 {
-    if ($userId <= 0) return ['name' => '', 'key' => ''];
+    $blank = ['text' => '', 'prefecture' => '', 'number' => '', 'key' => ''];
+    if ($userId <= 0) return $blank;
+
     try {
         $stmt = $db->prepare('
-            SELECT company_name FROM business_cards WHERE user_id = ? ORDER BY id ASC LIMIT 1
+            SELECT real_estate_license_prefecture,
+                   real_estate_license_renewal_number,
+                   real_estate_license_registration_number
+            FROM business_cards
+            WHERE user_id = ?
+            ORDER BY id ASC
+            LIMIT 1
         ');
         $stmt->execute([$userId]);
-        $name = (string)($stmt->fetchColumn() ?: '');
-        return ['name' => $name, 'key' => orgCompanyKey($name)];
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return $blank;
+
+        $parts = orgLicenseParts(
+            $row['real_estate_license_prefecture'] ?? '',
+            $row['real_estate_license_registration_number'] ?? ''
+        );
+        if ($parts['key'] === '') return $blank;
+
+        // 画面表示用（例：東京都知事（3）第12345号）。
+        $renewal = trim((string)($row['real_estate_license_renewal_number'] ?? ''));
+        $text = trim((string)($row['real_estate_license_prefecture'] ?? ''))
+            . ($renewal !== '' ? '（' . $renewal . '）' : '')
+            . '第' . trim((string)($row['real_estate_license_registration_number'] ?? '')) . '号';
+
+        return [
+            'text' => $text,
+            'prefecture' => $parts['prefecture'],
+            'number' => $parts['number'],
+            'key' => $parts['key'],
+        ];
     } catch (Exception $e) {
-        error_log('orgCompanyForUser error: ' . $e->getMessage());
-        return ['name' => '', 'key' => ''];
+        error_log('orgLicenseForUser error: ' . $e->getMessage());
+        return $blank;
     }
 }
 
 /**
- * 配下として登録できる候補を返す。
- * 条件は「同じ会社」かつ「まだどの上長にも紐付いていない」かつ「統括ではない」。
- *
- * さらに実行者の権限で絞る。店長（マネージャー）の配下に置けるのは営業（担当者）だけなので、
- * 店長には営業しか出さない（出しても登録時に必ず弾かれ、選べるのに追加できない状態になるため）。
- *
- * SQLでは会社名の部分一致で粗く絞り、最終判定は orgCompanyKey() の完全一致で行う
- * （表記ゆれをPHP側で吸収するため）。
+ * 2人が同じ会社（＝同じ免許番号）か。
+ * 免許番号が未登録で判定できない場合は false（＝許可しない）。他社を取り込ませないための関門。
  */
-function orgFetchAssignCandidates(PDO $db, int $actorId, string $actorRole = 'admin', int $limit = 300): array
+function orgIsSameLicense(PDO $db, int $userIdA, int $userIdB): bool
 {
-    $company = orgCompanyForUser($db, $actorId);
-    if ($company['key'] === '') return [];
+    $a = orgLicenseForUser($db, $userIdA);
+    $b = orgLicenseForUser($db, $userIdB);
+    return $a['key'] !== '' && $a['key'] === $b['key'];
+}
 
-    // 「株式会社」等を除いた中核部分（＝正規化キー）で粗く絞り込む。
-    $core = $company['key'];
-    $limit = max(1, min(1000, $limit));
-    // 統括は店長候補も選ぶため担当者・店長の両方、店長は担当者のみ。
-    $roleCondition = orgNormalizeRole($actorRole) === 'admin'
-        ? "u.org_role <> 'admin'"
-        : "u.org_role = 'staff'";
+/**
+ * 一覧・候補に出してよい方の条件。
+ * 「入金済み（CR / 振込済 / ST送金）かつ OPEN（is_published）」の名刺を持つ方だけを対象にする。
+ *
+ * @param string $userAlias users のエイリアス
+ */
+function orgActiveCardCondition(string $userAlias = 'u'): string
+{
+    return "EXISTS (
+        SELECT 1
+        FROM business_cards org_active_bc
+        WHERE org_active_bc.user_id = {$userAlias}.id
+          AND org_active_bc.payment_status IN ('CR', 'BANK_PAID', 'ST')
+          AND org_active_bc.is_published = 1
+    )";
+}
+
+/**
+ * 与えたユーザーIDのうち、入金済みかつOPENの方だけを残す。
+ *
+ * @param int[] $ids
+ * @return int[] 入力の並び順を保つ
+ */
+function orgFilterActiveMemberIds(PDO $db, array $ids): array
+{
+    $ids = array_values(array_unique(array_map('intval', $ids)));
+    if (empty($ids)) return [];
+
+    try {
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $db->prepare("
+            SELECT DISTINCT user_id
+            FROM business_cards
+            WHERE user_id IN ($placeholders)
+              AND payment_status IN ('CR', 'BANK_PAID', 'ST')
+              AND is_published = 1
+        ");
+        $stmt->execute($ids);
+        $active = array_flip(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN)));
+    } catch (Exception $e) {
+        error_log('orgFilterActiveMemberIds error: ' . $e->getMessage());
+        return [];
+    }
+
+    $kept = [];
+    foreach ($ids as $id) {
+        if (isset($active[$id])) $kept[] = $id;
+    }
+    return $kept;
+}
+
+/**
+ * 同じ免許番号のメンバー（入金済み・OPEN）を返す。統括（全閲覧）の閲覧範囲そのもの。
+ *
+ * SQLでは登録番号の部分一致で粗く絞り、最終判定は orgLicenseParts() のキー完全一致で行う
+ * （「第12345号」のような表記ゆれをPHP側で吸収するため）。
+ *
+ * @param array $license orgLicenseForUser() の戻り値
+ * @return array<int, array{id:int, org_role:string, parent_user_id:int|null}>
+ */
+function orgFetchLicenseMembers(PDO $db, int $actorId, array $license, int $limit = 1000): array
+{
+    if (($license['key'] ?? '') === '') return [];
+    $limit = max(1, min(5000, $limit));
+    $activeCondition = orgActiveCardCondition('u');
+    // 登録番号が全角数字で入力されている名刺も拾えるよう、半角・全角の両方で粗く絞る。
+    $numberWide = mb_convert_kana($license['number'], 'A');
 
     $sql = "
-        SELECT u.id AS user_id,
-               u.email,
+        SELECT u.id,
                u.org_role,
-               bc.name AS member_name,
-               bc.company_name,
-               bc.branch_department
+               u.parent_user_id,
+               bc.real_estate_license_prefecture AS license_prefecture,
+               bc.real_estate_license_registration_number AS license_number
         FROM users u
-        LEFT JOIN (
+        JOIN (
             SELECT user_id, MIN(id) AS id FROM business_cards GROUP BY user_id
         ) first_card ON first_card.user_id = u.id
-        LEFT JOIN business_cards bc ON bc.id = first_card.id
+        JOIN business_cards bc ON bc.id = first_card.id
         WHERE u.id <> ?
-          AND u.parent_user_id IS NULL
-          AND $roleCondition
-          AND bc.company_name IS NOT NULL
-          AND bc.company_name <> ''
-          -- 空白の入れ方の違いで取りこぼさないよう、SQL側でも空白を除いて比較する。
-          -- 大文字小文字と全角半角は utf8mb4_unicode_ci の照合で吸収される。
-          AND REPLACE(REPLACE(bc.company_name, ' ', ''), '　', '') LIKE CONCAT('%', ?, '%')
+          AND bc.real_estate_license_registration_number IS NOT NULL
+          AND bc.real_estate_license_registration_number <> ''
+          AND (
+                REPLACE(REPLACE(bc.real_estate_license_registration_number, ' ', ''), '　', '') LIKE CONCAT('%', ?, '%')
+             OR REPLACE(REPLACE(bc.real_estate_license_registration_number, ' ', ''), '　', '') LIKE CONCAT('%', ?, '%')
+          )
+          AND $activeCondition
         ORDER BY u.id ASC
         LIMIT $limit
     ";
 
     try {
         $stmt = $db->prepare($sql);
-        $stmt->execute([$actorId, $core]);
+        $stmt->execute([$actorId, $license['number'], $numberWide]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log('orgFetchLicenseMembers error: ' . $e->getMessage());
+        return [];
+    }
+
+    $members = [];
+    foreach ($rows as $row) {
+        // 最終判定。粗い部分一致で拾った他社を、免許番号キーの完全一致で落とす。
+        $parts = orgLicenseParts($row['license_prefecture'] ?? '', $row['license_number'] ?? '');
+        if ($parts['key'] !== $license['key']) continue;
+
+        $members[] = [
+            'id' => (int)$row['id'],
+            'org_role' => orgNormalizeRole($row['org_role'] ?? 'staff'),
+            'parent_user_id' => $row['parent_user_id'] !== null ? (int)$row['parent_user_id'] : null,
+        ];
+    }
+
+    return $members;
+}
+
+/**
+ * 閲覧できるメンバーの集合を返す（orgDescendants() と同じ形）。
+ *
+ *   統括（全閲覧）… 同じ免許番号のメンバー全員。上長として登録していなくても見える。
+ *   マネージャー（店長）… parent_user_id を辿った自分の配下だけ。
+ *
+ * どちらも「入金済み かつ OPEN」の方に限る。
+ *
+ * @param array $viewer orgLoadViewer() の戻り値
+ * @return array<int, array{id:int, depth:int}>
+ */
+function orgVisibleMemberScope(PDO $db, array $viewer): array
+{
+    $viewerId = (int)($viewer['id'] ?? 0);
+    $role = orgNormalizeRole($viewer['org_role'] ?? 'staff');
+    if ($viewerId <= 0 || !orgCanViewTeam($role)) return [];
+
+    if ($role !== 'admin') {
+        $ids = [];
+        $depthById = [];
+        foreach (orgDescendants($db, $viewerId) as $descendant) {
+            $id = (int)$descendant['id'];
+            $ids[] = $id;
+            $depthById[$id] = (int)$descendant['depth'];
+        }
+        $scope = [];
+        foreach (orgFilterActiveMemberIds($db, $ids) as $id) {
+            $scope[] = ['id' => $id, 'depth' => $depthById[$id] ?? 1];
+        }
+        return $scope;
+    }
+
+    $license = orgLicenseForUser($db, $viewerId);
+    if ($license['key'] === '') return [];
+
+    $members = orgFetchLicenseMembers($db, $viewerId, $license);
+    $inScope = [];
+    foreach ($members as $member) {
+        $inScope[$member['id']] = true;
+    }
+
+    $scope = [];
+    foreach ($members as $member) {
+        $parentId = $member['parent_user_id'];
+        // 店長の配下にいる営業だけを2段目に置く。未所属・統括直下・店長本人は1段目。
+        $depth = ($parentId !== null && $parentId !== $viewerId && isset($inScope[$parentId])) ? 2 : 1;
+        $scope[] = ['id' => $member['id'], 'depth' => $depth];
+    }
+
+    return $scope;
+}
+
+/**
+ * 実行者がその相手の階層（権限・上長）を変更できるか。
+ *
+ *   統括（全閲覧）… 同じ免許番号のメンバーなら誰でも
+ *   マネージャー（店長）… 自分の直属の配下だけ
+ *
+ * どちらも他の統括には触れない（統括の指名・解除は運営の管理画面だけで行う）。
+ */
+function orgCanManageMember(PDO $db, array $viewer, int $targetId): bool
+{
+    $viewerId = (int)($viewer['id'] ?? 0);
+    $role = orgNormalizeRole($viewer['org_role'] ?? 'staff');
+    if ($viewerId <= 0 || $targetId <= 0 || $viewerId === $targetId) return false;
+    if (!orgCanViewTeam($role)) return false;
+
+    try {
+        $stmt = $db->prepare('SELECT org_role FROM users WHERE id = ? LIMIT 1');
+        $stmt->execute([$targetId]);
+        $targetRole = orgNormalizeRole($stmt->fetchColumn() ?: 'staff');
+    } catch (Exception $e) {
+        error_log('orgCanManageMember error: ' . $e->getMessage());
+        return false;
+    }
+    if ($targetRole === 'admin') return false;
+
+    return $role === 'admin'
+        ? orgIsSameLicense($db, $viewerId, $targetId)
+        : orgIsDirectChild($db, $viewerId, $targetId);
+}
+
+/**
+ * 配下として登録できる候補を返す。
+ *
+ * 条件は「同じ免許番号」かつ「入金済み・OPEN」かつ「統括ではない」かつ「まだ自分の直属ではない」。
+ * すでに他の店長の配下にいる方も候補に含める（店舗異動をこの画面で行えるようにするため）。
+ * その場合は現在の上長を添えて返し、画面側で「現在：◯◯の配下」と表示する。
+ *
+ * マネージャー（店長）の配下に置けるのは担当者（営業）だけなので、店長には営業のみ返す。
+ */
+function orgFetchAssignCandidates(PDO $db, int $actorId, string $actorRole = 'admin', int $limit = 300): array
+{
+    $license = orgLicenseForUser($db, $actorId);
+    if ($license['key'] === '') return [];
+
+    $actorRole = orgNormalizeRole($actorRole);
+    $limit = max(1, min(1000, $limit));
+    $activeCondition = orgActiveCardCondition('u');
+    // 登録番号が全角数字で入力されている名刺も拾えるよう、半角・全角の両方で粗く絞る。
+    $numberWide = mb_convert_kana($license['number'], 'A');
+    // 統括は店長候補も選ぶため担当者・店長の両方、店長は担当者のみ。
+    $roleCondition = $actorRole === 'admin' ? "u.org_role <> 'admin'" : "u.org_role = 'staff'";
+
+    $sql = "
+        SELECT u.id AS user_id,
+               u.email,
+               u.org_role,
+               u.parent_user_id,
+               bc.name AS member_name,
+               bc.company_name,
+               bc.branch_department,
+               bc.real_estate_license_prefecture AS license_prefecture,
+               bc.real_estate_license_registration_number AS license_number,
+               parent_bc.name AS parent_name,
+               parent.email AS parent_email
+        FROM users u
+        JOIN (
+            SELECT user_id, MIN(id) AS id FROM business_cards GROUP BY user_id
+        ) first_card ON first_card.user_id = u.id
+        JOIN business_cards bc ON bc.id = first_card.id
+        LEFT JOIN users parent ON parent.id = u.parent_user_id
+        LEFT JOIN (
+            SELECT user_id, MIN(id) AS id FROM business_cards GROUP BY user_id
+        ) parent_card ON parent_card.user_id = u.parent_user_id
+        LEFT JOIN business_cards parent_bc ON parent_bc.id = parent_card.id
+        WHERE u.id <> ?
+          AND (u.parent_user_id IS NULL OR u.parent_user_id <> ?)
+          AND $roleCondition
+          AND bc.real_estate_license_registration_number IS NOT NULL
+          AND bc.real_estate_license_registration_number <> ''
+          AND (
+                REPLACE(REPLACE(bc.real_estate_license_registration_number, ' ', ''), '　', '') LIKE CONCAT('%', ?, '%')
+             OR REPLACE(REPLACE(bc.real_estate_license_registration_number, ' ', ''), '　', '') LIKE CONCAT('%', ?, '%')
+          )
+          AND $activeCondition
+        ORDER BY u.id ASC
+        LIMIT $limit
+    ";
+
+    try {
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$actorId, $actorId, $license['number'], $numberWide]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log('orgFetchAssignCandidates error: ' . $e->getMessage());
@@ -552,16 +816,20 @@ function orgFetchAssignCandidates(PDO $db, int $actorId, string $actorRole = 'ad
 
     $candidates = [];
     foreach ($rows as $row) {
-        // 最終判定。粗い部分一致で拾った他社を、正規化キーの完全一致で落とす。
-        if (orgCompanyKey($row['company_name'] ?? '') !== $company['key']) continue;
+        // 最終判定。粗い部分一致で拾った他社を、免許番号キーの完全一致で落とす。
+        $parts = orgLicenseParts($row['license_prefecture'] ?? '', $row['license_number'] ?? '');
+        if ($parts['key'] !== $license['key']) continue;
 
         $candidates[] = [
             'user_id' => (int)$row['user_id'],
             'email' => (string)$row['email'],
             'org_role' => orgNormalizeRole($row['org_role'] ?? 'staff'),
+            'org_role_label' => orgRoleLabel($row['org_role'] ?? 'staff'),
             'name' => (string)($row['member_name'] ?? ''),
             'company_name' => (string)($row['company_name'] ?? ''),
             'branch_department' => (string)($row['branch_department'] ?? ''),
+            'parent_user_id' => $row['parent_user_id'] !== null ? (int)$row['parent_user_id'] : null,
+            'parent_name' => (string)($row['parent_name'] ?: ($row['parent_email'] ?? '')),
         ];
     }
 
@@ -569,14 +837,55 @@ function orgFetchAssignCandidates(PDO $db, int $actorId, string $actorRole = 'ad
 }
 
 /**
- * 2人が同じ会社か。会社名が未入力の場合は判定できないため false（＝許可しない）。
- * 他社のユーザーを配下に取り込めないようにするための最後の関門。
+ * 免許番号が初めて登録されたときに、その方を統括（全閲覧）にする。
+ *
+ * 「その免許番号で最初に登録した人が統括、以降の人は担当者（営業）」という運用のため、
+ * 同じ免許番号にすでに統括がいる場合は何もしない。既に権限が付いている方も変更しない。
+ * 統括の追加・解除は運営の管理画面（admin/dashboard.php の☑）から行う。
+ *
+ * @return bool 統括に設定したら true
  */
-function orgIsSameCompany(PDO $db, int $userIdA, int $userIdB): bool
+function orgAutoAssignFirstAdmin(PDO $db, int $userId): bool
 {
-    $a = orgCompanyForUser($db, $userIdA);
-    $b = orgCompanyForUser($db, $userIdB);
-    return $a['key'] !== '' && $a['key'] === $b['key'];
+    if ($userId <= 0) return false;
+    orgEnsureUserColumns($db);
+
+    try {
+        $license = orgLicenseForUser($db, $userId);
+        if ($license['key'] === '') return false;
+
+        $stmt = $db->prepare('SELECT org_role, parent_user_id FROM users WHERE id = ? LIMIT 1');
+        $stmt->execute([$userId]);
+        $current = $stmt->fetch(PDO::FETCH_ASSOC);
+        // すでに権限や上長が付いている方は運用側の設定を尊重して触らない。
+        if (!$current) return false;
+        if (orgNormalizeRole($current['org_role'] ?? 'staff') !== 'staff') return false;
+        if ($current['parent_user_id'] !== null) return false;
+
+        // 同じ免許番号に統括がいるかを確認する。統括は数が少ないため全件を突き合わせる。
+        $stmt = $db->prepare('
+            SELECT bc.real_estate_license_prefecture AS license_prefecture,
+                   bc.real_estate_license_registration_number AS license_number
+            FROM users u
+            JOIN (
+                SELECT user_id, MIN(id) AS id FROM business_cards GROUP BY user_id
+            ) first_card ON first_card.user_id = u.id
+            JOIN business_cards bc ON bc.id = first_card.id
+            WHERE u.org_role = ? AND u.id <> ?
+        ');
+        $stmt->execute(['admin', $userId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $parts = orgLicenseParts($row['license_prefecture'] ?? '', $row['license_number'] ?? '');
+            if ($parts['key'] === $license['key']) return false;
+        }
+
+        $stmt = $db->prepare("UPDATE users SET org_role = 'admin', parent_user_id = NULL WHERE id = ? AND org_role = 'staff'");
+        $stmt->execute([$userId]);
+        return $stmt->rowCount() > 0;
+    } catch (Exception $e) {
+        error_log('orgAutoAssignFirstAdmin error: ' . $e->getMessage());
+        return false;
+    }
 }
 
 /** $targetId が $actorId の直属の配下か。 */

@@ -34,8 +34,8 @@ try {
     ensureChatLeadContactTable($db);
     customerInviteEnsureTable($db);
 
-    $descendants = orgDescendants($db, $userId);
-    $memberIds = array_map(function ($item) { return (int)$item['id']; }, $descendants);
+    $scope = orgVisibleMemberScope($db, $viewer);
+    $memberIds = array_map(function ($item) { return (int)$item['id']; }, $scope);
     if (empty($memberIds)) {
         sendSuccessResponse(['customers' => [], 'member_id' => null], 'OK');
     }

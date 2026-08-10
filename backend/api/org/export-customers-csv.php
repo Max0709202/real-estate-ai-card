@@ -34,8 +34,8 @@ try {
     ensureChatLeadContactTable($db);
     customerInviteEnsureTable($db);
 
-    $descendants = orgDescendants($db, $userId);
-    $memberIds = array_map(function ($item) { return (int)$item['id']; }, $descendants);
+    $scope = orgVisibleMemberScope($db, $viewer);
+    $memberIds = array_map(function ($item) { return (int)$item['id']; }, $scope);
 
     $requestedMemberId = isset($_GET['member_id']) ? (int) $_GET['member_id'] : 0;
     $onlyUserId = $requestedMemberId > 0 ? $requestedMemberId : null;

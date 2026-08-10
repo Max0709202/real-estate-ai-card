@@ -2,9 +2,10 @@
 /**
  * 配下担当者の一覧（マイページ「組織・配下顧客」用）。閲覧専用。
  *
- * マネージャー（店長）は自分の配下の担当者を、
- * 管理者（統括）は配下の店長とその配下の担当者までを取得できる。
- * 担当者（営業）は配下を持たないため 403 を返す。
+ * 統括（全閲覧）は同じ免許番号のメンバー全員を、
+ * マネージャー（店長）は自分の配下の担当者だけを取得できる。
+ * 担当者（営業）は閲覧権限が無いため 403 を返す。
+ * 一覧に出るのは「入金済み（CR / 振込済 / ST送金）かつ OPEN」の方のみ。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -32,8 +33,7 @@ try {
     ensureChatLeadContactTable($db);
     customerInviteEnsureTable($db);
 
-    $descendants = orgDescendants($db, $userId);
-    $members = orgFetchMembers($db, $descendants);
+    $members = orgFetchMembers($db, orgVisibleMemberScope($db, $viewer));
 
     $totalCustomers = 0;
     $totalUnread = 0;
@@ -47,6 +47,8 @@ try {
             'user_id' => $viewer['id'],
             'org_role' => $viewer['org_role'],
             'org_role_label' => orgRoleLabel($viewer['org_role']),
+            // 自社の判定に使っている免許番号。画面に出して取り違えに気付けるようにする。
+            'license_text' => orgLicenseForUser($db, $userId)['text'],
         ],
         'members' => $members,
         'summary' => [

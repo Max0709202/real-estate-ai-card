@@ -4,15 +4,18 @@
  *
  * POST { user_id: int, parent_user_id?: int }
  *   parent_user_id 省略時は「自分」を上長にする。
- *   統括（管理者）だけは、自分の直属の店長（マネージャー）を上長に指定できる
+ *   統括（全閲覧）だけは、自社の店長（マネージャー）を上長に指定できる
  *   （本部統括が各店舗へ営業を割り当てるケース）。
  *
  * 守る条件:
- *   ・実行者はマネージャーか管理者
- *   ・対象は自分と同じ会社
- *   ・対象は未所属、または自分の配下（＝店舗間の異動）
+ *   ・実行者は統括（全閲覧）かマネージャー（店長）
+ *   ・対象は自分と同じ免許番号（会社名ではなく免許番号で判定する）
+ *   ・対象は入金済み（CR / 振込済 / ST送金）かつ OPEN
  *   ・階層は最大3段（統括 → 店長 → 営業）を超えない
  *   ・循環を作らない
+ *
+ * すでに他の店長の配下にいる方も登録できる（＝店舗異動）。
+ * 元の上長からは自動的に外れ、顧客データは移動しない。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -51,15 +54,15 @@ try {
     $parentId = $actorId;
     if (!empty($input['parent_user_id']) && (int)$input['parent_user_id'] !== $actorId) {
         if ($viewer['org_role'] !== 'admin') {
-            sendErrorResponse('他の方の配下へ登録できるのは管理者（統括）のみです', 403);
+            sendErrorResponse('他の方の配下へ登録できるのは統括（全閲覧）のみです', 403);
         }
         $parentId = (int)$input['parent_user_id'];
-        // 指定できるのは自分の直属の店長だけ（3段を超えないようにする）。
+        // 指定できるのは自社の店長だけ（3段を超えないようにする）。
         $stmt = $db->prepare('SELECT org_role FROM users WHERE id = ? LIMIT 1');
         $stmt->execute([$parentId]);
         $parentRole = orgNormalizeRole($stmt->fetchColumn() ?: 'staff');
-        if (!orgIsDirectChild($db, $actorId, $parentId) || $parentRole !== 'manager') {
-            sendErrorResponse('上長には、自分の直属のマネージャー（店長）のみ指定できます', 400);
+        if ($parentRole !== 'manager' || !orgIsSameLicense($db, $actorId, $parentId)) {
+            sendErrorResponse('上長には、自社のマネージャー（店長）のみ指定できます', 400);
         }
     }
 
@@ -72,18 +75,17 @@ try {
 
     $targetRole = orgNormalizeRole($target['org_role'] ?? 'staff');
     if ($targetRole === 'admin') {
-        sendErrorResponse('管理者（統括）を配下にはできません', 400);
+        sendErrorResponse('統括（全閲覧）を配下にはできません', 400);
     }
 
-    // 他社のユーザーを取り込めないようにする、最も重要な確認。
-    if (!orgIsSameCompany($db, $actorId, $targetId)) {
-        sendErrorResponse('同じ会社の方のみ配下に登録できます（会社プロフィールの会社名をご確認ください）', 400);
+    // 他社のユーザーを取り込めないようにする、最も重要な確認。会社名ではなく免許番号で判定する。
+    if (!orgIsSameLicense($db, $actorId, $targetId)) {
+        sendErrorResponse('免許番号が同じ方のみ配下に登録できます（会社プロフィールの宅建業者番号をご確認ください）', 400);
     }
 
-    // 未所属か、自分の配下（＝異動）のときだけ受け付ける。
-    $targetParentId = $target['parent_user_id'] !== null ? (int)$target['parent_user_id'] : null;
-    if ($targetParentId !== null && !orgIsInSubtree($db, $actorId, $targetId)) {
-        sendErrorResponse('この方はすでに他の上長に登録されています', 400);
+    // 一覧に出す条件と揃える。未入金・非OPENの方は配下に登録できない。
+    if (empty(orgFilterActiveMemberIds($db, [$targetId]))) {
+        sendErrorResponse('入金済みかつOPENの方のみ配下に登録できます', 400);
     }
 
     // 階層は3段まで。店長の下に置けるのは営業だけ。

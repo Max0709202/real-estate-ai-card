@@ -7,6 +7,7 @@ ob_start();
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/org-hierarchy-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -44,6 +45,24 @@ try {
     }
 
     $bcId = $businessCard['id'];
+
+    // 組織階層：免許番号（宅建業者番号）が「初めて」入力された保存かどうかを判定するため、
+    // 更新前の値を控えておく。毎回の保存で統括の指名が動かないようにするための条件。
+    $licenseKeyBefore = '';
+    try {
+        $stmt = $db->prepare('
+            SELECT real_estate_license_prefecture, real_estate_license_registration_number
+            FROM business_cards WHERE id = ? LIMIT 1
+        ');
+        $stmt->execute([$bcId]);
+        $licenseRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $licenseKeyBefore = orgLicenseParts(
+            $licenseRow['real_estate_license_prefecture'] ?? '',
+            $licenseRow['real_estate_license_registration_number'] ?? ''
+        )['key'];
+    } catch (Exception $e) {
+        error_log('Update Error (license before): ' . $e->getMessage());
+    }
 
     // Start transaction
     $db->beginTransaction();
@@ -196,6 +215,21 @@ try {
      * Commit transaction
      */
     $db->commit();
+
+    /**
+     * =============== 組織階層：最初の登録者を統括（全閲覧）にする ===============
+     * 「その免許番号で最初に登録した方が統括、以降の方は担当者（営業）」という運用のため、
+     * 免許番号が未入力から入力された保存のときだけ判定する。
+     * すでに同じ免許番号に統括がいる場合や、権限・上長が設定済みの方は変更しない。
+     */
+    if ($licenseKeyBefore === '') {
+        try {
+            orgAutoAssignFirstAdmin($db, (int)$userId);
+        } catch (Exception $e) {
+            // 名刺の保存は完了しているため、ここでの失敗はログのみに留める。
+            error_log('orgAutoAssignFirstAdmin error: ' . $e->getMessage());
+        }
+    }
 
     sendSuccessResponse(['business_card_id' => $bcId], 'Business card updated successfully.');
 
