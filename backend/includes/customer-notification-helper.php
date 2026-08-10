@@ -13,7 +13,8 @@
  *   ② 待機中の同種操作は1通にまとめる（最後の操作から待機時間を再計測）
  *   ③ 担当の新しい操作があれば、送信済み(sent)でも再び通知対象に戻す
  *      （物件提案・担当連絡とも共通。2件目以降の取りこぼしを作らない）
- *   ④ 顧客が該当画面を開いたら未読解除(status='read')、以降の新操作は再び通知対象
+ *   ④ 顧客が該当画面を開いたら送信済み(sent)を未読解除(status='read')する。
+ *      送信待ち(pending)はキャンセルせず必ず送る（担当の操作は必ず通知する）
  *
  * 宛先は「その顧客のメールアドレス」（chat_lead_contacts.email、無ければ
  * chat_leads.structured_data の customer_email）。メールが無ければ通知しない。
@@ -248,8 +249,12 @@ function customerNotifyEnqueue(PDO $db, string $sessionId, string $feature): boo
 }
 
 /**
- * 顧客が該当画面を開いた → 未読解除（④）。
- * pending（未送信）も read にして送信をキャンセルする（顧客が見ているならメール不要）。
+ * 顧客が該当画面を開いた → 送信済み(sent)の未読解除（④）。
+ *
+ * 送信待ち(pending)はキャンセルしない。担当（事業者）からのメッセージ・物件提案は
+ * 必ず通知メールを届ける要件のため、顧客がその場で画面を開いていても送信を取り消さない。
+ * 顧客のカードページは担当連絡タブのポーリング／物件選定タブの再読込で本APIを叩き続けるため、
+ * 従来は待機時間（既定5分）＋cron間隔の間に read へ倒れ、通知が1通も届かないことがあった。
  *
  * @return int 更新した行数
  */
@@ -264,7 +269,7 @@ function customerNotifyMarkRead(PDO $db, string $sessionId, string $feature): in
         $stmt = $db->prepare(
             "UPDATE customer_notification_jobs
              SET status='read', read_at=NOW()
-             WHERE session_id = ? AND feature = ? AND status IN ('pending','sent')"
+             WHERE session_id = ? AND feature = ? AND status = 'sent'"
         );
         $stmt->execute([$sessionId, $feature]);
         return $stmt->rowCount();
