@@ -27,7 +27,7 @@ date_default_timezone_set('Asia/Tokyo');
 // セッション設定
 // 無操作タイムアウト（最終アクセスからの経過時間）
 define('SESSION_IDLE_LIFETIME', 6 * 3600);        // 一般ユーザー（エージェント）: 6時間
-define('SESSION_IDLE_LIFETIME_ADMIN', 3600);      // 管理画面: 1時間（セキュリティのため据え置き）
+define('SESSION_IDLE_LIFETIME_ADMIN', 3 * 3600);  // 管理画面: 3時間（無操作時のみ再ログイン）
 
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
