@@ -30,7 +30,8 @@
       if (!res.success) { body.innerHTML = '<div class="prop-empty">読み込みに失敗しました。</div>'; return; }
       var items = res.data.properties || [];
       if (!items.length) { body.innerHTML = '<div class="prop-empty">提案物件はまだありません。「物件を追加」から登録してください。</div>'; return; }
-      body.innerHTML = '<div class="prop-list">' + items.map(function (p) { return UI.cardHtml(p, {}); }).join('') + '</div>';
+      // views: true → お客様の閲覧回数（赤いバッジ）を担当側の一覧にだけ表示する。
+      body.innerHTML = '<div class="prop-list">' + items.map(function (p) { return UI.cardHtml(p, { views: true }); }).join('') + '</div>';
       body.querySelectorAll('.prop-card').forEach(function (c) {
         c.addEventListener('click', function () { openDetail(parseInt(c.getAttribute('data-prop-id'), 10)); });
       });

@@ -179,6 +179,16 @@
     return '（名称未取得）';
   }
 
+  /* 閲覧回数バッジ（赤丸に回数）。担当側の一覧（opts.views）でのみ表示し、
+     お客様が1回以上閲覧した物件だけに出す（未閲覧は何も表示しない）。
+     view_count はサーバーが担当向けレスポンスにだけ含めるため、顧客側には出ない。 */
+  function viewCountBadgeHtml(p, opts) {
+    if (!opts || !opts.views) return '';
+    var n = parseInt(p && p.view_count, 10);
+    if (!n || n < 1) return '';
+    return '<span class="prop-card__views" title="お客様がこの物件を閲覧した回数">' + esc(n) + '</span>';
+  }
+
   /* ===== 物件カード（§1 / §4） ===== */
   function cardHtml(p, opts) {
     opts = opts || {};
@@ -200,23 +210,27 @@
     var fav = opts.fav ? '<span class="prop-card__fav">' + icon('heart') + '</span>' : '';
     var regDate = formatDate(p.created_at);
     var dateHtml = regDate ? '<div class="prop-card__date">登録日 ' + esc(regDate) + '</div>' : '';
+    // 閲覧回数バッジ（担当側の一覧のみ・1回以上のときだけ表示）。
+    var views = viewCountBadgeHtml(p, opts);
     return '<div class="prop-card" data-prop-id="' + p.id + '">' +
       thumb +
       '<div class="prop-card__body">' +
         '<div class="prop-card__labels">' + labels + (badge || '') + '</div>' +
         '<div class="prop-card__name">' + name + '</div>' +
-        (p.price_text ? '<div class="prop-card__price">' + esc(p.price_text) + '</div>' : '') +
+        (p.price_text || views ? '<div class="prop-card__price">' + esc(p.price_text || '') + views + '</div>' : '') +
         '<div class="prop-card__meta">' + meta.join('<br>') + '</div>' +
         dateHtml +
       '</div>' + fav +
     '</div>';
   }
 
-  /* 認証付き画像URLに session/visitor を付与（顧客側で必要） */
+  /* 認証付き画像URLに session/visitor（またはSMS認証なしの閲覧トークン）を付与（顧客側で必要） */
   function addAuth(url, opts) {
-    if (!opts || (!opts.sessionId && !opts.visitorId)) return url;
+    if (!opts || (!opts.sessionId && !opts.visitorId && !opts.viewToken)) return url;
     var sep = url.indexOf('?') >= 0 ? '&' : '?';
     var q = [];
+    // 物件提案メールから来たSMS認証前の閲覧は、閲覧トークンだけで画像を取得する。
+    if (opts.viewToken) q.push('view_token=' + encodeURIComponent(opts.viewToken));
     if (opts.sessionId) q.push('session_id=' + encodeURIComponent(opts.sessionId));
     if (opts.visitorId) q.push('visitor_id=' + encodeURIComponent(opts.visitorId));
     return url + sep + q.join('&');
