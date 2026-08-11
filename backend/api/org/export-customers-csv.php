@@ -3,6 +3,8 @@
  * 配下担当者の顧客一覧をCSVで出力する（マイページ「組織・配下顧客」用）。閲覧専用。
  *
  * GET ?member_id=  … 指定した配下担当者だけに絞る（省略時は配下全員）
+ * GET ?scope=team  … member_id を「その方の店舗ぶん（本人＋その配下）」として扱う。
+ *                    画面の絞り込みと同じ範囲でCSVを出すために揃えている。
  *
  * 文字コードは既存のCSV出力（backend/api/admin/export-csv.php）に合わせ、
  * Excelでそのまま開けるBOM付きUTF-8とする。
@@ -32,17 +34,24 @@ try {
     ensureChatLeadContactTable($db);
     customerInviteEnsureTable($db);
 
-    $descendants = orgDescendants($db, $userId);
-    $memberIds = array_map(function ($item) { return (int)$item['id']; }, $descendants);
+    $scope = orgVisibleMemberScope($db, $viewer);
+    $memberIds = array_map(function ($item) { return (int)$item['id']; }, $scope);
 
     $requestedMemberId = isset($_GET['member_id']) ? (int) $_GET['member_id'] : 0;
     $onlyUserId = $requestedMemberId > 0 ? $requestedMemberId : null;
+    $isTeamScope = ($_GET['scope'] ?? '') === 'team';
     if ($onlyUserId !== null && !in_array($onlyUserId, $memberIds, true)) {
         header('Content-Type: application/json; charset=UTF-8');
         sendErrorResponse('指定された担当者は配下ではありません', 403);
     }
 
-    $customers = empty($memberIds) ? [] : orgFetchCustomers($db, $memberIds, $onlyUserId, 2000);
+    if (empty($memberIds)) {
+        $customers = [];
+    } elseif ($onlyUserId !== null && $isTeamScope) {
+        $customers = orgFetchCustomers($db, orgTeamScopeIds($db, $onlyUserId, $memberIds), null, 2000);
+    } else {
+        $customers = orgFetchCustomers($db, $memberIds, $onlyUserId, 2000);
+    }
 
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="team_customers_' . date('YmdHis') . '.csv"');

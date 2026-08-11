@@ -10,6 +10,7 @@
 
 require_once __DIR__ . '/openai-chat-helper.php';
 require_once __DIR__ . '/chat-phone-helper.php';
+require_once __DIR__ . '/property-view-helper.php';
 
 /* ──────────────────────────────────────────────────────────
  * テーブル自動作成（マイグレーション未実行でも動作するよう冪等に作成）
@@ -106,6 +107,8 @@ if (!function_exists('propertyEnsureTables')) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         propertyEnsureFlyerMaskColumns($db);
         propertyEnsureRetentionColumns($db);
+        // 閲覧トークン・閲覧回数のテーブル（property-view-helper.php）。
+        propertyViewEnsureTables($db);
         $done = true;
     }
 }
@@ -593,6 +596,8 @@ if (!function_exists('propertySerialize')) {
         }
 
         if ($forAgent) {
+            // 閲覧回数は担当（エージェント）にのみ返す。顧客側の画面には出さない。
+            $out['view_count'] = propertyViewCountFor($db, (int)$row['id']);
             $out['hazard'] = !empty($row['hazard_json']) ? json_decode($row['hazard_json'], true) : null;
             $out['hazard_fetched_at'] = $row['hazard_fetched_at'] ?? null;
         } else {

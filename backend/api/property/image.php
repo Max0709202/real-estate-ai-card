@@ -2,6 +2,7 @@
 /**
  * 物件画像の配信（認証付きプロキシ）。直リンク禁止。
  * GET ?id=<image_id>&session_id=&visitor_id=&variant=original|preview|masked
+ * GET ?id=<image_id>&view_token=（物件提案メールのリンクから来た未認証の閲覧）
  *  - 担当（ログイン＋名刺所有）: 既定で原本。variant=preview/masked も取得可。
  *  - 顧客: 販売図面はマスク確定済（masked）のみ取得可能（売主情報の自動非表示）。写真等は原本。
  */
@@ -13,6 +14,7 @@ require_once __DIR__ . '/../../includes/property-helper.php';
 $imageId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $sessionId = trim($_GET['session_id'] ?? '');
 $visitorId = trim($_GET['visitor_id'] ?? '');
+$viewToken = trim($_GET['view_token'] ?? '');
 $variant = trim($_GET['variant'] ?? '');
 if ($imageId <= 0) { http_response_code(400); echo 'bad request'; exit(); }
 
@@ -42,6 +44,12 @@ try {
         if (chatSessionVisitorAuthorized($db, $img['prop_session'], $visitorId, $img['visitor_identifier'])) {
             $isCustomer = true;
         }
+    }
+    // 物件提案メールのリンクから来た未認証の閲覧。トークンを発行した顧客の物件画像のみ許可。
+    // 顧客扱いなので、販売図面は下でマスク確定済（customer_visible=1）だけが配信される。
+    if (!$isAgent && !$isCustomer && $viewToken !== ''
+        && propertyViewTokenSession($db, $viewToken) === (string)$img['prop_session']) {
+        $isCustomer = true;
     }
     if (!$isAgent && !$isCustomer) { http_response_code(403); echo 'forbidden'; exit(); }
 

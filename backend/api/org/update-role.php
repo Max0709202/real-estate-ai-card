@@ -4,9 +4,11 @@
  *
  * POST { user_id: int, org_role: 'staff'|'manager' }
  *
- * 実行できるのは管理者（統括）のみ。統括が自分の直属の方を店長に指名する想定。
- * 管理者（統括）そのものを増やすことはここではできない
- * （統括の指名は運営側の管理画面 admin/org-hierarchy.php で行う）。
+ * 実行できるのは統括（全閲覧）のみ。統括が自社の方を店長に指名する想定。
+ * 統括（全閲覧）そのものを増やす・外すことはここではできない
+ * （統括の指名は運営側の管理画面 admin/dashboard.php の☑で行う）。
+ *
+ * 店長に指名すると、3段（統括 → 店長 → 営業）を保つために上長を統括本人へ付け替える。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -29,7 +31,7 @@ try {
 
     $viewer = orgLoadViewer($db, $actorId);
     if ($viewer['org_role'] !== 'admin') {
-        sendErrorResponse('権限を変更できるのは管理者（統括）のみです', 403);
+        sendErrorResponse('権限を変更できるのは統括（全閲覧）のみです', 403);
     }
 
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -42,13 +44,9 @@ try {
     if (!in_array($newRole, ['staff', 'manager'], true)) {
         sendErrorResponse('指定できる権限は担当者またはマネージャーです', 400);
     }
-    if (!orgIsInSubtree($db, $actorId, $targetId)) {
-        sendErrorResponse('この方はあなたの配下ではありません', 403);
-    }
-
-    // 3段（統括 → 店長 → 営業）を超えないよう、店長にできるのは統括の直属のみ。
-    if ($newRole === 'manager' && !orgIsDirectChild($db, $actorId, $targetId)) {
-        sendErrorResponse('マネージャー（店長）にできるのは、自分の直属の方のみです', 400);
+    // 自社（同じ免許番号）のメンバーのみ。他の統括には触れない。
+    if (!orgCanManageMember($db, $viewer, $targetId)) {
+        sendErrorResponse('この方の権限は変更できません（自社のメンバーではないか、統括の方です）', 403);
     }
 
     // 配下を持ったまま担当者へ戻すと、その配下が宙に浮くため先に整理してもらう。
@@ -60,8 +58,17 @@ try {
         }
     }
 
-    $stmt = $db->prepare('UPDATE users SET org_role = ? WHERE id = ?');
-    $stmt->execute([$newRole, $targetId]);
+    if ($newRole === 'manager') {
+        // 3段（統括 → 店長 → 営業）を保つため、店長は指名した統括の直下へ移す。
+        if (!orgIsAssignableParent($db, $targetId, $actorId)) {
+            sendErrorResponse('その方は店長にできません（階層が循環します）', 400);
+        }
+        $stmt = $db->prepare('UPDATE users SET org_role = ?, parent_user_id = ? WHERE id = ?');
+        $stmt->execute([$newRole, $actorId, $targetId]);
+    } else {
+        $stmt = $db->prepare('UPDATE users SET org_role = ? WHERE id = ?');
+        $stmt->execute([$newRole, $targetId]);
+    }
 
     sendSuccessResponse([
         'user_id' => $targetId,

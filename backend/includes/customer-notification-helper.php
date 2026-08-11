@@ -13,7 +13,8 @@
  *   ② 待機中の同種操作は1通にまとめる（最後の操作から待機時間を再計測）
  *   ③ 担当の新しい操作があれば、送信済み(sent)でも再び通知対象に戻す
  *      （物件提案・担当連絡とも共通。2件目以降の取りこぼしを作らない）
- *   ④ 顧客が該当画面を開いたら未読解除(status='read')、以降の新操作は再び通知対象
+ *   ④ 顧客が該当画面を開いたら送信済み(sent)を未読解除(status='read')する。
+ *      送信待ち(pending)はキャンセルせず必ず送る（担当の操作は必ず通知する）
  *
  * 宛先は「その顧客のメールアドレス」（chat_lead_contacts.email、無ければ
  * chat_leads.structured_data の customer_email）。メールが無ければ通知しない。
@@ -21,6 +22,7 @@
 
 require_once __DIR__ . '/functions.php'; // sendEmail()
 require_once __DIR__ . '/session-participant-helper.php'; // participantActiveEmails()（2名対応の通知配信先）
+require_once __DIR__ . '/property-view-helper.php'; // propertyViewTokenFor()（物件提案リンクの閲覧トークン）
 
 if (!defined('CUSTOMER_NOTIFY_WAIT_SECONDS')) {
     // 顧客向け通知のバッチ集約時間（既定5分）。担当向け（NOTIFY_WAIT_SECONDS）とは独立。
@@ -248,8 +250,12 @@ function customerNotifyEnqueue(PDO $db, string $sessionId, string $feature): boo
 }
 
 /**
- * 顧客が該当画面を開いた → 未読解除（④）。
- * pending（未送信）も read にして送信をキャンセルする（顧客が見ているならメール不要）。
+ * 顧客が該当画面を開いた → 送信済み(sent)の未読解除（④）。
+ *
+ * 送信待ち(pending)はキャンセルしない。担当（事業者）からのメッセージ・物件提案は
+ * 必ず通知メールを届ける要件のため、顧客がその場で画面を開いていても送信を取り消さない。
+ * 顧客のカードページは担当連絡タブのポーリング／物件選定タブの再読込で本APIを叩き続けるため、
+ * 従来は待機時間（既定5分）＋cron間隔の間に read へ倒れ、通知が1通も届かないことがあった。
  *
  * @return int 更新した行数
  */
@@ -264,7 +270,7 @@ function customerNotifyMarkRead(PDO $db, string $sessionId, string $feature): in
         $stmt = $db->prepare(
             "UPDATE customer_notification_jobs
              SET status='read', read_at=NOW()
-             WHERE session_id = ? AND feature = ? AND status IN ('pending','sent')"
+             WHERE session_id = ? AND feature = ? AND status = 'sent'"
         );
         $stmt->execute([$sessionId, $feature]);
         return $stmt->rowCount();
@@ -291,19 +297,27 @@ function customerNotifySubject(string $feature, string $agentName): string
     return NOTIFY_SUBJECT_PREFIX . $body;
 }
 
-/** メール内の確認リンク（カードページを開き、該当タブを自動表示）。 */
-function customerNotifyDeepLinkUrl(string $feature, string $cardSlug): string
+/**
+ * メール内の確認リンク（カードページを開き、該当タブを自動表示）。
+ * 物件提案は、SMS認証なしで提案物件の詳細を閲覧できるよう、顧客ごとの閲覧トークン（pv）を付ける。
+ * トークンは物件情報の閲覧のみに使え、他の機能はこれまで通りSMS認証が必要。
+ */
+function customerNotifyDeepLinkUrl(string $feature, string $cardSlug, string $viewToken = ''): string
 {
     $base = rtrim(BASE_URL, '/') . '/card.php?slug=' . rawurlencode($cardSlug);
     $open = $feature === 'property' ? 'property' : 'contact';
-    return $base . '&open=' . rawurlencode($open);
+    $url = $base . '&open=' . rawurlencode($open);
+    if ($feature === 'property' && $viewToken !== '') {
+        $url .= '&pv=' . rawurlencode($viewToken);
+    }
+    return $url;
 }
 
 /** メール本文（HTML / テキスト）を組み立てる。文面は社内要望どおり。 */
-function customerNotifyBuildBody(string $feature, string $agentName, string $cardSlug): array
+function customerNotifyBuildBody(string $feature, string $agentName, string $cardSlug, string $viewToken = ''): array
 {
     $name = customerNotifyAgentDisplay($agentName);
-    $url = customerNotifyDeepLinkUrl($feature, $cardSlug);
+    $url = customerNotifyDeepLinkUrl($feature, $cardSlug, $viewToken);
     $lead = $feature === 'property'
         ? "{$name}より、物件の提案が届いています。"
         : "{$name}より、メッセージが届いています。";
@@ -356,7 +370,9 @@ function customerNotifyFlushDue(PDO $db, int $limit = 20): array
         $agentName = (string)($job['agent_name'] ?? '');
         $cardSlug = (string)($job['card_slug'] ?? '');
         $subject = customerNotifySubject($feature, $agentName);
-        [$html, $text] = customerNotifyBuildBody($feature, $agentName, $cardSlug);
+        // 物件提案のリンクには、顧客ごとの閲覧トークンを付ける（SMS認証なしで物件詳細を閲覧できるようにする）。
+        $viewToken = $feature === 'property' ? propertyViewTokenFor($db, (string)$job['session_id']) : '';
+        [$html, $text] = customerNotifyBuildBody($feature, $agentName, $cardSlug, $viewToken);
 
         // 2名対応: 案件の参加者全員へ個別に送る（本人＋招待された家族）。
         // 参加者が1名なら従来どおり1通（recipient_email のみ）。

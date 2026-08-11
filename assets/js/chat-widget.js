@@ -34,6 +34,11 @@
     // 2人目（ご家族）の招待URL（card.php?...&couple=<token>）から開かれた場合のトークン。
     // session/start・phone/verify へ渡すと、同じ案件（共有セッション）へ合流する。
     var coupleToken = root.getAttribute('data-couple-token') || '';
+    // 物件提案メールのリンク（card.php?...&open=property&pv=<token>）から開かれた場合の閲覧トークン。
+    // このトークンがあれば、SMS認証前でも提案物件の詳細（基本情報・ハザード等情報・販売図面・
+    // 写真/資料）を閲覧できる。閲覧専用で、他の機能（AI担当・条件整理・進捗管理・ツール・日程調整・
+    // 担当連絡・ステータス更新・内見予約など）はこれまで通りSMS認証が必要。
+    var propertyViewToken = root.getAttribute('data-property-view-token') || '';
     // 「●●様専用」とヘッダーに出すための顧客名。SMS認証前は招待時の申告値を使う。
     var headerCustomerName = '';
 
@@ -220,11 +225,20 @@
         return !!sessionId && greetingShown && !sessionStarting && !entryAwaitingChoice && !registrationFlow;
     }
 
+    // 物件提案メールの閲覧トークンがあり、まだ本人特定が済んでいない状態
+    // （＝物件情報を読み取り専用で見せる状態）かどうか。
+    function propViewOnly() {
+        return !!propertyViewToken && !chatFeaturesReady();
+    }
+
     function updateTabLockState() {
         if (!tabBar) return;
         var locked = !chatFeaturesReady();
         Array.prototype.forEach.call(tabBar.querySelectorAll('.chat-widget-tab'), function (btn) {
-            var isAi = btn.getAttribute('data-chat-tab') === 'ai';
+            var tabKey = btn.getAttribute('data-chat-tab');
+            // 物件選定タブは、閲覧トークンがあるときだけSMS認証前でも開けるようにする
+            // （提案物件の閲覧のみ。タブ内の操作は押した時点でSMS認証へ進む）。
+            var isAi = tabKey === 'ai' || (tabKey === 'property' && !!propertyViewToken);
             var lock = locked && !isAi;
             btn.classList.toggle('is-locked', lock);
             btn.setAttribute('aria-disabled', lock ? 'true' : 'false');
@@ -2988,22 +3002,41 @@
         return fetch(siteBase + '/backend/api/property' + path, opts).then(function (r) { return r.json(); });
     }
     function propAuthQS() {
+        // SMS認証前（物件提案メールの閲覧トークン）は、トークンだけでサーバーが顧客を特定する。
+        if (propViewOnly()) return 'view_token=' + encodeURIComponent(propertyViewToken);
         return 'session_id=' + encodeURIComponent(sessionId || '') + '&visitor_id=' + encodeURIComponent(visitorId || '');
+    }
+
+    /* 物件画像URLに付ける認証情報（PropertyUI へ渡すオプション）。 */
+    function propAuthOpts() {
+        if (propViewOnly()) return { viewToken: propertyViewToken };
+        return { sessionId: sessionId, visitorId: visitorId };
+    }
+
+    /* SMS認証が必要な操作を押したとき。AI担当タブへ戻し、SMS認証へ進んでもらう。 */
+    function propRequireAuth() {
+        exitFeatureView();
+        appendBotMessage('こちらの機能をご利用いただくには、SMS認証をお願いしています。');
+        // 入口の案内（SMS認証フォーム・お名前/メールの登録）が出ていない場合だけ、改めて表示する。
+        if (sessionId && !entryAwaitingChoice && !registrationFlow) showSmsAuth('register');
+        scrollMessagesToBottom();
     }
 
     function renderPropertiesTab(_healed) {
         if (!PUI) { renderFeaturePanel('<div class="chat-feature-empty">読み込みに失敗しました。</div>'); return; }
-        if (!sessionId) {
+        if (!sessionId && !propViewOnly()) {
             renderFeaturePanel('<div class="chat-feature-empty">まず「AI担当」で会話を始めると、提案物件をここで確認できます。</div>');
             return;
         }
         renderFeaturePanel('<div class="prop-wrap" id="prop-cust"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>');
+        var viewOnly = propViewOnly();
         propApi('/list.php?' + propAuthQS()).then(function (res) {
             var box = featurePanel.querySelector('#prop-cust');
             if (!box) return;
             if (!res || !res.success) {
                 // セッション不整合の可能性 → 一度だけセッションを張り直して再試行。
-                if (!_healed) { revalidateSession().then(function () { renderPropertiesTab(true); }); return; }
+                // 閲覧トークンでの表示はセッションに依存しないため張り直さない。
+                if (!_healed && !viewOnly) { revalidateSession().then(function () { renderPropertiesTab(true); }); return; }
                 propShowLoadError(box); return;
             }
             var html = '<div class="prop-toolbar"><h4>物件選定</h4></div>';
@@ -3014,15 +3047,22 @@
                 '<span class="prop-method__chev">' + PUI.icon('chev') + '</span></div>';
             var items = (res.success && res.data.properties) ? res.data.properties : [];
             if (!items.length) html += '<div class="prop-empty">提案された物件・共有した物件がここに表示されます。</div>';
-            else html += '<div class="prop-list">' + items.map(function (p) { return PUI.cardHtml(p, { fav: true, sessionId: sessionId, visitorId: visitorId }); }).join('') + '</div>';
+            else {
+                html += '<div class="prop-list">' + items.map(function (p) {
+                    var cardOpts = propAuthOpts();
+                    cardOpts.fav = true;
+                    return PUI.cardHtml(p, cardOpts);
+                }).join('') + '</div>';
+            }
             box.innerHTML = html;
-            box.querySelector('#prop-cust-urlbtn').addEventListener('click', propOpenUrlShare);
+            // 物件URLの共有は「物件選定」の機能なので、SMS認証前はSMS認証へ進んでもらう。
+            box.querySelector('#prop-cust-urlbtn').addEventListener('click', viewOnly ? propRequireAuth : propOpenUrlShare);
             box.querySelectorAll('.prop-card').forEach(function (c) {
                 c.addEventListener('click', function () { propOpenDetail(parseInt(c.getAttribute('data-prop-id'), 10)); });
             });
         }).catch(function () {
             // 通信エラー時に「読み込み中」のまま固まらないようにし、再読み込みで復帰できるようにする。
-            if (!_healed) { revalidateSession().then(function () { renderPropertiesTab(true); }); return; }
+            if (!_healed && !viewOnly) { revalidateSession().then(function () { renderPropertiesTab(true); }); return; }
             var box = featurePanel.querySelector('#prop-cust');
             if (box) propShowLoadError(box);
         });
@@ -3079,6 +3119,13 @@
     }
 
     function propRenderDetail(p) {
+        // SMS認証前（物件提案メールの閲覧トークン）は、物件情報の閲覧のみ。
+        // ステータス更新・内見予約の依頼は、これまで通りSMS認証を行ってから利用いただく。
+        var viewOnly = propViewOnly();
+        var flyerOpts = propAuthOpts();
+        flyerOpts.emptyText = '販売図面はまだありません。';
+        var photoOpts = propAuthOpts();
+        photoOpts.emptyText = '写真・資料はまだありません。';
         var statusChips = Object.keys(PUI.STATUS).filter(function (k) { return PUI.STATUS[k].role === 'customer'; }).map(function (k) {
             var s = PUI.STATUS[k]; var on = p.status === k;
             return '<button type="button" class="prop-status-opt' + (on ? ' is-selected' : '') + '" data-cust-status="' + k + '" style="color:' + s.color + '">' +
@@ -3097,8 +3144,8 @@
             '</div>' +
             '<div class="prop-tabpane is-active" data-cpane="basic">' + PUI.basicInfoHtml(p, false) + '</div>' +
             '<div class="prop-tabpane" data-cpane="hazard">' + PUI.hazardHtml(p.hazard, p.hazard_fetched_at) + '</div>' +
-            '<div class="prop-tabpane" data-cpane="flyer">' + PUI.galleryHtml(p.flyers, { sessionId: sessionId, visitorId: visitorId, emptyText: '販売図面はまだありません。' }) + '</div>' +
-            '<div class="prop-tabpane" data-cpane="photo">' + PUI.galleryHtml(p.photos, { sessionId: sessionId, visitorId: visitorId, emptyText: '写真・資料はまだありません。' }) + '</div>' +
+            '<div class="prop-tabpane" data-cpane="flyer">' + PUI.galleryHtml(p.flyers, flyerOpts) + '</div>' +
+            '<div class="prop-tabpane" data-cpane="photo">' + PUI.galleryHtml(p.photos, photoOpts) + '</div>' +
             '<div class="prop-form-actions" style="margin-top:16px"><button type="button" class="prop-btn prop-btn--primary" id="prop-cust-viewing">' + PUI.icon('calendar') + '内見予約を依頼する</button></div>' +
         '</div>';
         renderFeaturePanel(html);
@@ -3111,6 +3158,8 @@
         });
         box.querySelectorAll('[data-cust-status]').forEach(function (b) {
             b.addEventListener('click', function () {
+                // 検討ステータスの登録は「物件選定」の機能。SMS認証前はSMS認証へ進んでもらう。
+                if (viewOnly) { propRequireAuth(); return; }
                 var st = b.getAttribute('data-cust-status');
                 if (p.status === st) st = ''; // 再タップで解除
                 // 「見送り」を選んだときは理由を選択してから登録する（解除時は理由不要）。
@@ -3134,6 +3183,8 @@
             });
         });
         box.querySelector('#prop-cust-viewing').addEventListener('click', function () {
+            // 内見予約の依頼は、これまで通りSMS認証が必要。
+            if (viewOnly) { propRequireAuth(); return; }
             var note = prompt('内見のご希望（日程・時間帯など）があればご記入ください（任意）', '');
             if (note === null) return;
             propApi('/viewing-request.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: p.id, session_id: sessionId, visitor_id: visitorId, note: note }) })
@@ -3484,7 +3535,14 @@
                 }
                 // 接続中・ユーザー認識中は、AI担当以外のタブを開かせない。
                 // 認識前に遷移するとスタックし、誰の履歴か分からないまま操作が進むため。
-                if (!chatFeaturesReady()) {
+                // ただし物件提案メールの閲覧トークンがある場合、物件選定タブ（提案物件の閲覧）だけは開く。
+                if (!chatFeaturesReady() && !(tab === 'property' && propViewOnly())) {
+                    return;
+                }
+                if (tab === 'property') {
+                    // 物件選定は専用API。CRM状態に依存しないため、そのまま描画する。
+                    enterFeatureView(tab);
+                    renderPropertiesTab();
                     return;
                 }
                 if (tab === 'contact') {

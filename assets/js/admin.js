@@ -388,6 +388,65 @@ async function updatePublishedStatus(businessCardId, isPublished, checkboxElemen
     }
 }
 
+// 統括（全閲覧）の指名。名前の前の☑で、その方を組織階層の最上層にする。
+// 統括になると、同じ宅建業免許番号の自社メンバーと、その担当顧客をマイページから閲覧できる。
+document.querySelectorAll('.org-admin-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        const userId = parseInt(this.dataset.userId, 10);
+        const userName = this.dataset.userName || 'この方';
+        const makeAdmin = this.checked;
+        const originalState = !makeAdmin;
+
+        const message = makeAdmin
+            ? `${userName} さんを「統括（全閲覧）」に指名します。\n同じ免許番号の自社メンバーと、その担当顧客をすべて閲覧できるようになります。`
+            : `${userName} さんの「統括（全閲覧）」を解除し、「担当者（営業）」に戻します。`;
+        if (!confirm(message)) {
+            this.checked = originalState;
+            return;
+        }
+
+        updateOrgAdminRole(userId, makeAdmin, this, originalState);
+    });
+});
+
+// 組織権限の更新（統括の指名・解除）
+async function updateOrgAdminRole(userId, makeAdmin, checkboxElement, originalState) {
+    try {
+        const response = await fetch('../backend/api/admin/update-user-org.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                org_role: makeAdmin ? 'admin' : 'staff',
+                // 統括は組織の最上層なので上長を持たない。
+                parent_user_id: null
+            }),
+            credentials: 'include'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            const label = document.querySelector(`.org-role-label[data-user-id="${userId}"]`);
+            if (label) {
+                label.textContent = makeAdmin
+                    ? ((result.data && result.data.org_role_label) || '統括（全閲覧）')
+                    : '';
+            }
+            showSuccess(makeAdmin ? '統括（全閲覧）に指名しました' : '統括（全閲覧）を解除しました', { autoClose: 2000 });
+        } else {
+            checkboxElement.checked = originalState;
+            showError(result.message || '組織権限の変更に失敗しました');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        checkboxElement.checked = originalState;
+        showError('エラーが発生しました');
+    }
+}
+
 // Get selected user IDs
 function getSelectedUserIds() {
     const checkboxes = document.querySelectorAll('.user-select-checkbox:checked');

@@ -2,11 +2,17 @@
 /**
  * 組織階層設定ページ
  * ------------------
- * 統括（管理者）→ 店長（マネージャー）→ 営業（担当者）の3階層を、
+ * 統括（全閲覧）→ マネージャー（店長）→ 担当者（営業）の3階層を、
  * ユーザーごとの「権限」と「上長」で設定する。
  *
+ * 通常の運用では、統括（全閲覧）の指名は admin/dashboard.php の名前の前の☑で行う。
+ * この画面は、まとめて確認・修正したい場合とCSVでの一括設定のために残している。
+ *
+ * 同一会社の判定は会社名ではなく宅建業免許番号（都道府県＋登録番号）で行うため、
+ * 一覧にも免許番号を表示している。
+ *
  * ここで設定した内容は、マイページの「組織・配下顧客」で
- * 上長が配下の担当者と顧客を “閲覧するため” にだけ使われる。
+ * 上長が自社メンバーと顧客を “閲覧するため” にだけ使われる。
  */
 require_once __DIR__ . '/../backend/config/config.php';
 require_once __DIR__ . '/../backend/config/database.php';
@@ -42,9 +48,9 @@ if (!in_array($roleFilter, ORG_ROLES, true)) {
 $where = [];
 $params = [];
 if ($keyword !== '') {
-    $where[] = '(u.email LIKE ? OR bc.name LIKE ? OR bc.company_name LIKE ? OR bc.branch_department LIKE ?)';
+    $where[] = '(u.email LIKE ? OR bc.name LIKE ? OR bc.company_name LIKE ? OR bc.branch_department LIKE ? OR bc.real_estate_license_registration_number LIKE ?)';
     $like = '%' . $keyword . '%';
-    array_push($params, $like, $like, $like, $like);
+    array_push($params, $like, $like, $like, $like, $like);
 }
 if ($roleFilter !== '') {
     $where[] = 'u.org_role = ?';
@@ -61,7 +67,10 @@ $sql = "
            bc.name AS member_name,
            bc.company_name,
            bc.branch_department,
-           bc.position
+           bc.position,
+           bc.real_estate_license_prefecture,
+           bc.real_estate_license_renewal_number,
+           bc.real_estate_license_registration_number
     FROM users u
     LEFT JOIN (
         SELECT user_id, MIN(id) AS id FROM business_cards GROUP BY user_id
@@ -90,6 +99,17 @@ $supervisorStmt = $db->query("
     ORDER BY u.org_role DESC, u.id ASC
 ");
 $supervisors = $supervisorStmt->fetchAll(PDO::FETCH_ASSOC);
+
+/** 一覧に出す免許番号（例：東京都知事（3）第12345号）。未登録なら空文字。 */
+function orgAdminLicenseText(array $row): string
+{
+    $prefecture = trim((string)($row['real_estate_license_prefecture'] ?? ''));
+    $number = trim((string)($row['real_estate_license_registration_number'] ?? ''));
+    if ($prefecture === '' || $number === '') return '';
+
+    $renewal = trim((string)($row['real_estate_license_renewal_number'] ?? ''));
+    return $prefecture . ($renewal !== '' ? '（' . $renewal . '）' : '') . '第' . $number . '号';
+}
 
 /** 一覧・選択肢で使う表示名。名刺が未作成ならメールアドレスで代用する。 */
 function orgAdminDisplayName(array $row): string
@@ -211,10 +231,13 @@ function orgAdminDisplayName(array $row): string
                 <p class="org-note">
                     <strong>この画面は運営専用です。</strong>全社のユーザーが表示されるため、各社の統括の方には公開しません
                     （管理画面は <code>admins</code> テーブルのログインが必要で、各社のユーザーアカウントでは入れません）。<br>
-                    ここでの主な作業は<strong>「各社の一番上の方（統括）を『管理者』に指名すること」</strong>です。<br>
-                    その先の 店長（マネージャー）と 営業（担当者）の紐付けは、指名された統括がご自身のマイページ
-                    「組織・配下顧客」画面から、<strong>自社のメンバーだけ</strong>を対象に設定します。<br>
-                    上長は<strong>配下の担当者と顧客を閲覧できるだけ</strong>で、顧客情報の編集・削除はできません。<br>
+                    <strong>統括（全閲覧）の指名は、通常はダッシュボードの「名前」欄の☑で行います。</strong>この画面はまとめて確認・修正したいときにお使いください。<br>
+                    自社かどうかの判定は<strong>宅建業免許番号（都道府県＋登録番号）</strong>で行います（会社名の表記ゆれの影響を受けないため）。
+                    更新回数は免許更新のたびに変わるため、判定には使いません。<br>
+                    その免許番号で最初に登録した方は、免許番号の初回入力時に自動で<strong>統括（全閲覧）</strong>になります。以降の方は<strong>担当者（営業）</strong>です。<br>
+                    統括（全閲覧）は<strong>同じ免許番号のメンバー全員</strong>を、マネージャー（店長）は<strong>自分の配下だけ</strong>を閲覧できます。
+                    いずれも<strong>閲覧のみ</strong>で、顧客情報の編集・削除はできません。<br>
+                    マイページの一覧に出るのは<strong>入金済み（CR／振込済／ST送金）かつ OPEN</strong> の方のみです。<br>
                     権限を「担当者」へ戻しても配下の紐付けは自動では外れません。配下がいる方を担当者に戻す場合は、配下の「上長」も付け替えてください。
                 </p>
 
@@ -244,6 +267,7 @@ function orgAdminDisplayName(array $row): string
                             <th>ID</th>
                             <th>氏名</th>
                             <th>会社名 / 部署</th>
+                            <th>免許番号</th>
                             <th>メールアドレス</th>
                             <th>権限</th>
                             <th>上長</th>
@@ -251,7 +275,7 @@ function orgAdminDisplayName(array $row): string
                     </thead>
                     <tbody>
                         <?php if (empty($users)): ?>
-                        <tr><td colspan="6">該当するユーザーがいません。</td></tr>
+                        <tr><td colspan="7">該当するユーザーがいません。</td></tr>
                         <?php endif; ?>
                         <?php foreach ($users as $user): ?>
                         <?php $userRole = orgNormalizeRole($user['org_role'] ?? 'staff'); ?>
@@ -263,6 +287,10 @@ function orgAdminDisplayName(array $row): string
                                 <?php if (!empty($user['branch_department'])): ?>
                                     <br><span style="color:#666; font-size:12px;"><?php echo htmlspecialchars((string)$user['branch_department'], ENT_QUOTES, 'UTF-8'); ?></span>
                                 <?php endif; ?>
+                            </td>
+                            <?php $licenseText = orgAdminLicenseText($user); ?>
+                            <td style="white-space: nowrap; font-size: 13px;">
+                                <?php echo $licenseText !== '' ? htmlspecialchars($licenseText, ENT_QUOTES, 'UTF-8') : '<span style="color:#c00;">未登録</span>'; ?>
                             </td>
                             <td><?php echo htmlspecialchars((string)$user['email'], ENT_QUOTES, 'UTF-8'); ?></td>
                             <td>
