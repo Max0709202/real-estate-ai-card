@@ -19,6 +19,14 @@
     return m[1] + '/' + ('0' + m[2]).slice(-2) + '/' + ('0' + m[3]).slice(-2);
   }
 
+  /* 最終閲覧日時（年は省き分まで）。"2026-08-08 14:35:00" / ISO → "8/8 14:35"。 */
+  function formatDateTime(ts) {
+    if (!ts) return '';
+    var m = String(ts).match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})[T ](\d{1,2}):(\d{2})/);
+    if (!m) return formatDate(ts);
+    return parseInt(m[2], 10) + '/' + parseInt(m[3], 10) + ' ' + ('0' + m[4]).slice(-2) + ':' + m[5];
+  }
+
   /* ステータス定義（PHP propertyStatusDefs と一致） */
   var STATUS = {
     viewing_request:  { label: '内見希望',   role: 'customer', color: '#e8384f', icon: 'viewing' },
@@ -189,6 +197,21 @@
     return '<span class="prop-card__views" title="お客様がこの物件を閲覧した回数">' + esc(n) + '</span>';
   }
 
+  /* 閲覧状況の1行（担当側の一覧のみ）。
+     「累計 12回｜直近7日 5回｜最終閲覧 8/8 14:35」の形式で、未閲覧なら「未閲覧」と出す。
+     view_total / view_week / last_viewed_at はサーバーが担当向けレスポンスにだけ含める。 */
+  function viewStatsHtml(p, opts) {
+    if (!opts || !opts.views) return '';
+    var total = parseInt(p && (p.view_total != null ? p.view_total : p.view_count), 10) || 0;
+    var week = parseInt(p && p.view_week, 10) || 0;
+    var days = parseInt(p && p.view_recent_days, 10) || 7;
+    var last = formatDateTime(p && p.last_viewed_at);
+    if (!total) return '<div class="prop-card__views-stats prop-card__views-stats--none">未閲覧</div>';
+    var parts = ['累計 ' + total + '回', '直近' + days + '日 ' + week + '回'];
+    if (last) parts.push('最終閲覧 ' + last);
+    return '<div class="prop-card__views-stats" title="お客様の閲覧状況">' + esc(parts.join('｜')) + '</div>';
+  }
+
   /* ===== 物件カード（§1 / §4） ===== */
   function cardHtml(p, opts) {
     opts = opts || {};
@@ -212,6 +235,8 @@
     var dateHtml = regDate ? '<div class="prop-card__date">登録日 ' + esc(regDate) + '</div>' : '';
     // 閲覧回数バッジ（担当側の一覧のみ・1回以上のときだけ表示）。
     var views = viewCountBadgeHtml(p, opts);
+    // 閲覧状況の1行（担当側の一覧のみ）: 累計 / 直近1週間 / 最終閲覧日時。
+    var viewStats = viewStatsHtml(p, opts);
     return '<div class="prop-card" data-prop-id="' + p.id + '">' +
       thumb +
       '<div class="prop-card__body">' +
@@ -219,6 +244,7 @@
         '<div class="prop-card__name">' + name + '</div>' +
         (p.price_text || views ? '<div class="prop-card__price">' + esc(p.price_text || '') + views + '</div>' : '') +
         '<div class="prop-card__meta">' + meta.join('<br>') + '</div>' +
+        viewStats +
         dateHtml +
       '</div>' + fav +
     '</div>';
@@ -500,7 +526,8 @@
   }
 
   w.PropertyUI = {
-    esc: esc, icon: icon, formatDate: formatDate, STATUS: STATUS, FIELDS: FIELDS, TYPES: TYPES,
+    esc: esc, icon: icon, formatDate: formatDate, formatDateTime: formatDateTime,
+    STATUS: STATUS, FIELDS: FIELDS, TYPES: TYPES,
     PASS_REASONS: PASS_REASONS, passReasonLabel: passReasonLabel,
     passReasonLabelsOf: passReasonLabelsOf, passReasonCodesOf: passReasonCodesOf,
     passReasonPicker: passReasonPicker, showPassReason: showPassReason, passReasonBlockHtml: passReasonBlockHtml,
