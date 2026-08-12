@@ -7,6 +7,9 @@
   var API = w.location.origin + '/backend/api/property';
   var P; // 現在のパネル要素
   var SID; // セッションID
+  // 一覧の並び替え（''=既定のステータス順 / views_total / views_week / last_viewed）。
+  // 画面を開いている間は選択を保持する。
+  var SORT = '';
 
   function esc(s) { return UI.esc(s); }
   function notify(type, msg) {
@@ -20,17 +23,40 @@
   }
 
   /* ===== 一覧（§1） ===== */
+  /* 並び替えの選択肢（§3 要望）。閲覧状況は担当向けレスポンスにしか含まれないため担当一覧のみ。 */
+  var SORT_OPTIONS = [
+    ['', '既定（ステータス順）'],
+    ['views_total', '累計閲覧回数が多い順'],
+    ['views_week', '直近1週間の閲覧回数が多い順'],
+    ['last_viewed', '最終閲覧日時が新しい順']
+  ];
+  function sortSelectHtml() {
+    return '<select class="prop-sort" id="prop-sort" title="並び替え" aria-label="並び替え">' +
+      SORT_OPTIONS.map(function (o) {
+        return '<option value="' + o[0] + '"' + (SORT === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+      }).join('') + '</select>';
+  }
+
   function renderList() {
-    P.innerHTML = '<div class="prop-toolbar"><h4>物件選定</h4>' +
+    P.innerHTML = '<div class="prop-toolbar"><h4>物件選定</h4>' + sortSelectHtml() +
       '<button type="button" class="prop-btn prop-btn--primary" id="prop-add">' + UI.icon('plus') + '物件を追加</button></div>' +
       '<div id="prop-list-body"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>';
     P.querySelector('#prop-add').addEventListener('click', openAddMethods);
-    api('/list.php?session_id=' + encodeURIComponent(SID)).then(function (res) {
-      var body = P.querySelector('#prop-list-body');
+    var sel = P.querySelector('#prop-sort');
+    if (sel) sel.addEventListener('change', function () { SORT = sel.value; loadList(); });
+    loadList();
+  }
+
+  /* 一覧の読み込み（並び替えはサーバー側で行う）。 */
+  function loadList() {
+    var body = P.querySelector('#prop-list-body');
+    if (!body) return;
+    body.innerHTML = '<div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div>';
+    api('/list.php?session_id=' + encodeURIComponent(SID) + (SORT ? '&sort=' + encodeURIComponent(SORT) : '')).then(function (res) {
       if (!res.success) { body.innerHTML = '<div class="prop-empty">読み込みに失敗しました。</div>'; return; }
       var items = res.data.properties || [];
       if (!items.length) { body.innerHTML = '<div class="prop-empty">提案物件はまだありません。「物件を追加」から登録してください。</div>'; return; }
-      // views: true → お客様の閲覧回数（赤いバッジ）を担当側の一覧にだけ表示する。
+      // views: true → お客様の閲覧状況（回数バッジ・累計/直近1週間/最終閲覧）を担当側の一覧にだけ表示する。
       body.innerHTML = '<div class="prop-list">' + items.map(function (p) { return UI.cardHtml(p, { views: true }); }).join('') + '</div>';
       body.querySelectorAll('.prop-card').forEach(function (c) {
         c.addEventListener('click', function () { openDetail(parseInt(c.getAttribute('data-prop-id'), 10)); });
