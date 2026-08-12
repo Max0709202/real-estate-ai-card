@@ -596,8 +596,14 @@ if (!function_exists('propertySerialize')) {
         }
 
         if ($forAgent) {
-            // 閲覧回数は担当（エージェント）にのみ返す。顧客側の画面には出さない。
-            $out['view_count'] = propertyViewCountFor($db, (int)$row['id']);
+            // 閲覧状況は担当（エージェント）にのみ返す。顧客側の画面には出さない。
+            // 一覧（propertyViewStatsSelectSql 付きで取得）なら追加クエリなしで集計値を使う。
+            $views = propertyViewStatsOf($db, $row);
+            $out['view_count'] = $views['total'];          // 既存の閲覧回数バッジ（後方互換）
+            $out['view_total'] = $views['total'];          // 累計閲覧回数
+            $out['view_week'] = $views['week'];            // 直近1週間の閲覧回数
+            $out['view_recent_days'] = (int)PROPERTY_VIEW_RECENT_DAYS;
+            $out['last_viewed_at'] = $views['last_viewed_at']; // 最終閲覧日時
             $out['hazard'] = !empty($row['hazard_json']) ? json_decode($row['hazard_json'], true) : null;
             $out['hazard_fetched_at'] = $row['hazard_fetched_at'] ?? null;
         } else {

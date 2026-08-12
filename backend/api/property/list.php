@@ -4,7 +4,11 @@
  * GET ?session_id=&visitor_id=  /  GET ?view_token=
  *  - 顧客（visitor_id あり）: 自分のセッションの物件一覧（売主情報は非表示）
  *  - 顧客（view_token）: 物件提案メールのリンクから来た未認証の閲覧（読み取り専用・売主情報は非表示）
- *  - 担当（ログイン）: 当該セッションの物件一覧（全情報）
+ *  - 担当（ログイン）: 当該セッションの物件一覧（全情報・閲覧状況付き）
+ *
+ * 担当のみ ?sort= で並び替えできる（§3 要望）:
+ *   views_total=累計閲覧回数が多い順 / views_week=直近1週間の閲覧回数が多い順 /
+ *   last_viewed=最終閲覧日時が新しい順 / 未指定=既定（ステータスのグループ順）
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -22,6 +26,8 @@ $visitorId = trim($_GET['visitor_id'] ?? '');
 // 物件提案メールのリンク（card.php?...&open=property&pv=<token>）から来た未認証の閲覧。
 // トークンから顧客のセッションを引くため、session_id は不要。
 $viewToken = trim($_GET['view_token'] ?? '');
+// 並び替え（担当のみ）。閲覧状況は担当にしか返さないため、顧客側では使わない。
+$sort = trim($_GET['sort'] ?? '');
 if ($sessionId === '' && $viewToken === '') sendErrorResponse('session_id is required', 400);
 
 try {
@@ -48,25 +54,38 @@ try {
         notifyMarkRead($db, $sessionId, 'property');
     }
 
-    // 一覧の並び順（§5）: ステータスのグループ順（申込検討 → 内見希望 → 検討中 → 見送り）で表示し、
+    // 一覧の既定の並び順（§5）: ステータスのグループ順（申込検討 → 内見希望 → 検討中 → 見送り）で表示し、
     // 各グループ内は登録が新しい順（created_at DESC）。ステータス未設定は「検討中」扱い。
     // 担当のみステータス（仲介可/ご紹介不可）や想定外の値はグループ末尾へ。
-    $stmt = $db->prepare(
-        "SELECT * FROM properties WHERE session_id = ?
-         ORDER BY (CASE COALESCE(NULLIF(status, ''), 'considering')
+    $defaultOrder = "(CASE COALESCE(NULLIF(status, ''), 'considering')
              WHEN 'application'     THEN 0
              WHEN 'viewing_request' THEN 1
              WHEN 'considering'     THEN 2
              WHEN 'passed'          THEN 3
              ELSE 4 END) ASC,
-             created_at DESC, id DESC"
+             created_at DESC, id DESC";
+
+    // 担当向けは閲覧状況（累計 / 直近1週間 / 最終閲覧日時）を一覧のクエリでまとめて取得し、
+    // 表示（§2 要望）と並び替え（§3 要望）に使う。顧客向けは従来どおり取得しない。
+    $statsSelect = $forAgent ? propertyViewStatsSelectSql('p') : '';
+    $orderBy = $forAgent ? propertyViewSortOrderSql($sort) : '';
+    if ($orderBy === '') $orderBy = $defaultOrder;
+
+    $stmt = $db->prepare(
+        "SELECT p.*{$statsSelect} FROM properties p WHERE p.session_id = ?
+         ORDER BY {$orderBy}"
     );
     $stmt->execute([$sessionId]);
     $items = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $items[] = propertySerialize($db, $row, $forAgent, false);
     }
-    sendSuccessResponse(['properties' => $items, 'is_agent' => $forAgent ? 1 : 0], 'OK');
+    sendSuccessResponse([
+        'properties' => $items,
+        'is_agent' => $forAgent ? 1 : 0,
+        // 実際に適用した並び順（未対応の値を渡されたときは既定に戻したことが分かるように返す）。
+        'sort' => $forAgent && propertyViewSortOrderSql($sort) !== '' ? $sort : '',
+    ], 'OK');
 } catch (Exception $e) {
     error_log('property list error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
