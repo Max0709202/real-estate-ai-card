@@ -125,9 +125,17 @@ try {
     }
     $prompt .= "\n\n条件:\n- 短く、丁寧で、営業として自然な文面にする\n- 失礼な断定を避ける\n- 1通のメールやチャットとしてそのまま使える形にする\n- 冒頭に「お客様」などの宛名を入れない\n- 末尾に担当者名や署名を入れない\n- 箇条書きは必要な時だけ\n- 余計な注釈は入れない";
 
-    $model = defined('OPENAI_MODEL_REPLY_DRAFT') && OPENAI_MODEL_REPLY_DRAFT !== ''
-        ? OPENAI_MODEL_REPLY_DRAFT
-        : (getenv('OPENAI_MODEL_REPLY_DRAFT') ?: 'gpt-5.4-mini');
+    // 自動回答生成（auto）は通常利用モデル、ブラッシュアップ（polish）は
+    // 品質を最優先したい文章作成なので上位モデルを使う。
+    if ($mode === 'polish') {
+        $model = defined('OPENAI_MODEL_POLISH') && OPENAI_MODEL_POLISH !== ''
+            ? OPENAI_MODEL_POLISH
+            : (getenv('OPENAI_MODEL_POLISH') ?: 'gpt-5.5');
+    } else {
+        $model = defined('OPENAI_MODEL_REPLY_DRAFT') && OPENAI_MODEL_REPLY_DRAFT !== ''
+            ? OPENAI_MODEL_REPLY_DRAFT
+            : (getenv('OPENAI_MODEL_REPLY_DRAFT') ?: 'gpt-5.4-mini');
+    }
     $apiKey = function_exists('chatOpenAIApiKeyForModel') ? chatOpenAIApiKeyForModel($model) : (defined('OPENAI_API_KEY') ? OPENAI_API_KEY : (getenv('OPENAI_API_KEY') ?: ''));
 
     $draft = '';
