@@ -878,6 +878,7 @@ if (!function_exists('propertyExtractFromUrl')) {
         if ($text === null) return ['fields' => [], 'media' => $media, 'error' => 'URLの内容を取得できませんでした。'];
 
         $prompt = propertyExtractionPrompt() . "\n\n--- ページ本文 ---\n" . $text;
+        // ページ本文からの項目抽出（データ整形）なのでコスト最優先の軽量モデルを使う。
         $model = 'gpt-4o-mini';
         $apiKey = chatOpenAIApiKeyForModel($model);
         $messages = [['role' => 'user', 'content' => $prompt]];
@@ -1477,13 +1478,20 @@ if (!function_exists('propertyApplyMaskToJpeg')) {
 if (!function_exists('propertyFlyerModel')) {
     /**
      * 販売図面のOCR・画像認識・写真/間取り領域の検出と分類に使うVisionモデル。
-     * OPENAI_MODEL_FLYER で上書き可。
+     * 既定は gpt-5.4-mini。OPENAI_MODEL_FLYER（定数／環境変数）で上書き可。
      */
     function propertyFlyerModel(): string
     {
-        $m = trim((string)getenv('OPENAI_MODEL_FLYER'));
-        // 空・または提供終了済みの旧モデル指定は販売図面用の既定モデルに矯正する。
-        if ($m === '' || stripos($m, 'gpt-4.5') !== false) $m = 'gpt-5.4-mini';
+        $m = defined('OPENAI_MODEL_FLYER') && OPENAI_MODEL_FLYER !== ''
+            ? trim((string)OPENAI_MODEL_FLYER)
+            : trim((string)getenv('OPENAI_MODEL_FLYER'));
+        // 空・提供終了済みの旧モデル・および使用しない方針の gpt-5.4（無印）は、
+        // 販売図面用の既定モデル（gpt-5.4-mini）に矯正する。
+        if ($m === ''
+            || stripos($m, 'gpt-4.5') !== false
+            || preg_match('/^gpt-5\.4$/i', $m)) {
+            $m = 'gpt-5.4-mini';
+        }
         return $m;
     }
 }
