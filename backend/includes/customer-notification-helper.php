@@ -158,6 +158,27 @@ function customerNotifyResolveEmail(PDO $db, string $sessionId, int $cardId): st
         }
     }
 
+    // 4) 担当が事前作成した顧客ページ（招待メール）の宛先。
+    //    お客様ご本人のご登録（SMS認証＋お名前＋メール）がまだの段階では 1)〜3) がすべて空になり、
+    //    担当が物件を提案しても通知メールが1通も出せない＝お客様は招待メールのリンクを開いて
+    //    SMS認証を済ませない限り提案物件に辿り着けなかった。招待メールを実際にお届けした宛先へ
+    //    物件提案のご案内も送り、リンク（&pv=）から認証なしで提案物件を閲覧いただけるようにする。
+    //    ここでの値は担当の申告値のため、お客様ご本人のご登録が済めば 1)〜3) が優先される。
+    try {
+        $stmt = $db->prepare(
+            "SELECT email FROM chat_customer_invitations
+             WHERE session_id = ? AND business_card_id = ? AND email IS NOT NULL AND email <> ''
+             ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([$sessionId, $cardId]);
+        $email = trim((string)($stmt->fetchColumn() ?: ''));
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $email;
+        }
+    } catch (Throwable $e) {
+        // テーブル未作成等は無視。
+    }
+
     return '';
 }
 

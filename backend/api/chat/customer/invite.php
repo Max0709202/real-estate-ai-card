@@ -14,6 +14,7 @@ require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/chat-helpers.php';
 require_once __DIR__ . '/../../../includes/customer-invitation-helper.php';
+require_once __DIR__ . '/../../../includes/property-view-helper.php'; // propertyViewTokenFor()（SMS認証なしの物件閲覧）
 require_once __DIR__ . '/../../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -85,16 +86,19 @@ try {
     // 中身の無い顧客ページが顧客一覧に並び、お客様にも同じ案内が何通も届くのを防ぐ。
     // お客様のご登録が済んだもの（registered）は対象外＝改めて案内を送れる。
     $stmt = $db->prepare(
-        "SELECT invite_token FROM chat_customer_invitations
+        "SELECT invite_token, session_id FROM chat_customer_invitations
          WHERE business_card_id = ? AND email = ? AND status <> 'registered'
          ORDER BY id DESC LIMIT 1"
     );
     $stmt->execute([(int)$card['id'], $email]);
-    $existingToken = (string)($stmt->fetchColumn() ?: '');
+    $existing = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $existingToken = (string)($existing['invite_token'] ?? '');
     if ($existingToken !== '') {
+        // 作成済みの専用URLにも、SMS認証なしで提案物件を閲覧できる閲覧トークンを付ける。
+        $existingViewToken = propertyViewTokenFor($db, (string)($existing['session_id'] ?? ''));
         sendSuccessResponse([
             'session_id' => '',
-            'invite_url' => customerInviteUrl($cardSlug, $existingToken),
+            'invite_url' => customerInviteUrl($cardSlug, $existingToken, $existingViewToken),
             'customer_name' => $customerName,
             'email' => $email,
             'mail_sent' => false,
@@ -125,7 +129,9 @@ try {
         throw $e;
     }
 
-    $inviteUrl = customerInviteUrl($cardSlug, $token);
+    // 専用URLには、その顧客の物件閲覧トークンを付ける。お客様はSMS認証を行う前でも
+    // 「物件選定」で提案物件を閲覧できる（閲覧のみ。他の機能はSMS認証が必要）。
+    $inviteUrl = customerInviteUrl($cardSlug, $token, propertyViewTokenFor($db, $sessionId));
     $mailSent = customerInviteSendEmail($email, $agentName, $customerName, $inviteUrl, $invitationId, $companyName);
 
     sendSuccessResponse([
