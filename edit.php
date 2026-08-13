@@ -1561,7 +1561,7 @@ $defaultGreetings = [
                 <!-- Chat history / Leads (My Page) -->
                 <div id="chat-history-section" class="edit-section<?php echo $isUtilizingUser ? ' active' : ''; ?>"<?php echo $isUtilizingUser ? '' : ' style="display: none;"'; ?>>
                     <h2>チャット履歴・顧客一覧</h2>
-                    <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。</p>
+                    <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。削除した履歴は「ゴミ箱」から復元できます。</p>
                     <div id="chat-history-list" class="chat-history-list">
                         <p class="chat-history-loading">読み込み中...</p>
                     </div>
@@ -1643,7 +1643,7 @@ $defaultGreetings = [
                         <div id="chat-history-detail-content"></div>
                         <div class="chat-history-detail-actions">
                             <button type="button" class="btn-secondary" id="chat-history-detail-back">一覧に戻る</button>
-                            <button type="button" class="btn-danger" id="chat-history-detail-delete">この履歴を削除</button>
+                            <button type="button" class="btn-danger" id="chat-history-detail-delete">この履歴をゴミ箱へ</button>
                         </div>
                     </div>
                 </div>
@@ -3668,6 +3668,8 @@ $defaultGreetings = [
             var agentChatPollTimer = null;
             var agentChatPendingAttachments = [];
             var agentChatBusy = false;
+            // ゴミ箱の保持日数（サーバー既定30日。sessions.php のレスポンスで上書きする）。
+            var trashRetentionDays = 30;
 
             // 添付URLを現在のオリジンに揃える。サーバーは絶対URL（BASE_URL=www）を返すため、
             // 担当者が別ホスト（www無しなど）でログインしていると、画像/リンクが別オリジン扱いになり
@@ -3783,14 +3785,19 @@ $defaultGreetings = [
                 fetch(apiBase + '/sessions.php', { credentials: 'include' })
                     .then(function(r) { return r.json(); })
                     .then(function(res) {
+                        if (typeof res.data === 'object' && res.data && res.data.retention_days) {
+                            trashRetentionDays = parseInt(res.data.retention_days, 10) || trashRetentionDays;
+                        }
                         if (!res.success || !res.data.sessions) {
-                            listEl.innerHTML = '<p>セッションがありません。</p>';
+                            listEl.innerHTML = '<p>セッションがありません。</p>' + trashOpenBarHtml();
+                            bindTrashOpen();
                             return;
                         }
                         var sessions = res.data.sessions;
                         var phoneHtml = renderRegisteredPhones(res.data.registered_phones || []);
                         if (sessions.length === 0) {
-                            listEl.innerHTML = phoneHtml + '<p>まだチャットのやり取りはありません。</p>';
+                            listEl.innerHTML = phoneHtml + '<p>まだチャットのやり取りはありません。</p>' + trashOpenBarHtml();
+                            bindTrashOpen();
                             return;
                         }
                         var html = phoneHtml;
@@ -3823,7 +3830,9 @@ $defaultGreetings = [
                             html += '</li>';
                         });
                         html += '</ul>';
+                        html += trashOpenBarHtml();
                         listEl.innerHTML = html;
+                        bindTrashOpen();
                         listEl.querySelectorAll('.chat-session-item').forEach(function(el) {
                             el.addEventListener('click', function() {
                                 showDetail(el.getAttribute('data-session-id'));
@@ -4391,7 +4400,10 @@ $defaultGreetings = [
 
             function deleteSession(sessionId) {
                 if (!sessionId) return;
-                if (!confirm('このチャット履歴を削除します。よろしいですか？')) return;
+                if (!confirm('このチャット履歴をゴミ箱に移動します。\n\n'
+                    + '・お客様側のチャット画面や、これまでのやり取りには影響しません。\n'
+                    + '・' + trashRetentionDays + '日以内なら「ゴミ箱」から元に戻せます。\n\n'
+                    + 'よろしいですか？')) return;
                 deleteSessionRequest(sessionId)
                     .then(function(res) {
                         if (!res.success) {
@@ -4415,7 +4427,10 @@ $defaultGreetings = [
             function deleteSelectedSessions() {
                 var selectedIds = getSelectedSessionIds();
                 if (!selectedIds.length) return;
-                if (!confirm(selectedIds.length + '件のチャット履歴を削除します。よろしいですか？')) return;
+                if (!confirm(selectedIds.length + '件のチャット履歴をゴミ箱に移動します。\n\n'
+                    + '・お客様側のチャット画面や、これまでのやり取りには影響しません。\n'
+                    + '・' + trashRetentionDays + '日以内なら「ゴミ箱」から元に戻せます。\n\n'
+                    + 'よろしいですか？')) return;
                 var bulkDeleteBtn = document.getElementById('chat-session-bulk-delete');
                 var countEl = document.getElementById('chat-session-selected-count');
                 if (bulkDeleteBtn) {
@@ -4446,10 +4461,166 @@ $defaultGreetings = [
                         setInviteAreaVisible(true);
                     }
                     if (failed > 0) {
-                        alert('削除完了: ' + succeeded + '件 / 失敗: ' + failed + '件');
+                        alert('ゴミ箱に移動: ' + succeeded + '件 / 失敗: ' + failed + '件');
                     }
                     loadSessions();
                 });
+            }
+
+            // ---- ゴミ箱（削除した履歴の復元）----
+            // 履歴の削除は実体を消さないソフト削除で、保持期間内であればここから元に戻せる。
+            // 削除してもお客様側の画面・過去のやり取りには影響しない。
+            function trashOpenBarHtml() {
+                return '<div class="chat-session-trash-bar">'
+                    + '<button type="button" id="chat-session-trash-open" class="chat-session-trash-open">ゴミ箱（削除した履歴）</button>'
+                    + '<span class="chat-session-trash-note">削除した履歴は' + trashRetentionDays + '日以内なら復元できます。</span>'
+                    + '</div>';
+            }
+
+            function bindTrashOpen() {
+                var openBtn = document.getElementById('chat-session-trash-open');
+                if (openBtn) {
+                    openBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        loadTrash();
+                    });
+                }
+            }
+
+            function restoreSessionRequest(sessionId) {
+                return fetch(apiBase + '/session-restore.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ id: sessionId })
+                }).then(function(r) { return r.json(); });
+            }
+
+            function purgeSessionRequest(sessionId) {
+                return fetch(apiBase + '/session-purge.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ id: sessionId })
+                }).then(function(r) { return r.json(); });
+            }
+
+            function closeTrash() {
+                setInviteAreaVisible(true);
+                loadSessions();
+            }
+
+            function loadTrash() {
+                // ゴミ箱表示中は顧客ページの事前作成UIを隠す（詳細表示と同じ扱い）。
+                setInviteAreaVisible(false);
+                listEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
+                fetch(apiBase + '/sessions.php?deleted=1', { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (!res.success || !res.data) {
+                            listEl.innerHTML = '<p>読み込みに失敗しました。</p>';
+                            renderTrashBack();
+                            return;
+                        }
+                        if (res.data.retention_days) {
+                            trashRetentionDays = parseInt(res.data.retention_days, 10) || trashRetentionDays;
+                        }
+                        var sessions = res.data.sessions || [];
+                        var html = '<div class="chat-session-trash-header">'
+                            + '<h4>ゴミ箱（削除した履歴）</h4>'
+                            + '<p class="section-note">削除から' + trashRetentionDays + '日を過ぎた履歴は自動的に完全削除されます。'
+                            + '削除中もお客様側のチャット画面には影響せず、お客様から新しいメッセージが届いた履歴は自動的に一覧へ戻ります。</p>'
+                            + '</div>';
+                        if (!sessions.length) {
+                            html += '<p>削除した履歴はありません。</p>';
+                        } else {
+                            html += '<ul class="chat-session-list chat-session-list-trash">';
+                            sessions.forEach(function(s) {
+                                var deletedAt = s.deleted_at ? new Date(String(s.deleted_at).replace(' ', 'T')).toLocaleString('ja-JP') : '-';
+                                var displayName = s.customer_name || s.invitation_name || '';
+                                var customerName = displayName ? ' <span class="chat-session-customer">' + escapeHtml(displayName) + '</span>' : '';
+                                var daysLeft = parseInt(s.days_left, 10);
+                                if (isNaN(daysLeft)) daysLeft = 0;
+                                var leftLabel = daysLeft > 0 ? ('復元できる残り日数: ' + daysLeft + '日') : 'まもなく完全削除されます';
+                                html += '<li class="chat-session-item chat-session-item-trash" data-session-id="' + escapeHtml(s.id || '') + '">';
+                                html += '<div class="chat-session-main"><span class="chat-session-date">削除日時: ' + escapeHtml(deletedAt) + '</span>' + customerName;
+                                html += '<span class="chat-session-trash-left">' + escapeHtml(leftLabel) + '</span></div>';
+                                html += '<span class="chat-session-meta">' + (s.message_count || 0) + '件</span>';
+                                html += '<button type="button" class="chat-session-restore" data-session-id="' + escapeHtml(s.id || '') + '">復元する</button>';
+                                html += '<button type="button" class="chat-session-purge" data-session-id="' + escapeHtml(s.id || '') + '">完全に削除</button>';
+                                html += '</li>';
+                            });
+                            html += '</ul>';
+                        }
+                        listEl.innerHTML = html;
+                        renderTrashBack();
+                        listEl.querySelectorAll('.chat-session-restore').forEach(function(btn) {
+                            btn.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                                restoreSession(btn.getAttribute('data-session-id'));
+                            });
+                        });
+                        listEl.querySelectorAll('.chat-session-purge').forEach(function(btn) {
+                            btn.addEventListener('click', function(e) {
+                                e.stopPropagation();
+                                purgeSession(btn.getAttribute('data-session-id'));
+                            });
+                        });
+                    })
+                    .catch(function() {
+                        listEl.innerHTML = '<p>読み込みに失敗しました。</p>';
+                        renderTrashBack();
+                    });
+            }
+
+            function renderTrashBack() {
+                var bar = document.createElement('div');
+                bar.className = 'chat-session-trash-bar';
+                var backBtn = document.createElement('button');
+                backBtn.type = 'button';
+                backBtn.className = 'btn-secondary';
+                backBtn.textContent = '一覧に戻る';
+                backBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    closeTrash();
+                });
+                bar.appendChild(backBtn);
+                listEl.appendChild(bar);
+            }
+
+            function restoreSession(sessionId) {
+                if (!sessionId) return;
+                restoreSessionRequest(sessionId)
+                    .then(function(res) {
+                        if (!res.success) {
+                            alert(res.message || '復元に失敗しました');
+                            return;
+                        }
+                        alert('チャット履歴を復元しました。一覧からご確認ください。');
+                        closeTrash();
+                    })
+                    .catch(function() {
+                        alert('復元に失敗しました');
+                    });
+            }
+
+            function purgeSession(sessionId) {
+                if (!sessionId) return;
+                if (!confirm('このチャット履歴を完全に削除します。\n\n'
+                    + '・メッセージ・ヒアリング内容・添付ファイルがすべて消えます。\n'
+                    + '・一度実行すると元に戻せません。\n\n'
+                    + 'よろしいですか？')) return;
+                purgeSessionRequest(sessionId)
+                    .then(function(res) {
+                        if (!res.success) {
+                            alert(res.message || '削除に失敗しました');
+                            return;
+                        }
+                        loadTrash();
+                    })
+                    .catch(function() {
+                        alert('削除に失敗しました');
+                    });
             }
 
             if (detailDeleteBtn) {

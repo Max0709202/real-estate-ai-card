@@ -16,6 +16,7 @@ require_once __DIR__ . '/../../includes/property-helper.php';
 require_once __DIR__ . '/../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../includes/session-participant-helper.php';
 require_once __DIR__ . '/../../includes/selfin-member-helper.php';
+require_once __DIR__ . '/../../includes/chat-session-trash-helper.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -101,6 +102,10 @@ try {
     if (!canUseChatbot($card)) {
         sendErrorResponse('チャットボットはご利用いただけません。', 403);
     }
+    // 担当者がゴミ箱に入れた履歴でも、お客様は今までどおり送信できる。新着が届いた時点で
+    // 自動的にゴミ箱から戻し、担当者が新着を見落とさないようにする。
+    chatSessionTrashRestoreOnCustomerActivity($db, $sessionId);
+
     $leadProfile = chatIntakeLoad($db, $sessionId, (int)$card['id']);
     // 体験版（デモ）名刺はSMS認証を行わないため chat_session_devices に端末行が無く、
     // chatSessionDeviceAuth() は必ず null になる。デモでは代わりに

@@ -1336,6 +1336,71 @@ body {
     opacity: 0.45;
     cursor: not-allowed;
 }
+/* ゴミ箱（削除した履歴の復元） */
+.chat-session-trash-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+}
+.chat-session-trash-open {
+    border: 1px solid #6c757d;
+    background: #fff;
+    color: #6c757d;
+    border-radius: 4px;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.chat-session-trash-open:hover {
+    background: #6c757d;
+    color: #fff;
+}
+.chat-session-trash-note {
+    color: #666;
+    font-size: 0.8rem;
+}
+.chat-session-trash-header h4 {
+    margin: 0 0 0.25rem;
+}
+.chat-session-item-trash {
+    cursor: default;
+    align-items: center;
+    gap: 0.5rem;
+    background: #fafafa;
+}
+.chat-session-trash-left {
+    display: block;
+    color: #a06000;
+    font-size: 0.8rem;
+}
+.chat-session-restore {
+    border: 1px solid #28a745;
+    background: #fff;
+    color: #28a745;
+    border-radius: 4px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.chat-session-restore:hover {
+    background: #28a745;
+    color: #fff;
+}
+.chat-session-purge {
+    border: 1px solid #dc3545;
+    background: #fff;
+    color: #dc3545;
+    border-radius: 4px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.chat-session-purge:hover {
+    background: #dc3545;
+    color: #fff;
+}
 .chat-session-item {
     padding: 0.75rem 1rem;
     border: 1px solid #e0e0e0;

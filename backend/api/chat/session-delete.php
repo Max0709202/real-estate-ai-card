@@ -1,13 +1,16 @@
 <?php
 /**
- * Delete one chat session for the current user's business card. My Page use.
+ * Move one chat session to the trash (soft delete) for the current user's business card. My Page use.
  * POST { "id": "session_id" }
+ *
+ * 実体は消さず chat_sessions.deleted_at を立てて担当側の一覧から隠すだけにする。
+ * 誤って削除しても保持期間内（既定30日）は session-restore.php で復元できる。
+ * お客様側の画面・過去のやり取りには影響しない。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
-require_once __DIR__ . '/../../includes/chat-phone-helper.php';
-require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
+require_once __DIR__ . '/../../includes/chat-session-trash-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -30,7 +33,9 @@ try {
     $database = new Database();
     $db = $database->getConnection();
 
-    $stmt = $db->prepare("SELECT cs.id, cs.business_card_id
+    chatSessionTrashEnsureColumns($db);
+
+    $stmt = $db->prepare("SELECT cs.id, cs.business_card_id, cs.deleted_at
         FROM chat_sessions cs
         JOIN business_cards bc ON bc.id = cs.business_card_id
         WHERE cs.id = ? AND bc.user_id = ?");
@@ -43,43 +48,28 @@ try {
 
     $businessCardId = (int)$session['business_card_id'];
 
-    ensureChatVerifiedPhonesTable($db);
-    ensureLoanSimulationInputsTable($db);
+    // すでにゴミ箱にある場合は削除日時を上書きしない（復元期限を延ばさないため）。
+    if (empty($session['deleted_at'])) {
+        $stmt = $db->prepare('UPDATE chat_sessions SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ? WHERE id = ? AND business_card_id = ? AND deleted_at IS NULL');
+        $stmt->execute([$userId, $sessionId, $businessCardId]);
 
-    $db->beginTransaction();
-
-    $stmt = $db->prepare('UPDATE chat_verified_phones SET last_session_id = NULL WHERE last_session_id = ? AND business_card_id = ?');
-    $stmt->execute([$sessionId, $businessCardId]);
-
-    $deleteStatements = [
-        ['DELETE FROM loan_simulation_inputs WHERE session_id = ? AND business_card_id = ?', [$sessionId, $businessCardId]],
-        ['DELETE FROM chat_openai_usage WHERE session_id = ? AND business_card_id = ?', [$sessionId, $businessCardId]],
-        ['DELETE FROM chat_session_memory WHERE session_id = ? AND business_card_id = ?', [$sessionId, $businessCardId]],
-        ['DELETE FROM chat_lead_contacts WHERE session_id = ? AND business_card_id = ?', [$sessionId, $businessCardId]],
-        ['DELETE FROM chat_leads WHERE session_id = ? AND business_card_id = ?', [$sessionId, $businessCardId]],
-        ['DELETE FROM chat_messages WHERE session_id = ?', [$sessionId]],
-        ['DELETE FROM chat_sessions WHERE id = ? AND business_card_id = ?', [$sessionId, $businessCardId]],
-    ];
-
-    foreach ($deleteStatements as $deleteStatement) {
-        [$sql, $params] = $deleteStatement;
-        try {
-            $stmt = $db->prepare($sql);
-            $stmt->execute($params);
-        } catch (PDOException $e) {
-            if ($e->getCode() !== '42S02') {
-                throw $e;
-            }
-        }
+        $stmt = $db->prepare('SELECT deleted_at FROM chat_sessions WHERE id = ? LIMIT 1');
+        $stmt->execute([$sessionId]);
+        $deletedAt = $stmt->fetchColumn() ?: null;
+    } else {
+        $deletedAt = $session['deleted_at'];
     }
 
-    $db->commit();
+    $retentionDays = chatSessionTrashRetentionDays();
 
-    sendSuccessResponse(['session_id' => $sessionId], 'チャット履歴を削除しました');
+    sendSuccessResponse([
+        'session_id' => $sessionId,
+        'deleted_at' => $deletedAt,
+        'purge_at' => chatSessionTrashPurgeAt($deletedAt),
+        'days_left' => chatSessionTrashDaysLeft($deletedAt),
+        'retention_days' => $retentionDays,
+    ], 'チャット履歴をゴミ箱に移動しました（' . $retentionDays . '日以内なら復元できます）');
 } catch (Exception $e) {
-    if (isset($db) && $db instanceof PDO && $db->inTransaction()) {
-        $db->rollBack();
-    }
     error_log('Chat session delete error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
 }
