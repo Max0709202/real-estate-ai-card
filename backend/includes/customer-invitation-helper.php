@@ -114,11 +114,20 @@ function customerInviteFindBySession(PDO $db, string $sessionId): ?array
 /**
  * 顧客専用URL。名刺ページではなく AIエージェントページを最初に表示させるため
  * chat=1 を付ける（card.php の $chatOnly）。
+ *
+ * $viewToken（その顧客の物件閲覧トークン）を渡すと pv= を付ける。これにより、
+ * この専用URLを開いたお客様は SMS認証を行う前でも「物件選定」タブで提案物件を
+ * 閲覧できる（閲覧のみ。AI相談・担当連絡・検討ステータス・内見予約など、
+ * 物件のご閲覧以外の機能はこれまで通りSMS認証が必要）。
  */
-function customerInviteUrl(string $cardSlug, string $token): string
+function customerInviteUrl(string $cardSlug, string $token, string $viewToken = ''): string
 {
-    return rtrim(BASE_URL, '/') . '/card.php?slug=' . rawurlencode($cardSlug)
+    $url = rtrim(BASE_URL, '/') . '/card.php?slug=' . rawurlencode($cardSlug)
         . '&chat=1&invite=' . rawurlencode($token);
+    if ($viewToken !== '') {
+        $url .= '&pv=' . rawurlencode($viewToken);
+    }
+    return $url;
 }
 
 /** 顧客が専用URLを開いた印。 */
@@ -234,8 +243,11 @@ function customerInviteWelcomeMessage(string $customerName): string
     $label = $name !== '' ? $name . '様専用' : 'あなた専用';
     return "{$label}AIエージェントへようこそ。\n"
         . "このページでは、不動産の売買・賃貸に関するご相談や、お取引の進捗状況などを一元管理できます。\n\n"
-        . "また、安全にメッセージや物件情報をお届けするため、チャット履歴や進捗情報を保存し、"
-        . "機種変更や別の端末からでも続きからご利用頂くために、最初にSMS認証をお願いいたします。";
+        . "ご提案中の物件は、下の「物件選定」からSMS認証なしでそのままご覧いただけます。\n\n"
+        . "AIエージェントへのご相談や担当者とのメッセージのやり取り、内見のご予約など、"
+        . "物件のご閲覧以外の機能をご利用いただく際は、SMS認証をお願いいたします。"
+        . "安全にメッセージや物件情報をお届けするため、チャット履歴や進捗情報を保存し、"
+        . "機種変更や別の端末からでも続きからご利用頂くために必要となります。";
 }
 
 /**
@@ -276,7 +288,8 @@ function customerInviteBuildEmail(string $agentName, string $customerName, strin
         '・お取引の進捗確認',
         'などを一元管理できます。',
         '',
-        "{$customerLabel}様ご本人であることを確認するため、AIエージェントページを開く際にSMS認証をお願いしております。",
+        'ご提案中の物件は、SMS認証なしでそのままご覧いただけます。',
+        'AIエージェントへのご相談やメッセージのやり取り、内見のご予約など、物件のご閲覧以外の機能をご利用いただく際は、ご本人確認のためSMS認証をお願いしております。',
         'ご相談やご要望がございましたら、「AIエージェントページ」からいつでもお気軽にご連絡ください。',
     ];
 
