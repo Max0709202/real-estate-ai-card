@@ -2,6 +2,7 @@
 /**
  * List chat sessions for the current user's business card(s). My Page use.
  * GET ?business_card_id= optional filter
+ * GET ?deleted=1 ゴミ箱（削除済み履歴）だけを返す。復元期限の情報も付ける。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -10,6 +11,7 @@ require_once __DIR__ . '/../../includes/chat-intake-helper.php';
 require_once __DIR__ . '/../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
 require_once __DIR__ . '/../../includes/customer-invitation-helper.php';
+require_once __DIR__ . '/../../includes/chat-session-trash-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -22,13 +24,16 @@ try {
     $db = $database->getConnection();
 
     $cardId = isset($_GET['business_card_id']) ? (int) $_GET['business_card_id'] : null;
+    // ゴミ箱表示。既定（0）は通常一覧で、削除済みは除外する。
+    $showDeleted = isset($_GET['deleted']) && (string)$_GET['deleted'] === '1';
+    chatSessionTrashEnsureColumns($db);
     ensureChatLeadContactTable($db);
     // エージェントが事前作成した顧客ページも一覧に出すため、先に表を用意しておく
     // （下の SQL が参照するので、存在しないと SELECT で落ちる）。
     customerInviteEnsureTable($db);
 
     $sql = "
-        SELECT cs.id, cs.business_card_id, cs.last_seen_at, cs.created_at, cs.handoff_mode,
+        SELECT cs.id, cs.business_card_id, cs.last_seen_at, cs.created_at, cs.handoff_mode, cs.deleted_at,
                bc.name as card_holder_name,
                (SELECT COUNT(*) FROM chat_messages cm WHERE cm.session_id = cs.id) as message_count,
                (SELECT COUNT(*) FROM chat_messages cmu WHERE cmu.session_id = cs.id AND cmu.role = 'user' AND cmu.read_at IS NULL) as unread_count,
@@ -45,6 +50,15 @@ try {
         FROM chat_sessions cs
         JOIN business_cards bc ON bc.id = cs.business_card_id
         WHERE bc.user_id = ?
+    ";
+    if ($showDeleted) {
+        // ゴミ箱では通常一覧の絞り込み（連絡先あり／事前作成の顧客ページ）を課さない。
+        // ここに出てこない履歴は復元できなくなるため、削除済みは取りこぼさず全て出す。
+        $sql .= " AND cs.deleted_at IS NOT NULL";
+    } else {
+        // ゴミ箱に入れた履歴は通常一覧から隠す（実体は残っているので復元できる）。
+        $sql .= "
+          AND cs.deleted_at IS NULL
           AND (
             EXISTS (
               SELECT 1
@@ -66,17 +80,22 @@ try {
               WHERE listed_invite.session_id = cs.id
                 AND listed_invite.business_card_id = cs.business_card_id
             )
-          )
-    ";
+          )";
+    }
     $params = [$userId];
     if ($cardId > 0) {
         $sql .= " AND cs.business_card_id = ?";
         $params[] = $cardId;
     }
-    // 未読（要返信）を最優先で上位表示し、その中で新しい順に並べる。
-    // やり取りがまだ無いセッション（＝事前作成した顧客ページ）は last_message_at が NULL で、
-    // DESC では最後尾に落ちて LIMIT 200 から溢れるため、作成日時で代替して並べる。
-    $sql .= " ORDER BY (unread_count > 0) DESC, COALESCE(last_message_at, cs.created_at) DESC, cs.last_seen_at DESC LIMIT 200";
+    if ($showDeleted) {
+        // ゴミ箱は削除した順（新しいものが上）。
+        $sql .= " ORDER BY cs.deleted_at DESC LIMIT 200";
+    } else {
+        // 未読（要返信）を最優先で上位表示し、その中で新しい順に並べる。
+        // やり取りがまだ無いセッション（＝事前作成した顧客ページ）は last_message_at が NULL で、
+        // DESC では最後尾に落ちて LIMIT 200 から溢れるため、作成日時で代替して並べる。
+        $sql .= " ORDER BY (unread_count > 0) DESC, COALESCE(last_message_at, cs.created_at) DESC, cs.last_seen_at DESC LIMIT 200";
+    }
 
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
@@ -86,6 +105,9 @@ try {
         $sessionRow["has_loan_simulation"] = $loanSimulation && loanSimulationHasDisplayValues($loanSimulation) ? 1 : 0;
         $sessionRow["loan_simulation_summary"] = $loanSimulation ? loanSimulationDisplaySummary($loanSimulation, 3) : "";
         $sessionRow["loan_simulation_updated_at"] = $loanSimulation["updated_at"] ?? null;
+        // ゴミ箱の各行に復元期限（完全削除される日時と残り日数）を付ける。
+        $sessionRow["purge_at"] = chatSessionTrashPurgeAt($sessionRow["deleted_at"] ?? null);
+        $sessionRow["days_left"] = chatSessionTrashDaysLeft($sessionRow["deleted_at"] ?? null);
     }
     unset($sessionRow);
 
@@ -99,7 +121,12 @@ try {
         if ($firstCardId > 0) $registeredPhones = chatRegisteredPhonesForCard($db, $firstCardId, 100);
     }
 
-    sendSuccessResponse(['sessions' => $sessions, 'registered_phones' => $registeredPhones], 'OK');
+    sendSuccessResponse([
+        'sessions' => $sessions,
+        'registered_phones' => $registeredPhones,
+        'deleted_view' => $showDeleted ? 1 : 0,
+        'retention_days' => chatSessionTrashRetentionDays(),
+    ], 'OK');
 } catch (Exception $e) {
     error_log('Chat sessions list error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
