@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
+require_once __DIR__ . '/../../../includes/chat-session-trash-helper.php';
 require_once __DIR__ . '/../../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -27,7 +28,11 @@ try {
     $database = new Database();
     $db = $database->getConnection();
 
+    chatSessionTrashEnsureColumns($db);
+
     // 全セッション横断の未読サマリ（顧客発言の未読件数 > 0 のセッション）
+    // ゴミ箱に入れた履歴は一覧に出ないため、未読バッジからも除外する
+    // （お客様から新着が来れば send.php が自動でゴミ箱から戻し、再び集計対象になる）。
     $stmt = $db->prepare("
         SELECT cs.id AS session_id, cs.business_card_id,
                COUNT(cm.id) AS unread_count,
@@ -35,7 +40,7 @@ try {
         FROM chat_sessions cs
         JOIN business_cards bc ON bc.id = cs.business_card_id
         JOIN chat_messages cm ON cm.session_id = cs.id AND cm.role = 'user' AND cm.channel = 'contact' AND cm.read_at IS NULL
-        WHERE bc.user_id = ?
+        WHERE bc.user_id = ? AND cs.deleted_at IS NULL
         GROUP BY cs.id, cs.business_card_id
         ORDER BY last_unread_at DESC
     ");

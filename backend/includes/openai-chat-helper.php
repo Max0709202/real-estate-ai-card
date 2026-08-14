@@ -1,6 +1,8 @@
 <?php
 /**
- * OpenAI GPT-4o-mini chat helper with blog context (https://smile.re-agent.info/blog/).
+ * OpenAI chat helper with blog context (https://smile.re-agent.info/blog/).
+ * Model policy: customer-facing replies use the standard model (gpt-5.4-mini);
+ * routing/classification and fallbacks stay on the cheap model (gpt-4o-mini).
  * - Fetches blog index and optional article pages for context
  * - Calls OpenAI Chat Completions API
  */
@@ -183,6 +185,11 @@ function chatOpenAILeadValue($leadData, $keys) {
     return null;
 }
 
+/**
+ * 商談として重要度が高い相談かどうかのスコア判定。
+ * お客様とのAIチャットは通常利用モデル（gpt-5.4-mini）に統一したため、
+ * 現在モデル選択には使用していない（温度感の判定など将来利用のため残す）。
+ */
 function chatOpenAIShouldUseSalesModel($message, $memory = [], $leadData = []) {
     $intent = $leadData['customer_type'] ?? ($memory['intent'] ?? null);
     $salesIntents = ['purchase', 'rent', 'replacement', 'sale', 'loan', 'relocation', 'investment_buy', 'investment_sale'];
@@ -211,9 +218,12 @@ function chatOpenAIShouldUseSalesModel($message, $memory = [], $leadData = []) {
 }
 
 function chatOpenAISelectModel($purpose, $message = '', $memory = [], $leadData = []) {
+    // 要約（条件整理）は要約用モデル、FAQ判定・ヒアリング・分類はコスト最優先の軽量モデル。
     if ($purpose === 'summary') return chatOpenAIModelSummary();
     if ($purpose === 'faq' || $purpose === 'intake' || $purpose === 'classification') return chatOpenAIModelLight();
-    return chatOpenAIShouldUseSalesModel($message, $memory, $leadData) ? chatOpenAIModelSales() : chatOpenAIModelLight();
+    // お客様へ返す本文の生成は、相談内容に関わらず通常利用モデル（gpt-5.4-mini）で統一する。
+    // API側でエラーになった場合のみ、呼び出し元で軽量モデルへフォールバックする。
+    return chatOpenAIModelSales();
 }
 
 function chatOpenAIEnsureUsageTable($db) {

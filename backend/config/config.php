@@ -191,6 +191,16 @@ if (!defined('OPENAI_API_KEY_SALES')) {
 if (!defined('OPENAI_API_KEY_SUMMARY')) {
     define('OPENAI_API_KEY_SUMMARY', getenv('OPENAI_API_KEY_SUMMARY') ?: OPENAI_API_KEY_LIGHT);
 }
+// ---------------------------------------------------------------------------
+// 利用モデルの方針（ご提示いただいた使い分けに合わせています）
+//   gpt-4o-mini  … 分類・ラベル付け・データ整形などコスト最優先の処理
+//   gpt-5.4-mini … 通常利用（AIチャット／条件整理／RAG回答／担当連絡のAI返信／
+//                  進捗管理／通常の文章生成／物件提案コメント／自動回答生成）
+//                  および画像解析（販売図面OCR・間取り図/外観の抽出・画像認識）
+//   gpt-5.5      … 品質重視（文章ブラッシュアップ等）
+//   ※ gpt-5.4（無印）は使用しません。
+// いずれも環境変数で上書き可能です。
+// ---------------------------------------------------------------------------
 if (!defined('OPENAI_CHAT_MODEL')) {
     define('OPENAI_CHAT_MODEL', getenv('OPENAI_CHAT_MODEL') ?: 'gpt-4o-mini');
 }
@@ -198,13 +208,31 @@ if (!defined('OPENAI_MODEL_LIGHT')) {
     define('OPENAI_MODEL_LIGHT', getenv('OPENAI_MODEL_LIGHT') ?: OPENAI_CHAT_MODEL);
 }
 if (!defined('OPENAI_MODEL_SALES')) {
-    // Customer-facing consultation and property explanations need the flagship
-    // model. Keep OPENAI_MODEL_LIGHT on the inexpensive default for routing,
-    // classification and fallback work.
-    define('OPENAI_MODEL_SALES', getenv('OPENAI_MODEL_SALES') ?: 'gpt-5.6');
+    // お客様とのAIチャット（相談・物件説明）に使うモデル。通常利用として
+    // gpt-5.4-mini を既定にする。ルーティング・分類・フォールバックは
+    // OPENAI_MODEL_LIGHT（gpt-4o-mini）のままコストを抑える。
+    define('OPENAI_MODEL_SALES', getenv('OPENAI_MODEL_SALES') ?: 'gpt-5.4-mini');
 }
 if (!defined('OPENAI_MODEL_SUMMARY')) {
-    define('OPENAI_MODEL_SUMMARY', getenv('OPENAI_MODEL_SUMMARY') ?: OPENAI_MODEL_LIGHT);
+    // 会話要約（条件整理）・見送り理由の所見・ハザード情報の説明文など、
+    // お客様や担当者が読む文章を生成する用途なので通常利用モデルを使う。
+    define('OPENAI_MODEL_SUMMARY', getenv('OPENAI_MODEL_SUMMARY') ?: 'gpt-5.4-mini');
+}
+// 商談サマリー（進捗管理）の生成モデル。
+if (!defined('OPENAI_MODEL_SALES_SUMMARY')) {
+    define('OPENAI_MODEL_SALES_SUMMARY', getenv('OPENAI_MODEL_SALES_SUMMARY') ?: 'gpt-5.4-mini');
+}
+// 担当連絡のAI返信（自動回答生成）に使うモデル。
+if (!defined('OPENAI_MODEL_REPLY_DRAFT')) {
+    define('OPENAI_MODEL_REPLY_DRAFT', getenv('OPENAI_MODEL_REPLY_DRAFT') ?: 'gpt-5.4-mini');
+}
+// 文章ブラッシュアップ（推敲）など、品質を最優先したい文章生成に使うモデル。
+if (!defined('OPENAI_MODEL_POLISH')) {
+    define('OPENAI_MODEL_POLISH', getenv('OPENAI_MODEL_POLISH') ?: 'gpt-5.5');
+}
+// 販売図面のOCR・間取り図/外観写真の抽出・画像分類に使うVisionモデル。
+if (!defined('OPENAI_MODEL_FLYER')) {
+    define('OPENAI_MODEL_FLYER', getenv('OPENAI_MODEL_FLYER') ?: 'gpt-5.4-mini');
 }
 // 質問意図の判定（マンション名検索／一般相談／対象外の振り分け）に使う軽量モデル。
 // 1メッセージにつき1回・JSON数十トークンだけ返させる用途なので、最も安価なモデルを使う。

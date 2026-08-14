@@ -117,6 +117,8 @@
     manual: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
     url: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21l8.8-8.3a5 5 0 0 0 0-7.1z"/></svg>',
+    /* お気に入り登録済みのハート（塗りつぶし） */
+    heartFilled: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21l8.8-8.3a5 5 0 0 0 0-7.1z"/></svg>',
     chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>',
@@ -212,6 +214,20 @@
     return '<div class="prop-card__views-stats" title="お客様の閲覧状況">' + esc(parts.join('｜')) + '</div>';
   }
 
+  /* お気に入り判定（サーバーは is_favorite を 0/1 で返す） */
+  function isFavorite(p) { return !!p && (p.is_favorite === 1 || p.is_favorite === '1' || p.is_favorite === true); }
+
+  /* お気に入りボタン（顧客側の一覧カードのみ・opts.fav）。
+     登録済みは塗りつぶしのハート、未登録は輪郭のハートで表示する。 */
+  function favButtonHtml(p) {
+    var on = isFavorite(p);
+    return '<button type="button" class="prop-card__fav' + (on ? ' is-active' : '') + '"' +
+      ' data-fav-id="' + esc(p.id) + '"' +
+      ' aria-pressed="' + (on ? 'true' : 'false') + '"' +
+      ' title="' + (on ? 'お気に入りから外す' : '気になる物件に登録する') + '">' +
+      icon(on ? 'heartFilled' : 'heart') + '</button>';
+  }
+
   /* ===== 物件カード（§1 / §4） ===== */
   function cardHtml(p, opts) {
     opts = opts || {};
@@ -230,7 +246,8 @@
     if (line2.length) meta.push(line2.join('｜'));
     var labels = sourceHtml(p);
     var badge = statusBadgeHtml(p);
-    var fav = opts.fav ? '<span class="prop-card__fav">' + icon('heart') + '</span>' : '';
+    // お気に入り（ハート）。押すと塗りつぶしになり、一覧の「お気に入り」で絞り込める（顧客側のみ）。
+    var fav = opts.fav ? favButtonHtml(p) : '';
     var regDate = formatDate(p.created_at);
     var dateHtml = regDate ? '<div class="prop-card__date">登録日 ' + esc(regDate) + '</div>' : '';
     // 閲覧回数バッジ（担当側の一覧のみ・1回以上のときだけ表示）。
@@ -532,6 +549,7 @@
     passReasonLabelsOf: passReasonLabelsOf, passReasonCodesOf: passReasonCodesOf,
     passReasonPicker: passReasonPicker, showPassReason: showPassReason, passReasonBlockHtml: passReasonBlockHtml,
     sourceHtml: sourceHtml, statusBadgeHtml: statusBadgeHtml, cardHtml: cardHtml,
+    isFavorite: isFavorite, favButtonHtml: favButtonHtml,
     detailHeaderHtml: detailHeaderHtml, basicInfoHtml: basicInfoHtml, hazardHtml: hazardHtml,
     galleryHtml: galleryHtml, lightbox: lightbox, pdfViewer: pdfViewer, bindLightbox: bindLightbox, modal: modal,
     addAuth: addAuth, hexToTint: hexToTint

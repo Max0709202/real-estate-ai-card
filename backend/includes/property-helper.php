@@ -31,6 +31,7 @@ if (!function_exists('propertyEnsureTables')) {
           pass_reason VARCHAR(255) NULL DEFAULT NULL,
           pass_reason_text VARCHAR(500) NULL DEFAULT NULL,
           pass_reason_ai TEXT NULL DEFAULT NULL,
+          is_favorite TINYINT(1) NOT NULL DEFAULT 0,
           property_type ENUM('mansion','house','land') NOT NULL DEFAULT 'mansion',
           property_name VARCHAR(255) NULL DEFAULT NULL,
           building_name VARCHAR(255) NULL DEFAULT NULL,
@@ -151,6 +152,8 @@ if (!function_exists('propertyEnsureRetentionColumns')) {
             ['properties', 'pass_reason', "ADD COLUMN pass_reason VARCHAR(255) NULL DEFAULT NULL AFTER status"],
             ['properties', 'pass_reason_text', "ADD COLUMN pass_reason_text VARCHAR(500) NULL DEFAULT NULL AFTER pass_reason"],
             ['properties', 'pass_reason_ai', "ADD COLUMN pass_reason_ai TEXT NULL DEFAULT NULL AFTER pass_reason_text"],
+            // お気に入り（顧客がハートを押した物件・一覧の「お気に入り」で絞り込む）
+            ['properties', 'is_favorite', "ADD COLUMN is_favorite TINYINT(1) NOT NULL DEFAULT 0 AFTER pass_reason_ai"],
         ];
         foreach ($alters as [$table, $col, $ddl]) {
             try {
@@ -571,6 +574,8 @@ if (!function_exists('propertySerialize')) {
             'pass_reason_text' => $row['pass_reason_text'] ?? null,
             // AIが分析した所見は担当者（管理画面）にのみ表示。顧客には出さない。
             'pass_reason_ai' => $forAgent ? ($row['pass_reason_ai'] ?? null) : null,
+            // お気に入り（顧客がハートを押した物件）
+            'is_favorite' => (int)($row['is_favorite'] ?? 0),
             'property_type' => $row['property_type'] ?? 'mansion',
             'property_type_label' => $types[$row['property_type'] ?? 'mansion'] ?? '',
             'ocr_status' => $row['ocr_status'] ?? 'none',
@@ -878,6 +883,7 @@ if (!function_exists('propertyExtractFromUrl')) {
         if ($text === null) return ['fields' => [], 'media' => $media, 'error' => 'URLの内容を取得できませんでした。'];
 
         $prompt = propertyExtractionPrompt() . "\n\n--- ページ本文 ---\n" . $text;
+        // ページ本文からの項目抽出（データ整形）なのでコスト最優先の軽量モデルを使う。
         $model = 'gpt-4o-mini';
         $apiKey = chatOpenAIApiKeyForModel($model);
         $messages = [['role' => 'user', 'content' => $prompt]];
@@ -1477,13 +1483,20 @@ if (!function_exists('propertyApplyMaskToJpeg')) {
 if (!function_exists('propertyFlyerModel')) {
     /**
      * 販売図面のOCR・画像認識・写真/間取り領域の検出と分類に使うVisionモデル。
-     * OPENAI_MODEL_FLYER で上書き可。
+     * 既定は gpt-5.4-mini。OPENAI_MODEL_FLYER（定数／環境変数）で上書き可。
      */
     function propertyFlyerModel(): string
     {
-        $m = trim((string)getenv('OPENAI_MODEL_FLYER'));
-        // 空・または提供終了済みの旧モデル指定は販売図面用の既定モデルに矯正する。
-        if ($m === '' || stripos($m, 'gpt-4.5') !== false) $m = 'gpt-5.4-mini';
+        $m = defined('OPENAI_MODEL_FLYER') && OPENAI_MODEL_FLYER !== ''
+            ? trim((string)OPENAI_MODEL_FLYER)
+            : trim((string)getenv('OPENAI_MODEL_FLYER'));
+        // 空・提供終了済みの旧モデル・および使用しない方針の gpt-5.4（無印）は、
+        // 販売図面用の既定モデル（gpt-5.4-mini）に矯正する。
+        if ($m === ''
+            || stripos($m, 'gpt-4.5') !== false
+            || preg_match('/^gpt-5\.4$/i', $m)) {
+            $m = 'gpt-5.4-mini';
+        }
         return $m;
     }
 }
