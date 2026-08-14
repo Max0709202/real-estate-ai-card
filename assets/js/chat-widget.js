@@ -3022,6 +3022,9 @@
         scrollMessagesToBottom();
     }
 
+    // 一覧の「お気に入りのみ」表示の状態（顧客がハートで絞り込んだかどうか）。
+    var propFavOnly = false;
+
     function renderPropertiesTab(_healed) {
         if (!PUI) { renderFeaturePanel('<div class="chat-feature-empty">読み込みに失敗しました。</div>'); return; }
         if (!sessionId && !propViewOnly()) {
@@ -3039,32 +3042,87 @@
                 if (!_healed && !viewOnly) { revalidateSession().then(function () { renderPropertiesTab(true); }); return; }
                 propShowLoadError(box); return;
             }
-            var html = '<div class="prop-toolbar"><h4>物件選定</h4></div>';
-            html += '<div class="prop-method" id="prop-cust-urlbtn" style="margin-bottom:12px">' +
-                '<span class="prop-method__icon prop-method__icon--url">' + PUI.icon('url') + '</span>' +
-                '<span class="prop-method__body"><span class="prop-method__title">物件URLを共有</span>' +
-                '<span class="prop-method__desc">SUUMO・HOME\'S・アットホーム等のURLを貼り付けて登録</span></span>' +
-                '<span class="prop-method__chev">' + PUI.icon('chev') + '</span></div>';
             var items = (res.success && res.data.properties) ? res.data.properties : [];
-            if (!items.length) html += '<div class="prop-empty">提案された物件・共有した物件がここに表示されます。</div>';
-            else {
-                html += '<div class="prop-list">' + items.map(function (p) {
-                    var cardOpts = propAuthOpts();
-                    cardOpts.fav = true;
-                    return PUI.cardHtml(p, cardOpts);
-                }).join('') + '</div>';
-            }
-            box.innerHTML = html;
-            // 物件URLの共有は「物件選定」の機能なので、SMS認証前はSMS認証へ進んでもらう。
-            box.querySelector('#prop-cust-urlbtn').addEventListener('click', viewOnly ? propRequireAuth : propOpenUrlShare);
-            box.querySelectorAll('.prop-card').forEach(function (c) {
-                c.addEventListener('click', function () { propOpenDetail(parseInt(c.getAttribute('data-prop-id'), 10)); });
-            });
+            propRenderList(box, items, viewOnly);
         }).catch(function () {
             // 通信エラー時に「読み込み中」のまま固まらないようにし、再読み込みで復帰できるようにする。
             if (!_healed && !viewOnly) { revalidateSession().then(function () { renderPropertiesTab(true); }); return; }
             var box = featurePanel.querySelector('#prop-cust');
             if (box) propShowLoadError(box);
+        });
+    }
+
+    /* 物件一覧の描画（お気に入り絞り込みの切り替えでも再利用する）。
+       items は list.php の結果をそのまま保持し、ハート操作後は手元の is_favorite を更新して再描画する。 */
+    function propRenderList(box, items, viewOnly) {
+        var favCount = items.filter(PUI.isFavorite).length;
+        // お気に入りが1件も無い状態で絞り込みが残ると空表示になるため、絞り込みを解除する。
+        if (propFavOnly && !favCount) propFavOnly = false;
+        var shown = propFavOnly ? items.filter(PUI.isFavorite) : items;
+
+        var html = '<div class="prop-toolbar"><h4>物件選定</h4>' +
+            '<button type="button" class="prop-fav-filter' + (propFavOnly ? ' is-active' : '') + '" id="prop-cust-favfilter"' +
+            ' aria-pressed="' + (propFavOnly ? 'true' : 'false') + '" title="気になる物件だけを表示">' +
+            PUI.icon(propFavOnly ? 'heartFilled' : 'heart') + 'お気に入り' +
+            '<span class="prop-fav-filter__count">' + PUI.esc(favCount) + '</span></button></div>';
+        html += '<div class="prop-method" id="prop-cust-urlbtn" style="margin-bottom:12px">' +
+            '<span class="prop-method__icon prop-method__icon--url">' + PUI.icon('url') + '</span>' +
+            '<span class="prop-method__body"><span class="prop-method__title">お客様から物件情報を共有</span>' +
+            '<span class="prop-method__desc">気になる物件情報があった場合、SUUMO・HOME\'S・アットホーム等のURLを貼り付けると担当に共有されます。</span></span>' +
+            '<span class="prop-method__chev">' + PUI.icon('chev') + '</span></div>';
+        if (!shown.length) {
+            html += '<div class="prop-empty">' + (propFavOnly
+                ? '気になる物件のハートを押すと、ここでまとめて確認できます。'
+                : '提案された物件・共有した物件がここに表示されます。') + '</div>';
+        } else {
+            html += '<div class="prop-list">' + shown.map(function (p) {
+                var cardOpts = propAuthOpts();
+                cardOpts.fav = true;
+                return PUI.cardHtml(p, cardOpts);
+            }).join('') + '</div>';
+        }
+        box.innerHTML = html;
+        // 物件URLの共有は「物件選定」の機能なので、SMS認証前はSMS認証へ進んでもらう。
+        box.querySelector('#prop-cust-urlbtn').addEventListener('click', viewOnly ? propRequireAuth : propOpenUrlShare);
+        box.querySelector('#prop-cust-favfilter').addEventListener('click', function () {
+            propFavOnly = !propFavOnly;
+            propRenderList(box, items, viewOnly);
+        });
+        // ハート（お気に入り）はカードを開かずに登録・解除する。
+        box.querySelectorAll('.prop-card__fav').forEach(function (b) {
+            b.addEventListener('click', function (e) {
+                e.stopPropagation();
+                propToggleFavorite(box, items, viewOnly, parseInt(b.getAttribute('data-fav-id'), 10), b);
+            });
+        });
+        box.querySelectorAll('.prop-card').forEach(function (c) {
+            c.addEventListener('click', function () { propOpenDetail(parseInt(c.getAttribute('data-prop-id'), 10)); });
+        });
+    }
+
+    /* ハートの登録・解除。成功したら手元の items を更新し、一覧（件数・絞り込み）を描き直す。 */
+    function propToggleFavorite(box, items, viewOnly, propId, btn) {
+        // お気に入りの登録は「物件選定」の機能なので、SMS認証前はSMS認証へ進んでもらう。
+        if (viewOnly) { propRequireAuth(); return; }
+        var target = null;
+        items.forEach(function (p) { if (parseInt(p.id, 10) === propId) target = p; });
+        if (!target || btn.disabled) return;
+        var next = PUI.isFavorite(target) ? 0 : 1;
+        btn.disabled = true;
+        propApi('/favorite.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ property_id: propId, session_id: sessionId, visitor_id: visitorId, favorite: next })
+        }).then(function (res) {
+            btn.disabled = false;
+            if (!res || !res.success) { alert((res && res.message) || '更新に失敗しました'); return; }
+            target.is_favorite = res.data && res.data.is_favorite != null ? res.data.is_favorite : next;
+            // 再描画で表示位置が飛ばないよう、スクロール位置を保つ。
+            var top = featurePanel.scrollTop;
+            propRenderList(box, items, viewOnly);
+            featurePanel.scrollTop = top;
+        }).catch(function () {
+            btn.disabled = false;
+            alert('通信に失敗しました');
         });
     }
 
