@@ -31,6 +31,7 @@ if (!function_exists('propertyEnsureTables')) {
           pass_reason VARCHAR(255) NULL DEFAULT NULL,
           pass_reason_text VARCHAR(500) NULL DEFAULT NULL,
           pass_reason_ai TEXT NULL DEFAULT NULL,
+          is_favorite TINYINT(1) NOT NULL DEFAULT 0,
           property_type ENUM('mansion','house','land') NOT NULL DEFAULT 'mansion',
           property_name VARCHAR(255) NULL DEFAULT NULL,
           building_name VARCHAR(255) NULL DEFAULT NULL,
@@ -151,6 +152,8 @@ if (!function_exists('propertyEnsureRetentionColumns')) {
             ['properties', 'pass_reason', "ADD COLUMN pass_reason VARCHAR(255) NULL DEFAULT NULL AFTER status"],
             ['properties', 'pass_reason_text', "ADD COLUMN pass_reason_text VARCHAR(500) NULL DEFAULT NULL AFTER pass_reason"],
             ['properties', 'pass_reason_ai', "ADD COLUMN pass_reason_ai TEXT NULL DEFAULT NULL AFTER pass_reason_text"],
+            // お気に入り（顧客がハートを押した物件・一覧の「お気に入り」で絞り込む）
+            ['properties', 'is_favorite', "ADD COLUMN is_favorite TINYINT(1) NOT NULL DEFAULT 0 AFTER pass_reason_ai"],
         ];
         foreach ($alters as [$table, $col, $ddl]) {
             try {
@@ -571,6 +574,8 @@ if (!function_exists('propertySerialize')) {
             'pass_reason_text' => $row['pass_reason_text'] ?? null,
             // AIが分析した所見は担当者（管理画面）にのみ表示。顧客には出さない。
             'pass_reason_ai' => $forAgent ? ($row['pass_reason_ai'] ?? null) : null,
+            // お気に入り（顧客がハートを押した物件）
+            'is_favorite' => (int)($row['is_favorite'] ?? 0),
             'property_type' => $row['property_type'] ?? 'mansion',
             'property_type_label' => $types[$row['property_type'] ?? 'mansion'] ?? '',
             'ocr_status' => $row['ocr_status'] ?? 'none',

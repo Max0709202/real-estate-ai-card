@@ -60,8 +60,34 @@ a.prop-source--orange:hover { background: #ffe3c7; }
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prop-card__views-stats--none { color: #8a8f98; background: #f2f4f8; font-weight: 400; }
 .prop-card__date { font-size: 11px; color: #8a8f98; margin-top: 4px; }
-.prop-card__fav { position: absolute; right: 10px; bottom: 10px; color: #c4ccd8; }
+/* お気に入り（ハート）。押すと塗りつぶしの赤ハートになる（顧客側の一覧のみ）。 */
+.prop-card__fav {
+  position: absolute; right: 6px; bottom: 6px; color: #c4ccd8;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; padding: 0; border: none; background: none;
+  border-radius: 50%; cursor: pointer; transition: color .15s, background .15s;
+}
 .prop-card__fav svg { width: 22px; height: 22px; }
+.prop-card__fav:hover { background: #f5f7fa; color: #e8384f; }
+.prop-card__fav.is-active { color: #e8384f; }
+.prop-card__fav[disabled] { opacity: .55; cursor: default; }
+
+/* 一覧の「お気に入り」絞り込みボタン（顧客側の一覧のみ）。 */
+.prop-fav-filter {
+  display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
+  border: 1px solid #d7deea; background: #fff; color: #5b6675;
+  border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+}
+.prop-fav-filter svg { width: 16px; height: 16px; }
+.prop-fav-filter:hover { border-color: #f3b6bf; color: #e8384f; }
+.prop-fav-filter.is-active { background: #fdeef1; border-color: #f3b6bf; color: #e8384f; }
+.prop-fav-filter__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: #eef1f6; color: #5b6675; font-size: 11px; line-height: 1;
+}
+.prop-fav-filter.is-active .prop-fav-filter__count { background: #e8384f; color: #fff; }
 
 /* ===== ツールバー / ボタン ===== */
 .prop-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
