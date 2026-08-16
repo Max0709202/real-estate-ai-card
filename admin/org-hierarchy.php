@@ -5,6 +5,9 @@
  * 統括（全閲覧）→ マネージャー（店長）→ 担当者（営業）の3階層を、
  * ユーザーごとの「権限」と「上長」で設定する。
  *
+ * 階層分けは法人プランの機能のため、会社（免許番号）ごとの ON / OFF もこの画面で行う。
+ * OFF の会社では、マイページに「組織・配下顧客」が出ない（APIも拒否する）。
+ *
  * 通常の運用では、統括（全閲覧）の指名は admin/dashboard.php の名前の前の☑で行う。
  * この画面は、まとめて確認・修正したい場合とCSVでの一括設定のために残している。
  *
@@ -100,6 +103,75 @@ $supervisorStmt = $db->query("
 ");
 $supervisors = $supervisorStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// 会社（宅建業免許番号）ごとの階層機能 ON/OFF 一覧。
+// 免許番号の正規化は orgLicenseParts() に任せ、マイページ側の判定とズレないようにする。
+$licenseSettings = orgFetchLicenseSettings($db);
+$licenseCompanies = [];
+try {
+    $companyRows = $db->query("
+        SELECT u.id AS user_id,
+               u.org_role,
+               bc.company_name,
+               bc.real_estate_license_prefecture,
+               bc.real_estate_license_renewal_number,
+               bc.real_estate_license_registration_number,
+               CASE WHEN EXISTS (
+                   SELECT 1 FROM business_cards active_bc
+                   WHERE active_bc.user_id = u.id
+                     AND active_bc.payment_status IN ('CR', 'BANK_PAID', 'ST')
+                     AND active_bc.is_published = 1
+               ) THEN 1 ELSE 0 END AS is_active
+        FROM users u
+        JOIN (
+            SELECT user_id, MIN(id) AS id FROM business_cards GROUP BY user_id
+        ) first_card ON first_card.user_id = u.id
+        JOIN business_cards bc ON bc.id = first_card.id
+        WHERE bc.real_estate_license_registration_number IS NOT NULL
+          AND bc.real_estate_license_registration_number <> ''
+        ORDER BY u.id ASC
+        LIMIT 5000
+    ")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log('org license company list error: ' . $e->getMessage());
+    $companyRows = [];
+}
+
+foreach ($companyRows as $companyRow) {
+    $licenseParts = orgLicenseParts(
+        $companyRow['real_estate_license_prefecture'] ?? '',
+        $companyRow['real_estate_license_registration_number'] ?? ''
+    );
+    if ($licenseParts['key'] === '') continue;
+
+    $licenseKey = $licenseParts['key'];
+    if (!isset($licenseCompanies[$licenseKey])) {
+        $licenseCompanies[$licenseKey] = [
+            'license_key' => $licenseKey,
+            'license_text' => orgAdminLicenseText($companyRow),
+            'company_name' => '',
+            'member_count' => 0,
+            'active_count' => 0,
+            'admin_count' => 0,
+            'enabled' => $licenseSettings[$licenseKey]['hierarchy_enabled'] ?? false,
+        ];
+    }
+
+    $licenseCompanies[$licenseKey]['member_count']++;
+    if ((int)$companyRow['is_active'] === 1) $licenseCompanies[$licenseKey]['active_count']++;
+    if (orgNormalizeRole($companyRow['org_role'] ?? 'staff') === 'admin') $licenseCompanies[$licenseKey]['admin_count']++;
+    // 会社名は確認用。最初に見つかった空でない値を採用する。
+    if ($licenseCompanies[$licenseKey]['company_name'] === '') {
+        $licenseCompanies[$licenseKey]['company_name'] = trim((string)($companyRow['company_name'] ?? ''));
+    }
+}
+
+// ON の会社を上に、その次は利用中の人数が多い順に並べる。
+uasort($licenseCompanies, function ($a, $b) {
+    if ($a['enabled'] !== $b['enabled']) return $a['enabled'] ? -1 : 1;
+    if ($a['active_count'] !== $b['active_count']) return $b['active_count'] <=> $a['active_count'];
+    return strcmp($a['license_text'], $b['license_text']);
+});
+
 /** 一覧に出す免許番号（例：東京都知事（3）第12345号）。未登録なら空文字。 */
 function orgAdminLicenseText(array $row): string
 {
@@ -192,6 +264,24 @@ function orgAdminDisplayName(array $row): string
         .org-role-admin { background: #dc3545; }
         .org-role-manager { background: #0066cc; }
         .org-role-staff { background: #6c757d; }
+        .org-plan-panel {
+            margin-bottom: 24px;
+            padding: 16px;
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            border-radius: 6px;
+        }
+        .org-plan-panel h3 { margin-top: 0; }
+        .org-plan-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #fff;
+        }
+        .org-plan-on { background: #28a745; }
+        .org-plan-off { background: #adb5bd; }
         .org-csv-panel {
             margin-top: 24px;
             padding: 16px;
@@ -240,6 +330,60 @@ function orgAdminDisplayName(array $row): string
                     マイページの一覧に出るのは<strong>入金済み（CR／振込済／ST送金）かつ OPEN</strong> の方のみです。<br>
                     権限を「担当者」へ戻しても配下の紐付けは自動では外れません。配下がいる方を担当者に戻す場合は、配下の「上長」も付け替えてください。
                 </p>
+
+                <div class="org-plan-panel">
+                    <h3>法人プラン：階層分け機能の ON / OFF</h3>
+                    <p class="org-note">
+                        会社（宅建業免許番号）ごとに、階層分け機能を使えるかどうかを切り替えます。<br>
+                        <strong>OFF の会社では、マイページに「組織・配下顧客」が表示されません</strong>（URLを直接開いてもエラーになります）。<br>
+                        OFF にしても統括・店長・配下の設定は消えません。ON に戻せば、そのままの階層でご利用いただけます。<br>
+                        <strong>既定は OFF です。</strong>法人プランをご契約いただいた会社だけを ON にしてください。<br>
+                        会社の判定は免許番号で行うため、会社名の表記ゆれの影響は受けません。
+                    </p>
+                    <table class="org-table">
+                        <thead>
+                            <tr>
+                                <th>階層分け</th>
+                                <th>会社名</th>
+                                <th>免許番号</th>
+                                <th>登録人数</th>
+                                <th>利用中<br>（入金済み・OPEN）</th>
+                                <th>統括（全閲覧）</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($licenseCompanies)): ?>
+                            <tr><td colspan="6">免許番号が登録されている会社がまだありません。</td></tr>
+                            <?php endif; ?>
+                            <?php foreach ($licenseCompanies as $company): ?>
+                            <tr>
+                                <td style="white-space: nowrap;">
+                                    <?php if ($canEdit): ?>
+                                    <input type="checkbox" class="org-plan-toggle"
+                                           data-license-key="<?php echo htmlspecialchars($company['license_key'], ENT_QUOTES, 'UTF-8'); ?>"
+                                           data-license-text="<?php echo htmlspecialchars($company['license_text'], ENT_QUOTES, 'UTF-8'); ?>"
+                                           data-company-name="<?php echo htmlspecialchars($company['company_name'], ENT_QUOTES, 'UTF-8'); ?>"
+                                           <?php echo $company['enabled'] ? 'checked' : ''; ?>
+                                           title="階層分け機能の ON / OFF">
+                                    <?php endif; ?>
+                                    <span class="org-plan-badge <?php echo $company['enabled'] ? 'org-plan-on' : 'org-plan-off'; ?>"><?php echo $company['enabled'] ? 'ON' : 'OFF'; ?></span>
+                                </td>
+                                <td><?php echo htmlspecialchars($company['company_name'] !== '' ? $company['company_name'] : '（会社名未登録）', ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td style="white-space: nowrap; font-size: 13px;"><?php echo htmlspecialchars($company['license_text'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo (int)$company['member_count']; ?>名</td>
+                                <td><?php echo (int)$company['active_count']; ?>名</td>
+                                <td>
+                                    <?php if ((int)$company['admin_count'] > 0): ?>
+                                        <?php echo (int)$company['admin_count']; ?>名
+                                    <?php else: ?>
+                                        <span style="color:#c00;">未指名</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
 
                 <form method="GET" class="org-toolbar">
                     <div>
@@ -416,6 +560,61 @@ function orgAdminDisplayName(array $row): string
                     updateOrg({ user_id: userId, parent_user_id: parentId }, this, function () {
                         self.setAttribute('data-current', self.value);
                     });
+                });
+            });
+
+            // 法人プラン：会社ごとの階層分け ON / OFF
+            document.querySelectorAll('.org-plan-toggle').forEach(function (toggle) {
+                toggle.addEventListener('change', function () {
+                    var self = this;
+                    var enabled = self.checked;
+                    var licenseKey = self.getAttribute('data-license-key');
+                    var licenseText = self.getAttribute('data-license-text') || '';
+                    var companyName = self.getAttribute('data-company-name') || '';
+                    var badge = self.parentNode.querySelector('.org-plan-badge');
+
+                    var label = (companyName || licenseText || 'この会社');
+                    var confirmText = enabled
+                        ? label + ' の階層分け機能をONにします。\nマイページに「組織・配下顧客」が表示されるようになります。'
+                        : label + ' の階層分け機能をOFFにします。\nマイページから「組織・配下顧客」が非表示になります。\n（統括・店長・配下の設定は消えません）';
+                    if (!confirm(confirmText)) {
+                        self.checked = !enabled;
+                        return;
+                    }
+
+                    self.disabled = true;
+                    fetch('../backend/api/admin/update-org-hierarchy-plan.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({
+                            license_key: licenseKey,
+                            license_text: licenseText,
+                            company_name: companyName,
+                            enabled: enabled
+                        })
+                    })
+                        .then(function (r) { return r.json(); })
+                        .then(function (result) {
+                            self.disabled = false;
+                            if (result.success) {
+                                if (badge) {
+                                    badge.textContent = enabled ? 'ON' : 'OFF';
+                                    badge.className = 'org-plan-badge ' + (enabled ? 'org-plan-on' : 'org-plan-off');
+                                }
+                                showMessage(result.message || '更新しました。', false);
+                            } else {
+                                // 失敗したら表示を元に戻す（画面と実データのズレを残さない）
+                                self.checked = !enabled;
+                                showMessage(result.message || '更新に失敗しました', true);
+                            }
+                        })
+                        .catch(function (err) {
+                            console.error(err);
+                            self.disabled = false;
+                            self.checked = !enabled;
+                            showMessage('エラーが発生しました', true);
+                        });
                 });
             });
 

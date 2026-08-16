@@ -8,14 +8,41 @@ require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/referral-tracking-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
-// Stripe SDK読み込み（Composer経由）
-require_once __DIR__ . '/../../vendor/autoload.php';
 use Stripe\Stripe;
 use Stripe\PaymentIntent;
 use Stripe\Customer;
 use Stripe\Subscription;
 use Stripe\Price;
 use Stripe\Product;
+
+// Composer may be installed either in backend/ or in the project root,
+// depending on the production deployment layout.
+$composerAutoloaders = [
+    __DIR__ . '/../../vendor/autoload.php',
+    __DIR__ . '/../../../vendor/autoload.php',
+];
+
+foreach ($composerAutoloaders as $autoloadFile) {
+    if (is_file($autoloadFile)) {
+        require_once $autoloadFile;
+    }
+
+    if (class_exists(Stripe::class)) {
+        break;
+    }
+}
+
+if (!class_exists(Stripe::class)) {
+    $autoloadStatus = array_map(
+        static fn(string $path): string => $path . '=' . (is_file($path) ? 'found' : 'missing'),
+        $composerAutoloaders
+    );
+    error_log(
+        'Stripe SDK is unavailable. Run `composer install --no-dev --optimize-autoloader` '
+        . 'in backend/. Autoloaders: ' . implode(', ', $autoloadStatus)
+    );
+    sendErrorResponse('決済システムの初期化に失敗しました', 500);
+}
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -167,12 +194,6 @@ try {
     if (empty(STRIPE_SECRET_KEY)) {
         error_log("Stripe Secret Key is not configured");
         sendErrorResponse('Stripe設定が完了していません', 500);
-    }
-    
-    // Check if Stripe SDK is loaded
-    if (!class_exists('Stripe\Stripe')) {
-        error_log("Stripe SDK not loaded. Check vendor/autoload.php");
-        sendErrorResponse('決済システムの初期化に失敗しました', 500);
     }
     
     Stripe::setApiKey(STRIPE_SECRET_KEY);
