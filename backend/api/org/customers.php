@@ -31,6 +31,11 @@ try {
         sendErrorResponse('配下の顧客を閲覧する権限がありません', 403);
     }
 
+    // 階層分けは法人プランの機能。運営が ON にした会社（免許番号）でのみ使える。
+    if (!orgHierarchyEnabledForUser($db, $userId)) {
+        sendErrorResponse('組織階層の機能は法人プランのみのご提供です', 403);
+    }
+
     ensureChatLeadContactTable($db);
     customerInviteEnsureTable($db);
 

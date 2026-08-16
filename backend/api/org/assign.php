@@ -41,6 +41,11 @@ try {
         sendErrorResponse('組織を設定する権限がありません', 403);
     }
 
+    // 階層分けは法人プランの機能。運営が ON にした会社（免許番号）でのみ使える。
+    if (!orgHierarchyEnabledForUser($db, $actorId)) {
+        sendErrorResponse('組織階層の機能は法人プランのみのご提供です', 403);
+    }
+
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
     $targetId = isset($input['user_id']) ? (int)$input['user_id'] : 0;
     if ($targetId <= 0) {

@@ -14,6 +14,8 @@
  *   ・統括（全閲覧）は同じ免許番号のメンバー全員を、
  *     マネージャー（店長）は parent_user_id を辿った自分の配下だけを閲覧できる。
  *   ・一覧・候補に出るのは「入金済み（CR / 振込済 / ST送金）かつ OPEN」の方だけ。
+ *   ・そもそも階層分けを使えるのは、運営が ON にした会社（法人プラン）だけ。
+ *     判定は orgHierarchyEnabledForUser()。OFF の会社にはメニューもAPIも出さない。
  *   なお admin/ 配下の管理画面は運営（リニュアル仲介）専用で、users とは
  *   別テーブル（admins）のログインが必要。各社の統括がそこへ入ることはない。
  */
@@ -536,6 +538,136 @@ function orgLicenseForUser(PDO $db, int $userId): array
         error_log('orgLicenseForUser error: ' . $e->getMessage());
         return $blank;
     }
+}
+
+/**
+ * org_license_settings（会社ごとの階層機能 ON/OFF）が無ければ作る（冪等）。
+ *
+ * 移行SQLを流し忘れた環境でも、階層機能が「OFF」として安全に動くようにしておく。
+ */
+function orgEnsureLicenseSettingsTable(PDO $db): void
+{
+    static $done = false;
+    if ($done) return;
+
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS org_license_settings (
+                license_key VARCHAR(191) NOT NULL PRIMARY KEY
+                    COMMENT '免許番号の正規化キー（都道府県|登録番号）',
+                license_text VARCHAR(255) NULL
+                    COMMENT '画面表示用の免許番号',
+                company_name VARCHAR(255) NULL
+                    COMMENT '確認用の会社名。判定には使わない',
+                hierarchy_enabled TINYINT(1) NOT NULL DEFAULT 0
+                    COMMENT '1=法人プラン（階層分けを使える） / 0=使えない',
+                updated_by_admin_id INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_org_license_enabled (hierarchy_enabled)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        $done = true;
+    } catch (Exception $e) {
+        // 作れなくても既存機能は壊さない。階層機能が使えない状態になるだけ。
+        error_log('orgEnsureLicenseSettingsTable error: ' . $e->getMessage());
+    }
+}
+
+/**
+ * その免許番号（会社）で階層分けを使えるか。
+ * 行が無い会社は OFF（＝法人プラン未契約）として扱う。
+ */
+function orgHierarchyEnabledForKey(PDO $db, string $licenseKey): bool
+{
+    if ($licenseKey === '') return false;
+    orgEnsureLicenseSettingsTable($db);
+
+    // 1リクエスト中に何度も呼ばれるため、免許番号ごとに結果を覚えておく。
+    static $cache = [];
+    if (array_key_exists($licenseKey, $cache)) return $cache[$licenseKey];
+
+    try {
+        $stmt = $db->prepare('SELECT hierarchy_enabled FROM org_license_settings WHERE license_key = ? LIMIT 1');
+        $stmt->execute([$licenseKey]);
+        $value = $stmt->fetchColumn();
+        $cache[$licenseKey] = ($value !== false && (int)$value === 1);
+    } catch (Exception $e) {
+        error_log('orgHierarchyEnabledForKey error: ' . $e->getMessage());
+        $cache[$licenseKey] = false;
+    }
+
+    return $cache[$licenseKey];
+}
+
+/**
+ * ログイン中のユーザーの会社で階層分けを使えるか。
+ * 免許番号が未登録の場合は会社を特定できないため false。
+ */
+function orgHierarchyEnabledForUser(PDO $db, int $userId): bool
+{
+    if ($userId <= 0) return false;
+    return orgHierarchyEnabledForKey($db, orgLicenseForUser($db, $userId)['key']);
+}
+
+/**
+ * 会社ごとの階層機能を ON / OFF する（運営の管理画面からのみ呼ぶ）。
+ *
+ * 階層そのもの（権限・上長）は消さない。OFF にしても設定は残り、
+ * ON に戻せばそのまま元の階層で使える。
+ */
+function orgSetHierarchyEnabled(PDO $db, string $licenseKey, string $licenseText, string $companyName, bool $enabled, ?int $adminId = null): bool
+{
+    if ($licenseKey === '') return false;
+    orgEnsureLicenseSettingsTable($db);
+
+    try {
+        $stmt = $db->prepare('
+            INSERT INTO org_license_settings (license_key, license_text, company_name, hierarchy_enabled, updated_by_admin_id)
+            VALUES (?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                license_text = VALUES(license_text),
+                company_name = VALUES(company_name),
+                hierarchy_enabled = VALUES(hierarchy_enabled),
+                updated_by_admin_id = VALUES(updated_by_admin_id)
+        ');
+        $stmt->execute([$licenseKey, $licenseText, $companyName, $enabled ? 1 : 0, $adminId]);
+        return true;
+    } catch (Exception $e) {
+        error_log('orgSetHierarchyEnabled error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * 会社ごとの ON/OFF 設定をまとめて返す（運営の一覧画面用）。
+ *
+ * @return array<string, array{license_text:string, company_name:string, hierarchy_enabled:bool, updated_at:?string}>
+ */
+function orgFetchLicenseSettings(PDO $db): array
+{
+    orgEnsureLicenseSettingsTable($db);
+
+    try {
+        $rows = $db->query('
+            SELECT license_key, license_text, company_name, hierarchy_enabled, updated_at
+            FROM org_license_settings
+        ')->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log('orgFetchLicenseSettings error: ' . $e->getMessage());
+        return [];
+    }
+
+    $settings = [];
+    foreach ($rows as $row) {
+        $settings[(string)$row['license_key']] = [
+            'license_text' => (string)($row['license_text'] ?? ''),
+            'company_name' => (string)($row['company_name'] ?? ''),
+            'hierarchy_enabled' => ((int)$row['hierarchy_enabled'] === 1),
+            'updated_at' => $row['updated_at'],
+        ];
+    }
+    return $settings;
 }
 
 /**
