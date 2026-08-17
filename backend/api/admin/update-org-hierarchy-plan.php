@@ -6,7 +6,11 @@
  * OFF にしても統括・店長・配下の設定（org_role / parent_user_id）は消さない。
  * ON に戻せば、そのままの階層でそのまま使える。
  *
- * POST { license_key: string, enabled: bool, license_text?: string, company_name?: string }
+ * admin_email は「階層機能を使えるログインメール」の一覧（カンマ／改行区切りで複数可）。
+ * 表示条件は AND なので、ON かつ この一覧に入っている方だけが階層機能を使える。
+ * 一覧が空の会社は、ON にしても誰も使えない。
+ *
+ * POST { license_key: string, enabled: bool, license_text?: string, company_name?: string, admin_email?: string }
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -34,6 +38,15 @@ try {
     }
     $enabled = filter_var($input['enabled'], FILTER_VALIDATE_BOOLEAN);
 
+    // 利用できるログインメール（複数可）。1件ずつ形式を確認してから保存する。
+    $allowedEmails = orgParseEmailList($input['admin_email'] ?? '');
+    foreach ($allowedEmails as $allowedEmail) {
+        if (!filter_var($allowedEmail, FILTER_VALIDATE_EMAIL)) {
+            sendErrorResponse('メールアドレスの形式が正しくありません：' . $allowedEmail, 400);
+        }
+    }
+    $adminEmail = implode(', ', $allowedEmails);
+
     $database = new Database();
     $db = $database->getConnection();
 
@@ -42,6 +55,7 @@ try {
         $licenseKey,
         trim((string)($input['license_text'] ?? '')),
         trim((string)($input['company_name'] ?? '')),
+        $adminEmail,
         $enabled,
         (int)$currentAdminId
     );
@@ -57,12 +71,22 @@ try {
         'user',
         null,
         '階層分け機能を' . ($enabled ? 'ON' : 'OFF') . ': ' . $licenseKey
+            . ' / 利用可能メール=' . ($adminEmail !== '' ? $adminEmail : 'なし')
     );
+
+    // ON なのにメール未登録だと誰も使えないため、その場で伝える。
+    $message = $enabled
+        ? ($adminEmail !== ''
+            ? '階層分け機能をONにしました（利用可能：' . count($allowedEmails) . '件）'
+            : 'ONにしましたが、利用できるログインメールが未登録です。このままでは誰も表示されません')
+        : '階層分け機能をOFFにしました';
 
     sendSuccessResponse([
         'license_key' => $licenseKey,
+        'admin_email' => $adminEmail,
+        'allowed_count' => count($allowedEmails),
         'hierarchy_enabled' => $enabled,
-    ], $enabled ? '階層分け機能をONにしました' : '階層分け機能をOFFにしました');
+    ], $message);
 } catch (Exception $e) {
     error_log('Update Org Hierarchy Plan Error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);

@@ -11,6 +11,10 @@
 --   ・既定は OFF。行が無い会社も OFF として扱う（＝法人プラン未契約）。
 --   ・階層そのもの（org_role / parent_user_id）はこの表と独立して保持する。
 --     OFF の間も設定は消えないので、ON に戻せばそのまま使える。
+--   ・admin_email は「階層機能を使えるログインメール」の一覧（複数可）。
+--     表示条件は AND で、「この会社が ON」かつ「自分のメールがこの一覧にある」の
+--     両方を満たしたときだけ「組織・配下顧客」が表示される。
+--     空の会社は ON にしても誰も使えない。
 
 CREATE TABLE IF NOT EXISTS org_license_settings (
     license_key VARCHAR(191) NOT NULL PRIMARY KEY
@@ -19,6 +23,8 @@ CREATE TABLE IF NOT EXISTS org_license_settings (
         COMMENT '画面表示用の免許番号（例：東京都知事（3）第12345号）',
     company_name VARCHAR(255) NULL
         COMMENT '確認用の会社名。判定には使わない',
+    admin_email TEXT NULL
+        COMMENT '階層機能を使えるログインメール。カンマ／改行区切りで複数可',
     hierarchy_enabled TINYINT(1) NOT NULL DEFAULT 0
         COMMENT '1=法人プラン（階層分けを使える） / 0=使えない',
     updated_by_admin_id INT NULL COMMENT '最後に切り替えた運営管理者のID',

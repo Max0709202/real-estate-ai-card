@@ -110,6 +110,7 @@ $licenseCompanies = [];
 try {
     $companyRows = $db->query("
         SELECT u.id AS user_id,
+               u.email,
                u.org_role,
                bc.company_name,
                bc.real_estate_license_prefecture,
@@ -152,13 +153,22 @@ foreach ($companyRows as $companyRow) {
             'member_count' => 0,
             'active_count' => 0,
             'admin_count' => 0,
+            // 登録済みの「統括のログインメール」。判定にも使う値。
+            'admin_email' => $licenseSettings[$licenseKey]['admin_email'] ?? '',
+            // 実際に統括に指名されている方のメール。入力の目安として出す。
+            'detected_admin_email' => '',
             'enabled' => $licenseSettings[$licenseKey]['hierarchy_enabled'] ?? false,
         ];
     }
 
     $licenseCompanies[$licenseKey]['member_count']++;
     if ((int)$companyRow['is_active'] === 1) $licenseCompanies[$licenseKey]['active_count']++;
-    if (orgNormalizeRole($companyRow['org_role'] ?? 'staff') === 'admin') $licenseCompanies[$licenseKey]['admin_count']++;
+    if (orgNormalizeRole($companyRow['org_role'] ?? 'staff') === 'admin') {
+        $licenseCompanies[$licenseKey]['admin_count']++;
+        if ($licenseCompanies[$licenseKey]['detected_admin_email'] === '') {
+            $licenseCompanies[$licenseKey]['detected_admin_email'] = trim((string)($companyRow['email'] ?? ''));
+        }
+    }
     // 会社名は確認用。最初に見つかった空でない値を採用する。
     if ($licenseCompanies[$licenseKey]['company_name'] === '') {
         $licenseCompanies[$licenseKey]['company_name'] = trim((string)($companyRow['company_name'] ?? ''));
@@ -338,7 +348,11 @@ function orgAdminDisplayName(array $row): string
                         <strong>OFF の会社では、マイページに「組織・配下顧客」が表示されません</strong>（URLを直接開いてもエラーになります）。<br>
                         OFF にしても統括・店長・配下の設定は消えません。ON に戻せば、そのままの階層でご利用いただけます。<br>
                         <strong>既定は OFF です。</strong>法人プランをご契約いただいた会社だけを ON にしてください。<br>
-                        会社の判定は免許番号で行うため、会社名の表記ゆれの影響は受けません。
+                        会社の判定は免許番号で行うため、会社名の表記ゆれの影響は受けません。<br>
+                        <strong>表示条件は「ON」と「ログインメールの登録」の両方（AND）です。</strong>
+                        右の欄に登録したメールでログインした方だけに「組織・配下顧客」が表示されます。
+                        統括の方だけでなく、<strong>店長の方のメールもここに追加してください</strong>（カンマまたは改行で複数登録できます）。<br>
+                        <strong style="color:#c00;">ONにしてもメールが未登録の会社は、誰にも表示されません。</strong>
                     </p>
                     <table class="org-table">
                         <thead>
@@ -346,6 +360,7 @@ function orgAdminDisplayName(array $row): string
                                 <th>階層分け</th>
                                 <th>会社名</th>
                                 <th>免許番号</th>
+                                <th>利用できるログインメール<br>（統括・店長。複数可）</th>
                                 <th>登録人数</th>
                                 <th>利用中<br>（入金済み・OPEN）</th>
                                 <th>統括（全閲覧）</th>
@@ -353,7 +368,7 @@ function orgAdminDisplayName(array $row): string
                         </thead>
                         <tbody>
                             <?php if (empty($licenseCompanies)): ?>
-                            <tr><td colspan="6">免許番号が登録されている会社がまだありません。</td></tr>
+                            <tr><td colspan="7">免許番号が登録されている会社がまだありません。</td></tr>
                             <?php endif; ?>
                             <?php foreach ($licenseCompanies as $company): ?>
                             <tr>
@@ -370,6 +385,27 @@ function orgAdminDisplayName(array $row): string
                                 </td>
                                 <td><?php echo htmlspecialchars($company['company_name'] !== '' ? $company['company_name'] : '（会社名未登録）', ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td style="white-space: nowrap; font-size: 13px;"><?php echo htmlspecialchars($company['license_text'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td>
+                                    <?php if ($canEdit): ?>
+                                    <textarea class="org-plan-email org-select" rows="2"
+                                              data-license-key="<?php echo htmlspecialchars($company['license_key'], ENT_QUOTES, 'UTF-8'); ?>"
+                                              placeholder="<?php echo htmlspecialchars($company['detected_admin_email'] !== '' ? $company['detected_admin_email'] : 'aaa@example.jp, bbb@example.jp', ENT_QUOTES, 'UTF-8'); ?>"
+                                              style="width: 260px; max-width: 260px;"
+                                              title="ここに登録したメールでログインした方だけに表示されます（カンマまたは改行で複数可）"><?php echo htmlspecialchars($company['admin_email'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                    <?php else: ?>
+                                    <?php echo htmlspecialchars($company['admin_email'], ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php endif; ?>
+                                    <?php if ($company['enabled'] && trim($company['admin_email']) === ''): ?>
+                                        <div style="font-size: 11px; color: #c00; margin-top: 3px;">
+                                            メール未登録のため、この会社では誰にも表示されません
+                                        </div>
+                                    <?php endif; ?>
+                                    <?php if ($company['detected_admin_email'] !== '' && strpos($company['admin_email'], $company['detected_admin_email']) === false): ?>
+                                        <div style="font-size: 11px; color: #666; margin-top: 3px;">
+                                            指名済みの統括：<?php echo htmlspecialchars($company['detected_admin_email'], ENT_QUOTES, 'UTF-8'); ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?php echo (int)$company['member_count']; ?>名</td>
                                 <td><?php echo (int)$company['active_count']; ?>名</td>
                                 <td>
@@ -563,17 +599,52 @@ function orgAdminDisplayName(array $row): string
                 });
             });
 
-            // 法人プラン：会社ごとの階層分け ON / OFF
+            // 法人プラン：会社ごとの階層分け ON / OFF と、判定に使う「統括のログインメール」。
+            // ON/OFF とメールは同じ行の値をまとめて送る（片方だけの更新で相手を消さないため）。
+            function orgPlanSave(row, onDone) {
+                var toggle = row.querySelector('.org-plan-toggle');
+                var emailInput = row.querySelector('.org-plan-email');
+                var badge = row.querySelector('.org-plan-badge');
+                if (!toggle) return;
+
+                var enabled = toggle.checked;
+                var payload = {
+                    license_key: toggle.getAttribute('data-license-key'),
+                    license_text: toggle.getAttribute('data-license-text') || '',
+                    company_name: toggle.getAttribute('data-company-name') || '',
+                    admin_email: emailInput ? emailInput.value.trim() : '',
+                    enabled: enabled
+                };
+
+                fetch('../backend/api/admin/update-org-hierarchy-plan.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(payload)
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (result) {
+                        if (result.success && badge) {
+                            badge.textContent = enabled ? 'ON' : 'OFF';
+                            badge.className = 'org-plan-badge ' + (enabled ? 'org-plan-on' : 'org-plan-off');
+                        }
+                        showMessage(result.message || (result.success ? '更新しました。' : '更新に失敗しました'), !result.success);
+                        if (onDone) onDone(result.success === true);
+                    })
+                    .catch(function (err) {
+                        console.error(err);
+                        showMessage('エラーが発生しました', true);
+                        if (onDone) onDone(false);
+                    });
+            }
+
             document.querySelectorAll('.org-plan-toggle').forEach(function (toggle) {
                 toggle.addEventListener('change', function () {
                     var self = this;
                     var enabled = self.checked;
-                    var licenseKey = self.getAttribute('data-license-key');
-                    var licenseText = self.getAttribute('data-license-text') || '';
-                    var companyName = self.getAttribute('data-company-name') || '';
-                    var badge = self.parentNode.querySelector('.org-plan-badge');
+                    var row = self.closest('tr');
+                    var label = self.getAttribute('data-company-name') || self.getAttribute('data-license-text') || 'この会社';
 
-                    var label = (companyName || licenseText || 'この会社');
                     var confirmText = enabled
                         ? label + ' の階層分け機能をONにします。\nマイページに「組織・配下顧客」が表示されるようになります。'
                         : label + ' の階層分け機能をOFFにします。\nマイページから「組織・配下顧客」が非表示になります。\n（統括・店長・配下の設定は消えません）';
@@ -583,38 +654,24 @@ function orgAdminDisplayName(array $row): string
                     }
 
                     self.disabled = true;
-                    fetch('../backend/api/admin/update-org-hierarchy-plan.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
-                        body: JSON.stringify({
-                            license_key: licenseKey,
-                            license_text: licenseText,
-                            company_name: companyName,
-                            enabled: enabled
-                        })
-                    })
-                        .then(function (r) { return r.json(); })
-                        .then(function (result) {
-                            self.disabled = false;
-                            if (result.success) {
-                                if (badge) {
-                                    badge.textContent = enabled ? 'ON' : 'OFF';
-                                    badge.className = 'org-plan-badge ' + (enabled ? 'org-plan-on' : 'org-plan-off');
-                                }
-                                showMessage(result.message || '更新しました。', false);
-                            } else {
-                                // 失敗したら表示を元に戻す（画面と実データのズレを残さない）
-                                self.checked = !enabled;
-                                showMessage(result.message || '更新に失敗しました', true);
-                            }
-                        })
-                        .catch(function (err) {
-                            console.error(err);
-                            self.disabled = false;
-                            self.checked = !enabled;
-                            showMessage('エラーが発生しました', true);
-                        });
+                    orgPlanSave(row, function (ok) {
+                        self.disabled = false;
+                        // 失敗したら表示を元に戻す（画面と実データのズレを残さない）
+                        if (!ok) self.checked = !enabled;
+                    });
+                });
+            });
+
+            document.querySelectorAll('.org-plan-email').forEach(function (emailInput) {
+                var original = emailInput.value;
+                emailInput.addEventListener('change', function () {
+                    var self = this;
+                    self.disabled = true;
+                    orgPlanSave(self.closest('tr'), function (ok) {
+                        self.disabled = false;
+                        if (ok) original = self.value;
+                        else self.value = original;
+                    });
                 });
             });
 
