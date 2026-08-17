@@ -285,6 +285,16 @@ try {
     if ($intentKind === 'out_of_scope' && $isFollowUpContinuation) {
         $intentKind = 'general';
     }
+    // セーフティネット4：公的データ（不動産情報ライブラリ・政府統計・国交データプラット
+    // フォーム）で回答できる質問は、意図判定が out_of_scope でも絶対に拒否しない。
+    // 「新中野駅の乗降客数は？」のような照会が対象外と誤判定され、固定文で返っていた。
+    // 乗降客数・人口・地価・都市計画・ハザード・学区・周辺施設などはサーバー側が実際に
+    // APIから取得して回答できる情報であり、物件選びの判断材料として必ず答える。
+    $isPublicDataQuestion = function_exists('chatMessageAsksPublicOpenData')
+        && chatMessageAsksPublicOpenData($message);
+    if ($intentKind === 'out_of_scope' && $isPublicDataQuestion) {
+        $intentKind = 'general';
+    }
     // 一般相談・対象外と判定された質問では、全国マンションDBの先行照会自体を行わない。
     $skipMansionDbLookup = ($intentKind === 'general' || $intentKind === 'out_of_scope');
     $mansionSearchTerms = chatExtractMansionSearchTerms($message);
@@ -428,13 +438,17 @@ try {
                 $reply = '該当するマンションが見つかりませんでした。正式名称や所在地などをご確認ください。';
                 $sources = [];
                 $result = null;
-            } elseif ($intentKind === 'unclear' && $mansionLand === null && !$isFollowUpContinuation) {
+            } elseif ($intentKind === 'unclear' && $mansionLand === null && !$isFollowUpContinuation
+                && !$isPublicDataQuestion) {
                 // 特定物件の照会か一般的なご相談か判断できず、DB照会でも該当が無かった場合は、
                 // 推測で回答せずお客様に意図を確認する。
                 // ただし直前のAI発言の続き（$isFollowUpContinuation）の場合は聞き返さない。
                 // 自分が提案した内容を聞き返すことになり、会話が止まってしまうため、
                 // 会話履歴つきでAI回答を続ける（unclear は general と違いDB先行照会も通るので、
                 // 物件名だった場合は上の直接回答で先に解決される）。
+                // また、公的データで回答できる質問（$isPublicDataQuestion：乗降客数・人口・
+                // 地価・都市計画・ハザード・学区など）も聞き返さず、そのままAI回答へ渡して
+                // 不動産情報ライブラリ等の実データで回答する。
                 $reply = "恐れ入りますが、ご質問の意図を確認させてください。\n\n"
                     . "・特定のマンション・物件についてお調べする場合：マンション名（できれば所在地も）をお知らせください。\n"
                     . "・住宅ローンや税制、相場、リフォームなど不動産全般のご相談の場合：知りたい内容をもう少し詳しくお聞かせください。\n\n"
