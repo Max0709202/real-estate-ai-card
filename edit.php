@@ -500,6 +500,8 @@ $isUtilizingUser = !$isGuestAccess
 // 組織階層（統括→店長→営業）での閲覧権限。
 // 統括（全閲覧）・マネージャー（店長）にだけ「組織・配下顧客」を表示する。
 // 担当者（営業）と未設定のユーザーは従来どおり自分の顧客だけを見る。
+// さらに、階層分けは法人プランの機能なので、運営が ON にした会社（免許番号）に限る。
+// OFF の会社ではメニューもページ本体も出力しない（APIも同じ条件で拒否する）。
 require_once __DIR__ . '/backend/includes/org-hierarchy-helper.php';
 $orgRole = 'staff';
 $canViewTeam = false;
@@ -507,7 +509,7 @@ if (!$isGuestAccess && !empty($userId) && isset($db)) {
     try {
         $orgViewer = orgLoadViewer($db, (int)$userId);
         $orgRole = $orgViewer['org_role'];
-        $canViewTeam = orgCanViewTeam($orgRole);
+        $canViewTeam = orgCanViewTeam($orgRole) && orgHierarchyEnabledForUser($db, (int)$userId);
     } catch (Exception $e) {
         error_log('edit.php org role load error: ' . $e->getMessage());
     }

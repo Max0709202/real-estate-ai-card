@@ -3,6 +3,12 @@
  * Firebase phone authentication and verified chat phone helpers.
  */
 
+if (!defined('CHAT_DEVICE_AUTH_TTL_SECONDS')) {
+    // SMS認証済み端末の認可が有効な期間（既定72時間＝3日）。
+    // この期間を過ぎると、顧客は再度SMS認証（電話番号入力）を求められる。
+    define('CHAT_DEVICE_AUTH_TTL_SECONDS', (int)(getenv('CHAT_DEVICE_AUTH_TTL_SECONDS') ?: 259200));
+}
+
 function ensureChatVerifiedPhonesTable($db) {
     $db->exec("CREATE TABLE IF NOT EXISTS chat_verified_phones (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -100,7 +106,7 @@ function chatIsValidVisitorId($visitorId) {
  * 認可済み端末として登録する。既にセッションに単独所有者（visitor_identifier）が
  * 記録されていれば、その所有者もあわせて集合へ引き継ぐ（本機能導入前のセッション救済）。
  */
-function chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone = '', $customerName = '', $ttlSeconds = 10800) {
+function chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone = '', $customerName = '', $ttlSeconds = CHAT_DEVICE_AUTH_TTL_SECONDS) {
     $sessionId = trim((string)$sessionId);
     $visitorId = trim((string)$visitorId);
     if ($sessionId === '' || !preg_match('/^[A-Fa-f0-9-]{36}$/', $sessionId)) return;

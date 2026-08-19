@@ -97,7 +97,7 @@ try {
             chatRegisterVerifiedPhone($db, $businessCardId, $phone, $uid, $coupleSessionId, $partnerName);
             // 2人目の端末を認可（履歴・機能タブを本人と共有）。所有者(primary)は奪わない。
             if ($visitorId !== '') {
-                chatSessionRegisterDevice($db, $coupleSessionId, $visitorId, $phone, $partnerName, 10800);
+                chatSessionRegisterDevice($db, $coupleSessionId, $visitorId, $phone, $partnerName, CHAT_DEVICE_AUTH_TTL_SECONDS);
             }
             $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$coupleSessionId]);
@@ -205,7 +205,7 @@ try {
     // SMS認証済みのこの端末を、当該セッションを共有できる認可端末として登録する。
     // これにより同一電話番号の別端末（PC・スマホ等）も同じ相談内容へアクセスできる。
     if ($sessionId !== '' && $visitorId !== '') {
-        chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone, $customerName, 10800);
+        chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone, $customerName, CHAT_DEVICE_AUTH_TTL_SECONDS);
     }
 
     $agentName = $card['name'] ?? '担当者';

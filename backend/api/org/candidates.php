@@ -27,6 +27,11 @@ try {
         sendErrorResponse('組織を設定する権限がありません', 403);
     }
 
+    // 階層分けは法人プランの機能。運営が ON にした会社（免許番号）でのみ使える。
+    if (!orgHierarchyEnabledForUser($db, $userId)) {
+        sendErrorResponse('組織階層の機能は法人プランのみのご提供です', 403);
+    }
+
     $license = orgLicenseForUser($db, $userId);
     $candidates = orgFetchAssignCandidates($db, $userId, $viewer['org_role']);
 

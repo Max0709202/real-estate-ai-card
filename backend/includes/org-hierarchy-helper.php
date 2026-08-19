@@ -14,6 +14,13 @@
  *   ・統括（全閲覧）は同じ免許番号のメンバー全員を、
  *     マネージャー（店長）は parent_user_id を辿った自分の配下だけを閲覧できる。
  *   ・一覧・候補に出るのは「入金済み（CR / 振込済 / ST送金）かつ OPEN」の方だけ。
+ *   ・そもそも階層分けを使えるのは、運営が ON にした会社（法人プラン）だけ。
+ *     OFF の会社にはメニューもAPIも出さない。判定は orgHierarchyEnabledForUser() で、
+ *     次の2つを「両方」満たすこと（AND）:
+ *       ① 免許番号キーが一致する会社が ON
+ *       ② その会社に登録したログインメールに、自分のメールが含まれている
+ *     ②が空の会社は「誰も使えない」。ON にしただけでは開かないので、
+ *     利用する方（統括・店長）のメールを必ず登録する。
  *   なお admin/ 配下の管理画面は運営（リニュアル仲介）専用で、users とは
  *   別テーブル（admins）のログインが必要。各社の統括がそこへ入ることはない。
  */
@@ -536,6 +543,228 @@ function orgLicenseForUser(PDO $db, int $userId): array
         error_log('orgLicenseForUser error: ' . $e->getMessage());
         return $blank;
     }
+}
+
+/**
+ * org_license_settings（会社ごとの階層機能 ON/OFF）が無ければ作る（冪等）。
+ *
+ * 移行SQLを流し忘れた環境でも、階層機能が「OFF」として安全に動くようにしておく。
+ */
+function orgEnsureLicenseSettingsTable(PDO $db): void
+{
+    static $done = false;
+    if ($done) return;
+
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS org_license_settings (
+                license_key VARCHAR(191) NOT NULL PRIMARY KEY
+                    COMMENT '免許番号の正規化キー（都道府県|登録番号）',
+                license_text VARCHAR(255) NULL
+                    COMMENT '画面表示用の免許番号',
+                company_name VARCHAR(255) NULL
+                    COMMENT '確認用の会社名。判定には使わない',
+                admin_email TEXT NULL
+                    COMMENT '階層機能を使えるログインメール。カンマ／改行区切りで複数可',
+                hierarchy_enabled TINYINT(1) NOT NULL DEFAULT 0
+                    COMMENT '1=法人プラン（階層分けを使える） / 0=使えない',
+                updated_by_admin_id INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_org_license_enabled (hierarchy_enabled)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+
+        // 先に作られた環境にも admin_email を足す（冪等）。
+        // プレースホルダを使えないDB設定のため、SHOW COLUMNS で全列を取って突き合わせる。
+        $columns = [];
+        foreach ($db->query('SHOW COLUMNS FROM org_license_settings')->fetchAll(PDO::FETCH_ASSOC) as $column) {
+            $columns[strtolower($column['Field'])] = (string)$column['Type'];
+        }
+        if (!isset($columns['admin_email'])) {
+            $db->exec("
+                ALTER TABLE org_license_settings
+                ADD COLUMN admin_email TEXT NULL
+                    COMMENT '階層機能を使えるログインメール。カンマ／改行区切りで複数可'
+                AFTER company_name
+            ");
+        } elseif (stripos($columns['admin_email'], 'text') === false) {
+            // 先に VARCHAR(255) で作られた環境を、複数メールが入る TEXT に広げる。
+            $db->exec("
+                ALTER TABLE org_license_settings
+                MODIFY COLUMN admin_email TEXT NULL
+                    COMMENT '階層機能を使えるログインメール。カンマ／改行区切りで複数可'
+            ");
+        }
+
+        $done = true;
+    } catch (Exception $e) {
+        // 作れなくても既存機能は壊さない。階層機能が使えない状態になるだけ。
+        error_log('orgEnsureLicenseSettingsTable error: ' . $e->getMessage());
+    }
+}
+
+/**
+ * その免許番号（会社）で階層分けを使えるか。
+ * 行が無い会社は OFF（＝法人プラン未契約）として扱う。
+ */
+function orgHierarchyEnabledForKey(PDO $db, string $licenseKey): bool
+{
+    if ($licenseKey === '') return false;
+    orgEnsureLicenseSettingsTable($db);
+
+    // 1リクエスト中に何度も呼ばれるため、免許番号ごとに結果を覚えておく。
+    static $cache = [];
+    if (array_key_exists($licenseKey, $cache)) return $cache[$licenseKey];
+
+    try {
+        $stmt = $db->prepare('SELECT hierarchy_enabled FROM org_license_settings WHERE license_key = ? LIMIT 1');
+        $stmt->execute([$licenseKey]);
+        $value = $stmt->fetchColumn();
+        $cache[$licenseKey] = ($value !== false && (int)$value === 1);
+    } catch (Exception $e) {
+        error_log('orgHierarchyEnabledForKey error: ' . $e->getMessage());
+        $cache[$licenseKey] = false;
+    }
+
+    return $cache[$licenseKey];
+}
+
+/**
+ * 「利用できるログインメール」の入力欄を配列にほどく。
+ *
+ * カンマ・改行・空白・全角カンマのどれで区切っても同じように扱う。
+ * 比較は小文字・前後空白除去で行うため、ここで正規化しておく。
+ *
+ * @return string[] 重複を除いた小文字のメールアドレス
+ */
+function orgParseEmailList($raw): array
+{
+    $raw = trim((string)$raw);
+    if ($raw === '') return [];
+
+    $parts = preg_split('/[\s,;、，]+/u', $raw) ?: [];
+    $emails = [];
+    foreach ($parts as $part) {
+        $email = strtolower(trim($part));
+        if ($email === '') continue;
+        $emails[$email] = true;
+    }
+
+    return array_keys($emails);
+}
+
+/**
+ * その会社（免許番号）で、このメールが階層機能を使えるか。
+ *
+ * 登録が空の会社は「誰も使えない」。ON にしただけでは開かず、
+ * 利用する方（統括・店長）のメールを必ず登録してもらう運用にするため。
+ */
+function orgEmailAllowedForKey(PDO $db, string $licenseKey, string $email): bool
+{
+    $email = strtolower(trim($email));
+    if ($licenseKey === '' || $email === '') return false;
+    orgEnsureLicenseSettingsTable($db);
+
+    // 1リクエスト中に何度も呼ばれるため、会社ごとに登録メールを覚えておく。
+    static $cache = [];
+    if (!array_key_exists($licenseKey, $cache)) {
+        try {
+            $stmt = $db->prepare('SELECT admin_email FROM org_license_settings WHERE license_key = ? LIMIT 1');
+            $stmt->execute([$licenseKey]);
+            $cache[$licenseKey] = orgParseEmailList($stmt->fetchColumn() ?: '');
+        } catch (Exception $e) {
+            error_log('orgEmailAllowedForKey error: ' . $e->getMessage());
+            $cache[$licenseKey] = [];
+        }
+    }
+
+    return in_array($email, $cache[$licenseKey], true);
+}
+
+/**
+ * ログイン中のユーザーが階層分けを使えるか。
+ *
+ * 次の2つを「両方」満たすときだけ使える（AND）:
+ *   ① 免許番号キーが一致する会社が ON になっている
+ *   ② その会社に登録したログインメールに、自分のメールが含まれている
+ *
+ * ②が空の会社は誰も使えない。ON にし忘れ／メール登録し忘れのどちらでも
+ * 「表示されない」になるため、管理画面側で未登録の会社に注意書きを出している。
+ */
+function orgHierarchyEnabledForUser(PDO $db, int $userId): bool
+{
+    if ($userId <= 0) return false;
+
+    $licenseKey = orgLicenseForUser($db, $userId)['key'];
+    if (!orgHierarchyEnabledForKey($db, $licenseKey)) return false;
+
+    return orgEmailAllowedForKey($db, $licenseKey, (string)orgLoadViewer($db, $userId)['email']);
+}
+
+/**
+ * 会社ごとの階層機能を ON / OFF する（運営の管理画面からのみ呼ぶ）。
+ *
+ * 階層そのもの（権限・上長）は消さない。OFF にしても設定は残り、
+ * ON に戻せばそのまま元の階層で使える。
+ */
+function orgSetHierarchyEnabled(PDO $db, string $licenseKey, string $licenseText, string $companyName, string $adminEmail, bool $enabled, ?int $adminId = null): bool
+{
+    if ($licenseKey === '') return false;
+    orgEnsureLicenseSettingsTable($db);
+
+    // 入力の区切り文字を吸収し、小文字・重複なしの一覧にしてから保存する。
+    $adminEmail = implode(', ', orgParseEmailList($adminEmail));
+
+    try {
+        $stmt = $db->prepare('
+            INSERT INTO org_license_settings (license_key, license_text, company_name, admin_email, hierarchy_enabled, updated_by_admin_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                license_text = VALUES(license_text),
+                company_name = VALUES(company_name),
+                admin_email = VALUES(admin_email),
+                hierarchy_enabled = VALUES(hierarchy_enabled),
+                updated_by_admin_id = VALUES(updated_by_admin_id)
+        ');
+        $stmt->execute([$licenseKey, $licenseText, $companyName, ($adminEmail !== '' ? $adminEmail : null), $enabled ? 1 : 0, $adminId]);
+        return true;
+    } catch (Exception $e) {
+        error_log('orgSetHierarchyEnabled error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * 会社ごとの ON/OFF 設定をまとめて返す（運営の一覧画面用）。
+ *
+ * @return array<string, array{license_text:string, company_name:string, admin_email:string, hierarchy_enabled:bool, updated_at:?string}>
+ */
+function orgFetchLicenseSettings(PDO $db): array
+{
+    orgEnsureLicenseSettingsTable($db);
+
+    try {
+        $rows = $db->query('
+            SELECT license_key, license_text, company_name, admin_email, hierarchy_enabled, updated_at
+            FROM org_license_settings
+        ')->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log('orgFetchLicenseSettings error: ' . $e->getMessage());
+        return [];
+    }
+
+    $settings = [];
+    foreach ($rows as $row) {
+        $settings[(string)$row['license_key']] = [
+            'license_text' => (string)($row['license_text'] ?? ''),
+            'company_name' => (string)($row['company_name'] ?? ''),
+            'admin_email' => (string)($row['admin_email'] ?? ''),
+            'hierarchy_enabled' => ((int)$row['hierarchy_enabled'] === 1),
+            'updated_at' => $row['updated_at'],
+        ];
+    }
+    return $settings;
 }
 
 /**

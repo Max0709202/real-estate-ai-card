@@ -174,7 +174,7 @@ try {
             // 再開した端末を現所有者に更新する。COALESCE で元所有者を保持すると、
             // 端末側 visitor_id とセッションの visitor_identifier が食い違い、
             // poll/upload の突合で 403（セッションを確認できません）になるため。
-            // SMS認証から3時間以内の端末だけ、履歴閲覧権を付与する。
+            // SMS認証から72時間（3日）以内の端末だけ、履歴閲覧権を付与する。
             $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$visitorId, $sessionId]);
         } else {

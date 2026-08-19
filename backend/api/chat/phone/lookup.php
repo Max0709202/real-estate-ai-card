@@ -82,7 +82,7 @@ try {
         chatRegisterVerifiedPhone($db, $businessCardId, $phone, '', $sessionId, $customerName);
     }
     if ($visitorId !== '') {
-        chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone, $customerName, 10800);
+        chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone, $customerName, CHAT_DEVICE_AUTH_TTL_SECONDS);
     }
     chatIntakeApplyVerifiedPhoneRegistration($db, $sessionId, $businessCardId, $phone);
 
