@@ -2294,8 +2294,8 @@ if (!function_exists('propertyCreate')) {
             && ($meta['ocr_status'] ?? 'none') !== 'draft') {
             try {
                 require_once __DIR__ . '/customer-notification-helper.php';
-                if (function_exists('customerNotifyEnqueue')) {
-                    customerNotifyEnqueue($db, (string)$meta['session_id'], 'property');
+                if (function_exists('customerNotifyDispatch')) {
+                    customerNotifyDispatch($db, (string)$meta['session_id'], 'property');
                 }
             } catch (Throwable $e) {
                 error_log('property create notify error: ' . $e->getMessage());
