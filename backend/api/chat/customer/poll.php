@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../../includes/customer-notification-helper.php';
+require_once __DIR__ . '/../../../includes/property-unread-helper.php';
 require_once __DIR__ . '/../../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../../includes/session-participant-helper.php';
 
@@ -115,9 +116,14 @@ try {
     $stmt->execute([$sessionId]);
     $lastReadUserId = (int)$stmt->fetchColumn();
 
+    // 物件選定の未読（担当が提案したが、顧客がまだ物件選定を開いていない）件数。
+    // 担当連絡と同じくタブのバッジに出すため、同じポーリングで一緒に返す。
+    $propertyUnread = propertyUnreadCountFor($db, $sessionId);
+
     sendSuccessResponse([
         'messages' => $newMessages,
         'unread_count' => $unread,
+        'property_unread_count' => $propertyUnread,
         'last_read_user_id' => $lastReadUserId,
     ], 'OK');
 } catch (Exception $e) {

@@ -1711,6 +1711,27 @@
     font-weight: 700;
 }
 
+/* チャットを閉じている間の未読バッジ（担当連絡＋物件選定の合計）。
+   起動ボタンの外に少しはみ出させて、画面を見ただけで新着に気づけるようにする。 */
+.chat-widget-toggle { position: relative; }
+.chat-widget-toggle-unread {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    background: #e8443a;
+    color: #fff;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    line-height: 16px;
+    text-align: center;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
 /* 担当連絡：顧客側の「既読」表示（自分の発言に付く）
    タイムスタンプは日付＋時刻（2026/7/29 13:39:18）を表示するため、狭い画面で
    「編集済み」「既読」と横並びに収まらないことがある。折り返しを許可する。 */

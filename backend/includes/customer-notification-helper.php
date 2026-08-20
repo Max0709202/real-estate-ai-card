@@ -2,19 +2,20 @@
 /**
  * 顧客へのメール通知（物件選定で物件が追加された / 担当連絡にメッセージが届いた）
  * -------------------------------------------------------------
- * 担当（営業）の操作で customerNotifyEnqueue() を呼ぶと
- * customer_notification_jobs に「送信待ち(pending)」ジョブを作る／集約する。
- * 実際の送信は cron から customerNotifyFlushDue() が行う
- * （最後の操作から NOTIFY_WAIT_SECONDS 秒経過後に1通）。
+ * 担当（営業）の操作で customerNotifyDispatch() を呼ぶと
+ *   ① customer_notification_jobs に「送信待ち(pending)」ジョブを作る／集約し、
+ *   ② レスポンスを返し切ってから customerNotifySendNow() で即時にメールを送る。
+ * 即時送信に失敗したジョブだけが送信待ちのまま残り、cron（customerNotifyFlushDue）が再送する。
  *
  * notification-helper.php（担当向け）と対になる「顧客向け」実装。
- * 仕様は同じ:
- *   ① 操作後すぐ送らず一定時間待機（CUSTOMER_NOTIFY_WAIT_SECONDS）
- *   ② 待機中の同種操作は1通にまとめる（最後の操作から待機時間を再計測）
- *   ③ 担当の新しい操作があれば、送信済み(sent)でも再び通知対象に戻す
- *      （物件提案・担当連絡とも共通。2件目以降の取りこぼしを作らない）
- *   ④ 顧客が該当画面を開いたら送信済み(sent)を未読解除(status='read')する。
- *      送信待ち(pending)はキャンセルせず必ず送る（担当の操作は必ず通知する）
+ * ただし配信タイミングだけは担当向けと異なり、こちらは即時送信:
+ *   ・事業者（担当）からのメッセージ・物件提案は必ず・すぐに通知メールを届ける要件のため、
+ *     待機（CUSTOMER_NOTIFY_WAIT_SECONDS）＋cron間隔（5分）ぶんの遅延を挟まない。
+ *   ・待機時間と集約は cron 再送（取りこぼし救済）の経路にだけ残す。
+ *   ・担当の新しい操作があれば、送信済み(sent)でも再び通知対象に戻す
+ *     （物件提案・担当連絡とも共通。2件目以降の取りこぼしを作らない）
+ *   ・顧客が該当画面を開いたら送信済み(sent)を未読解除(status='read')する。
+ *     送信待ち(pending)はキャンセルせず必ず送る（担当の操作は必ず通知する）
  *
  * 宛先は「その顧客のメールアドレス」（chat_lead_contacts.email、無ければ
  * chat_leads.structured_data の customer_email）。メールが無ければ通知しない。
@@ -268,6 +269,128 @@ function customerNotifyEnqueue(PDO $db, string $sessionId, string $feature): boo
         error_log('customerNotifyEnqueue error: ' . $e->getMessage());
         return false;
     }
+}
+
+/**
+ * 担当の操作を「その場で」顧客へメール通知する（即時送信）。
+ * -------------------------------------------------------------
+ * 従来は customerNotifyEnqueue() で送信待ちに積むだけで、実際の配信は cron
+ * （process-notification-queue.php）任せだった。このため
+ *   ・待機時間（CUSTOMER_NOTIFY_WAIT_SECONDS 既定5分）
+ *   ・cron の実行間隔（5分）
+ * が積み上がり、担当が物件を提案／メッセージを送っても、お客様にメールが届くのは
+ * 最大で約10分後になっていた（cron が止まっていれば永久に届かない）。
+ * 「事業者からのメッセージ・物件提案は必ず通知メールを届ける」という要件に合わせ、
+ * 担当エージェントへの物件閲覧通知（property-view-notify-helper.php）と同じく即時送信する。
+ *
+ * 送信できたジョブは status='sent' にして scheduled_at を消すため、cron が二重送信することはない。
+ * 送信できなかった場合はジョブを pending のまま残し、cron の再送に委ねる。
+ *
+ * @param string $feature 'property' | 'contact'
+ * @return bool 1通でも送信できたら true
+ */
+function customerNotifySendNow(PDO $db, string $sessionId, string $feature): bool
+{
+    try {
+        $sessionId = trim($sessionId);
+        if ($sessionId === '' || !in_array($feature, customerNotifyFeatures(), true)) {
+            return false;
+        }
+        $r = customerNotifyResolveRecipient($db, $sessionId);
+        if ($r === null) {
+            // 宛先（顧客のメール）が無ければ通知しない。
+            return false;
+        }
+        customerNotifyEnsureTable($db);
+
+        // 送信後に「送信済み」へ倒すジョブを控える。送信中に担当の新しい操作が入った場合は
+        // last_event_at が変わるため、そのジョブは pending のまま残して cron に送らせる。
+        $jobId = 0;
+        $lastEventAt = null;
+        $stmt = $db->prepare(
+            "SELECT id, last_event_at FROM customer_notification_jobs
+             WHERE session_id = ? AND feature = ? LIMIT 1"
+        );
+        $stmt->execute([$sessionId, $feature]);
+        if ($job = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $jobId = (int)$job['id'];
+            $lastEventAt = $job['last_event_at'];
+        }
+
+        $agentName = (string)$r['agent_name'];
+        $cardSlug  = (string)$r['card_slug'];
+        $subject   = customerNotifySubject($feature, $agentName);
+        // 物件提案のリンクには、顧客ごとの閲覧トークンを付ける（SMS認証なしで物件詳細を閲覧できるようにする）。
+        $viewToken = $feature === 'property' ? propertyViewTokenFor($db, $sessionId) : '';
+        [$html, $text] = customerNotifyBuildBody($feature, $agentName, $cardSlug, $viewToken);
+
+        // 2名対応: 案件の参加者全員へ個別に送る（本人＋招待されたご家族）。
+        $recipients = customerNotifyAllRecipientEmails($db, $sessionId, (string)$r['recipient_email']);
+        if (empty($recipients)) {
+            $recipients = [(string)$r['recipient_email']];
+        }
+        $ok = false;
+        foreach ($recipients as $recipient) {
+            if (trim($recipient) === '') continue;
+            if (sendEmail($recipient, $subject, $html, $text, 'customer_' . $feature, null, $jobId ?: null)) {
+                $ok = true;
+            }
+        }
+        if (!$ok) {
+            // 送れなかった分は pending のまま。cron（customerNotifyFlushDue）が再送する。
+            return false;
+        }
+
+        if ($jobId > 0) {
+            $upd = $db->prepare(
+                "UPDATE customer_notification_jobs
+                 SET status='sent', sent_at=NOW(), scheduled_at=NULL
+                 WHERE id = ? AND status='pending' AND last_event_at <=> ?"
+            );
+            $upd->execute([$jobId, $lastEventAt]);
+        }
+        return true;
+    } catch (Throwable $e) {
+        error_log('customerNotifySendNow error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * 担当の操作を顧客へ通知する（本機能の入口。担当連絡・物件提案の呼び出し側はこれを使う）。
+ *
+ * ① まず customerNotifyEnqueue() で送信待ちジョブを作る
+ *    → 即時送信に失敗しても cron が必ず再送する（取りこぼしを作らない）。
+ * ② レスポンスを返し切ってから customerNotifySendNow() で即時送信する
+ *    → メール送信（SMTP接続）で担当の画面を待たせない。
+ *
+ * 同一リクエスト内で同じ (session_id, feature) が複数回呼ばれても、送信は1回だけ行う
+ * （物件登録は propertyCreate() と save.php の双方から呼ばれるため）。
+ */
+function customerNotifyDispatch(PDO $db, string $sessionId, string $feature): bool
+{
+    static $queued = [];
+
+    $sessionId = trim($sessionId);
+    if ($sessionId === '' || !in_array($feature, customerNotifyFeatures(), true)) {
+        return false;
+    }
+    // 送信待ちジョブは毎回積む（即時送信が失敗したときに cron が再送できるようにするため）。
+    $enqueued = customerNotifyEnqueue($db, $sessionId, $feature);
+
+    $key = $sessionId . '|' . $feature;
+    if (isset($queued[$key])) {
+        return $enqueued;
+    }
+    $queued[$key] = true;
+
+    register_shutdown_function(function () use ($db, $sessionId, $feature) {
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
+        customerNotifySendNow($db, $sessionId, $feature);
+    });
+    return $enqueued;
 }
 
 /**
