@@ -540,43 +540,40 @@ $defaultGreetings = [
 ];
 
 /**
- * マイページ各セクションの見出しに添えるアイコン画像（インラインSVG）。
- * 外部ファイルを増やさずに、セクションの内容が一目で分かるようにするためのもの。
+ * マイページ各セクションの見出しに添えるアイコン画像。
+ * assets/images/edit/icons/ に保存した Lucide（ISCライセンス）のSVGを読み込んで
+ * そのまま出力する。インラインで出すことで stroke="currentColor" が効き、
+ * CSS側の色指定（白抜き）をそのまま使える。
  */
 function editSectionIcon(string $key): string
 {
-    $icons = [
-        // ヘッダー・挨拶：メガホン（ご挨拶を届ける）
-        'greeting' => '<path d="M3 11v2a1 1 0 0 0 1 1h2.2L12 18V6L6.2 10H4a1 1 0 0 0-1 1Z"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5"/><path d="M18.5 7a7 7 0 0 1 0 10"/>',
-        // 会社プロフィール：ビル
-        'company' => '<path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16"/><path d="M14 10h5a1 1 0 0 1 1 1v10"/><path d="M3 21h18"/><path d="M7 8h3M7 12h3M7 16h3M17 14h0M17 18h0"/>',
-        // 個人情報：人物入りIDカード
-        'person' => '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.8 17c.5-1.7 1.7-2.6 3.2-2.6s2.7.9 3.2 2.6"/><path d="M15 10h4M15 14h4"/>',
-        // テックツール：ツール群
-        'tech' => '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/>',
-        // コミュニケーション：2つの吹き出し
-        'comm' => '<path d="M3 6a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H8l-3 3v-3H5a2 2 0 0 1-2-2V6Z"/><path d="M18 8h1a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v3l-3-3h-3"/>',
-        // テンプレート選択：画像入りレイアウト
-        'template' => '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><circle cx="7.5" cy="7" r="1"/><path d="m7 17 3-3 2.5 2.5L15 14l4 3"/>',
-        // 決済：クレジットカード
-        'payment' => '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19"/><path d="M6.5 15h4"/>',
-        // チャット履歴：会話リスト
-        'chat' => '<path d="M4 4h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M7 8h10M7 11h6"/>',
-        // 組織・配下顧客：組織図
-        'org' => '<circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v3.5M5 16.5V13h14v3.5M12 11h0"/>',
-        // AI育成：AIチップ
-        'ai' => '<rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M10 10h4v4h-4z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>',
-        // 自社帯登録：図面と帯
-        'band' => '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15h18"/><path d="M6 18h6"/><path d="M7 8h6"/>',
+    // セクションキー => アイコンのファイル名
+    $iconNames = [
+        'greeting' => 'megaphone',            // ヘッダー・挨拶
+        'company'  => 'building-2',           // 会社プロフィール
+        'person'   => 'contact',              // 個人情報
+        'tech'     => 'layout-grid',          // テックツール
+        'comm'     => 'messages-square',      // コミュニケーション
+        'template' => 'layout-template',      // テンプレート選択
+        'payment'  => 'credit-card',          // 決済
+        'chat'     => 'message-square-text',  // チャット履歴
+        'org'      => 'network',              // 組織・配下顧客
+        'ai'       => 'brain-circuit',        // AI育成
+        'band'     => 'panel-bottom',         // 自社帯登録
     ];
 
-    $path = $icons[$key] ?? $icons['template'];
+    // 同じアイコンを複数回出す場合にファイル読み込みを繰り返さない
+    static $svgCache = [];
 
-    return '<span class="section-hero-icon" aria-hidden="true">'
-        . '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
-        . 'stroke-linecap="round" stroke-linejoin="round">' . $path . '</svg>'
-        . '</span>';
+    $name = $iconNames[$key] ?? 'layout-template';
+    if (!array_key_exists($name, $svgCache)) {
+        $path = __DIR__ . '/assets/images/edit/icons/' . $name . '.svg';
+        $svgCache[$name] = is_readable($path) ? trim((string) file_get_contents($path)) : '';
+    }
+
+    return '<span class="section-hero-icon" aria-hidden="true">' . $svgCache[$name] . '</span>';
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="ja">

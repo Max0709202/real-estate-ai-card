@@ -3,6 +3,15 @@
  * Used by lp.php
  */
 
+/* ========== ランディングページの基本フォント ==========
+   lp.css の body,html 指定（Noto Sans JP）より後に読み込まれるため、
+   このファイルの指定が有効になる。new_lp.css は index.php だけが読み込むので、
+   同じく lp.css を使う contact.php には影響しない。 */
+body,
+html {
+    font-family: 'Noto Serif JP', 'Cormorant Garamond', ui-serif, serif;
+}
+
 /* ========== Section 1: Hero (tagline, headline, video placeholder) ========== */
 .new-lp-sec-1 {
     position: relative;
