@@ -275,6 +275,31 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-reason-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .prop-reason-tag { display: inline-block; padding: 5px 10px; border-radius: 999px; background: #eef1f6; color: #38465c; font-size: 12px; font-weight: 700; }
 
+/* ===== 物件PRコメント（物件提案時にお客様へ届ける紹介文） ===== */
+/* 担当画面（入力・AI生成・編集・削除） */
+.prop-pr { margin: 12px 0; padding: 14px; border-radius: 12px; background: #fafbfd; border: 1px solid #eef1f6; }
+.prop-pr__head { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: #6b7280; margin-bottom: 10px; flex-wrap: wrap; }
+.prop-pr__head svg { width: 16px; height: 16px; }
+.prop-pr__note { font-size: 11px; font-weight: 600; color: #9aa3b1; }
+.prop-pr__body { padding: 12px; border-radius: 10px; background: #fff; border: 1px solid #eef1f6;
+  font-size: 14px; line-height: 1.8; color: #263043; white-space: pre-wrap; }
+.prop-pr__empty { padding: 12px; border-radius: 10px; background: #fff; border: 1px dashed #dde3ec; font-size: 13px; color: #8a93a2; }
+.prop-pr__meta { font-size: 11px; color: #9aa3b1; margin-top: 6px; }
+.prop-pr__input { width: 100%; min-height: 190px; padding: 12px; border-radius: 10px; border: 1px solid #d7dde8;
+  font-size: 14px; line-height: 1.8; color: #263043; resize: vertical; box-sizing: border-box; font-family: inherit; background: #fff; }
+.prop-pr__input:focus { outline: 2px solid #bcd4ff; border-color: #2d6cdf; }
+.prop-pr__count { font-size: 11px; color: #9aa3b1; margin-top: 6px; }
+.prop-pr__count-num { font-weight: 800; color: #1f9d57; }
+/* 目安（250〜350字）から外れている間は字数を強調する */
+.prop-pr__count-num.is-off { color: #d2820f; }
+.prop-pr__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* 顧客側の物件詳細に表示する読み取り専用ブロック */
+.prop-pr-view { margin: 12px 0; padding: 14px; border-radius: 12px; background: #eef4ff; border: 1px solid #d6e4ff; }
+.prop-pr-view__head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: #2459bd; margin-bottom: 8px; }
+.prop-pr-view__head svg { width: 15px; height: 15px; }
+.prop-pr-view__body { font-size: 14px; line-height: 1.8; color: #263043; white-space: pre-wrap; }
+
 /* ===== モーダル ===== */
 .prop-modal-overlay { position: fixed; inset: 0; background: rgba(15,23,40,.55); z-index: 99990; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .prop-modal { background: #fff; border-radius: 16px; width: 100%; max-width: 480px; max-height: 90vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
