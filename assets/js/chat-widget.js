@@ -121,6 +121,8 @@
     var lastAgentMsgId = 0;
     var agentPollTimer = null;
     var agentUnreadCount = 0;
+    // 物件選定の未読（担当が提案したが、顧客がまだ物件選定を開いていない）件数。
+    var propertyUnreadCount = 0;
     var pendingAttachments = [];
     // Web Push（ホーム画面アイコンのバッジ）連携用に現在のセッション情報を公開する。
     window.__aiFcardChat = window.__aiFcardChat || {};
@@ -349,6 +351,8 @@
         if ((!sessionId || !greetingShown) && !sessionStarting) startSession();
         if (sessionId && greetingShown && !sendingMessage && !entryAwaitingChoice) setInputEnabled(true);
         syncQuickActionsAfterRender();
+        // 開いている間はタブ側のバッジで分かるため、起動ボタンのバッジを消す。
+        refreshUnreadBadges();
         setTimeout(function () { inputEl.focus(); }, 50);
     }
 
@@ -360,6 +364,8 @@
         }
         panel.hidden = true;
         toggleBtn.setAttribute('aria-expanded', 'false');
+        // 閉じている間は起動ボタンに未読の合計を出す。
+        refreshUnreadBadges();
     }
 
     function appendVoiceAvailabilityNotice() {
@@ -2102,23 +2108,56 @@
     }
 
     // ===== 担当連絡：担当からの新着ポーリング・通知・未読バッジ =====
-    function setContactTabBadge(count) {
-        // ホーム画面アイコンのアプリバッジ（PWA）にも未読数を反映（対応環境のみ）。
-        if (window.PushBadge && window.PushBadge.setBadge) { try { window.PushBadge.setBadge(count); } catch (e) {} }
-        if (!tabBar) return;
-        var btn = tabBar.querySelector('.chat-widget-tab[data-chat-tab="contact"]');
-        if (!btn) return;
-        var badge = btn.querySelector('.chat-tab-unread');
+    /* 指定要素に未読バッジを描画する（0 以下なら消す）。 */
+    function paintBadge(host, count, className) {
+        if (!host) return;
+        var badge = host.querySelector('.' + className);
         if (count > 0) {
             if (!badge) {
                 badge = document.createElement('span');
-                badge.className = 'chat-tab-unread';
-                btn.appendChild(badge);
+                badge.className = className;
+                host.appendChild(badge);
             }
-            badge.textContent = count;
+            badge.textContent = count > 99 ? '99+' : count;
         } else if (badge) {
             badge.remove();
         }
+    }
+
+    /* 未読バッジをまとめて更新する。
+       ・担当連絡タブ = 担当からの未読メッセージ数
+       ・物件選定タブ = 未確認の提案物件数
+       ・チャットを閉じているときも気づけるよう、起動ボタンには合計を出す
+       ・ホーム画面アイコン（PWA）のアプリバッジにも合計を反映する */
+    function refreshUnreadBadges() {
+        var contact = agentUnreadCount > 0 ? agentUnreadCount : 0;
+        var property = propertyUnreadCount > 0 ? propertyUnreadCount : 0;
+        var total = contact + property;
+        if (window.PushBadge && window.PushBadge.setBadge) { try { window.PushBadge.setBadge(total); } catch (e) {} }
+        if (tabBar) {
+            paintBadge(tabBar.querySelector('.chat-widget-tab[data-chat-tab="contact"]'), contact, 'chat-tab-unread');
+            paintBadge(tabBar.querySelector('.chat-widget-tab[data-chat-tab="property"]'), property, 'chat-tab-unread');
+        }
+        // パネルを開いている間はタブ側のバッジで分かるため、起動ボタンには出さない。
+        paintBadge(toggleBtn, (panel && panel.hidden) ? total : 0, 'chat-widget-toggle-unread');
+    }
+
+    function setContactTabBadge(count) {
+        agentUnreadCount = count > 0 ? count : 0;
+        refreshUnreadBadges();
+    }
+
+    function setPropertyTabBadge(count) {
+        propertyUnreadCount = count > 0 ? count : 0;
+        refreshUnreadBadges();
+    }
+
+    /* ポーリング応答の物件選定未読件数をバッジへ反映する。
+       物件選定タブを開いている間はサーバー側で既読化されるため 0 が返る。 */
+    function applyPropertyUnread(payload) {
+        if (!payload || payload.property_unread_count === undefined) return;
+        var n = parseInt(payload.property_unread_count, 10);
+        setPropertyTabBadge(isNaN(n) ? 0 : n);
     }
 
     function notifyAgentMessage(text) {
@@ -2174,8 +2213,8 @@
                 var lru = parseInt(data.data.last_read_user_id, 10);
                 if (!isNaN(lru) && lru > contactLastReadUserId) contactLastReadUserId = lru;
                 var unread = parseInt(data.data.unread_count, 10);
-                agentUnreadCount = isNaN(unread) ? 0 : unread;
-                setContactTabBadge(agentUnreadCount);
+                setContactTabBadge(isNaN(unread) ? 0 : unread);
+                applyPropertyUnread(data.data);
                 if (activeChatTab === 'contact') renderContactThread();
             })
             .catch(function () { /* 取得失敗時は既存表示を維持 */ });
@@ -2204,8 +2243,9 @@
                 // バッジはサーバーの「本当の未読件数」（read_at IS NULL）で表示する。
                 // 担当連絡タブを見ているときは mark_read 済みのため 0 が返る。
                 var unread = parseInt(data.data.unread_count, 10);
-                agentUnreadCount = isNaN(unread) ? 0 : unread;
-                setContactTabBadge(agentUnreadCount);
+                setContactTabBadge(isNaN(unread) ? 0 : unread);
+                // 物件選定の未読（新しい提案物件）も同じポーリングで受け取る。
+                applyPropertyUnread(data.data);
                 // 担当者が自分の発言を既読にしたら「既読」表示を更新する。
                 var lru = parseInt(data.data.last_read_user_id, 10);
                 if (!isNaN(lru) && lru > contactLastReadUserId) {
@@ -2710,9 +2750,12 @@
         activeChatTab = tab || 'ai';
         // 担当連絡タブを開いたら担当からの未読をクリア（サーバー側も既読化）
         if (activeChatTab === 'contact') {
-            agentUnreadCount = 0;
             setContactTabBadge(0);
             pollAgentMessages();
+        }
+        // 物件選定タブを開いたら提案物件の未読をクリア（サーバー側は list.php で既読化）
+        if (activeChatTab === 'property') {
+            setPropertyTabBadge(0);
         }
         Array.prototype.forEach.call(tabBar.querySelectorAll('.chat-widget-tab'), function (btn) {
             var active = btn.getAttribute('data-chat-tab') === tab;

@@ -54,7 +54,11 @@ function fetchUnread(cfg) {
     + (cfg.visitorId ? '&visitor_id=' + encodeURIComponent(cfg.visitorId) : '');
   return fetch(url, { credentials: 'include' })
     .then(function (r) { return r.json(); })
-    .then(function (j) { return (j && j.success && j.data) ? (parseInt(j.data.unread_count, 10) || 0) : null; })
+    .then(function (j) {
+      if (!j || !j.success || !j.data) return null;
+      // 担当連絡の未読＋物件選定の未確認提案の合計をバッジに出す。
+      return (parseInt(j.data.unread_count, 10) || 0) + (parseInt(j.data.property_unread_count, 10) || 0);
+    })
     .catch(function () { return null; });
 }
 

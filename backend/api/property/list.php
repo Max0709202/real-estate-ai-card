@@ -16,6 +16,7 @@ require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/property-helper.php';
 require_once __DIR__ . '/../../includes/notification-helper.php';
 require_once __DIR__ . '/../../includes/customer-notification-helper.php';
+require_once __DIR__ . '/../../includes/property-unread-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -41,10 +42,14 @@ try {
         $sessionId = $tokenSession;
         // 顧客が物件提案（メール）を開いた → 顧客向けメール通知の未読解除。
         customerNotifyMarkRead($db, $sessionId, 'property');
+        // 物件選定タブの未読バッジも解除する。
+        propertyUnreadMarkSeen($db, $sessionId);
     } elseif ($visitorId !== '') {
         propertyVerifyCustomerSession($db, $sessionId, $visitorId);
         // 顧客が物件選定画面を開いた → 顧客向けメール通知の未読解除（送信前ならキャンセル）。
         customerNotifyMarkRead($db, $sessionId, 'property');
+        // 物件選定タブの未読バッジも解除する。
+        propertyUnreadMarkSeen($db, $sessionId);
     } else {
         startSessionIfNotStarted();
         $userId = requireAuth();

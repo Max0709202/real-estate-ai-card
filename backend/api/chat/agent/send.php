@@ -51,8 +51,9 @@ try {
     // 顧客発言を既読化（担当が読んだ）
     agentMsgMarkRead($db, $sessionId, 'user');
 
-    // 顧客へメール通知（待機時間ぶんバッチ集約）。メール未登録・失敗は握りつぶす。
-    customerNotifyEnqueue($db, $sessionId, 'contact');
+    // 顧客へメール通知（レスポンス後に即時送信。失敗時のみ cron が再送）。
+    // メール未登録・送信失敗は握りつぶす（担当の送信処理は壊さない）。
+    customerNotifyDispatch($db, $sessionId, 'contact');
 
     // ホーム画面アイコンのアプリバッジ用に、顧客端末へ空Push（tickle）を送る。
     // 受信側SWが未読数を取得して setAppBadge する。購読が無ければ何もしない。

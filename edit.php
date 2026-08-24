@@ -538,6 +538,42 @@ $defaultGreetings = [
         'content' => '「売り」と「買い」を同時に進める住み替えは手続きが煩雑になりがちです。忙しいご夫婦に代わり、書類作成から金融機関との折衝、内覧の調整まで私が窓口となってスムーズに進めます。お子様連れでの内覧や打ち合わせも大歓迎です。ご家族の貴重な時間を奪わないよう、迅速かつ丁寧な段取りをお約束します。'
     ]
 ];
+
+/**
+ * マイページ各セクションの見出しに添えるアイコン画像。
+ * assets/images/edit/icons/ に保存した Lucide（ISCライセンス）のSVGを読み込んで
+ * そのまま出力する。インラインで出すことで stroke="currentColor" が効き、
+ * CSS側の色指定（白抜き）をそのまま使える。
+ */
+function editSectionIcon(string $key): string
+{
+    // セクションキー => アイコンのファイル名
+    $iconNames = [
+        'greeting' => 'megaphone',            // ヘッダー・挨拶
+        'company'  => 'building-2',           // 会社プロフィール
+        'person'   => 'contact',              // 個人情報
+        'tech'     => 'layout-grid',          // テックツール
+        'comm'     => 'messages-square',      // コミュニケーション
+        'template' => 'layout-template',      // テンプレート選択
+        'payment'  => 'credit-card',          // 決済
+        'chat'     => 'message-square-text',  // チャット履歴
+        'org'      => 'network',              // 組織・配下顧客
+        'ai'       => 'brain-circuit',        // AI育成
+        'band'     => 'panel-bottom',         // 自社帯登録
+    ];
+
+    // 同じアイコンを複数回出す場合にファイル読み込みを繰り返さない
+    static $svgCache = [];
+
+    $name = $iconNames[$key] ?? 'layout-template';
+    if (!array_key_exists($name, $svgCache)) {
+        $path = __DIR__ . '/assets/images/edit/icons/' . $name . '.svg';
+        $svgCache[$name] = is_readable($path) ? trim((string) file_get_contents($path)) : '';
+    }
+
+    return '<span class="section-hero-icon" aria-hidden="true">' . $svgCache[$name] . '</span>';
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -823,9 +859,10 @@ $defaultGreetings = [
     ?>
     
     <div class="edit-container">
-        <header class="edit-header" style="padding-top: 3rem;">
+        <header class="edit-header">
             <div class="edit-header-content">
                 <h1>マイページ（デジタル名刺作成・編集）</h1>
+                <p class="edit-header-lead">名刺の内容・チャット履歴・AI育成をこのページでまとめて管理できます。</p>
             </div>
             <button type="button" id="direct-input-btn" class="btn-direct-input">
                 <span class="direct-input-text">
@@ -837,6 +874,13 @@ $defaultGreetings = [
         <div class="edit-content">
             <div class="edit-sidebar">
                 <nav class="edit-nav">
+                    <div class="edit-nav-group">
+                        <span class="edit-nav-group-title">名刺を作る</span>
+                        <div class="edit-nav-progress" role="presentation">
+                            <span class="edit-nav-progress-bar" id="edit-nav-progress-bar"></span>
+                        </div>
+                        <span class="edit-nav-progress-label" id="edit-nav-progress-label">全7ステップ</span>
+                    </div>
                     <a href="#header-greeting" class="nav-item<?php echo $isUtilizingUser ? '' : ' active'; ?>" data-step="1" data-section="header-greeting-section">
                         <span class="step-number">1/7</span>
                         <span class="step-label">ヘッダー・挨拶</span>
@@ -865,6 +909,9 @@ $defaultGreetings = [
                         <span class="step-number">7/7</span>
                         <span class="step-label">決済</span>
                     </a>
+                    <div class="edit-nav-group edit-nav-group--secondary">
+                        <span class="edit-nav-group-title">運用メニュー</span>
+                    </div>
                     <a href="#chat-history" class="nav-item<?php echo $isUtilizingUser ? ' active' : ''; ?>" data-step="chat" data-section="chat-history-section">
                         <span class="step-label">チャット履歴</span>
                     </a>
@@ -885,8 +932,14 @@ $defaultGreetings = [
             <div class="edit-main">
                 <!-- Step 1: Header & Greeting -->
                 <div id="header-greeting-section" class="edit-section<?php echo $isUtilizingUser ? '' : ' active'; ?>"<?php echo $isUtilizingUser ? ' style="display: none;"' : ''; ?>>
-                    <h2>ヘッダー・挨拶部</h2>
-                    <p class="step-description">会社情報とご挨拶文を入力してください</p>
+                    <div class="section-hero section-hero--greeting">
+                        <?php echo editSectionIcon('greeting'); ?>
+                        <div class="section-hero-text">
+                            <span class="section-hero-badge">STEP 1 / 7</span>
+                            <h2>ヘッダー・挨拶部</h2>
+                            <p class="step-description">会社情報とご挨拶文を入力してください</p>
+                        </div>
+                    </div>
                     <form id="header-greeting-form" class="edit-form">
                         <div class="form-group">
                             <label>会社名 <span class="required">*</span></label>
@@ -960,8 +1013,14 @@ $defaultGreetings = [
 
                 <!-- Step 2: Company Profile -->
                 <div id="company-profile-section" class="edit-section">
-                    <h2>会社プロフィール部</h2>
-                    <p class="step-description">会社情報を入力してください</p>
+                    <div class="section-hero section-hero--company">
+                        <?php echo editSectionIcon('company'); ?>
+                        <div class="section-hero-text">
+                            <span class="section-hero-badge">STEP 2 / 7</span>
+                            <h2>会社プロフィール部</h2>
+                            <p class="step-description">会社情報を入力してください</p>
+                        </div>
+                    </div>
                     <form id="company-profile-form" class="edit-form">
                         <?php
                         // Japanese prefectures
@@ -1048,8 +1107,14 @@ $defaultGreetings = [
 
                 <!-- Step 3: Personal Information -->
                 <div id="personal-info-section" class="edit-section">
-                    <h2>個人情報</h2>
-                    <p class="step-description">あなたの個人情報を入力してください</p>
+                    <div class="section-hero section-hero--person">
+                        <?php echo editSectionIcon('person'); ?>
+                        <div class="section-hero-text">
+                            <span class="section-hero-badge">STEP 3 / 7</span>
+                            <h2>個人情報</h2>
+                            <p class="step-description">あなたの個人情報を入力してください</p>
+                        </div>
+                    </div>
                     <form id="personal-info-form" class="edit-form">
                         <div class="form-row">
                             <div class="form-group">
@@ -1209,8 +1274,14 @@ $defaultGreetings = [
 
                 <!-- Step 4: Tech Tools -->
                 <div id="tech-tools-section" class="edit-section">
-                    <h2>テックツール選択</h2>
-                    <p class="step-description">表示させるテックツールを選択してください（最低2つ以上）</p>
+                    <div class="section-hero section-hero--tech">
+                        <?php echo editSectionIcon('tech'); ?>
+                        <div class="section-hero-text">
+                            <span class="section-hero-badge">STEP 4 / 7</span>
+                            <h2>テックツール選択</h2>
+                            <p class="step-description">表示させるテックツールを選択してください（最低2つ以上）</p>
+                        </div>
+                    </div>
                     <div id="tech-tools-list" class="tech-tools-grid">
                     </div>
                     <div style="text-align: center; margin-top: 2rem;">
@@ -1220,8 +1291,14 @@ $defaultGreetings = [
 
                 <!-- Step 5: Communication Functions -->
                 <div id="communication-section" class="edit-section">
-                    <h2>コミュニケーション機能部</h2>
-                    <p class="step-description">メッセージアプリやSNSの連携を設定してください</p>
+                    <div class="section-hero section-hero--comm">
+                        <?php echo editSectionIcon('comm'); ?>
+                        <div class="section-hero-text">
+                            <span class="section-hero-badge">STEP 5 / 7</span>
+                            <h2>コミュニケーション機能部</h2>
+                            <p class="step-description">メッセージアプリやSNSの連携を設定してください</p>
+                        </div>
+                    </div>
                     
                     <div class="form-section">
                         <h3>メッセージアプリ部</h3>
@@ -1443,8 +1520,14 @@ $defaultGreetings = [
                 </div>
                 <!-- Step 6: Template Selection -->
                 <div id="template-section" class="edit-section">
-                    <h2>テンプレート選択</h2>
-                    <p class="step-description">名刺上部の背景画像を選択してください（初期設定はテンプレート1です）</p>
+                    <div class="section-hero section-hero--template">
+                        <?php echo editSectionIcon('template'); ?>
+                        <div class="section-hero-text">
+                            <span class="section-hero-badge">STEP 6 / 7</span>
+                            <h2>テンプレート選択</h2>
+                            <p class="step-description">名刺上部の背景画像を選択してください（初期設定はテンプレート1です）</p>
+                        </div>
+                    </div>
 
                     <form id="template-form-edit" class="edit-form">
                         <input type="hidden" id="card_header_bg_edit" name="card_header_bg" value="assets/images/card-header (1).jpg">
@@ -1486,8 +1569,14 @@ $defaultGreetings = [
 
                 <!-- Step 7: Payment -->
                 <div id="payment-section" class="edit-section">
-                    <h2>決済</h2>
-                    <p class="step-description">お支払い方法を選択してください</p>
+                    <div class="section-hero section-hero--payment">
+                        <?php echo editSectionIcon('payment'); ?>
+                        <div class="section-hero-text">
+                            <span class="section-hero-badge">STEP 7 / 7</span>
+                            <h2>決済</h2>
+                            <p class="step-description">お支払い方法を選択してください</p>
+                        </div>
+                    </div>
 
                     <div class="payment-section">
                     <h3>お支払方法</h3>
@@ -1562,8 +1651,13 @@ $defaultGreetings = [
 
                 <!-- Chat history / Leads (My Page) -->
                 <div id="chat-history-section" class="edit-section<?php echo $isUtilizingUser ? ' active' : ''; ?>"<?php echo $isUtilizingUser ? '' : ' style="display: none;"'; ?>>
-                    <h2>チャット履歴・顧客一覧</h2>
-                    <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。削除した履歴は「ゴミ箱」から復元できます。</p>
+                    <div class="section-hero section-hero--chat">
+                        <?php echo editSectionIcon('chat'); ?>
+                        <div class="section-hero-text">
+                            <h2>チャット履歴・顧客一覧</h2>
+                            <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。削除した履歴は「ゴミ箱」から復元できます。</p>
+                        </div>
+                    </div>
                     <div id="chat-history-list" class="chat-history-list">
                         <p class="chat-history-loading">読み込み中...</p>
                     </div>
@@ -1653,14 +1747,19 @@ $defaultGreetings = [
                 <!-- 組織・配下顧客（マネージャー／管理者のみ。閲覧専用） -->
                 <?php if ($canViewTeam): ?>
                 <div id="org-team-section" class="edit-section" style="display: none;">
-                    <h2>組織・配下顧客</h2>
-                    <p class="step-description">
-                        あなた（<?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>）が閲覧できる自社メンバーと、その方が対応しているお客様の一覧です。<br>
-                        統括（全閲覧）は<strong>自社の全員</strong>を、マネージャー（店長）は<strong>自分の配下</strong>を閲覧できます。<br>
-                        自社かどうかは<strong>宅建業免許番号（都道府県＋登録番号）</strong>が一致するかで判定します。会社名の表記ゆれには影響されません。<br>
-                        一覧に出るのは<strong>入金済み（CR／振込済／ST送金）かつ OPEN</strong> の方のみで、他社の情報は表示されません。<br>
-                        お客様の情報は閲覧のみで、編集・削除やチャットの代理返信はできません。
-                    </p>
+                    <div class="section-hero section-hero--org">
+                        <?php echo editSectionIcon('org'); ?>
+                        <div class="section-hero-text">
+                            <h2>組織・配下顧客</h2>
+                            <p class="step-description">
+                                あなた（<?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>）が閲覧できる自社メンバーと、その方が対応しているお客様の一覧です。<br>
+                                統括（全閲覧）は<strong>自社の全員</strong>を、マネージャー（店長）は<strong>自分の配下</strong>を閲覧できます。<br>
+                                自社かどうかは<strong>宅建業免許番号（都道府県＋登録番号）</strong>が一致するかで判定します。会社名の表記ゆれには影響されません。<br>
+                                一覧に出るのは<strong>入金済み（CR／振込済／ST送金）かつ OPEN</strong> の方のみで、他社の情報は表示されません。<br>
+                                お客様の情報は閲覧のみで、編集・削除やチャットの代理返信はできません。
+                            </p>
+                        </div>
+                    </div>
 
                     <div id="org-team-summary" class="org-team-summary"></div>
 
@@ -1707,8 +1806,13 @@ $defaultGreetings = [
 
                 <!-- Agent training -->
                 <div id="agent-training-section" class="edit-section" style="display: none;">
-                    <h2>AI育成</h2>
-                    <p class="step-description">AI担当に覚えさせたい情報や、使わせたくない表現を登録できます。</p>
+                    <div class="section-hero section-hero--ai">
+                        <?php echo editSectionIcon('ai'); ?>
+                        <div class="section-hero-text">
+                            <h2>AI育成</h2>
+                            <p class="step-description">AI担当に覚えさせたい情報や、使わせたくない表現を登録できます。</p>
+                        </div>
+                    </div>
 
                     <div class="form-section">
                         <h3>住所ハザード確認</h3>
@@ -1790,8 +1894,13 @@ $defaultGreetings = [
 
                 <!-- 自社販売図面用 帯登録 -->
                 <div id="flyer-band-section" class="edit-section" style="display: none;">
-                    <h2>自社販売図面用 帯登録</h2>
-                    <p class="step-description">販売図面のマスク編集で、白マスクの代わりに表示する「自社の帯」を登録します。A4横サイズの帯画像（会社名・連絡先・QR等）をアップロードしてください。登録すると、マスク編集画面で図面の下端にデフォルト表示され、移動・リサイズできます。</p>
+                    <div class="section-hero section-hero--band">
+                        <?php echo editSectionIcon('band'); ?>
+                        <div class="section-hero-text">
+                            <h2>自社販売図面用 帯登録</h2>
+                            <p class="step-description">販売図面のマスク編集で、白マスクの代わりに表示する「自社の帯」を登録します。A4横サイズの帯画像（会社名・連絡先・QR等）をアップロードしてください。登録すると、マスク編集画面で図面の下端にデフォルト表示され、移動・リサイズできます。</p>
+                        </div>
+                    </div>
 
                     <div class="form-section">
                         <h3>帯画像</h3>
@@ -5566,5 +5675,47 @@ $defaultGreetings = [
         })();
     </script>
 <?php endif; ?>
+    <script>
+    // サイドバーの進捗バーを、現在開いているステップに合わせて更新する。
+    // 表示中セクションの切り替えは edit.js が nav-item の active クラスで管理しているため、
+    // その変化を監視するだけで済むようにしている。
+    (function () {
+        var nav = document.querySelector('.edit-nav');
+        var bar = document.getElementById('edit-nav-progress-bar');
+        var label = document.getElementById('edit-nav-progress-label');
+        if (!nav || !bar || !label) return;
+
+        var steps = Array.prototype.slice.call(
+            nav.querySelectorAll('.nav-item[data-step]')
+        ).filter(function (item) {
+            return /^[0-9]+$/.test(item.getAttribute('data-step'));
+        });
+        if (!steps.length) return;
+
+        function update() {
+            var current = -1;
+            steps.forEach(function (item, index) {
+                if (item.classList.contains('active')) current = index;
+            });
+
+            if (current < 0) {
+                // 運用メニュー（チャット履歴など）を開いている間は進捗を強調しない
+                bar.style.width = '0%';
+                label.textContent = '全' + steps.length + 'ステップ';
+                return;
+            }
+
+            bar.style.width = ((current + 1) / steps.length * 100) + '%';
+            label.textContent = 'ステップ ' + (current + 1) + ' / ' + steps.length;
+        }
+
+        new MutationObserver(update).observe(nav, {
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class']
+        });
+        update();
+    })();
+    </script>
 </body>
 </html>

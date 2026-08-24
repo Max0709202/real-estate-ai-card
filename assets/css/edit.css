@@ -2031,3 +2031,268 @@ body {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ============================================================
+   マイページ（edit.php）レイアウト・UI改善
+   - 各セクションの見出しに、内容に合ったアイコン画像を配置
+   - サイドバーをグループ分けし、ステップの進捗を可視化
+   - 未アップロードの画像枠にプレビュー用アイコンを表示
+   ============================================================ */
+
+/* ページ見出し（不動産写真のヒーローバンド） ------------------ */
+/* mobile.css が後から読み込まれ .edit-header を上書きするため、詳細度を上げている */
+.edit-container .edit-header {
+    /* 共通ヘッダー（.header は z-index:1000 で sticky）の裏に隠れて
+       タイトルが読めなくなるため、固定表示をやめて通常配置にする。 */
+    position: static;
+    width: calc(100% - 4rem);
+    margin: 1.5rem auto 0;
+    padding: 2.25rem 2rem;
+    border-radius: 14px;
+    overflow: hidden;
+    /* 写真の上に濃紺のグラデーションを重ね、白文字の可読性を確保する */
+    background-image:
+        linear-gradient(95deg, rgba(6, 32, 60, 0.9) 0%, rgba(6, 32, 60, 0.74) 45%, rgba(6, 32, 60, 0.4) 100%),
+        url("../images/edit/hero-mypage.webp");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow: 0 6px 18px rgba(6, 32, 60, 0.18);
+}
+
+.edit-container .edit-header h1 {
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.edit-header-lead {
+    margin-top: 0.35rem;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* セクション見出し（アイコン＋タイトル＋説明） ---------------- */
+.section-hero {
+    --section-hero-image: none;
+
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+    padding: 1.25rem;
+    border: 1px solid #d9e8f8;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f2f8ff 0%, #ffffff 72%);
+}
+
+/* 見出し右側に、そのセクションの内容を表す写真を配置する。
+   .section-hero は flex なので、::after がそのまま最後の要素として並ぶ。 */
+.section-hero::after {
+    content: '';
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: 176px;
+    min-height: 88px;
+    /* 説明文が長いセクションで写真だけ極端に縦長にならないようにする */
+    max-height: 132px;
+    border-radius: 10px;
+    background-image: var(--section-hero-image);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow: 0 2px 6px rgba(6, 32, 60, 0.16);
+}
+
+/* セクションごとの写真（各ステップの内容に合わせて割り当て） */
+.section-hero--greeting { --section-hero-image: url("../images/edit/section-greeting.webp"); }
+.section-hero--company  { --section-hero-image: url("../images/edit/section-company.webp"); }
+.section-hero--person   { --section-hero-image: url("../images/edit/section-person.webp"); }
+.section-hero--tech     { --section-hero-image: url("../images/edit/section-tech.webp"); }
+.section-hero--comm     { --section-hero-image: url("../images/edit/section-comm.webp"); }
+.section-hero--template { --section-hero-image: url("../images/edit/section-template.webp"); }
+.section-hero--payment  { --section-hero-image: url("../images/edit/section-payment.webp"); }
+.section-hero--chat     { --section-hero-image: url("../images/edit/section-chat.webp"); }
+.section-hero--org      { --section-hero-image: url("../images/edit/section-org.webp"); }
+.section-hero--ai       { --section-hero-image: url("../images/edit/section-ai.webp"); }
+.section-hero--band     { --section-hero-image: url("../images/edit/section-band.webp"); }
+
+.section-hero-icon {
+    flex: 0 0 auto;
+    width: 52px;
+    height: 52px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: #0066cc;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(0, 102, 204, 0.25);
+}
+
+.section-hero-icon svg {
+    width: 28px;
+    height: 28px;
+    display: block;
+}
+
+.section-hero-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.section-hero-badge {
+    display: inline-block;
+    margin-bottom: 0.4rem;
+    padding: 0.15rem 0.65rem;
+    border-radius: 999px;
+    background: #0066cc;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.edit-section .section-hero h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.35rem;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.section-hero .step-description {
+    margin-bottom: 0;
+    color: #55606b;
+    line-height: 1.75;
+}
+
+/* サイドバー：グループ見出しと進捗 ---------------------------- */
+.edit-nav-group {
+    padding: 0.25rem 1.5rem 0.9rem;
+}
+
+.edit-nav-group--secondary {
+    margin-top: 0.75rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid #eef2f7;
+}
+
+.edit-nav-group-title {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #8595a5;
+}
+
+.edit-nav-progress {
+    margin-top: 0.5rem;
+    height: 6px;
+    border-radius: 999px;
+    background: #e8eef6;
+    overflow: hidden;
+}
+
+.edit-nav-progress-bar {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #0066cc, #35a0ff);
+    transition: width 0.35s ease;
+}
+
+.edit-nav-progress-label {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    color: #6b7a89;
+}
+
+/* 選択中メニューの視認性（淡い水色＋白文字だと読みにくいため） */
+.edit-nav .nav-item.active {
+    background: #0066cc;
+}
+
+.edit-nav a.nav-item.active span {
+    color: #fff !important;
+}
+
+/* 画像未登録時のプレビュー枠にアイコンを表示 ------------------ */
+.upload-preview:empty {
+    border: 1px solid #e8eef4;
+    border-radius: 8px;
+    background-color: #fff;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 56px 56px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b7c6d6' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='2'/%3E%3Ccircle cx='8.5' cy='9.5' r='1.5'/%3E%3Cpath d='m4 17 4.5-4.5 3 3L15 11l5 5'/%3E%3C/svg%3E");
+}
+
+/* タブレット以下：横スクロールのタブ表示になるためグループ見出しは隠す */
+@media (max-width: 968px) {
+    .edit-nav-group {
+        display: none;
+    }
+
+    .edit-container .edit-header {
+        width: calc(100% - 2rem);
+        margin-top: 1rem;
+        padding: 1.75rem 1.25rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .edit-container .edit-header {
+        /* SPでは .edit-content が全幅表示になるため、帯も端まで伸ばす */
+        width: 100%;
+        margin: 0;
+        padding: 1.5rem 1rem;
+        border-radius: 0;
+    }
+
+    .section-hero {
+        /* 横に並べる余白がないため、写真は見出しの上に横帯として置く */
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding: 1rem;
+        border-radius: 10px;
+    }
+
+    .section-hero::after {
+        order: -1;
+        width: 100%;
+        min-height: 104px;
+    }
+
+    .section-hero-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+    }
+
+    .section-hero-icon svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .edit-section .section-hero h2 {
+        font-size: 1.25rem;
+        padding-bottom: 0;
+    }
+
+    .section-hero .step-description {
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .section-hero {
+        padding: 0.85rem;
+    }
+
+    .edit-section .section-hero h2 {
+        font-size: 1.15rem;
+    }
+}
