@@ -61,6 +61,9 @@ if (!function_exists('propertyEnsureTables')) {
           rent VARCHAR(64) NULL DEFAULT NULL,
           yield_rate VARCHAR(64) NULL DEFAULT NULL,
           remarks TEXT NULL DEFAULT NULL,
+          pr_comment TEXT NULL DEFAULT NULL,
+          pr_comment_source VARCHAR(16) NULL DEFAULT NULL,
+          pr_comment_updated_at TIMESTAMP NULL DEFAULT NULL,
           seller_company VARCHAR(255) NULL DEFAULT NULL,
           seller_branch VARCHAR(255) NULL DEFAULT NULL,
           seller_person VARCHAR(128) NULL DEFAULT NULL,
@@ -108,6 +111,7 @@ if (!function_exists('propertyEnsureTables')) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         propertyEnsureFlyerMaskColumns($db);
         propertyEnsureRetentionColumns($db);
+        propertyEnsurePrCommentColumns($db);
         // 閲覧トークン・閲覧回数のテーブル（property-view-helper.php）。
         propertyViewEnsureTables($db);
         $done = true;
@@ -173,6 +177,29 @@ if (!function_exists('propertyEnsureRetentionColumns')) {
                 $db->exec("ALTER TABLE properties MODIFY COLUMN pass_reason VARCHAR(255) NULL DEFAULT NULL");
             }
         } catch (Throwable $e) { /* 無視 */ }
+    }
+}
+
+if (!function_exists('propertyEnsurePrCommentColumns')) {
+    /** 物件PRコメント用カラムを冪等に追加する（既存テーブル向け）。 */
+    function propertyEnsurePrCommentColumns(PDO $db): void
+    {
+        $alters = [
+            // 物件提案時に担当者がお客様へ届ける紹介文（250〜350字程度）
+            ['pr_comment', "ADD COLUMN pr_comment TEXT NULL DEFAULT NULL AFTER remarks"],
+            // manual=手入力 / ai=AI生成をそのまま保存 / ai_edited=AI生成を編集して保存
+            ['pr_comment_source', "ADD COLUMN pr_comment_source VARCHAR(16) NULL DEFAULT NULL AFTER pr_comment"],
+            ['pr_comment_updated_at', "ADD COLUMN pr_comment_updated_at TIMESTAMP NULL DEFAULT NULL AFTER pr_comment_source"],
+        ];
+        foreach ($alters as [$col, $ddl]) {
+            try {
+                $stmt = $db->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'properties' AND COLUMN_NAME = ?");
+                $stmt->execute([$col]);
+                if ((int)$stmt->fetchColumn() === 0) {
+                    $db->exec("ALTER TABLE properties " . $ddl);
+                }
+            } catch (Throwable $e) { /* 既に存在 / 権限不足は無視 */ }
+        }
     }
 }
 
@@ -310,6 +337,148 @@ if (!function_exists('propertyGeneratePassReasonInsight')) {
         );
         if (empty($res['reply'])) return null;
         return mb_substr(trim($res['reply']), 0, 1000);
+    }
+}
+
+/* ──────────────────────────────────────────────────────────
+ * 物件PRコメント（物件提案時に担当者がお客様へ届ける紹介文）
+ * ────────────────────────────────────────────────────────── */
+if (!function_exists('propertyPrCommentMaxLength')) {
+    /** 保存できるPRコメントの最大文字数（目安は250〜350字。担当者の加筆分に余裕を持たせる）。 */
+    function propertyPrCommentMaxLength(): int { return 1000; }
+}
+
+if (!function_exists('propertyPrCommentModel')) {
+    /** PRコメント生成に使うモデル（ご指定: gpt-5.6-luna）。環境変数で上書き可。 */
+    function propertyPrCommentModel(): string
+    {
+        if (defined('OPENAI_MODEL_PR_COMMENT') && OPENAI_MODEL_PR_COMMENT !== '') return OPENAI_MODEL_PR_COMMENT;
+        return getenv('OPENAI_MODEL_PR_COMMENT') ?: 'gpt-5.6-luna';
+    }
+}
+
+if (!function_exists('propertyPrCommentFacts')) {
+    /**
+     * PRコメント生成のためにAIへ渡す「登録情報」を「項目：値」の配列で返す。
+     * 物件資料（販売図面・URL）から取り込んだ内容も基本情報として登録済みのためここに含まれる。
+     * 売主仲介会社情報はお客様向けの文章に使わないため除外する。
+     */
+    function propertyPrCommentFacts(array $row): array
+    {
+        $type = $row['property_type'] ?? 'mansion';
+        $typeLabels = propertyTypeLabels();
+        $facts = ['物件種別：' . ($typeLabels[$type] ?? $type)];
+        foreach (propertyFieldDefs() as $f) {
+            list($key, $label, $group, $types, $agentOnly) = $f;
+            if ($group !== 'basic' || $agentOnly) continue;
+            if (!empty($types) && !in_array($type, $types, true)) continue;
+            $v = trim((string)($row[$key] ?? ''));
+            if ($v === '') continue;
+            $facts[] = $label . '：' . $v;
+        }
+        return $facts;
+    }
+}
+
+if (!function_exists('propertyNormalizePrComment')) {
+    /** AI出力から見出し・箇条書き記号・コードフェンス等を取り除き、本文だけにする。 */
+    function propertyNormalizePrComment(string $text): string
+    {
+        $t = trim($text);
+        $t = preg_replace('/^```[a-zA-Z]*\n?|```$/u', '', $t);
+        $t = preg_replace('/^[ 　\t]*[#＃*\-―・･•]+[ 　\t]*/mu', '', $t);
+        $t = preg_replace('/\*\*(.+?)\*\*/u', '$1', $t);
+        $t = preg_replace('/\n{3,}/u', "\n\n", $t);
+        return trim((string)$t);
+    }
+}
+
+if (!function_exists('propertyPrCommentPrompt')) {
+    /** PRコメントの生成ルール（ご指定の6条件）をそのままシステムプロンプトにしたもの。 */
+    function propertyPrCommentPrompt(): string
+    {
+        return "あなたは不動産売買仲介のベテラン営業担当者です。担当しているお客様へ1件の物件を提案するにあたり、その物件のPRコメントを日本語で書いてください。\n"
+            . "\n"
+            . "【書き方の手順】\n"
+            . "1. 与えられた物件情報の中から、その物件ならではの特徴を3〜5個選ぶ。\n"
+            . "2. お客様にとって重要と思われる特徴から順に、文章を組み立てる。\n"
+            . "\n"
+            . "【必ず守るルール】\n"
+            . "・全体で250〜350字程度にする。\n"
+            . "・その物件固有の情報（物件名・価格・所在地・交通・面積・間取り・築年月・所在階・管理体制などの具体的な値）を最低3つ、本文に自然に織り込む。\n"
+            . "・与えられた物件情報に書かれていないことは推測して書かない。設備・周辺環境・学区・将来の資産価値なども、情報がなければ触れない。\n"
+            . "・「おすすめ」「便利」「魅力」「魅力的」「最適」といった評価語を多用しない（使うとしても全体で1回まで）。\n"
+            . "・スペックを並べただけの羅列にしない。読んだお客様がその住まいでの暮らしを思い描ける、丁寧で自然な文章にする。\n"
+            . "・どの物件にも当てはまる一般論や定型的な言い回しで字数を埋めない。この物件だけの内容にする。\n"
+            . "・見出し・箇条書き・記号・マークダウン・絵文字は使わない。\n"
+            . "・前置き（「以下が〜です」等）・挨拶・署名は書かず、PRコメントの本文だけを出力する。";
+    }
+}
+
+if (!function_exists('propertyGeneratePrComment')) {
+    /**
+     * 物件資料・登録情報をもとにPRコメントを生成する（保存はしない。担当者が確認・編集して保存する）。
+     * $options: ['previous' => 直前の文章（再生成時に別の切り口にするため）]
+     * 返り値: ['comment' => string|null, 'error' => string|null]
+     */
+    function propertyGeneratePrComment(PDO $db, array $row, array $options = []): array
+    {
+        if (!function_exists('callOpenAIChat')) {
+            return ['comment' => null, 'error' => 'AI機能を利用できません'];
+        }
+        $facts = propertyPrCommentFacts($row);
+        // 「物件固有の情報を最低3つ」を満たせない状態では生成しない（推測で埋めさせないため）。
+        if (count($facts) < 4) {
+            return ['comment' => null, 'error' => '物件情報が不足しているため生成できません。基本情報を登録してからお試しください。'];
+        }
+
+        $model = propertyPrCommentModel();
+        $apiKey = function_exists('chatOpenAIApiKeyForModel') ? chatOpenAIApiKeyForModel($model) : (getenv('OPENAI_API_KEY') ?: '');
+        if ($apiKey === '' || $apiKey === 'YOUR_OPENAI_API_KEY_HERE') {
+            return ['comment' => null, 'error' => 'AIの設定が未完了のため生成できません'];
+        }
+
+        $user = "【この物件の登録情報（物件資料から取り込んだ内容を含む）】\n" . implode("\n", $facts);
+        $previous = trim((string)($options['previous'] ?? ''));
+        if ($previous !== '') {
+            // 再生成: 前回と同じ文章・同じ書き出しにならないよう、前回分を見せて別の切り口を指示する。
+            $user .= "\n\n【前回生成した文章（この内容とは別の切り口で書き直してください）】\n"
+                . mb_substr($previous, 0, 600)
+                . "\n\n取り上げる特徴の組み合わせ・順序・書き出しを変え、前回と同じ言い回しを繰り返さないでください。";
+        }
+
+        $messages = [
+            ['role' => 'system', 'content' => propertyPrCommentPrompt()],
+            ['role' => 'user', 'content' => $user],
+        ];
+        $logCtx = [
+            'purpose' => 'pr_comment', 'max_tokens' => 700, 'temperature' => 0.85, 'timeout' => 45,
+            'db' => $db,
+            'session_id' => $row['session_id'] ?? null,
+            'business_card_id' => isset($row['business_card_id']) ? (int)$row['business_card_id'] : null,
+        ];
+
+        // 字数が大きく外れたときだけ1回だけ書き直させる（250〜350字「程度」を担保する）。
+        $comment = null;
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $res = callOpenAIChat($messages, $apiKey, $model, $logCtx);
+            if (empty($res['reply'])) {
+                if ($comment !== null) break;
+                error_log('property pr-comment generate failed: ' . (string)($res['error'] ?? 'unknown'));
+                return ['comment' => null, 'error' => 'PRコメントを生成できませんでした。時間をおいてお試しください。'];
+            }
+            $comment = propertyNormalizePrComment((string)$res['reply']);
+            $len = mb_strlen($comment);
+            if ($len >= 230 && $len <= 380) break;
+            $messages[] = ['role' => 'assistant', 'content' => $comment];
+            $messages[] = ['role' => 'user', 'content' =>
+                ($len < 230 ? '文章が短すぎます。' : '文章が長すぎます。')
+                . '取り上げる特徴はそのままに、250〜350字に収まるよう書き直してください。本文だけを出力してください。'];
+        }
+        if ($comment === null || $comment === '') {
+            return ['comment' => null, 'error' => 'PRコメントを生成できませんでした。時間をおいてお試しください。'];
+        }
+        return ['comment' => mb_substr($comment, 0, propertyPrCommentMaxLength()), 'error' => null];
     }
 }
 
@@ -576,6 +745,11 @@ if (!function_exists('propertySerialize')) {
             'pass_reason_ai' => $forAgent ? ($row['pass_reason_ai'] ?? null) : null,
             // お気に入り（顧客がハートを押した物件）
             'is_favorite' => (int)($row['is_favorite'] ?? 0),
+            // 物件PRコメント（担当者が入力・AI生成した紹介文）。お客様の物件詳細にも表示する。
+            'pr_comment' => $row['pr_comment'] ?? null,
+            // 入力方法・更新日時は担当者の管理画面にのみ表示する。
+            'pr_comment_source' => $forAgent ? ($row['pr_comment_source'] ?? null) : null,
+            'pr_comment_updated_at' => $forAgent ? ($row['pr_comment_updated_at'] ?? null) : null,
             'property_type' => $row['property_type'] ?? 'mansion',
             'property_type_label' => $types[$row['property_type'] ?? 'mansion'] ?? '',
             'ocr_status' => $row['ocr_status'] ?? 'none',

@@ -306,6 +306,7 @@
       '<button type="button" class="prop-btn prop-btn--danger" id="prop-del-btn">' + UI.icon('trash') + '削除</button></div>' +
       UI.detailHeaderHtml(p) +
       UI.passReasonBlockHtml(p, { withAI: true }) +
+      '<div class="prop-pr" id="prop-pr"></div>' +
       '<div class="prop-section-title">対応ステータス（エージェント）</div>' +
       '<div class="prop-status-grid" id="prop-agent-status">' + statusChips + '</div>' +
       '<div class="prop-tabs">' +
@@ -318,6 +319,10 @@
       '<div class="prop-tabpane" data-pane="hazard"></div>' +
       '<div class="prop-tabpane" data-pane="flyer"></div>' +
       '<div class="prop-tabpane" data-pane="photo"></div>';
+
+    // PRコメント（お客様へ届ける紹介文）。AI生成前の下書き状態は詳細を開き直したらリセットする。
+    PR_AI_DRAFT = null;
+    renderPr(p, { editing: false });
 
     d.querySelector('#prop-back').addEventListener('click', renderList);
     d.querySelector('#prop-edit-btn').addEventListener('click', function () { openEditForm(p, false); });
@@ -373,6 +378,171 @@
       });
     });
     UI.bindLightbox(d);
+  }
+
+  /* ===== PRコメント（物件提案時にお客様へ届ける紹介文） =====
+     ・営業担当者が最初から自分で入力できる（追加・編集・削除）
+     ・「AIでPRコメントを生成」で下書きを作り、そのまま入力欄で加筆・修正できる
+     ・「AIで再生成」で別の切り口の下書きに作り直せる
+     ・保存するのは担当者が確認・編集したあとの文章だけ（AIの出力は自動保存しない） */
+  var PR_MAX = 1000;                 // 保存できる最大文字数（PHP propertyPrCommentMaxLength と一致）
+  var PR_SOURCE_LABELS = { manual: '手入力', ai: 'AI生成', ai_edited: 'AI生成を編集' };
+  var PR_AI_DRAFT = null;            // 直近にAIが生成した文章（保存時の入力方法の判定に使う）
+
+  function prHost() { return P ? P.querySelector('#prop-pr') : null; }
+
+  /* state: { editing: 編集中か, draft: 入力欄に表示する文章（未指定なら保存済みの文章） } */
+  function renderPr(p, state) {
+    var host = prHost();
+    if (!host) return;
+    state = state || {};
+    var saved = p.pr_comment || '';
+    var text = state.editing && state.draft != null ? state.draft : saved;
+    var head = '<div class="prop-pr__head">' + UI.icon('manual') + 'PRコメント' +
+      '<span class="prop-pr__note">保存するとお客様の物件詳細に表示されます</span></div>';
+    var html;
+
+    if (state.editing) {
+      html = head +
+        '<textarea class="prop-pr__input" id="prop-pr-input" rows="9" maxlength="' + PR_MAX + '" ' +
+          'placeholder="お客様へ届けるPRコメントを入力してください（250〜350字程度）。「AIでPRコメントを生成」で下書きを作り、加筆・修正することもできます。">' +
+          esc(text) + '</textarea>' +
+        '<div class="prop-pr__count" id="prop-pr-count"></div>' +
+        '<div class="prop-pr__actions">' +
+          '<button type="button" class="prop-btn prop-btn--ghost" data-pr="gen">' + UI.icon('refresh') +
+            (text.trim() ? 'AIで再生成' : 'AIでPRコメントを生成') + '</button>' +
+          '<button type="button" class="prop-btn prop-btn--primary" data-pr="save">保存</button>' +
+          '<button type="button" class="prop-btn prop-btn--ghost" data-pr="cancel">キャンセル</button>' +
+        '</div>';
+    } else if (text.trim()) {
+      var meta = [];
+      if (PR_SOURCE_LABELS[p.pr_comment_source]) meta.push(PR_SOURCE_LABELS[p.pr_comment_source]);
+      meta.push(text.length + '字');
+      if (p.pr_comment_updated_at) meta.push(UI.formatDate(p.pr_comment_updated_at) + ' 更新');
+      html = head +
+        '<div class="prop-pr__body">' + esc(text) + '</div>' +
+        '<div class="prop-pr__meta">' + esc(meta.join('　/　')) + '</div>' +
+        '<div class="prop-pr__actions">' +
+          '<button type="button" class="prop-btn prop-btn--ghost" data-pr="edit">' + UI.icon('edit') + '編集</button>' +
+          '<button type="button" class="prop-btn prop-btn--danger" data-pr="del">' + UI.icon('trash') + '削除</button>' +
+        '</div>';
+    } else {
+      html = head +
+        '<div class="prop-pr__empty">PRコメントはまだ登録されていません。</div>' +
+        '<div class="prop-pr__actions">' +
+          '<button type="button" class="prop-btn prop-btn--primary" data-pr="edit">' + UI.icon('plus') + 'コメントを入力</button>' +
+          '<button type="button" class="prop-btn prop-btn--ghost" data-pr="gen">' + UI.icon('refresh') + 'AIでPRコメントを生成</button>' +
+        '</div>';
+    }
+
+    host.innerHTML = html;
+    bindPr(p);
+  }
+
+  function bindPr(p) {
+    var host = prHost();
+    if (!host) return;
+    var input = host.querySelector('#prop-pr-input');
+    var count = host.querySelector('#prop-pr-count');
+
+    function updateCount() {
+      if (!input || !count) return;
+      var n = input.value.length;
+      var off = n > 0 && (n < 250 || n > 350);
+      count.innerHTML = '<span class="prop-pr__count-num' + (off ? ' is-off' : '') + '">' + n + '</span>字　/　目安 250〜350字';
+    }
+    if (input) { updateCount(); input.addEventListener('input', updateCount); }
+
+    host.querySelectorAll('[data-pr]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var act = b.getAttribute('data-pr');
+        if (act === 'edit') {
+          renderPr(p, { editing: true, draft: p.pr_comment || '' });
+          var i = prHost().querySelector('#prop-pr-input');
+          if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+          return;
+        }
+        if (act === 'cancel') { renderPr(p, { editing: false }); return; }
+        if (act === 'gen') { prGenerate(p, input ? input.value : '', !!input); return; }
+        if (act === 'save') { prSave(p, input ? input.value : ''); return; }
+        if (act === 'del') { prDelete(p); return; }
+      });
+    });
+  }
+
+  /* AI生成（保存はしない）。入力欄に文章があるときは「再生成」として前回分を避けた文章を作る。
+     wasEditing: 生成を押した時点で編集中だったか（失敗時に元の状態へ戻すため）。 */
+  function prGenerate(p, current, wasEditing) {
+    var host = prHost();
+    if (!host) return;
+    host.querySelectorAll('[data-pr]').forEach(function (b) { b.disabled = true; });
+    var btn = host.querySelector('[data-pr="gen"]');
+    if (btn) btn.innerHTML = '<span class="prop-spinner"></span> 生成中...';
+
+    api('/pr-comment-ai.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ property_id: p.id, current: current || '' })
+    }).then(function (res) {
+      if (!res.success || !res.data || !res.data.pr_comment) {
+        notify('error', (res && res.message) || 'PRコメントを生成できませんでした');
+        renderPr(p, wasEditing ? { editing: true, draft: current || '' } : { editing: false });
+        return;
+      }
+      // 生成結果は入力欄に表示するだけ。担当者が確認・編集して「保存」を押すまで保存しない。
+      PR_AI_DRAFT = res.data.pr_comment;
+      renderPr(p, { editing: true, draft: res.data.pr_comment });
+      notify('ok', 'PRコメントを生成しました。内容をご確認・編集のうえ保存してください。');
+    }).catch(function () {
+      notify('error', '通信に失敗しました');
+      renderPr(p, wasEditing ? { editing: true, draft: current || '' } : { editing: false });
+    });
+  }
+
+  function prSave(p, value) {
+    var text = (value || '').trim();
+    if (!text) { notify('error', 'PRコメントを入力してください'); return; }
+    if (text.length > PR_MAX) { notify('error', 'PRコメントは' + PR_MAX + '字以内で入力してください'); return; }
+    // 入力方法（担当画面の表示用）: AI生成をそのまま保存したか、編集して保存したか、手入力か。
+    var source = PR_AI_DRAFT == null ? 'manual' : (text === PR_AI_DRAFT.trim() ? 'ai' : 'ai_edited');
+    var host = prHost();
+    if (host) {
+      host.querySelectorAll('[data-pr]').forEach(function (b) { b.disabled = true; });
+      var sb = host.querySelector('[data-pr="save"]');
+      if (sb) sb.innerHTML = '<span class="prop-spinner"></span> 保存中...';
+    }
+    api('/pr-comment.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ property_id: p.id, pr_comment: text, source: source })
+    }).then(function (res) {
+      if (!res.success) {
+        notify('error', res.message || '保存に失敗しました');
+        renderPr(p, { editing: true, draft: text });
+        return;
+      }
+      p.pr_comment = res.data.pr_comment;
+      p.pr_comment_source = res.data.pr_comment_source;
+      p.pr_comment_updated_at = res.data.pr_comment_updated_at;
+      PR_AI_DRAFT = null;
+      renderPr(p, { editing: false });
+      notify('ok', 'PRコメントを保存しました');
+    }).catch(function () {
+      notify('error', '通信に失敗しました');
+      renderPr(p, { editing: true, draft: text });
+    });
+  }
+
+  function prDelete(p) {
+    if (!confirm('PRコメントを削除します。よろしいですか？')) return;
+    api('/pr-comment.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ property_id: p.id, action: 'delete' })
+    }).then(function (res) {
+      if (!res.success) { notify('error', res.message || '削除に失敗しました'); return; }
+      p.pr_comment = null; p.pr_comment_source = null; p.pr_comment_updated_at = null;
+      PR_AI_DRAFT = null;
+      renderPr(p, { editing: false });
+      notify('ok', 'PRコメントを削除しました');
+    }).catch(function () { notify('error', '通信に失敗しました'); });
   }
 
   /* ハザード（§12/§13） */

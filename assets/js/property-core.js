@@ -334,6 +334,17 @@
     return html;
   }
 
+  /* ===== 物件PRコメント（担当者がお客様へ届ける紹介文） =====
+     顧客側の物件詳細に表示する読み取り専用ブロック。未登録なら何も描画しない。 */
+  function prCommentBlockHtml(p) {
+    var text = p && p.pr_comment != null ? String(p.pr_comment).trim() : '';
+    if (!text) return '';
+    return '<div class="prop-pr-view">' +
+      '<div class="prop-pr-view__head">' + icon('agent') + '担当者からのPRコメント</div>' +
+      '<div class="prop-pr-view__body">' + esc(text) + '</div>' +
+    '</div>';
+  }
+
   /* ===== ハザード（§12/§13） ===== */
   function hazardHtml(hazard, fetchedAt) {
     if (!hazard) return '<div class="prop-empty">ハザード情報は未取得です。</div>';
@@ -551,6 +562,7 @@
     sourceHtml: sourceHtml, statusBadgeHtml: statusBadgeHtml, cardHtml: cardHtml,
     isFavorite: isFavorite, favButtonHtml: favButtonHtml,
     detailHeaderHtml: detailHeaderHtml, basicInfoHtml: basicInfoHtml, hazardHtml: hazardHtml,
+    prCommentBlockHtml: prCommentBlockHtml,
     galleryHtml: galleryHtml, lightbox: lightbox, pdfViewer: pdfViewer, bindLightbox: bindLightbox, modal: modal,
     addAuth: addAuth, hexToTint: hexToTint
   };
