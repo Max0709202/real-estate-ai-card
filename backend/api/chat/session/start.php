@@ -204,6 +204,13 @@ try {
     $messages = [];
     $hasPreviousMessages = false;
     $deviceAuth = (!$isDemo && $isResumed && $visitorId !== '') ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
+    // ご利用が続いている間は再認証を求めないよう、アクセスのたびに有効期限を延長する。
+    // これで「最後のアクセスから72時間（3日）無操作」で初めてSMS認証をやり直す形になる。
+    // 期限内の端末しか延長しないため、失効済みの端末が自力で有効化されることはない。
+    if ($deviceAuth) {
+        $renewedUntil = chatSessionTouchDeviceAuth($db, $sessionId, $visitorId);
+        if ($renewedUntil !== '') $deviceAuth['verified_until'] = $renewedUntil;
+    }
     // デモは visitor_id 一致でしか再開しないため、この端末は常に自分のセッションの持ち主。
     $deviceAuthValid = $isDemo ? true : (bool)$deviceAuth;
     if ($isResumed) {

@@ -155,6 +155,35 @@ function chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone = '', $cu
     }
 }
 
+/**
+ * 認証済み端末の有効期限を、アクセスのたびに CHAT_DEVICE_AUTH_TTL_SECONDS 先へ延長する。
+ * これにより「最後のアクセスから72時間（3日）無操作」で初めてSMS認証をやり直していただく
+ * 形になり、ご利用が続いている間は再認証を求めない。
+ * WHERE に verified_until > NOW() を含めるため、失効済みの端末が自力で復活することはない。
+ *
+ * @return string 延長後の verified_until。延長しなかった場合は空文字。
+ */
+function chatSessionTouchDeviceAuth($db, $sessionId, $visitorId, $ttlSeconds = CHAT_DEVICE_AUTH_TTL_SECONDS) {
+    $sessionId = trim((string)$sessionId);
+    $visitorId = trim((string)$visitorId);
+    if ($sessionId === '' || !preg_match('/^[A-Fa-f0-9-]{36}$/', $sessionId)) return '';
+    if (!chatIsValidVisitorId($visitorId)) return '';
+    try {
+        $ttlSeconds = max(60, (int)$ttlSeconds);
+        $stmt = $db->query("SELECT DATE_ADD(NOW(), INTERVAL {$ttlSeconds} SECOND)");
+        $verifiedUntil = (string)($stmt ? $stmt->fetchColumn() : '');
+        if ($verifiedUntil === '') return '';
+        $stmt = $db->prepare("UPDATE chat_session_devices
+            SET verified_until = ?, last_seen_at = CURRENT_TIMESTAMP
+            WHERE session_id = ? AND visitor_identifier = ? AND verified_until > NOW()");
+        $stmt->execute([$verifiedUntil, $sessionId, $visitorId]);
+        return $verifiedUntil;
+    } catch (Throwable $e) {
+        error_log('chatSessionTouchDeviceAuth failed: ' . $e->getMessage());
+        return '';
+    }
+}
+
 function chatSessionDeviceAuth($db, $sessionId, $visitorId) {
     $sessionId = trim((string)$sessionId);
     $visitorId = trim((string)$visitorId);
