@@ -1821,3 +1821,129 @@
     background: #0757d7;
     color: #fff;
 }
+
+/* ===== PC（デスクトップ）：AIエージェント画面の移動・サイズ変更 =====
+   PCでは右下固定・サイズ固定だと「担当連絡」などのやり取りが見づらいため、
+   ヘッダーのドラッグで移動、四辺・四隅のドラッグでサイズ変更できるようにする。
+   スマホ・タブレット（〜768px）とチャット専用表示は従来どおり固定のまま。 */
+.chat-widget-resize-handle {
+    display: none;
+    position: absolute;
+    z-index: 6;
+    background: transparent;
+}
+.chat-widget-expand {
+    display: none;
+}
+
+@media (min-width: 769px) {
+    .chat-widget-root:not(.chat-widget-chat-only) .chat-widget-expand {
+        display: inline-flex;
+    }
+
+    /* ヘッダーはドラッグで移動できる領域 */
+    .chat-widget-root:not(.chat-widget-chat-only) .chat-widget-header {
+        cursor: move;
+    }
+    .chat-widget-root:not(.chat-widget-chat-only) .chat-widget-header .chat-widget-icon-btn {
+        cursor: pointer;
+    }
+
+    /* 位置・サイズをユーザーが変更した状態（left/top/width/height はJSが指定） */
+    .chat-widget-root:not(.chat-widget-chat-only) .chat-widget-panel.is-user-positioned {
+        position: fixed;
+        /* JSが指定する width/height に枠線を含めるため（ズレ防止） */
+        box-sizing: border-box;
+        right: auto;
+        bottom: auto;
+        width: auto;
+        max-width: none;
+        height: auto;
+        max-height: none;
+    }
+
+    .chat-widget-root:not(.chat-widget-chat-only) .chat-widget-resize-handle {
+        display: block;
+    }
+    .chat-widget-resize-handle:hover {
+        background: rgba(11, 79, 159, 0.18);
+    }
+    .chat-widget-resize-handle-n {
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        cursor: ns-resize;
+    }
+    .chat-widget-resize-handle-s {
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        cursor: ns-resize;
+    }
+    .chat-widget-resize-handle-e {
+        top: 0;
+        bottom: 0;
+        right: 0;
+        width: 6px;
+        cursor: ew-resize;
+    }
+    .chat-widget-resize-handle-w {
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 6px;
+        cursor: ew-resize;
+    }
+    /* 四隅は辺より後ろに配置して優先的に掴めるようにする */
+    .chat-widget-resize-handle-ne {
+        top: 0;
+        right: 0;
+        width: 14px;
+        height: 14px;
+        cursor: nesw-resize;
+    }
+    .chat-widget-resize-handle-nw {
+        top: 0;
+        left: 0;
+        width: 14px;
+        height: 14px;
+        cursor: nwse-resize;
+    }
+    .chat-widget-resize-handle-se {
+        bottom: 0;
+        right: 0;
+        width: 14px;
+        height: 14px;
+        cursor: nwse-resize;
+    }
+    .chat-widget-resize-handle-sw {
+        bottom: 0;
+        left: 0;
+        width: 14px;
+        height: 14px;
+        cursor: nesw-resize;
+    }
+}
+
+/* 拡大／元に戻すボタンのアイコン切り替え */
+.chat-widget-expand .chat-widget-expand-icon-collapse {
+    display: none;
+}
+.chat-widget-expand.is-maximized .chat-widget-expand-icon-expand {
+    display: none;
+}
+.chat-widget-expand.is-maximized .chat-widget-expand-icon-collapse {
+    display: block;
+}
+
+/* ドラッグ中はテキスト選択を止めて、ハンドルの当たり判定を安定させる */
+.chat-widget-root.is-panel-dragging,
+.chat-widget-root.is-panel-dragging * {
+    user-select: none;
+    -webkit-user-select: none;
+}
+.chat-widget-root.is-panel-dragging .chat-widget-panel {
+    transition: none;
+}

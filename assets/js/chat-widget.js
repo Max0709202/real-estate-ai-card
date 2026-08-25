@@ -347,6 +347,9 @@
     function showPanel() {
         panel.hidden = false;
         toggleBtn.setAttribute('aria-expanded', 'true');
+        // PCで前回ユーザーが調整した位置・サイズを復元する
+        applyPanelGeometry();
+        syncPanelExpandButton();
         syncAgentHeader();
         if ((!sessionId || !greetingShown) && !sessionStarting) startSession();
         if (sessionId && greetingShown && !sendingMessage && !entryAwaitingChoice) setInputEnabled(true);
@@ -3611,6 +3614,271 @@
         window.visualViewport.addEventListener('scroll', syncChatVisualViewport);
     }
     syncChatVisualViewport();
+
+    // ===== PC（デスクトップ）：パネルのドラッグ移動・サイズ変更 =====
+    // PCでは右下固定・サイズ固定のままだと、特に「担当連絡」でやり取りが読みづらいため、
+    // ヘッダーのドラッグで移動、四辺・四隅のドラッグでサイズ変更、ヘッダーのボタン
+    // （またはヘッダーのダブルクリック）で最大化・復元ができるようにする。
+    // 調整した位置・サイズは端末（localStorage）に保存し、次回以降も引き継ぐ。
+    // スマホ・タブレット（〜768px）とチャット専用表示は従来どおり固定のまま。
+    var PANEL_GEOMETRY_KEY = 'chat_widget_panel_geometry_v1';
+    var PANEL_DESKTOP_MIN_WIDTH = 769; // これ未満の画面幅では移動・サイズ変更をしない
+    var PANEL_MIN_WIDTH = 360;
+    var PANEL_MIN_HEIGHT = 320;
+    var PANEL_VIEWPORT_MARGIN = 8; // 画面外へ出さないための余白
+    var panelGeometry = null;         // {left, top, width, height}。null はCSS既定（右下固定）
+    var panelRestoreGeometry = null;  // 最大化する前の位置・サイズ
+    var panelMaximized = false;
+    var panelDragState = null;
+    var expandBtn = document.getElementById('chat-widget-expand');
+    var panelHeaderEl = panel.querySelector('.chat-widget-header');
+
+    function panelFloatingEnabled() {
+        return !chatOnly && window.innerWidth >= PANEL_DESKTOP_MIN_WIDTH;
+    }
+
+    function isPanelGeometry(v) {
+        return !!v && isFinite(v.left) && isFinite(v.top) && isFinite(v.width) && isFinite(v.height);
+    }
+
+    function copyPanelGeometry(g) {
+        return { left: g.left, top: g.top, width: g.width, height: g.height };
+    }
+
+    function loadPanelGeometry() {
+        var raw = safeStorageGet(PANEL_GEOMETRY_KEY);
+        if (!raw) return;
+        var data = null;
+        try { data = JSON.parse(raw); } catch (e) { return; }
+        if (!data || typeof data !== 'object') return;
+        if (isPanelGeometry(data.geometry)) panelGeometry = copyPanelGeometry(data.geometry);
+        if (isPanelGeometry(data.restore)) panelRestoreGeometry = copyPanelGeometry(data.restore);
+        panelMaximized = !!data.maximized && !!panelGeometry;
+    }
+
+    function savePanelGeometry() {
+        if (!panelGeometry) {
+            safeStorageRemove(PANEL_GEOMETRY_KEY);
+            return;
+        }
+        safeStorageSet(PANEL_GEOMETRY_KEY, JSON.stringify({
+            geometry: panelGeometry,
+            restore: panelRestoreGeometry,
+            maximized: panelMaximized
+        }));
+    }
+
+    function clampPanelGeometry(g) {
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+        var maxWidth = Math.max(PANEL_MIN_WIDTH, vw - PANEL_VIEWPORT_MARGIN * 2);
+        var maxHeight = Math.max(PANEL_MIN_HEIGHT, vh - PANEL_VIEWPORT_MARGIN * 2);
+        var width = Math.min(Math.max(Math.round(g.width), PANEL_MIN_WIDTH), maxWidth);
+        var height = Math.min(Math.max(Math.round(g.height), PANEL_MIN_HEIGHT), maxHeight);
+        var maxLeft = Math.max(PANEL_VIEWPORT_MARGIN, vw - width - PANEL_VIEWPORT_MARGIN);
+        var maxTop = Math.max(PANEL_VIEWPORT_MARGIN, vh - height - PANEL_VIEWPORT_MARGIN);
+        return {
+            left: Math.min(Math.max(Math.round(g.left), PANEL_VIEWPORT_MARGIN), maxLeft),
+            top: Math.min(Math.max(Math.round(g.top), PANEL_VIEWPORT_MARGIN), maxTop),
+            width: width,
+            height: height
+        };
+    }
+
+    function clearPanelGeometryStyles() {
+        panel.classList.remove('is-user-positioned');
+        panel.style.left = '';
+        panel.style.top = '';
+        panel.style.width = '';
+        panel.style.height = '';
+    }
+
+    function applyPanelGeometry() {
+        if (!panelFloatingEnabled() || !panelGeometry) {
+            clearPanelGeometryStyles();
+            return;
+        }
+        panelGeometry = clampPanelGeometry(panelGeometry);
+        panel.classList.add('is-user-positioned');
+        panel.style.left = panelGeometry.left + 'px';
+        panel.style.top = panelGeometry.top + 'px';
+        panel.style.width = panelGeometry.width + 'px';
+        panel.style.height = panelGeometry.height + 'px';
+    }
+
+    /* 現在の位置・サイズ（未調整ならCSS既定の実寸）を返す。 */
+    function currentPanelGeometry() {
+        if (panelGeometry) return copyPanelGeometry(panelGeometry);
+        var rect = panel.getBoundingClientRect();
+        return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    }
+
+    function maximizedPanelGeometry() {
+        return {
+            left: PANEL_VIEWPORT_MARGIN,
+            top: PANEL_VIEWPORT_MARGIN,
+            width: window.innerWidth - PANEL_VIEWPORT_MARGIN * 2,
+            height: window.innerHeight - PANEL_VIEWPORT_MARGIN * 2
+        };
+    }
+
+    function syncPanelExpandButton() {
+        if (!expandBtn) return;
+        var label = panelMaximized ? '元のサイズに戻す' : '画面を大きくする';
+        expandBtn.setAttribute('aria-label', label);
+        expandBtn.setAttribute('title', label);
+        expandBtn.setAttribute('aria-pressed', panelMaximized ? 'true' : 'false');
+        expandBtn.classList.toggle('is-maximized', panelMaximized);
+    }
+
+    function setPanelMaximized(on) {
+        if (!panelFloatingEnabled() || panel.hidden) return;
+        if (on) {
+            if (!panelMaximized) panelRestoreGeometry = currentPanelGeometry();
+            panelGeometry = maximizedPanelGeometry();
+            panelMaximized = true;
+        } else {
+            // 最大化前が「未調整（CSS既定の右下固定）」なら、その状態に戻す。
+            panelGeometry = panelRestoreGeometry ? copyPanelGeometry(panelRestoreGeometry) : null;
+            panelRestoreGeometry = null;
+            panelMaximized = false;
+        }
+        applyPanelGeometry();
+        savePanelGeometry();
+        syncPanelExpandButton();
+        syncQuickActionsAfterRender();
+    }
+
+    function beginPanelDrag(mode, dir, event) {
+        if (!panelFloatingEnabled() || panel.hidden || panelDragState) return;
+        panelDragState = {
+            mode: mode,
+            dir: dir || '',
+            startX: event.clientX,
+            startY: event.clientY,
+            origin: currentPanelGeometry()
+        };
+        panelGeometry = copyPanelGeometry(panelDragState.origin);
+        // 手動で動かした時点で最大化状態は解除する（ボタンの表示も戻す）。
+        panelMaximized = false;
+        syncPanelExpandButton();
+        applyPanelGeometry();
+        root.classList.add('is-panel-dragging');
+        document.addEventListener('mousemove', onPanelDragMove);
+        document.addEventListener('mouseup', endPanelDrag);
+        event.preventDefault();
+    }
+
+    function onPanelDragMove(event) {
+        if (!panelDragState) return;
+        var origin = panelDragState.origin;
+        var dx = event.clientX - panelDragState.startX;
+        var dy = event.clientY - panelDragState.startY;
+
+        if (panelDragState.mode === 'move') {
+            panelGeometry = {
+                left: origin.left + dx,
+                top: origin.top + dy,
+                width: origin.width,
+                height: origin.height
+            };
+        } else {
+            var dir = panelDragState.dir;
+            var left = origin.left;
+            var top = origin.top;
+            var width = origin.width;
+            var height = origin.height;
+            if (dir.indexOf('e') !== -1) width = origin.width + dx;
+            if (dir.indexOf('s') !== -1) height = origin.height + dy;
+            if (dir.indexOf('w') !== -1) { width = origin.width - dx; left = origin.left + dx; }
+            if (dir.indexOf('n') !== -1) { height = origin.height - dy; top = origin.top + dy; }
+            // 左・上へ広げるときは画面外にはみ出さないよう、余白の位置で止める。
+            if (dir.indexOf('w') !== -1 && left < PANEL_VIEWPORT_MARGIN) {
+                width -= (PANEL_VIEWPORT_MARGIN - left);
+                left = PANEL_VIEWPORT_MARGIN;
+            }
+            if (dir.indexOf('n') !== -1 && top < PANEL_VIEWPORT_MARGIN) {
+                height -= (PANEL_VIEWPORT_MARGIN - top);
+                top = PANEL_VIEWPORT_MARGIN;
+            }
+            // 最小サイズに達したら、掴んでいない側の辺を動かさない。
+            if (width < PANEL_MIN_WIDTH) {
+                if (dir.indexOf('w') !== -1) left = origin.left + origin.width - PANEL_MIN_WIDTH;
+                width = PANEL_MIN_WIDTH;
+            }
+            if (height < PANEL_MIN_HEIGHT) {
+                if (dir.indexOf('n') !== -1) top = origin.top + origin.height - PANEL_MIN_HEIGHT;
+                height = PANEL_MIN_HEIGHT;
+            }
+            panelGeometry = { left: left, top: top, width: width, height: height };
+        }
+
+        applyPanelGeometry();
+        event.preventDefault();
+    }
+
+    function endPanelDrag() {
+        if (!panelDragState) return;
+        panelDragState = null;
+        document.removeEventListener('mousemove', onPanelDragMove);
+        document.removeEventListener('mouseup', endPanelDrag);
+        root.classList.remove('is-panel-dragging');
+        savePanelGeometry();
+        syncQuickActionsAfterRender();
+    }
+
+    function setupPanelResizeHandles() {
+        if (chatOnly) return;
+        // 四辺 → 四隅の順に追加し、四隅を優先して掴めるようにする。
+        ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].forEach(function (dir) {
+            var handle = document.createElement('div');
+            handle.className = 'chat-widget-resize-handle chat-widget-resize-handle-' + dir;
+            handle.setAttribute('aria-hidden', 'true');
+            handle.addEventListener('mousedown', function (event) {
+                if (event.button !== 0) return;
+                beginPanelDrag('resize', dir, event);
+            });
+            panel.appendChild(handle);
+        });
+    }
+
+    function isPanelDragExcluded(target) {
+        if (!target || !target.closest) return false;
+        return !!target.closest('button, a, input, textarea, select');
+    }
+
+    function handlePanelViewportResize() {
+        if (!panelFloatingEnabled()) {
+            clearPanelGeometryStyles();
+            return;
+        }
+        if (panelMaximized) panelGeometry = maximizedPanelGeometry();
+        applyPanelGeometry();
+    }
+
+    if (!chatOnly) {
+        loadPanelGeometry();
+        setupPanelResizeHandles();
+        syncPanelExpandButton();
+        if (panelHeaderEl) {
+            panelHeaderEl.addEventListener('mousedown', function (event) {
+                if (event.button !== 0) return;
+                if (isPanelDragExcluded(event.target)) return;
+                beginPanelDrag('move', '', event);
+            });
+            panelHeaderEl.addEventListener('dblclick', function (event) {
+                if (isPanelDragExcluded(event.target)) return;
+                setPanelMaximized(!panelMaximized);
+            });
+        }
+        if (expandBtn) {
+            expandBtn.addEventListener('click', function () {
+                setPanelMaximized(!panelMaximized);
+            });
+        }
+        window.addEventListener('resize', handlePanelViewportResize);
+        window.addEventListener('orientationchange', handlePanelViewportResize);
+    }
 
     toggleBtn.setAttribute('aria-expanded', chatOnly ? 'true' : 'false');
     toggleBtn.addEventListener('click', function () {

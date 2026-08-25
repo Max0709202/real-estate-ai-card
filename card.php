@@ -1351,7 +1351,7 @@ if (!empty($card['profile_photo'])) {
             <span id="chat-widget-toggle-label" class="chat-widget-toggle-label"><?php echo htmlspecialchars(($card['name'] ?? '担当者') . ' AIエージェント'); ?></span>
         </button>
         <div id="chat-widget-panel" hidden class="chat-widget-panel">
-            <div class="chat-widget-header">
+            <div class="chat-widget-header" title="ドラッグで移動できます（PC）">
                 <img id="chat-widget-avatar" class="chat-widget-avatar" src="" alt="" width="40" height="40">
                 <div class="chat-widget-header-text">
                     <span id="chat-widget-agent-name" class="chat-widget-agent-name"></span>
@@ -1366,6 +1366,14 @@ if (!empty($card['profile_photo'])) {
                     <button type="button" id="chat-widget-refresh" class="chat-widget-icon-btn chat-widget-refresh" aria-label="チャットを最初から始める" title="チャットを最初から始める">
                         <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                             <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h8V3l-3.35 3.35z"></path>
+                        </svg>
+                    </button>
+                    <button type="button" id="chat-widget-expand" class="chat-widget-icon-btn chat-widget-expand" aria-label="画面を大きくする" title="画面を大きくする" aria-pressed="false">
+                        <svg class="chat-widget-expand-icon-expand" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                            <path d="M4 9V4h5v2H6v3H4zm11-5h5v5h-2V6h-3V4zM4 15h2v3h3v2H4v-5zm14 0h2v5h-5v-2h3v-3z"></path>
+                        </svg>
+                        <svg class="chat-widget-expand-icon-collapse" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                            <path d="M11 4v7H4V9h5V4h2zm2 0h2v5h5v2h-7V4zM4 13h7v7H9v-5H4v-2zm9 0h7v2h-5v5h-2v-7z"></path>
                         </svg>
                     </button>
                     <button type="button" id="chat-widget-close" class="chat-widget-icon-btn chat-widget-close" aria-label="閉じる" title="閉じる">&times;</button>
