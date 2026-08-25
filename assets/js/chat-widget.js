@@ -3067,6 +3067,10 @@
 
     // 一覧の「お気に入りのみ」表示の状態（顧客がハートで絞り込んだかどうか）。
     var propFavOnly = false;
+    // 担当が作った提案物件フォルダー（一覧ではフォルダーを上、未格納の物件をその下に表示する）。
+    var propFolders = [];
+    // フォルダーの開閉状態（フォルダーID → true=閉じている）。既定は開いた状態。
+    var propFolderClosed = {};
 
     function renderPropertiesTab(_healed) {
         if (!PUI) { renderFeaturePanel('<div class="chat-feature-empty">読み込みに失敗しました。</div>'); return; }
@@ -3086,6 +3090,7 @@
                 propShowLoadError(box); return;
             }
             var items = (res.success && res.data.properties) ? res.data.properties : [];
+            propFolders = (res.success && res.data.folders) ? res.data.folders : [];
             propRenderList(box, items, viewOnly);
         }).catch(function () {
             // 通信エラー時に「読み込み中」のまま固まらないようにし、再読み込みで復帰できるようにする。
@@ -3118,13 +3123,35 @@
                 ? '気になる物件のハートを押すと、ここでまとめて確認できます。'
                 : '提案された物件・共有した物件がここに表示されます。') + '</div>';
         } else {
-            html += '<div class="prop-list">' + shown.map(function (p) {
-                var cardOpts = propAuthOpts();
-                cardOpts.fav = true;
-                return PUI.cardHtml(p, cardOpts);
-            }).join('') + '</div>';
+            // フォルダーを上に、フォルダーに入っていない物件をその下に表示する（担当の画面と同じ並び）。
+            var grouped = PUI.groupByFolder(shown, propFolders);
+            var folderShown = 0;
+            grouped.groups.forEach(function (g) {
+                // 中身が無いフォルダーは表示しない（お気に入りで絞り込んだときなど）。
+                if (!g.items.length) return;
+                folderShown++;
+                html += PUI.folderSectionHtml(g.folder, propCardsHtml(g.items), {
+                    open: !propFolderClosed[g.folder.id],
+                    count: g.items.length
+                });
+            });
+            if (grouped.ungrouped.length) {
+                html += (folderShown ? '<div class="prop-folder-rest">フォルダーに入っていない物件</div>' : '') +
+                    propCardsHtml(grouped.ungrouped);
+            }
         }
         box.innerHTML = html;
+        // フォルダーの開閉（開閉状態は画面を開いている間だけ保持する）。
+        box.querySelectorAll('[data-folder-toggle]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var id = b.getAttribute('data-folder-toggle');
+                var sec = b.closest('.prop-folder');
+                var open = !sec.classList.contains('is-open');
+                sec.classList.toggle('is-open', open);
+                b.setAttribute('aria-expanded', open ? 'true' : 'false');
+                propFolderClosed[id] = !open;
+            });
+        });
         // 物件URLの共有は「物件選定」の機能なので、SMS認証前はSMS認証へ進んでもらう。
         box.querySelector('#prop-cust-urlbtn').addEventListener('click', viewOnly ? propRequireAuth : propOpenUrlShare);
         box.querySelector('#prop-cust-favfilter').addEventListener('click', function () {
@@ -3141,6 +3168,15 @@
         box.querySelectorAll('.prop-card').forEach(function (c) {
             c.addEventListener('click', function () { propOpenDetail(parseInt(c.getAttribute('data-prop-id'), 10)); });
         });
+    }
+
+    /* 物件カードのまとまり（フォルダーの中・フォルダー未格納の双方で使う）。 */
+    function propCardsHtml(items) {
+        return '<div class="prop-list">' + items.map(function (p) {
+            var cardOpts = propAuthOpts();
+            cardOpts.fav = true;
+            return PUI.cardHtml(p, cardOpts);
+        }).join('') + '</div>';
     }
 
     /* ハートの登録・解除。成功したら手元の items を更新し、一覧（件数・絞り込み）を描き直す。 */

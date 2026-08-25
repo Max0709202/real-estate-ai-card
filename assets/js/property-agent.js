@@ -10,6 +10,13 @@
   // 一覧の並び替え（''=既定のステータス順 / views_total / views_week / last_viewed）。
   // 画面を開いている間は選択を保持する。
   var SORT = '';
+  // 直近に読み込んだ一覧（フォルダーの開閉・格納の再描画で使い回す）。
+  var ITEMS = [];
+  var FOLDERS = [];
+  // フォルダーの開閉状態（フォルダーID → true=閉じている）。既定は開いた状態。
+  var FOLDER_CLOSED = {};
+  // フォルダー名の最大文字数（PHP propertyFolderNameMaxLength と一致）。
+  var FOLDER_NAME_MAX = 100;
 
   function esc(s) { return UI.esc(s); }
   function notify(type, msg) {
@@ -39,9 +46,11 @@
 
   function renderList() {
     P.innerHTML = '<div class="prop-toolbar"><h4>物件選定</h4>' + sortSelectHtml() +
+      '<button type="button" class="prop-btn prop-btn--ghost" id="prop-folder-add">' + UI.icon('folder') + 'フォルダーを作成</button>' +
       '<button type="button" class="prop-btn prop-btn--primary" id="prop-add">' + UI.icon('plus') + '物件を追加</button></div>' +
       '<div id="prop-list-body"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>';
     P.querySelector('#prop-add').addEventListener('click', openAddMethods);
+    P.querySelector('#prop-folder-add').addEventListener('click', function () { openFolderForm(null); });
     var sel = P.querySelector('#prop-sort');
     if (sel) sel.addEventListener('change', function () { SORT = sel.value; loadList(); });
     loadList();
@@ -54,14 +63,201 @@
     body.innerHTML = '<div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div>';
     api('/list.php?session_id=' + encodeURIComponent(SID) + (SORT ? '&sort=' + encodeURIComponent(SORT) : '')).then(function (res) {
       if (!res.success) { body.innerHTML = '<div class="prop-empty">読み込みに失敗しました。</div>'; return; }
-      var items = res.data.properties || [];
-      if (!items.length) { body.innerHTML = '<div class="prop-empty">提案物件はまだありません。「物件を追加」から登録してください。</div>'; return; }
-      // views: true → お客様の閲覧状況（回数バッジ・累計/直近1週間/最終閲覧）を担当側の一覧にだけ表示する。
-      body.innerHTML = '<div class="prop-list">' + items.map(function (p) { return UI.cardHtml(p, { views: true }); }).join('') + '</div>';
-      body.querySelectorAll('.prop-card').forEach(function (c) {
-        c.addEventListener('click', function () { openDetail(parseInt(c.getAttribute('data-prop-id'), 10)); });
+      ITEMS = res.data.properties || [];
+      FOLDERS = res.data.folders || [];
+      renderListBody();
+    });
+  }
+
+  /* 一覧の描画。フォルダーを上に、フォルダーに入っていない物件をその下に表示する。
+     views: true → お客様の閲覧状況（回数バッジ・累計/直近1週間/最終閲覧）を担当側の一覧にだけ表示する。
+     folderMove: true → カードのフォルダーボタン（格納先の変更）を担当側の一覧にだけ表示する。 */
+  function renderListBody() {
+    var body = P.querySelector('#prop-list-body');
+    if (!body) return;
+    if (!ITEMS.length && !FOLDERS.length) {
+      body.innerHTML = '<div class="prop-empty">提案物件はまだありません。「物件を追加」から登録してください。</div>';
+      return;
+    }
+    var grouped = UI.groupByFolder(ITEMS, FOLDERS);
+    var html = '';
+    grouped.groups.forEach(function (g) {
+      var actions = '<div class="prop-folder__actions">' +
+        '<button type="button" class="prop-folder__act" data-folder-rename="' + esc(g.folder.id) + '" title="フォルダー名を変更">' + UI.icon('edit') + '</button>' +
+        '<button type="button" class="prop-folder__act prop-folder__act--danger" data-folder-delete="' + esc(g.folder.id) + '" title="フォルダーを削除">' + UI.icon('trash') + '</button>' +
+        '</div>';
+      html += UI.folderSectionHtml(g.folder, cardsHtml(g.items), {
+        open: !FOLDER_CLOSED[g.folder.id],
+        count: g.items.length,
+        actions: actions,
+        empty: 'この中に物件はまだありません。物件カードのフォルダーボタンから格納できます。'
       });
     });
+    if (grouped.ungrouped.length) {
+      html += (grouped.groups.length ? '<div class="prop-folder-rest">フォルダーに入っていない物件</div>' : '') +
+        cardsHtml(grouped.ungrouped);
+    }
+    body.innerHTML = html;
+    bindListEvents(body);
+  }
+
+  function cardsHtml(items) {
+    if (!items.length) return '';
+    return '<div class="prop-list">' + items.map(function (p) {
+      return UI.cardHtml(p, { views: true, folderMove: true });
+    }).join('') + '</div>';
+  }
+
+  function bindListEvents(body) {
+    // フォルダーの開閉（開閉状態は画面を開いている間だけ保持する）。
+    body.querySelectorAll('[data-folder-toggle]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-folder-toggle');
+        var sec = b.closest('.prop-folder');
+        var open = !sec.classList.contains('is-open');
+        sec.classList.toggle('is-open', open);
+        b.setAttribute('aria-expanded', open ? 'true' : 'false');
+        FOLDER_CLOSED[id] = !open;
+      });
+    });
+    body.querySelectorAll('[data-folder-rename]').forEach(function (b) {
+      b.addEventListener('click', function () { openFolderForm(findFolder(b.getAttribute('data-folder-rename'))); });
+    });
+    body.querySelectorAll('[data-folder-delete]').forEach(function (b) {
+      b.addEventListener('click', function () { deleteFolder(findFolder(b.getAttribute('data-folder-delete'))); });
+    });
+    // フォルダーボタンはカード（詳細）を開かずに格納先を選ぶ。
+    body.querySelectorAll('.prop-card__folder').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openFolderPicker(findProperty(b.getAttribute('data-folder-move')));
+      });
+    });
+    body.querySelectorAll('.prop-card').forEach(function (c) {
+      c.addEventListener('click', function () { openDetail(parseInt(c.getAttribute('data-prop-id'), 10)); });
+    });
+  }
+
+  function findFolder(id) {
+    var found = null;
+    FOLDERS.forEach(function (f) { if (String(f.id) === String(id)) found = f; });
+    return found;
+  }
+  function findProperty(id) {
+    var found = null;
+    ITEMS.forEach(function (p) { if (String(p.id) === String(id)) found = p; });
+    return found;
+  }
+
+  /* ===== 提案物件フォルダー =====
+     ・「フォルダーを作成」で自分で名前を付けたフォルダーを作る（例: 2026年8月21日ご案内物件）
+     ・物件カードのフォルダーボタンから、その物件の格納先を選ぶ
+     ・一覧はフォルダーが上、フォルダーに入っていない物件がその下（お客様の画面も同じ並び）
+     ・フォルダーを削除しても中の物件は削除されず、フォルダーの外に戻る */
+
+  /* フォルダーの作成・名前変更。
+     onCreated を渡すと、作成後に一覧を読み直す代わりにそのフォルダーを引数に呼ぶ。 */
+  function openFolderForm(folder, onCreated) {
+    var isEdit = !!folder;
+    var html = '<div class="prop-field full"><label>フォルダー名</label>' +
+      '<input type="text" id="prop-folder-name" maxlength="' + FOLDER_NAME_MAX + '"' +
+      ' placeholder="例）2026年8月21日ご案内物件" value="' + esc(isEdit ? folder.name : '') + '"></div>' +
+      '<div class="prop-msg prop-msg--info">フォルダーはお客様の物件選定画面にも同じ名前で表示されます。</div>' +
+      '<div class="prop-form-actions"><button type="button" class="prop-btn prop-btn--primary" id="prop-folder-save">' +
+      (isEdit ? '変更する' : '作成する') + '</button></div>';
+    var m = UI.modal(isEdit ? 'フォルダー名を変更' : 'フォルダーを作成', html);
+    var input = m.body.querySelector('#prop-folder-name');
+    var btn = m.body.querySelector('#prop-folder-save');
+
+    function submit() {
+      var name = input.value.trim();
+      if (!name) { notify('error', 'フォルダー名を入力してください'); return; }
+      var payload = isEdit
+        ? { action: 'rename', folder_id: folder.id, name: name }
+        : { action: 'create', session_id: SID, name: name };
+      btn.disabled = true;
+      api('/folder.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        .then(function (res) {
+          btn.disabled = false;
+          if (!res.success) { notify('error', res.message || '保存に失敗しました'); return; }
+          m.close();
+          notify('ok', res.message);
+          FOLDERS = res.data.folders || FOLDERS;
+          if (!isEdit && onCreated) onCreated(res.data.folder);
+          else loadList();
+        })
+        .catch(function () { btn.disabled = false; notify('error', '通信に失敗しました'); });
+    }
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    input.focus();
+  }
+
+  function deleteFolder(folder) {
+    if (!folder) return;
+    if (!confirm('フォルダー「' + folder.name + '」を削除します。\n中の物件は削除されず、フォルダーの外に戻ります。よろしいですか？')) return;
+    api('/folder.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', folder_id: folder.id })
+    }).then(function (res) {
+      if (!res.success) { notify('error', res.message || '削除に失敗しました'); return; }
+      notify('ok', res.message);
+      delete FOLDER_CLOSED[folder.id];
+      loadList();
+    }).catch(function () { notify('error', '通信に失敗しました'); });
+  }
+
+  /* 物件の格納先フォルダーを選ぶ。
+     onMoved を渡すと、移動後に一覧を読み直す代わりに（folder_id, folder）を引数に呼ぶ。 */
+  function openFolderPicker(p, onMoved) {
+    if (!p) return;
+    var current = p.folder_id == null ? '' : String(p.folder_id);
+    var rows = FOLDERS.map(function (f) {
+      var on = current === String(f.id);
+      return '<button type="button" class="prop-folder-opt' + (on ? ' is-selected' : '') + '" data-pick="' + esc(f.id) + '">' +
+        '<span class="prop-folder-opt__icon">' + UI.icon(on ? 'folderFilled' : 'folder') + '</span>' +
+        '<span class="prop-folder-opt__name">' + esc(f.name) + '</span>' +
+        '<span class="prop-folder-opt__count">' + esc(f.property_count || 0) + '</span></button>';
+    }).join('');
+    if (current) {
+      rows += '<button type="button" class="prop-folder-opt" data-pick="0">' +
+        '<span class="prop-folder-opt__icon">' + UI.icon('folder') + '</span>' +
+        '<span class="prop-folder-opt__name">フォルダーから出す</span></button>';
+    }
+    if (!FOLDERS.length) rows = '<div class="prop-empty">フォルダーがまだありません。新しく作成してください。</div>';
+
+    var m = UI.modal('フォルダーに格納',
+      '<div class="prop-folder-picker">' + rows + '</div>' +
+      '<div class="prop-form-actions"><button type="button" class="prop-btn prop-btn--ghost" id="prop-folder-new">' +
+      UI.icon('plus') + '新しいフォルダーを作成</button></div>');
+
+    m.body.querySelectorAll('[data-pick]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        moveToFolder(p, parseInt(b.getAttribute('data-pick'), 10) || 0, m, onMoved);
+      });
+    });
+    // 作成したフォルダーへそのまま格納する。
+    m.body.querySelector('#prop-folder-new').addEventListener('click', function () {
+      m.close();
+      openFolderForm(null, function (folder) {
+        if (folder && folder.id) moveToFolder(p, folder.id, null, onMoved);
+        else loadList();
+      });
+    });
+  }
+
+  function moveToFolder(p, folderId, m, onMoved) {
+    api('/folder-move.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ property_id: p.id, folder_id: folderId })
+    }).then(function (res) {
+      if (m) m.close();
+      if (!res.success) { notify('error', res.message || '変更に失敗しました'); return; }
+      notify('ok', res.message);
+      p.folder_id = res.data.folder_id;
+      if (onMoved) onMoved(res.data.folder_id);
+      else loadList();
+    }).catch(function () { if (m) m.close(); notify('error', '通信に失敗しました'); });
   }
 
   /* ===== 登録方法選択（§2） ===== */
@@ -300,8 +496,12 @@
         '<span class="prop-badge--icon" style="color:' + s.color + '">' + UI.icon(s.icon) + '</span>' + esc(s.label) + '</button>';
     }).join('');
 
+    // 現在の格納先フォルダー（未格納なら「フォルダー」と表示し、押すと格納先を選べる）。
+    var curFolder = findFolder(p.folder_id);
     d.innerHTML =
       '<div class="prop-toolbar"><button type="button" class="prop-btn prop-btn--ghost" id="prop-back">← 一覧</button>' +
+      '<button type="button" class="prop-btn prop-btn--ghost" id="prop-folder-btn" title="フォルダーに格納">' +
+        UI.icon(curFolder ? 'folderFilled' : 'folder') + esc(curFolder ? curFolder.name : 'フォルダー') + '</button>' +
       '<button type="button" class="prop-btn prop-btn--ghost" id="prop-edit-btn">' + UI.icon('edit') + '編集</button>' +
       '<button type="button" class="prop-btn prop-btn--danger" id="prop-del-btn">' + UI.icon('trash') + '削除</button></div>' +
       UI.detailHeaderHtml(p) +
@@ -325,6 +525,10 @@
     renderPr(p, { editing: false });
 
     d.querySelector('#prop-back').addEventListener('click', renderList);
+    // 詳細からも格納先フォルダーを変更できる（変更後は詳細をそのまま描き直す）。
+    d.querySelector('#prop-folder-btn').addEventListener('click', function () {
+      openFolderPicker(p, function (folderId) { p.folder_id = folderId; renderDetail(p); });
+    });
     d.querySelector('#prop-edit-btn').addEventListener('click', function () { openEditForm(p, false); });
     d.querySelector('#prop-del-btn').addEventListener('click', function () {
       if (!confirm('この物件を削除します。よろしいですか？')) return;

@@ -300,6 +300,59 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-pr-view__head svg { width: 15px; height: 15px; }
 .prop-pr-view__body { font-size: 14px; line-height: 1.8; color: #263043; white-space: pre-wrap; }
 
+/* ===== 提案物件フォルダー ===== */
+/* 一覧はフォルダーを上に、フォルダーに入っていない物件をその下に表示する（担当・顧客とも同じ並び） */
+.prop-folder { border: 1px solid #dfe6f1; border-radius: 12px; background: #f7f9fd; margin-bottom: 12px; overflow: hidden; }
+.prop-folder__head { display: flex; align-items: center; gap: 4px; padding: 4px 6px 4px 4px; }
+.prop-folder__toggle {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px;
+  background: none; border: none; cursor: pointer; padding: 8px; border-radius: 8px; color: #14223a; text-align: left;
+}
+.prop-folder__toggle:hover { background: #eef3fb; }
+.prop-folder__chev { display: inline-flex; color: #8a93a2; transition: transform .15s; }
+.prop-folder__chev svg { width: 16px; height: 16px; }
+.prop-folder.is-open .prop-folder__chev { transform: rotate(90deg); }
+.prop-folder__icon { display: inline-flex; color: #f0a824; }
+.prop-folder__icon svg { width: 20px; height: 20px; }
+.prop-folder__name { flex: 1 1 auto; min-width: 0; font-weight: 800; font-size: 14px; line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-folder__count { flex: 0 0 auto; min-width: 22px; padding: 1px 7px; border-radius: 999px;
+  background: #dde5f2; color: #48566b; font-size: 11px; font-weight: 800; text-align: center; }
+.prop-folder__actions { flex: 0 0 auto; display: flex; gap: 2px; }
+.prop-folder__act { background: none; border: none; cursor: pointer; color: #8a93a2; padding: 6px; border-radius: 8px; display: inline-flex; }
+.prop-folder__act svg { width: 16px; height: 16px; }
+.prop-folder__act:hover { background: #eef3fb; color: #2d6cdf; }
+.prop-folder__act--danger:hover { background: #fdecee; color: #c92a3f; }
+/* 閉じているときは中の物件を隠す */
+.prop-folder__body { display: none; padding: 0 10px 10px; }
+.prop-folder.is-open .prop-folder__body { display: block; }
+.prop-folder__empty { font-size: 12px; color: #8a93a2; padding: 10px 4px; }
+/* フォルダーに入っていない物件の見出し */
+.prop-folder-rest { font-size: 12px; font-weight: 700; color: #7a8492; margin: 16px 0 8px; }
+
+/* カードのフォルダーボタン（担当側の一覧のみ） */
+.prop-card__folder {
+  flex: 0 0 auto; align-self: flex-start; background: none; border: none; cursor: pointer;
+  color: #b9c2ce; padding: 4px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+}
+.prop-card__folder svg { width: 20px; height: 20px; }
+.prop-card__folder:hover { background: #f5f7fa; color: #f0a824; }
+.prop-card__folder.is-active { color: #f0a824; }
+
+/* 格納先フォルダーの選択（モーダル） */
+.prop-folder-picker { display: flex; flex-direction: column; gap: 8px; }
+.prop-folder-opt {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+  background: #fff; border: 1px solid #e5e9f0; border-radius: 10px; padding: 10px 12px; color: #1f2933; font-size: 14px;
+}
+.prop-folder-opt:hover { border-color: #2d6cdf; background: #f7faff; }
+.prop-folder-opt.is-selected { border-color: #f0a824; background: #fff8ec; }
+.prop-folder-opt__icon { display: inline-flex; color: #f0a824; }
+.prop-folder-opt__icon svg { width: 18px; height: 18px; }
+.prop-folder-opt__name { flex: 1 1 auto; min-width: 0; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-folder-opt__count { flex: 0 0 auto; padding: 1px 7px; border-radius: 999px; background: #eef1f6; color: #6b7585; font-size: 11px; font-weight: 800; }
+
 /* ===== モーダル ===== */
 .prop-modal-overlay { position: fixed; inset: 0; background: rgba(15,23,40,.55); z-index: 99990; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .prop-modal { background: #fff; border-radius: 16px; width: 100%; max-width: 480px; max-height: 90vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3); }

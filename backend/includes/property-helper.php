@@ -24,6 +24,7 @@ if (!function_exists('propertyEnsureTables')) {
           id INT AUTO_INCREMENT PRIMARY KEY,
           business_card_id INT NOT NULL,
           session_id CHAR(36) NOT NULL,
+          folder_id INT NULL DEFAULT NULL,
           source ENUM('agent','customer') NOT NULL DEFAULT 'agent',
           source_media VARCHAR(32) NOT NULL DEFAULT 'manual',
           source_url VARCHAR(1024) NULL DEFAULT NULL,
@@ -81,7 +82,8 @@ if (!function_exists('propertyEnsureTables')) {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           INDEX idx_properties_card (business_card_id),
           INDEX idx_properties_session (session_id),
-          INDEX idx_properties_status (status)
+          INDEX idx_properties_status (status),
+          INDEX idx_properties_folder (folder_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
         $db->exec("CREATE TABLE IF NOT EXISTS property_images (
@@ -112,6 +114,7 @@ if (!function_exists('propertyEnsureTables')) {
         propertyEnsureFlyerMaskColumns($db);
         propertyEnsureRetentionColumns($db);
         propertyEnsurePrCommentColumns($db);
+        propertyEnsureFolderTable($db);
         // 閲覧トークン・閲覧回数のテーブル（property-view-helper.php）。
         propertyViewEnsureTables($db);
         $done = true;
@@ -200,6 +203,98 @@ if (!function_exists('propertyEnsurePrCommentColumns')) {
                 }
             } catch (Throwable $e) { /* 既に存在 / 権限不足は無視 */ }
         }
+    }
+}
+
+if (!function_exists('propertyEnsureFolderTable')) {
+    /**
+     * 提案物件のフォルダー用テーブル・カラムを冪等に作成する（既存環境向け）。
+     * property_folders : 担当者が作るフォルダー（セッション単位）
+     * properties.folder_id : 格納先フォルダー（NULL = フォルダーに入っていない）
+     */
+    function propertyEnsureFolderTable(PDO $db): void
+    {
+        $db->exec("CREATE TABLE IF NOT EXISTS property_folders (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          business_card_id INT NOT NULL,
+          session_id CHAR(36) NOT NULL,
+          name VARCHAR(100) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_property_folders_session (session_id, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        try {
+            $stmt = $db->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'properties' AND COLUMN_NAME = 'folder_id'");
+            $stmt->execute();
+            if ((int)$stmt->fetchColumn() === 0) {
+                $db->exec("ALTER TABLE properties ADD COLUMN folder_id INT NULL DEFAULT NULL AFTER session_id");
+                $db->exec("ALTER TABLE properties ADD INDEX idx_properties_folder (folder_id)");
+            }
+        } catch (Throwable $e) { /* 既に存在 / 権限不足は無視 */ }
+    }
+}
+
+if (!function_exists('propertyFolderNameMaxLength')) {
+    /** フォルダー名の最大文字数（DB の VARCHAR(100) と一致）。 */
+    function propertyFolderNameMaxLength(): int { return 100; }
+}
+
+if (!function_exists('propertyNormalizeFolderName')) {
+    /** フォルダー名の正規化（前後の空白・改行を除去し、連続空白を1つにまとめる）。 */
+    function propertyNormalizeFolderName(string $name): string
+    {
+        $name = preg_replace('/[\r\n\t]+/u', ' ', $name);
+        $name = preg_replace('/\s{2,}/u', ' ', $name);
+        return trim((string)$name);
+    }
+}
+
+if (!function_exists('propertyVerifyAgentFolder')) {
+    /** フォルダーが担当（userId）の名刺に属するか検証。属する行（連想配列）を返す。 */
+    function propertyVerifyAgentFolder(PDO $db, int $folderId, int $userId): array
+    {
+        $stmt = $db->prepare("
+            SELECT f.* FROM property_folders f
+            JOIN business_cards bc ON bc.id = f.business_card_id
+            WHERE f.id = ? AND bc.user_id = ? LIMIT 1
+        ");
+        $stmt->execute([$folderId, $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) sendErrorResponse('フォルダーが見つかりません', 404);
+        return $row;
+    }
+}
+
+if (!function_exists('propertyFoldersFor')) {
+    /**
+     * セッションのフォルダー一覧（新しく作ったフォルダーが上）。
+     * property_count には、そのフォルダーに入っている物件数を入れる。
+     * 顧客側（$forAgent=false）は、まだ物件が1件も入っていないフォルダーを返さない
+     * （空のフォルダーだけが並ぶ状態をお客様に見せないため）。
+     */
+    function propertyFoldersFor(PDO $db, string $sessionId, bool $forAgent): array
+    {
+        $stmt = $db->prepare("
+            SELECT f.id, f.name, f.created_at,
+                   (SELECT COUNT(*) FROM properties p WHERE p.folder_id = f.id) AS property_count
+            FROM property_folders f
+            WHERE f.session_id = ?
+            ORDER BY f.created_at DESC, f.id DESC
+        ");
+        $stmt->execute([$sessionId]);
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $count = (int)$row['property_count'];
+            if (!$forAgent && $count === 0) continue;
+            $out[] = [
+                'id' => (int)$row['id'],
+                'name' => $row['name'],
+                'property_count' => $count,
+                'created_at' => $row['created_at'],
+            ];
+        }
+        return $out;
     }
 }
 
@@ -727,6 +822,8 @@ if (!function_exists('propertySerialize')) {
         $out = [
             'id' => (int)$row['id'],
             'session_id' => $row['session_id'],
+            // 格納先フォルダー（NULL = フォルダーに入っていない）。一覧の並び分けに使う。
+            'folder_id' => isset($row['folder_id']) && $row['folder_id'] !== null ? (int)$row['folder_id'] : null,
             'source' => $src,
             'source_label' => $sources[$src]['label'] ?? $src,
             'source_color' => $sources[$src]['color'] ?? 'blue',
