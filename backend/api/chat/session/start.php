@@ -174,7 +174,7 @@ try {
             // 再開した端末を現所有者に更新する。COALESCE で元所有者を保持すると、
             // 端末側 visitor_id とセッションの visitor_identifier が食い違い、
             // poll/upload の突合で 403（セッションを確認できません）になるため。
-            // SMS認証から72時間（3日）以内の端末だけ、履歴閲覧権を付与する。
+            // SMS認証を済ませた端末だけ、履歴閲覧権を付与する（同じ端末なら再認証は不要）。
             $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$visitorId, $sessionId]);
         } else {
@@ -204,6 +204,12 @@ try {
     $messages = [];
     $hasPreviousMessages = false;
     $deviceAuth = (!$isDemo && $isResumed && $visitorId !== '') ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
+    // 一度SMS認証を済ませた同じ端末には再認証を求めないため、ここでは最終アクセス日時のみ
+    // 更新する（CHAT_DEVICE_AUTH_TTL_SECONDS に期間を設定した場合のみ有効期限を延長する）。
+    if ($deviceAuth) {
+        $renewedUntil = chatSessionTouchDeviceAuth($db, $sessionId, $visitorId);
+        if ($renewedUntil !== '') $deviceAuth['verified_until'] = $renewedUntil;
+    }
     // デモは visitor_id 一致でしか再開しないため、この端末は常に自分のセッションの持ち主。
     $deviceAuthValid = $isDemo ? true : (bool)$deviceAuth;
     if ($isResumed) {

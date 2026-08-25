@@ -4,9 +4,21 @@
  */
 
 if (!defined('CHAT_DEVICE_AUTH_TTL_SECONDS')) {
-    // SMS認証済み端末の認可が有効な期間（既定72時間＝3日）。
-    // この期間を過ぎると、顧客は再度SMS認証（電話番号入力）を求められる。
-    define('CHAT_DEVICE_AUTH_TTL_SECONDS', (int)(getenv('CHAT_DEVICE_AUTH_TTL_SECONDS') ?: 259200));
+    // SMS認証済み端末の認可が有効な期間（秒）。0＝無期限（既定）。
+    // 運用のご要望により「初回アクセス時のみSMS認証／一度認証を済ませた同じ端末では
+    // その後SMS認証を求めない」仕様へ変更した。再認証が挟まると、メール通知のボタンから
+    // 「担当連絡」を開いてもメッセージが表示されない等、通知からそのまま内容を確認できる
+    // 導線が活かせなくなるため。
+    // 定期的な再認証を復活させたい場合のみ、環境変数へ秒数（例: 259200＝72時間）を設定する。
+    define('CHAT_DEVICE_AUTH_TTL_SECONDS', max(0, (int)getenv('CHAT_DEVICE_AUTH_TTL_SECONDS')));
+}
+
+/**
+ * SMS認証済み端末の認可を無期限（初回認証のみ）として扱うかどうか。
+ * CHAT_DEVICE_AUTH_TTL_SECONDS が 0 以下のとき true。
+ */
+function chatDeviceAuthIsUnlimited() {
+    return CHAT_DEVICE_AUTH_TTL_SECONDS <= 0;
 }
 
 function ensureChatVerifiedPhonesTable($db) {
@@ -115,10 +127,15 @@ function chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone = '', $cu
         ensureChatSessionDevicesTable($db);
         $phoneLookup = chatPhoneLookupKey($phone);
         $cleanName = chatCleanCustomerNameValue($customerName);
-        $ttlSeconds = max(60, (int)$ttlSeconds);
-        $stmt = $db->query("SELECT DATE_ADD(NOW(), INTERVAL {$ttlSeconds} SECOND)");
-        $verifiedUntil = (string)($stmt ? $stmt->fetchColumn() : '');
-        if ($verifiedUntil === '') return;
+        // 無期限運用（既定）では有効期限を持たせない。
+        $ttlSeconds = (int)$ttlSeconds;
+        $verifiedUntil = null;
+        if ($ttlSeconds > 0) {
+            $ttlSeconds = max(60, $ttlSeconds);
+            $stmt = $db->query("SELECT DATE_ADD(NOW(), INTERVAL {$ttlSeconds} SECOND)");
+            $verifiedUntil = (string)($stmt ? $stmt->fetchColumn() : '');
+            if ($verifiedUntil === '') return;
+        }
         $stmt = $db->prepare("INSERT INTO chat_session_devices (session_id, visitor_identifier, phone_normalized, customer_name, verified_until)
             VALUES (?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE last_seen_at = CURRENT_TIMESTAMP");
@@ -155,6 +172,56 @@ function chatSessionRegisterDevice($db, $sessionId, $visitorId, $phone = '', $cu
     }
 }
 
+/**
+ * 認証済み端末の最終アクセス日時を更新する。
+ * 無期限運用（既定）では有効期限そのものを持たないため、last_seen_at だけを更新する
+ * （一度認証を済ませた端末には、その後SMS認証を求めない）。
+ * 期限付き運用（CHAT_DEVICE_AUTH_TTL_SECONDS > 0）のときは、従来どおりアクセスのたびに
+ * 期限を延長する。WHERE に verified_until > NOW() を含めるため、失効済みの端末が
+ * 自力で復活することはない。
+ *
+ * @return string 延長後の verified_until。無期限運用・延長しなかった場合は空文字。
+ */
+function chatSessionTouchDeviceAuth($db, $sessionId, $visitorId, $ttlSeconds = CHAT_DEVICE_AUTH_TTL_SECONDS) {
+    $sessionId = trim((string)$sessionId);
+    $visitorId = trim((string)$visitorId);
+    if ($sessionId === '' || !preg_match('/^[A-Fa-f0-9-]{36}$/', $sessionId)) return '';
+    if (!chatIsValidVisitorId($visitorId)) return '';
+    try {
+        $ttlSeconds = (int)$ttlSeconds;
+        if ($ttlSeconds <= 0) {
+            // 無期限運用。verified_until は書き換えず（期限付き運用へ戻したときの判断材料として残す）、
+            // 最終アクセス日時だけを更新する。
+            $stmt = $db->prepare("UPDATE chat_session_devices
+                SET last_seen_at = CURRENT_TIMESTAMP
+                WHERE session_id = ? AND visitor_identifier = ?");
+            $stmt->execute([$sessionId, $visitorId]);
+            return '';
+        }
+        $ttlSeconds = max(60, $ttlSeconds);
+        $stmt = $db->query("SELECT DATE_ADD(NOW(), INTERVAL {$ttlSeconds} SECOND)");
+        $verifiedUntil = (string)($stmt ? $stmt->fetchColumn() : '');
+        if ($verifiedUntil === '') return '';
+        $stmt = $db->prepare("UPDATE chat_session_devices
+            SET verified_until = ?, last_seen_at = CURRENT_TIMESTAMP
+            WHERE session_id = ? AND visitor_identifier = ? AND verified_until > NOW()");
+        $stmt->execute([$verifiedUntil, $sessionId, $visitorId]);
+        return $verifiedUntil;
+    } catch (Throwable $e) {
+        error_log('chatSessionTouchDeviceAuth failed: ' . $e->getMessage());
+        return '';
+    }
+}
+
+/**
+ * この端末が当該セッションのSMS認証を通過済みかどうかを返す。
+ * 無期限運用（既定）では有効期限を判定しないため、過去に一度でも認証を済ませた端末は
+ * そのまま認可され、再度SMS認証を求めない（旧仕様で失効した端末もそのまま復帰する）。
+ *
+ * ただし chatSessionRegisterDevice が引き継ぐ「旧所有者」の行（phone_normalized も
+ * verified_until も持たない）は、SMS認証を経ていない可能性があるため認可しない。
+ * 認可対象は、実際に認証・照合を通って登録された行だけに限る。
+ */
 function chatSessionDeviceAuth($db, $sessionId, $visitorId) {
     $sessionId = trim((string)$sessionId);
     $visitorId = trim((string)$visitorId);
@@ -162,9 +229,12 @@ function chatSessionDeviceAuth($db, $sessionId, $visitorId) {
     if (!chatIsValidVisitorId($visitorId)) return null;
     try {
         ensureChatSessionDevicesTable($db);
+        $expiryCondition = chatDeviceAuthIsUnlimited()
+            ? ' AND (phone_normalized IS NOT NULL OR verified_until IS NOT NULL)'
+            : ' AND verified_until > NOW()';
         $stmt = $db->prepare("SELECT phone_normalized, customer_name, verified_until
             FROM chat_session_devices
-            WHERE session_id = ? AND visitor_identifier = ? AND verified_until > NOW()
+            WHERE session_id = ? AND visitor_identifier = ?" . $expiryCondition . "
             LIMIT 1");
         $stmt->execute([$sessionId, $visitorId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);

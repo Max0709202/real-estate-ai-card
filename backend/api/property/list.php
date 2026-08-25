@@ -6,6 +6,8 @@
  *  - 顧客（view_token）: 物件提案メールのリンクから来た未認証の閲覧（読み取り専用・売主情報は非表示）
  *  - 担当（ログイン）: 当該セッションの物件一覧（全情報・閲覧状況付き）
  *
+ * レスポンスの folders には提案物件フォルダーを新しい順で含む（各物件の folder_id が格納先）。
+ *
  * 担当のみ ?sort= で並び替えできる（§3 要望）:
  *   views_total=累計閲覧回数が多い順 / views_week=直近1週間の閲覧回数が多い順 /
  *   last_viewed=最終閲覧日時が新しい順 / 未指定=既定（ステータスのグループ順）
@@ -87,6 +89,9 @@ try {
     }
     sendSuccessResponse([
         'properties' => $items,
+        // 提案物件フォルダー（一覧はフォルダーを上に、フォルダー未格納の物件をその下に表示する）。
+        // 顧客側は物件が1件も入っていないフォルダーを返さない（propertyFoldersFor）。
+        'folders' => propertyFoldersFor($db, $sessionId, $forAgent),
         'is_agent' => $forAgent ? 1 : 0,
         // 実際に適用した並び順（未対応の値を渡されたときは既定に戻したことが分かるように返す）。
         'sort' => $forAgent && propertyViewSortOrderSql($sort) !== '' ? $sort : '',

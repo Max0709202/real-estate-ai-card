@@ -126,7 +126,10 @@
     refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg>',
     warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
     map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>',
-    calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>'
+    calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>',
+    /* 提案物件フォルダー（未格納は輪郭・格納済みは塗りつぶし） */
+    folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+    folderFilled: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 4h4.2l2 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>'
   };
 
   function icon(name) { return ICONS[name] || ''; }
@@ -228,6 +231,60 @@
       icon(on ? 'heartFilled' : 'heart') + '</button>';
   }
 
+  /* ===== 提案物件フォルダー ===== */
+  /* 物件をフォルダー別に振り分ける。並び（サーバーの並び替え結果）はフォルダー内でもそのまま保つ。
+     戻り値: { groups: [{ folder, items }], ungrouped: [物件] }
+     folders に無いフォルダーIDを指す物件は「フォルダー未格納」として扱う。 */
+  function groupByFolder(items, folders) {
+    var groups = [], map = {};
+    (folders || []).forEach(function (f) {
+      var g = { folder: f, items: [] };
+      map[String(f.id)] = g;
+      groups.push(g);
+    });
+    var ungrouped = [];
+    (items || []).forEach(function (p) {
+      var key = (p && p.folder_id != null && p.folder_id !== '') ? String(p.folder_id) : '';
+      if (key && map[key]) map[key].items.push(p);
+      else ungrouped.push(p);
+    });
+    return { groups: groups, ungrouped: ungrouped };
+  }
+
+  /* フォルダー1つ分のブロック（見出し＋中の物件一覧）。担当・顧客の双方で使う。
+     opts: { open: 開いた状態か（既定 true）, count: 見出しに出す件数（既定はフォルダーの物件数）,
+             actions: 見出し右に出すHTML（担当の「名前変更」「削除」）, empty: 中が空のときの文言 } */
+  function folderSectionHtml(folder, innerHtml, opts) {
+    opts = opts || {};
+    var open = opts.open !== false;
+    var count = opts.count != null ? opts.count : (folder.property_count || 0);
+    return '<section class="prop-folder' + (open ? ' is-open' : '') + '" data-folder-id="' + esc(folder.id) + '">' +
+      '<div class="prop-folder__head">' +
+        '<button type="button" class="prop-folder__toggle" data-folder-toggle="' + esc(folder.id) + '"' +
+          ' aria-expanded="' + (open ? 'true' : 'false') + '">' +
+          '<span class="prop-folder__chev">' + icon('chev') + '</span>' +
+          '<span class="prop-folder__icon">' + icon('folderFilled') + '</span>' +
+          '<span class="prop-folder__name">' + esc(folder.name) + '</span>' +
+          '<span class="prop-folder__count">' + esc(count) + '</span>' +
+        '</button>' +
+        (opts.actions || '') +
+      '</div>' +
+      '<div class="prop-folder__body">' +
+        (innerHtml || '<div class="prop-folder__empty">' + esc(opts.empty || 'この中に物件はまだありません。') + '</div>') +
+      '</div>' +
+    '</section>';
+  }
+
+  /* カードのフォルダーボタン（担当側の一覧のみ・opts.folderMove）。
+     押すと格納先フォルダーを選ぶ（格納済みは塗りつぶしのフォルダーアイコン）。 */
+  function folderButtonHtml(p) {
+    var on = p && p.folder_id != null && p.folder_id !== '';
+    return '<button type="button" class="prop-card__folder' + (on ? ' is-active' : '') + '"' +
+      ' data-folder-move="' + esc(p.id) + '"' +
+      ' title="' + (on ? 'フォルダーを変更する' : 'フォルダーに格納する') + '">' +
+      icon(on ? 'folderFilled' : 'folder') + '</button>';
+  }
+
   /* ===== 物件カード（§1 / §4） ===== */
   function cardHtml(p, opts) {
     opts = opts || {};
@@ -248,6 +305,8 @@
     var badge = statusBadgeHtml(p);
     // お気に入り（ハート）。押すと塗りつぶしになり、一覧の「お気に入り」で絞り込める（顧客側のみ）。
     var fav = opts.fav ? favButtonHtml(p) : '';
+    // フォルダー（担当側のみ）。押すと格納先フォルダーを選べる。
+    var folderBtn = opts.folderMove ? folderButtonHtml(p) : '';
     var regDate = formatDate(p.created_at);
     var dateHtml = regDate ? '<div class="prop-card__date">登録日 ' + esc(regDate) + '</div>' : '';
     // 閲覧回数バッジ（担当側の一覧のみ・1回以上のときだけ表示）。
@@ -263,7 +322,7 @@
         '<div class="prop-card__meta">' + meta.join('<br>') + '</div>' +
         viewStats +
         dateHtml +
-      '</div>' + fav +
+      '</div>' + fav + folderBtn +
     '</div>';
   }
 
@@ -332,6 +391,17 @@
       }
     }
     return html;
+  }
+
+  /* ===== 物件PRコメント（担当者がお客様へ届ける紹介文） =====
+     顧客側の物件詳細に表示する読み取り専用ブロック。未登録なら何も描画しない。 */
+  function prCommentBlockHtml(p) {
+    var text = p && p.pr_comment != null ? String(p.pr_comment).trim() : '';
+    if (!text) return '';
+    return '<div class="prop-pr-view">' +
+      '<div class="prop-pr-view__head">' + icon('agent') + '担当者からのPRコメント</div>' +
+      '<div class="prop-pr-view__body">' + esc(text) + '</div>' +
+    '</div>';
   }
 
   /* ===== ハザード（§12/§13） ===== */
@@ -550,7 +620,9 @@
     passReasonPicker: passReasonPicker, showPassReason: showPassReason, passReasonBlockHtml: passReasonBlockHtml,
     sourceHtml: sourceHtml, statusBadgeHtml: statusBadgeHtml, cardHtml: cardHtml,
     isFavorite: isFavorite, favButtonHtml: favButtonHtml,
+    groupByFolder: groupByFolder, folderSectionHtml: folderSectionHtml, folderButtonHtml: folderButtonHtml,
     detailHeaderHtml: detailHeaderHtml, basicInfoHtml: basicInfoHtml, hazardHtml: hazardHtml,
+    prCommentBlockHtml: prCommentBlockHtml,
     galleryHtml: galleryHtml, lightbox: lightbox, pdfViewer: pdfViewer, bindLightbox: bindLightbox, modal: modal,
     addAuth: addAuth, hexToTint: hexToTint
   };

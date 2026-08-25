@@ -123,7 +123,7 @@ try {
     } else {
         $deviceAuth = $visitorId !== '' ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
         if ($visitorId === '' || !$deviceAuth) {
-            sendErrorResponse('SMS認証の有効期限が切れています。もう一度SMS認証を行ってください。', 403);
+            sendErrorResponse('この端末ではまだSMS認証が完了していません。SMS認証を行ってください。', 403);
         }
         $profileComplete = chatIntakeProfileComplete($leadProfile);
         if (!$profileComplete) {
