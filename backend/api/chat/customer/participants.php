@@ -80,7 +80,7 @@ try {
     // SMS認証済み端末のみ（send.php と同じ device auth）。
     $deviceAuth = chatSessionDeviceAuth($db, $sessionId, $visitorId);
     if (!$deviceAuth) {
-        sendErrorResponse('SMS認証の有効期限が切れています。もう一度SMS認証を行ってください。', 403);
+        sendErrorResponse('この端末ではまだSMS認証が完了していません。SMS認証を行ってください。', 403);
     }
     $selfPhone = trim((string)($deviceAuth['phone_normalized'] ?? ''));
 
