@@ -48,6 +48,12 @@
         wrap.setAttribute('role', 'group');
         wrap.setAttribute('aria-label', '文字サイズの変更');
 
+        // スマホでは右下のAIエージェント起動ボタンが画面幅の大半を占め、同じ高さにある
+        // 切替ボタンを覆って押せなくなる。チャットのあるページだけ上へ逃がす（位置はCSS側）。
+        if (document.getElementById('chat-widget-root')) {
+            wrap.classList.add('font-scale-switch-above-chat');
+        }
+
         var label = document.createElement('span');
         label.className = 'font-scale-switch-label';
         label.textContent = '文字サイズ';

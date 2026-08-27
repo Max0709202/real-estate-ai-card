@@ -98,6 +98,23 @@ html[data-font-scale="xlarge"] {
     outline-offset: 2px;
 }
 
+/* スマートフォンでは右下のAIエージェント起動ボタンが画面幅の大半（min(86vw, 290px)）を
+   占めるため、同じ高さに並べると切替ボタンが隠れて押せなくなる。チャット起動ボタンがある
+   ページ（JS側で .font-scale-switch-above-chat を付与）では、その真上へ退避させる。
+   退避量＝チャット起動ボタンの下端(1.25rem)＋ボタン高さ＋余白(0.5rem)。 */
+@media (max-width: 600px) {
+    .font-scale-switch.font-scale-switch-above-chat {
+        bottom: calc(1.25rem + 58px + 0.5rem);
+    }
+}
+
+/* 480px以下はチャット起動ボタンの高さが56pxになる（chat-widget.css）ため合わせる。 */
+@media (max-width: 480px) {
+    .font-scale-switch.font-scale-switch-above-chat {
+        bottom: calc(1.25rem + 56px + 0.5rem);
+    }
+}
+
 /* 全画面チャット（chat-only）表示では画面をチャットが占有するため切替UIを隠す。 */
 body.chat-only-mode .font-scale-switch {
     display: none;
