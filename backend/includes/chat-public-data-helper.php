@@ -44,7 +44,15 @@ function chatExtractAddressFromMessage($message) {
     $num = '[0-9０-９]';
     $ja  = '[一-龥ぁ-んァ-ンヶ々ー]';
     $pref = '(?:北海道|東京都|京都府|大阪府|' . $ja . '{2,3}県)';
+    // 「1丁目14番9号」「1丁目14-9」「1丁目14」「1-14-9」「14番9号」をすべて拾う。
+    // ※「1丁目14-9」形式が抜けていたため、丁目だけを取り込んだ直後に末尾の boundary
+    //   （次が数字なら不可）で失敗し、regex が右へずれて「丁目14-9」という無意味な
+    //   文字列を住所として返していた。結果 GSI ジオコーディングが必ず失敗し、
+    //   その住所の不動産情報ライブラリGIS照会（学区・ハザード・地価等）が全滅していた。
+    //   丁目つき住所は「番地・号」形式を最優先で試し、次にハイフン形式を試す。
     $banchi = '(?:' . $num . '+\s*丁目(?:\s*' . $num . '+\s*番地?)?(?:\s*' . $num . '+\s*号)?'
+            . '|' . $num . '+\s*丁目\s*' . $num . '+(?:[-－‐ー―]' . $num . '+){1,2}'
+            . '|' . $num . '+\s*丁目\s*' . $num . '+'
             . '|' . $num . '+(?:[-－‐ー―]' . $num . '+){1,3}'
             . '|' . $num . '+\s*番地?(?:\s*' . $num . '+\s*号)?)';
     // Reject partial numbers / units so "予算10-20万円" or "10時20分" are not addresses.
@@ -244,12 +252,25 @@ function chatReinfoCityCode($db, $prefCode, $cityName) {
     $result = chatPublicDataCachedGet($db, 'reinfolib', $url, ['Ocp-Apim-Subscription-Key' => REINFOLIB_API_KEY], 604800);
     $data = $result['data'];
     if (!is_array($data)) return null;
+    // 突合は双方向で行う。chatPublicExtractArea() は「東京都中央区新川1丁目…」から
+    // 都道府県込みの「東京都中央区」を市区町村名として返すことがあり、API側の名称
+    // 「中央区」とは片方向（name に cityName が含まれるか）では一致しない。そのため
+    // 都道府県名を伴う住所では XIT001（取引価格・成約価格）が常に取得できなかった。
+    // 複数一致する場合（「中区」⊂「横浜市中区」等）は、一致した名称が最も長い行を採る。
+    $bestId = null;
+    $bestLen = 0;
     foreach (chatPublicDataRows($data) as $row) {
-        $name = $row['name'] ?? $row['Name'] ?? '';
+        $name = (string)($row['name'] ?? $row['Name'] ?? '');
         $id = $row['id'] ?? $row['Id'] ?? $row['code'] ?? null;
-        if ($id && $name && mb_strpos($name, $cityName) !== false) return (string)$id;
+        if (!$id || $name === '') continue;
+        if (mb_strpos($name, $cityName) === false && mb_strpos($cityName, $name) === false) continue;
+        $len = mb_strlen($name);
+        if ($len > $bestLen) {
+            $bestLen = $len;
+            $bestId = (string)$id;
+        }
     }
-    return null;
+    return $bestId;
 }
 
 function chatReinfoContext($db, $message, $area, $force = false) {
@@ -2469,9 +2490,19 @@ function chatMessageAsksLandHazardInfo($message) {
  * 通学区域（小学校区・中学校区）の照会意図があるか。
  * 「通学区域」「学区域」「小学校区」「中学校区」はいずれも部分文字列として
  * 「学区」または「校区」を含むが、意図を読み取りやすくするため明示的に列挙する。
+ *
+ * お客様は「学区」という言葉を使わずに学区を尋ねる（「どの小学校になる？」
+ * 「この住所の小学校はどこ？」）。これらを学区照会と認識できず、学校の位置データ
+ * （XKT006）しか取得していなかったため「小学校区を確認できませんでした」と
+ * 返っていた。そこで小学校・中学校への言及は原則として学区照会として扱う。
+ * ただし「周辺／近く／最寄り」を伴う場合は施設の位置を尋ねているので学区とはしない
+ * （最寄り校を学区校と取り違えないため）。
  */
 function chatMessageAsksSchoolDistrict($message) {
-    return (bool)preg_match('/(通学区域|通学区|学区域|小学校区|中学校区|学区|校区)/u', (string)$message);
+    $text = (string)$message;
+    if (preg_match('/(通学区域|通学区|学区域|小学校区|中学校区|学区|校区)/u', $text)) return true;
+    return (bool)preg_match('/(小学校|中学校)/u', $text)
+        && !preg_match('/(周辺|近く|近い|近隣|最寄|付近)/u', $text);
 }
 
 /**
@@ -2692,6 +2723,12 @@ function chatResolveMansionAddress($db, $message) {
     // 「該当するマンションが見つかりませんでした」で確定してしまう。
     // chatMessagePointPublicDataTopics() に語を追加したら、こちらにも必ず追加すること。
     $clean = preg_replace('/(通学区域|通学区|学区域|小学校区|中学校区|高等学校|小学校|中学校|高校|学校|学区|校区|土地の個別情報|土地情報|土地|ハザード(?:情報|マップ)?|災害履歴|被災履歴|災害記録|過去の災害|災害|防災拠点|防災|浸水|洪水|水害|土砂災害|土砂|地盤|液状化|津波|高潮|急傾斜地?|都市計画|用途地域|建ぺい率|建蔽率|容積率|区域区分|市街化(?:調整)?区域|市街化|防火(?:・準防火)?地域|防火|地区計画|取引価格|成約価格|成約事例|取引事例|売買事例|地価公示|地価調査|基準地価|公示価格|地価|路線価|鑑定評価|鑑定|評価書|相場|将来推計人口|将来人口|推計人口|人口推計|人口予測|人口集中地区|乗降客数|乗降客|乗降人員|乗降者数|乗車人員|乗客数|利用者数|指定緊急避難場所|避難場所|避難所|医療機関|医療|病院|クリニック|診療所|福祉施設|老人ホーム|高齢者施設|介護|認定こども園|こども園|保育園|保育所|幼稚園|図書館|市役所|区役所|町役場|村役場|役所|役場|公民館|集会施設|国立公園|国定公園|自然公園)/u', ' ', (string)$message);
+    // テーマ語を除いた後に残る疑問形の残骸を落とす。「シティハイツ東京日本橋はどの
+    // 小学校になる？」はテーマ語除去後に「シティハイツ東京日本橋はどの になる？」と
+    // なり、chatExtractMansionSearchTerms() がこれを丸ごと建物名として返すため、
+    // DB検索が必ず0件（＝住所を解決できず学区も答えられない）になっていた。
+    // 長い語を先に並べること（になりますか→になります→になる）。
+    $clean = preg_replace('/(はどの|はどこ|になりますか|になります|になるの|になる|に該当しますか|に該当する|に該当|どの|どこ|どちら|ですか|でしょうか)/u', ' ', (string)$clean);
     try {
         $terms = chatExtractMansionSearchTerms($clean);
         if (empty($terms) || !chatMansionTermLooksSpecific($terms, $clean)) return null;
@@ -4141,6 +4178,19 @@ function chatPublicDataRoute($db, $message, $area) {
             $matched[] = $key;
         }
     }
+    // 「どの小学校になる？」「この住所の小学校はどこ？」のように「学区」という語を
+    // 使わない学区照会は、カタログのキーワード（通学区域|学区|校区）に一致せず、
+    // 学校の位置データ（XKT006）だけが選ばれていた。学区照会と判定できる質問では
+    // 通学区域ポリゴン（XKT004/XKT005）を必ず先頭に加える。あわせて XKT006 は外す
+    // ——「最寄りの学校」を「学区の学校」と取り違えて回答するのを防ぐため。
+    // 「周辺の小学校」のような施設照会は chatMessageAsksSchoolDistrict() が false に
+    // なるためここを通らず、従来どおり XKT006 が使われる。
+    if (chatMessageAsksSchoolDistrict($message)) {
+        $matched = array_values(array_filter($matched, function ($key) { return $key !== 'XKT006'; }));
+        foreach (['XKT005', 'XKT004'] as $schoolCode) {
+            if (!in_array($schoolCode, $matched, true)) array_unshift($matched, $schoolCode);
+        }
+    }
     if (!empty($matched)) {
         return ['providers' => $matched, 'area' => $area, 'router' => 'keyword'];
     }
@@ -4199,7 +4249,27 @@ function chatBuildPublicDataContext($db, $message, $geo = null) {
         // Bound per-message fan-out: a broad question (e.g. "災害") can match many
         // catalog APIs, each of which fetches one or more tiles. Cap to keep latency
         // predictable; keyword/registry order keeps the highest-value APIs first.
-        $providers = array_slice($route['providers'], 0, 5);
+        //
+        // 一律5件だと「洪水・高潮・津波・土砂災害・液状化・盛土の防災情報を教えて」の
+        // ような複合質問で、お客様が挙げた項目が黙って落ちていた。取得コストは種類で
+        // 大きく違う（区域＝ポリゴン照会は中心1タイルのみ／周辺施設＝ポイント照会は
+        // 3x3の9タイル）ため、件数一律ではなく種類別の上限にする。最悪ケースの取得
+        // タイル数は 8×1 + 4×9 = 44 で、従来の 5×9 = 45 と同等に収まる。
+        $geomCatalog = chatReinfoApiCatalog();
+        $zoneQuota = 8;
+        $pointQuota = 4;
+        $providers = [];
+        foreach ($route['providers'] as $providerKey) {
+            $isPoint = isset($geomCatalog[$providerKey]) && ($geomCatalog[$providerKey]['geom'] ?? 'polygon') === 'point';
+            if ($isPoint) {
+                if ($pointQuota <= 0) continue;
+                $pointQuota--;
+            } else {
+                if ($zoneQuota <= 0) continue;
+                $zoneQuota--;
+            }
+            $providers[] = $providerKey;
+        }
     }
     $items = [];
     foreach ($providers as $providerKey) {
