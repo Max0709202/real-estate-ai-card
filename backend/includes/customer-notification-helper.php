@@ -24,6 +24,7 @@
 require_once __DIR__ . '/functions.php'; // sendEmail()
 require_once __DIR__ . '/session-participant-helper.php'; // participantActiveEmails()（2名対応の通知配信先）
 require_once __DIR__ . '/property-view-helper.php'; // propertyViewTokenFor()（物件提案リンクの閲覧トークン）
+require_once __DIR__ . '/property-email-helper.php'; // propertyEmailCompose()（物件提案メールの本文組み立て）
 
 if (!defined('CUSTOMER_NOTIFY_WAIT_SECONDS')) {
     // 顧客向け通知のバッチ集約時間（既定5分）。担当向け（NOTIFY_WAIT_SECONDS）とは独立。
@@ -322,7 +323,10 @@ function customerNotifySendNow(PDO $db, string $sessionId, string $feature): boo
         $subject   = customerNotifySubject($feature, $agentName);
         // 物件提案のリンクには、顧客ごとの閲覧トークンを付ける（SMS認証なしで物件詳細を閲覧できるようにする）。
         $viewToken = $feature === 'property' ? propertyViewTokenFor($db, $sessionId) : '';
-        [$html, $text] = customerNotifyBuildBody($feature, $agentName, $cardSlug, $viewToken);
+        [$html, $text] = customerNotifyBuildBody(
+            $feature, $agentName, $cardSlug, $viewToken,
+            $db, $sessionId, (int)$r['business_card_id']
+        );
 
         // 2名対応: 案件の参加者全員へ個別に送る（本人＋招待されたご家族）。
         $recipients = customerNotifyAllRecipientEmails($db, $sessionId, (string)$r['recipient_email']);
@@ -389,6 +393,21 @@ function customerNotifyDispatch(PDO $db, string $sessionId, string $feature): bo
             @fastcgi_finish_request();
         }
         customerNotifySendNow($db, $sessionId, $feature);
+
+        // 物件提案は、お客様が物件をご覧にならない場合に備えて
+        // 未閲覧リマインド（12時間ごと・最大8回）を予約する。新しい提案のたびに回数を0へ戻して仕切り直す。
+        // 宛先（顧客のメール）が無い場合は propertyReminderSchedule() 側で何もしない。
+        // 循環 require を避けるため、ここで遅延読み込みする。
+        if ($feature === 'property') {
+            try {
+                require_once __DIR__ . '/property-reminder-helper.php';
+                if (function_exists('propertyReminderSchedule')) {
+                    propertyReminderSchedule($db, $sessionId);
+                }
+            } catch (Throwable $e) {
+                error_log('customerNotifyDispatch reminder schedule error: ' . $e->getMessage());
+            }
+        }
     });
     return $enqueued;
 }
@@ -457,11 +476,43 @@ function customerNotifyDeepLinkUrl(string $feature, string $cardSlug, string $vi
     return $url;
 }
 
-/** メール本文（HTML / テキスト）を組み立てる。文面は社内要望どおり。 */
-function customerNotifyBuildBody(string $feature, string $agentName, string $cardSlug, string $viewToken = ''): array
-{
+/**
+ * メール本文（HTML / テキスト）を組み立てる。文面は社内要望どおり。
+ *
+ * 物件提案（feature='property'）は、提案した物件の内容（物件名・価格・住所・専有面積・築年月）を
+ * カードとして本文に載せる（2026/9/1 修正依頼）。$db / $sessionId が渡された場合のみカードを作れるため、
+ * 取得できないときは従来どおりリンクだけの本文にフォールバックする。
+ * 担当連絡（feature='contact'）の文面は従来のまま。
+ */
+function customerNotifyBuildBody(
+    string $feature,
+    string $agentName,
+    string $cardSlug,
+    string $viewToken = '',
+    ?PDO $db = null,
+    string $sessionId = '',
+    int $businessCardId = 0
+): array {
     $name = customerNotifyAgentDisplay($agentName);
     $url = customerNotifyDeepLinkUrl($feature, $cardSlug, $viewToken);
+
+    if ($feature === 'property' && $db !== null && trim($sessionId) !== '') {
+        try {
+            return propertyEmailCompose(
+                $db,
+                $sessionId,
+                $businessCardId,
+                '以下の物件のご提案をさせていただきます。',
+                $url,
+                $viewToken,
+                $agentName
+            );
+        } catch (Throwable $e) {
+            // 本文の組み立てに失敗しても通知そのものは止めない（下のフォールバックで送る）。
+            error_log('customerNotifyBuildBody property body error: ' . $e->getMessage());
+        }
+    }
+
     $lead = $feature === 'property'
         ? "{$name}より、物件の提案が届いています。"
         : "{$name}より、メッセージが届いています。";
@@ -499,7 +550,7 @@ function customerNotifyFlushDue(PDO $db, int $limit = 20): array
     customerNotifyEnsureTable($db);
 
     $stmt = $db->prepare(
-        "SELECT id, session_id, feature, recipient_email, agent_name, card_slug
+        "SELECT id, session_id, feature, business_card_id, recipient_email, agent_name, card_slug
          FROM customer_notification_jobs
          WHERE status='pending' AND scheduled_at IS NOT NULL AND scheduled_at <= NOW()
          ORDER BY scheduled_at ASC
@@ -516,7 +567,10 @@ function customerNotifyFlushDue(PDO $db, int $limit = 20): array
         $subject = customerNotifySubject($feature, $agentName);
         // 物件提案のリンクには、顧客ごとの閲覧トークンを付ける（SMS認証なしで物件詳細を閲覧できるようにする）。
         $viewToken = $feature === 'property' ? propertyViewTokenFor($db, (string)$job['session_id']) : '';
-        [$html, $text] = customerNotifyBuildBody($feature, $agentName, $cardSlug, $viewToken);
+        [$html, $text] = customerNotifyBuildBody(
+            $feature, $agentName, $cardSlug, $viewToken,
+            $db, (string)$job['session_id'], (int)($job['business_card_id'] ?? 0)
+        );
 
         // 2名対応: 案件の参加者全員へ個別に送る（本人＋招待された家族）。
         // 参加者が1名なら従来どおり1通（recipient_email のみ）。
