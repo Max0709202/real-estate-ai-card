@@ -8,6 +8,8 @@
  *
  * 文字コードは既存のCSV出力（backend/api/admin/export-csv.php）に合わせ、
  * Excelでそのまま開けるBOM付きUTF-8とする。
+ * 顧客電話番号はSMS認証由来の E.164（+819072234273）で保存されているため、
+ * そのまま使えるよう国内表記（09072234273）へ直して出力する。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -84,7 +86,8 @@ try {
             $customer['member_email'],
             $customer['member_org_role_label'],
             $customer['customer_name'],
-            $customer['customer_phone'],
+            // 電話番号は国番号（+81）を外した国内表記で出す。そのまま発信・貼り付けできるようにするため。
+            orgFormatPhoneLocal($customer['customer_phone']),
             $customer['customer_email'],
             $invitationLabels[$customer['invitation_status']] ?? '',
             $customer['message_count'],

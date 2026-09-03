@@ -2,7 +2,8 @@
 /**
  * 添付ファイルの配信（認証付きプロキシ）。直リンク禁止。
  * GET ?id=<attachment_id>&session_id=&visitor_id=
- * 担当（ログイン＋名刺所有）または、当該セッションの顧客（session_id+visitor_id）のみ取得可能。
+ * 担当（ログイン＋名刺所有）、その担当の上長（統括・店長／閲覧のみ）、
+ * または当該セッションの顧客（session_id+visitor_id）のみ取得可能。
  */
 require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../../config/database.php';
@@ -38,6 +39,13 @@ try {
     startSessionIfNotStarted();
     if (!empty($_SESSION['user_id']) && (int)$_SESSION['user_id'] === (int)$att['user_id']) {
         $authorized = true;
+    }
+
+    // 上長（統括（全閲覧）・マネージャー（店長））が「組織・配下顧客」から閲覧している場合。
+    // 自分の閲覧範囲に入っている担当者の添付だけを、読み取り専用で通す。
+    if (!$authorized && !empty($_SESSION['user_id'])) {
+        require_once __DIR__ . '/../../../includes/org-hierarchy-helper.php';
+        $authorized = orgCanViewMemberCustomers($db, (int)$_SESSION['user_id'], (int)$att['user_id']);
     }
 
     // 顧客としてのアクセス（session_id 一致＋（登録済みなら）visitor_id 一致）。
