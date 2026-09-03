@@ -35,7 +35,7 @@
     application:      { label: '申込検討',   role: 'customer', color: '#f08a24', icon: 'application' },
     brokerage_ok:     { label: '仲介可',     role: 'agent',    color: '#1f9d57', icon: 'brokerage' },
     not_introducible: { label: 'ご紹介不可', role: 'agent',    color: '#6b3fd1', icon: 'notintro' },
-    contracted:       { label: '契約',       role: 'agent',    color: '#00796b', icon: 'contract' }
+    contracted:       { label: '契約',       role: 'agent',    color: '#d32f2f', icon: 'contract' }
   };
 
   /* 見送り(passed)理由の選択肢（複数選択可・PHP propertyPassReasonDefs と一致） */

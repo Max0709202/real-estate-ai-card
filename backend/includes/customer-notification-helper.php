@@ -320,7 +320,7 @@ function customerNotifySendNow(PDO $db, string $sessionId, string $feature): boo
 
         $agentName = (string)$r['agent_name'];
         $cardSlug  = (string)$r['card_slug'];
-        $subject   = customerNotifySubject($feature, $agentName);
+        $subject   = customerNotifySubject($feature, $agentName, $db, (int)$r['business_card_id']);
         // 物件提案のリンクには、顧客ごとの閲覧トークンを付ける（SMS認証なしで物件詳細を閲覧できるようにする）。
         $viewToken = $feature === 'property' ? propertyViewTokenFor($db, $sessionId) : '';
         [$html, $text] = customerNotifyBuildBody(
@@ -443,10 +443,33 @@ function customerNotifyMarkRead(PDO $db, string $sessionId, string $feature): in
     }
 }
 
-/** 機能キー → 件名 */
-function customerNotifySubject(string $feature, string $agentName): string
-{
+/**
+ * 機能キー → 件名
+ *
+ * 物件提案（feature='property'）は
+ *   「物件情報をお届けします（会社名　担当者名）」
+ * とする（2026/9/1 修正依頼 ②）。お客様には担当者名義のご案内として届くため、
+ * この件名だけはサービス名のプレフィックス（【不動産AI名刺】）を付けない。
+ * 会社名・担当者名を引くために $db / $businessCardId が要る。取れない場合は従来の件名に戻す。
+ * 担当連絡（feature='contact'）の件名は従来のまま。
+ */
+function customerNotifySubject(
+    string $feature,
+    string $agentName,
+    ?PDO $db = null,
+    int $businessCardId = 0
+): string {
     $name = customerNotifyAgentDisplay($agentName);
+    if ($feature === 'property' && $db !== null) {
+        try {
+            $display = propertyEmailAgentIdentity($db, $businessCardId, $agentName)['display'];
+            if ($display !== '') {
+                return "物件情報をお届けします（{$display}）";
+            }
+        } catch (Throwable $e) {
+            error_log('customerNotifySubject property subject error: ' . $e->getMessage());
+        }
+    }
     switch ($feature) {
         case 'property':
             $body = "{$name}より物件のご提案が届いています";
@@ -502,7 +525,7 @@ function customerNotifyBuildBody(
                 $db,
                 $sessionId,
                 $businessCardId,
-                '以下の物件のご提案をさせていただきます。',
+                '以下の物件の情報をお届けいたします。',
                 $url,
                 $viewToken,
                 $agentName
@@ -564,7 +587,7 @@ function customerNotifyFlushDue(PDO $db, int $limit = 20): array
         $feature = (string)$job['feature'];
         $agentName = (string)($job['agent_name'] ?? '');
         $cardSlug = (string)($job['card_slug'] ?? '');
-        $subject = customerNotifySubject($feature, $agentName);
+        $subject = customerNotifySubject($feature, $agentName, $db, (int)($job['business_card_id'] ?? 0));
         // 物件提案のリンクには、顧客ごとの閲覧トークンを付ける（SMS認証なしで物件詳細を閲覧できるようにする）。
         $viewToken = $feature === 'property' ? propertyViewTokenFor($db, (string)$job['session_id']) : '';
         [$html, $text] = customerNotifyBuildBody(

@@ -175,7 +175,10 @@ function chatCrmDefaultConditions($dealType = 'purchase') {
             'station_lines' => [],
             'stations' => [],
             'walk_minutes' => null,
-            'property_type' => 'マンション',
+            // お客様が回答していない段階で「マンション」が既定値として入っており、
+            // ヒアリング済みの確定条件として扱われていた（AI要約にも「希望種別はマンション」と出ていた）。
+            // 初期値は他の項目と同じく未設定（null）とし、実際に伺った内容だけを保持する。
+            'property_type' => null,
             'layout' => null,
             'area_min' => null,
             'building_age' => null,

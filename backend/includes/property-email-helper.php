@@ -264,12 +264,15 @@ if (!function_exists('propertyEmailCardsText')) {
     }
 }
 
-if (!function_exists('propertyEmailSignature')) {
+if (!function_exists('propertyEmailAgentIdentity')) {
     /**
-     * 署名（例:「リニュアル仲介株式会社　西生建」）。
-     * 名刺の会社名＋担当者名から組み立てる。会社名が未登録なら担当者名のみ。
+     * 差出人（担当者）の会社名・氏名を名刺から取得する。
+     * 件名・名乗り・署名で同じ表記を使うため、ここで一元的に解決する。
+     *
+     * @return array{company: string, name: string, display: string}
+     *         display は「会社名　氏名」（例:「リニュアル仲介株式会社　山田太郎」）。
      */
-    function propertyEmailSignature(PDO $db, int $businessCardId, string $fallbackAgentName = ''): string
+    function propertyEmailAgentIdentity(PDO $db, int $businessCardId, string $fallbackAgentName = ''): array
     {
         $company = '';
         $name = '';
@@ -282,13 +285,83 @@ if (!function_exists('propertyEmailSignature')) {
                     $name    = trim((string)($row['name'] ?? ''));
                 }
             } catch (Throwable $e) {
-                error_log('propertyEmailSignature error: ' . $e->getMessage());
+                error_log('propertyEmailAgentIdentity error: ' . $e->getMessage());
             }
         }
+        // 担当者の表示名は customerNotifyAgentDisplay() で「様」を付ける運用のため、ここでは素の氏名を使う。
         if ($name === '') $name = trim($fallbackAgentName);
-        // 担当者の表示名は customerNotifyAgentDisplay() で「様」を付ける運用のため、署名では素の氏名を使う。
         $parts = array_values(array_filter([$company, $name], fn($v) => $v !== ''));
-        return implode('　', $parts);
+        return ['company' => $company, 'name' => $name, 'display' => implode('　', $parts)];
+    }
+}
+
+if (!function_exists('propertyEmailSignature')) {
+    /**
+     * 署名（例:「リニュアル仲介株式会社　山田太郎」）。
+     * 名刺の会社名＋担当者名から組み立てる。会社名が未登録なら担当者名のみ。
+     */
+    function propertyEmailSignature(PDO $db, int $businessCardId, string $fallbackAgentName = ''): string
+    {
+        return propertyEmailAgentIdentity($db, $businessCardId, $fallbackAgentName)['display'];
+    }
+}
+
+if (!function_exists('propertyEmailCustomerName')) {
+    /**
+     * 宛名に使うお客様のお名前。取得できない場合は空文字。
+     * 参照順は宛先メールの解決（customerNotifyResolveEmail）と揃える。
+     *   1) chat_lead_contacts.customer_name（お客様がご登録された連絡先）
+     *   2) chat_leads.structured_data.customer_name（ヒアリングで伺ったお名前）
+     *   3) chat_customer_invitations（担当が事前作成した顧客ページの入力値）
+     */
+    function propertyEmailCustomerName(PDO $db, string $sessionId, int $businessCardId = 0): string
+    {
+        $sessionId = trim($sessionId);
+        if ($sessionId === '') return '';
+
+        try {
+            $stmt = $db->prepare(
+                "SELECT customer_name FROM chat_lead_contacts
+                 WHERE session_id = ? AND customer_name IS NOT NULL AND TRIM(customer_name) <> ''
+                 ORDER BY updated_at DESC LIMIT 1"
+            );
+            $stmt->execute([$sessionId]);
+            $name = trim((string)($stmt->fetchColumn() ?: ''));
+            if ($name !== '') return $name;
+        } catch (Throwable $e) {
+            // テーブル未作成等は無視して次の手段へ。
+        }
+
+        try {
+            $stmt = $db->prepare("SELECT structured_data FROM chat_leads WHERE session_id = ? LIMIT 1");
+            $stmt->execute([$sessionId]);
+            $sd = $stmt->fetchColumn();
+            if ($sd) {
+                $data = json_decode((string)$sd, true);
+                if (is_array($data) && !empty($data['customer_name'])) {
+                    $name = trim((string)$data['customer_name']);
+                    if ($name !== '') return $name;
+                }
+            }
+        } catch (Throwable $e) {
+            // 無視。
+        }
+
+        try {
+            $stmt = $db->prepare(
+                "SELECT IF(COALESCE(first_name, '') = '', last_name, CONCAT(last_name, '　', first_name))
+                 FROM chat_customer_invitations
+                 WHERE session_id = ? AND (? = 0 OR business_card_id = ?)
+                 ORDER BY id DESC LIMIT 1"
+            );
+            $stmt->execute([$sessionId, $businessCardId, $businessCardId]);
+            $name = trim((string)($stmt->fetchColumn() ?: ''));
+            if ($name !== '') return $name;
+        } catch (Throwable $e) {
+            // 無視。
+        }
+
+        return '';
     }
 }
 
@@ -313,13 +386,26 @@ if (!function_exists('propertyEmailCompose')) {
         $proposed = propertyEmailProposedItems($db, $sessionId, PROPERTY_EMAIL_MAX_CARDS);
         $cardsHtml = propertyEmailCardsHtml($proposed['items'], $proposed['total'], $viewToken);
         $cardsText = propertyEmailCardsText($proposed['items'], $proposed['total']);
-        $signature = propertyEmailSignature($db, $businessCardId, $fallbackAgentName);
+        $agent = propertyEmailAgentIdentity($db, $businessCardId, $fallbackAgentName);
+        $signature = $agent['display'];
+
+        // 冒頭の宛名・挨拶・名乗り（例:「山田 太郎様 / お世話になっております。 /
+        // リニュアル仲介株式会社の山田太郎です。」）。お名前が分からない場合は「お客様」とする。
+        $customerName = propertyEmailCustomerName($db, $sessionId, $businessCardId);
+        $greetingLines = [$customerName !== '' ? $customerName . '様' : 'お客様'];
+        $greetingLines[] = 'お世話になっております。';
+        if ($agent['name'] !== '') {
+            $greetingLines[] = ($agent['company'] !== '' ? $agent['company'] . 'の' : '') . $agent['name'] . 'です。';
+        }
+
+        // 冒頭の挨拶に続けて、用件（提案のお知らせ／未閲覧リマインドの各回文面）を置く。
+        $bodyLines = array_merge($greetingLines, preg_split('/\R/u', trim($leadText)));
 
         $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 
-        // リード文は複数行あり得るため、行ごとに段落化する（空行は段落の区切りとして詰める）。
+        // 本文は複数行あり得るため、行ごとに段落化する（空行は段落の区切りとして詰める）。
         $leadHtml = '';
-        foreach (preg_split('/\R/u', trim($leadText)) as $line) {
+        foreach ($bodyLines as $line) {
             $line = trim($line);
             if ($line === '') continue;
             $leadHtml .= '<p style="margin:0 0 8px 0;">' . htmlspecialchars($line, ENT_QUOTES, 'UTF-8') . '</p>';
@@ -340,7 +426,7 @@ if (!function_exists('propertyEmailCompose')) {
             . '<p style="margin:24px 0 0 0;font-size:12px;color:#888;">※このメールに心当たりがない場合は破棄してください。</p>'
             . '</div>';
 
-        $text = trim($leadText) . "\n\n"
+        $text = implode("\n\n", array_values(array_filter(array_map('trim', $bodyLines), fn($v) => $v !== ''))) . "\n\n"
             . ($cardsText !== '' ? $cardsText . "\n\n" : '')
             . "詳細は、以下のリンクよりご確認ください。\n\n"
             . "内容を確認する: {$url}\n"
