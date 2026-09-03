@@ -1761,6 +1761,8 @@ function editSectionIcon(string $key): string
                         </div>
                     </div>
 
+                    <!-- 一覧（メンバー・顧客）。顧客詳細を開いている間はまとめて隠す。 -->
+                    <div id="org-team-browse">
                     <div id="org-team-summary" class="org-team-summary"></div>
 
                     <div class="org-team-block">
@@ -1795,11 +1797,29 @@ function editSectionIcon(string $key): string
                             </div>
                         </div>
                         <p class="section-note">
-                            店長を選ぶと「店舗全体（店長＋その配下の営業）」の顧客をまとめて確認できます。CSV出力も同じ範囲です。
+                            店長を選ぶと「店舗全体（店長＋その配下の営業）」の顧客をまとめて確認できます。CSV出力も同じ範囲です。<br>
+                            <strong>顧客名</strong>を押すと、担当者のマイページに表示されている顧客詳細を<strong>閲覧のみ</strong>で確認できます。
                         </p>
                         <div id="org-customer-list" class="org-team-list">
                             <p class="chat-history-loading">読み込み中...</p>
                         </div>
+                    </div>
+                    </div>
+
+                    <!-- 配下顧客の詳細（閲覧のみ）。
+                         担当者のマイページ「顧客詳細」と同じ内容を表示するが、
+                         編集・削除・チャットの代理返信の導線は一切置かない。 -->
+                    <div id="org-customer-detail" class="org-team-block" style="display: none;">
+                        <div class="org-team-toolbar">
+                            <h3 id="org-customer-detail-title">顧客詳細（閲覧のみ）</h3>
+                            <div class="org-team-toolbar-actions">
+                                <button type="button" class="btn-secondary" id="org-customer-detail-back">顧客一覧に戻る</button>
+                            </div>
+                        </div>
+                        <p class="section-note">
+                            担当者のマイページに表示されている内容です。<strong>閲覧のみ</strong>で、編集・削除やチャットの代理返信はできません。
+                        </p>
+                        <div id="org-customer-detail-content" class="chat-history-detail org-customer-detail-content"></div>
                     </div>
                 </div>
                 <?php endif; ?>
@@ -5367,6 +5387,12 @@ function editSectionIcon(string $key): string
             var assignParentEl = document.getElementById('org-assign-parent');
             var assignBtn = document.getElementById('org-assign-btn');
             var assignStatusEl = document.getElementById('org-assign-status');
+            // 顧客詳細（閲覧のみ）。一覧と入れ替えで表示する。
+            var browseEl = document.getElementById('org-team-browse');
+            var detailEl = document.getElementById('org-customer-detail');
+            var detailTitleEl = document.getElementById('org-customer-detail-title');
+            var detailContentEl = document.getElementById('org-customer-detail-content');
+            var detailBackBtn = document.getElementById('org-customer-detail-back');
             if (!memberListEl || !customerListEl) return;
 
             var apiBase = window.location.origin + '/backend/api/org';
@@ -5590,7 +5616,11 @@ function editSectionIcon(string $key): string
                     var inviteLabel = invitationLabels[customer.invitation_status] || '';
                     html += '<li class="org-team-item">';
                     html += '<div class="org-team-item-main">';
-                    html += '<span class="org-team-name">' + h(customer.customer_name || '（お名前未登録）') + '</span>';
+                    // 顧客名を押すと、担当者のマイページと同じ顧客詳細を閲覧のみで開く。
+                    html += '<button type="button" class="org-team-name org-customer-open" data-session-id="'
+                        + h(customer.session_id) + '" data-customer-name="' + h(customer.customer_name || '')
+                        + '" title="顧客詳細を閲覧する">'
+                        + h(customer.customer_name || '（お名前未登録）') + '</button>';
                     html += '<span class="org-team-owner">担当：' + h(customer.member_name || customer.member_email) + '</span>';
                     if (inviteLabel && customer.invitation_status !== 'registered') {
                         html += '<span class="chat-lead-badge chat-invite-badge">' + h(inviteLabel) + '</span>';
@@ -5605,6 +5635,242 @@ function editSectionIcon(string $key): string
                 });
                 html += '</ul>';
                 customerListEl.innerHTML = html;
+
+                customerListEl.querySelectorAll('.org-customer-open').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        showCustomerDetail(btn.getAttribute('data-session-id'), btn.getAttribute('data-customer-name'));
+                    });
+                });
+            }
+
+            // ---- 配下顧客の詳細（閲覧のみ）----------------------------------------
+            // 担当者のマイページ「顧客詳細」と同じ内容を表示する。
+            // 送信欄・編集・取り消し・削除のボタンは一切描画しない（サーバー側にもAPIを置いていない）。
+            var currentDetailSessionId = '';
+
+            function setDetailVisible(visible) {
+                if (browseEl) browseEl.style.display = visible ? 'none' : '';
+                if (detailEl) detailEl.style.display = visible ? '' : 'none';
+            }
+
+            function detailAttachmentHtml(att) {
+                if (!att) return '';
+                // 添付は認証付きプロキシ経由。担当が別ホストで作った絶対URLでもCookieが送られるよう
+                // 現在のオリジンへ揃える（チャット履歴側と同じ扱い）。
+                var url = String(att.url || '');
+                var idx = url.indexOf('/backend/api/');
+                if (idx >= 0) url = window.location.origin + url.slice(idx);
+                if (att.is_image) {
+                    return '<a class="chat-attach chat-attach-image" href="' + h(url) + '" target="_blank" rel="noopener">'
+                        + '<img src="' + h(url) + '" alt="' + h(att.original_name || '画像') + '" loading="lazy"></a>';
+                }
+                var icon = att.kind === 'pdf' ? '📄' : (att.kind === 'word' ? '📝' : (att.kind === 'excel' ? '📊' : '📎'));
+                return '<a class="chat-attach chat-attach-file" href="' + h(url) + '" target="_blank" rel="noopener">'
+                    + icon + ' ' + h(att.original_name || 'ファイル') + '</a>';
+            }
+
+            function detailMessageHtml(m) {
+                var role = m.role || '';
+                var who = role === 'user' ? 'お客様' : (role === 'agent' ? '担当者' : (role === 'bot' || role === 'assistant' ? 'AI' : 'システム'));
+                var deleted = !!m.deleted;
+                var edited = !!m.edited;
+                var atts = deleted ? '' : (m.attachments || []).map(detailAttachmentHtml).join('');
+                var body = m.message && m.message !== '[ファイルを送信しました]' ? h(m.message) : '';
+                var readMark = (role === 'agent' && m.read_at) ? '<span class="chat-thread-read">既読</span>' : '';
+                var editedMark = (edited && !deleted) ? '<span class="chat-thread-edited">編集済み</span>' : '';
+                return '<div class="chat-thread-msg chat-thread-' + h(role) + '">'
+                    + '<div class="chat-thread-meta"><span class="chat-thread-who">' + who + '</span>'
+                    + '<span class="chat-thread-time">' + h(formatDateTime(m.created_at)) + '</span>' + readMark + editedMark + '</div>'
+                    + (body ? '<div class="chat-thread-bubble' + (deleted ? ' chat-thread-deleted' : '') + '">' + body + '</div>' : '')
+                    + (atts ? '<div class="chat-thread-attachments">' + atts + '</div>' : '')
+                    + '</div>';
+            }
+
+            function detailAiSummarySection(title, value, isList) {
+                var body = '';
+                if (isList) {
+                    var items = Array.isArray(value) ? value.filter(function(v) { return String(v || '').trim() !== ''; }) : [];
+                    if (!items.length) return '';
+                    body = '<ul class="ai-summary-list">';
+                    items.forEach(function(item) { body += '<li>' + h(String(item).trim()) + '</li>'; });
+                    body += '</ul>';
+                } else {
+                    var text = String(value || '').trim();
+                    if (text === '') return '';
+                    body = '<p class="ai-summary-text">' + h(text).replace(/\n/g, '<br>') + '</p>';
+                }
+                return '<section class="ai-summary-section"><h5>' + h(title) + '</h5>' + body + '</section>';
+            }
+
+            function detailAiSummaryHtml(summary) {
+                summary = summary && typeof summary === 'object' ? summary : {};
+                var inner = '';
+                inner += detailAiSummarySection('お客様概要', summary.customer_overview, false);
+                inner += detailAiSummarySection('主な希望条件', summary.property_requirements, true);
+                inner += detailAiSummarySection('資金・住宅ローン', summary.financial_status, true);
+                inner += detailAiSummarySection('営業担当者への申し送り', summary.sales_handover, false);
+                inner += detailAiSummarySection('次に確認すること', summary.needs_confirmation, true);
+                if (inner === '') inner = '<p class="chat-thread-empty">AIとの会話内容はまだ整理されていません。</p>';
+                return '<h4>AIチャット履歴（AI整理サマリー）</h4><div class="chat-ai-summary">' + inner + '</div>';
+            }
+
+            // ヒアリング情報のうち「顧客情報」と重複する項目は出さない（担当画面と同じ扱い）。
+            var DETAIL_LEAD_HIDDEN_FIELDS = {
+                customer_name: 1,
+                customer_phone: 1,
+                customer_phone_verified: 1,
+                customer_email: 1,
+                preferred_contact: 1,
+                preferred_contact_method: 1
+            };
+
+            function detailLeadHtml(groups) {
+                if (!groups) return '';
+                var sections = [
+                    ['confirmed', '確定情報'],
+                    ['inferred', '未確認情報'],
+                    ['needs_confirmation', '要確認情報']
+                ];
+                function visibleItems(key) {
+                    var items = Array.isArray(groups[key]) ? groups[key] : [];
+                    return items.filter(function(item) { return item && !DETAIL_LEAD_HIDDEN_FIELDS[item.field]; });
+                }
+                if (!sections.some(function(pair) { return visibleItems(pair[0]).length > 0; })) return '';
+
+                var html = '<h4>ヒアリング情報</h4><div class="chat-lead-data chat-lead-classified">';
+                sections.forEach(function(pair) {
+                    var items = visibleItems(pair[0]);
+                    if (!items.length) return;
+                    html += '<section class="chat-lead-group chat-lead-group-' + pair[0] + '"><h5>' + h(pair[1]) + '</h5><dl>';
+                    items.forEach(function(item) {
+                        html += '<dt>' + h(item.label || item.field || '項目') + '</dt>';
+                        html += '<dd>' + h(item.value || '') + '</dd>';
+                    });
+                    html += '</dl></section>';
+                });
+                html += '</div>';
+                return html;
+            }
+
+            function detailLoanHtml(data) {
+                if (!data || !Array.isArray(data.groups) || !data.groups.length) return '';
+                var html = '<h4>住宅ローンシミュレーター入力</h4><div class="chat-loan-data">';
+                if (data.updated_at) html += '<p class="chat-loan-updated">最終入力: ' + h(formatDateTime(data.updated_at)) + '</p>';
+                data.groups.forEach(function(group) {
+                    html += '<section class="chat-loan-group"><h5>' + h(group.title || '入力内容') + '</h5><dl>';
+                    (group.items || []).forEach(function(item) {
+                        html += '<dt>' + h(item.label || '項目') + '</dt><dd>' + h(item.value || '') + '</dd>';
+                    });
+                    html += '</dl></section>';
+                });
+                html += '</div>';
+                return html;
+            }
+
+            function detailPropertiesHtml(properties) {
+                if (!Array.isArray(properties) || !properties.length) return '';
+                var html = '<h4>物件選定（提案物件）</h4><ul class="org-team-items org-detail-properties">';
+                properties.forEach(function(property) {
+                    var meta = [property.price_text, property.layout, property.area, property.address, property.transport]
+                        .filter(function(value) { return String(value || '').trim() !== ''; });
+                    html += '<li class="org-team-item">';
+                    html += '<div class="org-team-item-main">';
+                    html += '<span class="org-team-name">' + h(property.name || '（物件名未登録）') + '</span>';
+                    if (property.status_label) {
+                        html += '<span class="org-team-role"' + (property.status_color ? ' style="color:' + h(property.status_color) + ';"' : '')
+                            + '>' + h(property.status_label) + '</span>';
+                    }
+                    html += '</div>';
+                    html += '<div class="org-team-item-meta"><span>' + h(meta.join('／')) + '</span></div>';
+                    html += '</li>';
+                });
+                html += '</ul>';
+                return html;
+            }
+
+            function detailButtonArchiveHtml(lead) {
+                var archive = lead && lead.structured_data && Array.isArray(lead.structured_data._button_selection_archive)
+                    ? lead.structured_data._button_selection_archive : [];
+                if (!archive.length) return '';
+                var html = '<h4>選択ボタン履歴</h4><div class="chat-contact-data">';
+                archive.forEach(function(item) {
+                    var label = item.label || '';
+                    if (!label && Array.isArray(item.selected)) {
+                        label = item.selected.map(function(selected) { return selected.label || ''; }).filter(Boolean).join('、');
+                    }
+                    var field = item.field ? ' / 項目: ' + item.field : '';
+                    var createdAt = item.created_at ? ' / ' + formatDateTime(item.created_at) : '';
+                    html += '<p><strong>' + h(label || '選択内容なし') + '</strong>' + h(field + createdAt) + '</p>';
+                });
+                html += '</div>';
+                return html;
+            }
+
+            function renderCustomerDetail(data) {
+                var customer = data.customer || {};
+                var member = data.member || {};
+                var html = '';
+
+                html += '<h4>顧客情報</h4><div class="chat-contact-data">';
+                html += '<p><strong>顧客名:</strong> ' + h(customer.name || '未入力') + '</p>';
+                html += '<p><strong>電話:</strong> ' + h(customer.phone || '未入力') + '</p>';
+                html += '<p><strong>メール:</strong> ' + h(customer.email || '未入力') + '</p>';
+                html += '<p><strong>担当者:</strong> ' + h(member.name || member.email) + '（' + h(member.org_role_label) + '）</p>';
+                html += '<p><strong>登録日時:</strong> ' + h(formatDateTime(customer.created_at)) + '</p>';
+                html += '</div>';
+
+                html += '<h4>担当連絡（チャット）</h4>';
+                var messages = data.messages || [];
+                html += '<div class="chat-thread">';
+                if (!messages.length) {
+                    html += '<p class="chat-thread-empty">まだやり取りはありません。</p>';
+                } else {
+                    messages.forEach(function(message) { html += detailMessageHtml(message); });
+                }
+                html += '</div>';
+
+                html += detailAiSummaryHtml(data.ai_summary);
+                html += detailPropertiesHtml(data.properties);
+                html += detailLeadHtml(data.lead && data.lead.classified_data);
+                html += detailLoanHtml(data.loan_simulation);
+                html += detailButtonArchiveHtml(data.lead);
+
+                detailContentEl.innerHTML = html;
+            }
+
+            function showCustomerDetail(sessionId, customerName) {
+                if (!sessionId || !detailEl || !detailContentEl) return;
+                currentDetailSessionId = sessionId;
+                if (detailTitleEl) {
+                    detailTitleEl.textContent = (customerName ? customerName + ' 様' : 'お客様') + ' の顧客詳細（閲覧のみ）';
+                }
+                detailContentEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
+                setDetailVisible(true);
+                if (detailEl.scrollIntoView) detailEl.scrollIntoView({ block: 'start' });
+
+                fetch(apiBase + '/customer-detail.php?session_id=' + encodeURIComponent(sessionId), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        // 別のお客様を開いた後に古いレスポンスが届いた場合は捨てる。
+                        if (currentDetailSessionId !== sessionId) return;
+                        if (!res.success || !res.data) {
+                            detailContentEl.innerHTML = '<p>' + h(res.message || '取得に失敗しました') + '</p>';
+                            return;
+                        }
+                        renderCustomerDetail(res.data);
+                    })
+                    .catch(function(err) {
+                        console.error(err);
+                        if (currentDetailSessionId !== sessionId) return;
+                        detailContentEl.innerHTML = '<p>取得に失敗しました。</p>';
+                    });
+            }
+
+            if (detailBackBtn) {
+                detailBackBtn.addEventListener('click', function() {
+                    currentDetailSessionId = '';
+                    setDetailVisible(false);
+                });
             }
 
             function loadMembers() {
@@ -5658,6 +5924,9 @@ function editSectionIcon(string $key): string
             }
 
             function loadCustomers() {
+                // 絞り込みや再読み込みで一覧が入れ替わるため、開いていた顧客詳細は閉じる。
+                currentDetailSessionId = '';
+                setDetailVisible(false);
                 customerListEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
                 return fetch(apiBase + '/customers.php' + customerQuery(), { credentials: 'include' })
                     .then(function(r) { return r.json(); })

@@ -1980,6 +1980,33 @@ body {
     font-size: 0.8rem;
     color: #7a8699;
 }
+/* 顧客名（クリックすると閲覧専用の顧客詳細が開く） */
+.org-customer-open {
+    border: none;
+    background: none;
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    color: #2a6db0;
+    text-align: left;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.org-customer-open:hover {
+    color: #1b4f83;
+}
+
+/* 閲覧専用の顧客詳細。担当者の画面と同じ見た目を流用する。 */
+.org-customer-detail-content h4 {
+    margin: 1.25rem 0 0.5rem;
+}
+.org-customer-detail-content h4:first-child {
+    margin-top: 0;
+}
+.org-detail-properties {
+    margin-top: 0.5rem;
+}
+
 .org-team-view {
     border: 1px solid #2a6db0;
     background: #fff;

@@ -159,6 +159,8 @@ if ($isLoggedIn) {
                 $headerUserName = null;
                 $headerProfilePhoto = null;
                 $headerUsagePeriodDisplay = null;
+                // 組織階層（統括→店長→営業）を使っている会社のみ、名前の下に権限を表示する。
+                $headerOrgRoleLabel = null;
                         $headerSubscriptionInfo = null;
                         $headerHasActiveSubscription = false;
                         $headerShowCancelSubscription = false;
@@ -180,6 +182,22 @@ if ($isLoggedIn) {
                     }
                     $headerProfilePhoto = $bcData['profile_photo'] ?? null;
                     $headerCardStatus = ($bcData && isset($bcData['card_status'])) ? $bcData['card_status'] : null;
+
+                    // 権限（統括（全閲覧）／マネージャー（店長）／担当者（営業））の表示。
+                    // 階層分けを使っていない会社では役割の区別が無いため、何も出さない。
+                    require_once __DIR__ . '/../backend/includes/org-hierarchy-helper.php';
+                    try {
+                        $headerOrgUserId = (int)$_SESSION['user_id'];
+                        $headerOrgLicenseKey = orgLicenseForUser($db, $headerOrgUserId)['key'];
+                        // 自分の宅建業者番号で会社が ON か、または「組織・配下顧客」を実際に使える方
+                        // （宅建業者番号が未登録の店長など）に権限を表示する。
+                        if (orgHierarchyEnabledForKey($db, $headerOrgLicenseKey)
+                            || orgHierarchyEnabledForUser($db, $headerOrgUserId)) {
+                            $headerOrgRoleLabel = orgRoleLabel(orgLoadViewer($db, $headerOrgUserId)['org_role']);
+                        }
+                    } catch (Exception $e) {
+                        error_log('Header org role load error: ' . $e->getMessage());
+                    }
 
                                 $stmt = $db->prepare("
                                     SELECT s.id, s.stripe_subscription_id, s.status, s.next_billing_date, s.cancelled_at,
@@ -404,6 +422,9 @@ if ($isLoggedIn) {
                             <div class="user-name">
                                 <?php echo htmlspecialchars($headerUserName); ?>様
                             </div>
+                            <?php if (!empty($headerOrgRoleLabel)): ?>
+                            <div class="user-org-role"><?php echo htmlspecialchars($headerOrgRoleLabel); ?></div>
+                            <?php endif; ?>
                             <?php if ($headerShowAsPaid && $headerUsagePeriodDisplay): ?>
                             <div class="user-period">
                                 <?php echo htmlspecialchars($headerUsagePeriodDisplay); ?>

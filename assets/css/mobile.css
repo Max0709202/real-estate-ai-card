@@ -244,6 +244,11 @@
         font-size: 12px !important;
     }
 
+    .user-info-text .user-org-role {
+        font-size: 10px !important;
+        padding: 1px 5px;
+    }
+
     .user-dropdown {
         right: 0;
         left: auto;
