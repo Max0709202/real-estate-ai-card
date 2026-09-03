@@ -3,6 +3,12 @@
  * List chat sessions for the current user's business card(s). My Page use.
  * GET ?business_card_id= optional filter
  * GET ?deleted=1 ゴミ箱（削除済み履歴）だけを返す。復元期限の情報も付ける。
+ * GET ?sort=latest|viewing|contracted|created 顧客一覧の表示順（既定 latest）。
+ *   latest     … 最新のアクセス順（既定）
+ *   viewing    … 内見を予定している顧客（物件ステータス「内見希望」あり）を上位表示
+ *   contracted … 契約済みの顧客（物件ステータス「契約」あり）を上位表示
+ *   created    … 登録日が新しい順
+ *   ※ viewing / contracted とも、グループ内および以降はいずれも最新のアクセス順。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -12,6 +18,7 @@ require_once __DIR__ . '/../../includes/chat-phone-helper.php';
 require_once __DIR__ . '/../../includes/loan-simulation-helper.php';
 require_once __DIR__ . '/../../includes/customer-invitation-helper.php';
 require_once __DIR__ . '/../../includes/chat-session-trash-helper.php';
+require_once __DIR__ . '/../../includes/property-helper.php'; // 並び替え（内見予定／契約済み）で properties を参照する
 require_once __DIR__ . '/../middleware/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -26,11 +33,30 @@ try {
     $cardId = isset($_GET['business_card_id']) ? (int) $_GET['business_card_id'] : null;
     // ゴミ箱表示。既定（0）は通常一覧で、削除済みは除外する。
     $showDeleted = isset($_GET['deleted']) && (string)$_GET['deleted'] === '1';
+    // 顧客一覧の表示順。未対応の値は既定（最新のアクセス順）に落とす。
+    $sort = trim((string)($_GET['sort'] ?? ''));
+    if (!in_array($sort, ['latest', 'viewing', 'contracted', 'created'], true)) $sort = 'latest';
     chatSessionTrashEnsureColumns($db);
     ensureChatLeadContactTable($db);
     // エージェントが事前作成した顧客ページも一覧に出すため、先に表を用意しておく
     // （下の SQL が参照するので、存在しないと SELECT で落ちる）。
     customerInviteEnsureTable($db);
+    // 並び替え（内見予定／契約済み）で properties を参照するため、未作成なら用意しておく。
+    propertyEnsureTables($db);
+
+    // 「内見を予定している」「契約済み」は、その顧客に該当ステータスの物件があるかで上位グループを決める。
+    // 既定（最新のアクセス順・登録日順）では不要なので、判定用の列は必要なときだけ足す。
+    // ゴミ箱は削除順で固定のため、判定用の列は付けない。
+    $sortGroupSelect = '';
+    if ($showDeleted) {
+        // 何もしない。
+    } elseif ($sort === 'viewing') {
+        $sortGroupSelect = ", EXISTS(SELECT 1 FROM properties psv
+                  WHERE psv.session_id = cs.id AND psv.status = 'viewing_request') as sort_group";
+    } elseif ($sort === 'contracted') {
+        $sortGroupSelect = ", EXISTS(SELECT 1 FROM properties psc
+                  WHERE psc.session_id = cs.id AND psc.status = 'contracted') as sort_group";
+    }
 
     $sql = "
         SELECT cs.id, cs.business_card_id, cs.last_seen_at, cs.created_at, cs.handoff_mode, cs.deleted_at,
@@ -47,6 +73,7 @@ try {
                -- 名は任意入力のため、未入力なら姓だけを返す（末尾に全角スペースが残らないように）
                (SELECT IF(COALESCE(ci.first_name, '') = '', ci.last_name, CONCAT(ci.last_name, '　', ci.first_name))
                   FROM chat_customer_invitations ci WHERE ci.session_id = cs.id LIMIT 1) as invitation_name
+               {$sortGroupSelect}
         FROM chat_sessions cs
         JOIN business_cards bc ON bc.id = cs.business_card_id
         WHERE bc.user_id = ?
@@ -87,14 +114,22 @@ try {
         $sql .= " AND cs.business_card_id = ?";
         $params[] = $cardId;
     }
+    // 「最新のアクセス順」。一覧に表示している日時（last_seen_at、無ければ created_at）と
+    // 同じ基準で並べるので、画面上でも日時がそのまま新しい順に並ぶ。
+    // やり取りがまだ無いセッション（＝事前作成した顧客ページ）は last_seen_at が NULL のため、
+    // 作成日時で代替して LIMIT 200 から溢れないようにする。
+    $latestAccessOrder = "COALESCE(cs.last_seen_at, cs.created_at) DESC, cs.id DESC";
     if ($showDeleted) {
         // ゴミ箱は削除した順（新しいものが上）。
         $sql .= " ORDER BY cs.deleted_at DESC LIMIT 200";
+    } elseif ($sort === 'created') {
+        // 登録日が新しい順。
+        $sql .= " ORDER BY cs.created_at DESC, cs.id DESC LIMIT 200";
+    } elseif ($sort === 'viewing' || $sort === 'contracted') {
+        // 該当する顧客を上位に、グループ内も以降も最新のアクセス順。
+        $sql .= " ORDER BY sort_group DESC, {$latestAccessOrder} LIMIT 200";
     } else {
-        // 未読（要返信）を最優先で上位表示し、その中で新しい順に並べる。
-        // やり取りがまだ無いセッション（＝事前作成した顧客ページ）は last_message_at が NULL で、
-        // DESC では最後尾に落ちて LIMIT 200 から溢れるため、作成日時で代替して並べる。
-        $sql .= " ORDER BY (unread_count > 0) DESC, COALESCE(last_message_at, cs.created_at) DESC, cs.last_seen_at DESC LIMIT 200";
+        $sql .= " ORDER BY {$latestAccessOrder} LIMIT 200";
     }
 
     $stmt = $db->prepare($sql);
@@ -125,6 +160,8 @@ try {
         'sessions' => $sessions,
         'registered_phones' => $registeredPhones,
         'deleted_view' => $showDeleted ? 1 : 0,
+        // 実際に適用した表示順（未対応の値を渡されたときは既定に戻したことが分かるように返す）。
+        'sort' => $showDeleted ? '' : $sort,
         'retention_days' => chatSessionTrashRetentionDays(),
     ], 'OK');
 } catch (Exception $e) {

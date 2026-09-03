@@ -1658,10 +1658,6 @@ function editSectionIcon(string $key): string
                             <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。削除した履歴は「ゴミ箱」から復元できます。</p>
                         </div>
                     </div>
-                    <div id="chat-history-list" class="chat-history-list">
-                        <p class="chat-history-loading">読み込み中...</p>
-                    </div>
-
                     <!-- 顧客ページの事前作成（お客様のSMS認証を待たずに専用ページを用意して案内する導線）。
                          顧客詳細を開いている間は一覧と一緒に隠すため、まとめて #customer-invite-area に入れる。 -->
                     <div id="customer-invite-area">
@@ -1732,6 +1728,10 @@ function editSectionIcon(string $key): string
                             <button type="button" class="btn-secondary" id="customer-invite-done-close">閉じる</button>
                         </div>
                     </div>
+                    </div>
+
+                    <div id="chat-history-list" class="chat-history-list">
+                        <p class="chat-history-loading">読み込み中...</p>
                     </div>
 
                     <div id="chat-history-detail" class="chat-history-detail" style="display: none;">
@@ -3781,6 +3781,14 @@ function editSectionIcon(string $key): string
             var agentChatBusy = false;
             // ゴミ箱の保持日数（サーバー既定30日。sessions.php のレスポンスで上書きする）。
             var trashRetentionDays = 30;
+            // 顧客一覧の表示順（プルダウンで切り替え。既定は最新のアクセス順）。
+            var currentSessionSort = 'latest';
+            var SESSION_SORT_OPTIONS = [
+                ['latest', '最新のアクセス順'],
+                ['viewing', '内見を予定している'],
+                ['contracted', '契約済み'],
+                ['created', '登録日順']
+            ];
 
             // 添付URLを現在のオリジンに揃える。サーバーは絶対URL（BASE_URL=www）を返すため、
             // 担当者が別ホスト（www無しなど）でログインしていると、画像/リンクが別オリジン扱いになり
@@ -3893,25 +3901,26 @@ function editSectionIcon(string $key): string
 
             function loadSessions() {
                 listEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
-                fetch(apiBase + '/sessions.php', { credentials: 'include' })
+                fetch(apiBase + '/sessions.php?sort=' + encodeURIComponent(currentSessionSort), { credentials: 'include' })
                     .then(function(r) { return r.json(); })
                     .then(function(res) {
                         if (typeof res.data === 'object' && res.data && res.data.retention_days) {
                             trashRetentionDays = parseInt(res.data.retention_days, 10) || trashRetentionDays;
                         }
                         if (!res.success || !res.data.sessions) {
-                            listEl.innerHTML = '<p>セッションがありません。</p>' + trashOpenBarHtml();
+                            listEl.innerHTML = sessionSortBarHtml() + '<p>セッションがありません。</p>' + trashOpenBarHtml();
+                            bindSessionSort();
                             bindTrashOpen();
                             return;
                         }
                         var sessions = res.data.sessions;
-                        var phoneHtml = renderRegisteredPhones(res.data.registered_phones || []);
                         if (sessions.length === 0) {
-                            listEl.innerHTML = phoneHtml + '<p>まだチャットのやり取りはありません。</p>' + trashOpenBarHtml();
+                            listEl.innerHTML = sessionSortBarHtml() + '<p>まだチャットのやり取りはありません。</p>' + trashOpenBarHtml();
+                            bindSessionSort();
                             bindTrashOpen();
                             return;
                         }
-                        var html = phoneHtml;
+                        var html = sessionSortBarHtml();
                         html += '<div class="chat-session-bulk-actions">';
                         html += '<label class="chat-session-select-all"><input type="checkbox" id="chat-session-select-all"> すべて選択</label>';
                         html += '<span id="chat-session-selected-count" class="chat-session-selected-count">0件選択中</span>';
@@ -3943,6 +3952,7 @@ function editSectionIcon(string $key): string
                         html += '</ul>';
                         html += trashOpenBarHtml();
                         listEl.innerHTML = html;
+                        bindSessionSort();
                         bindTrashOpen();
                         listEl.querySelectorAll('.chat-session-item').forEach(function(el) {
                             el.addEventListener('click', function() {
@@ -3999,17 +4009,28 @@ function editSectionIcon(string $key): string
                 return d.innerHTML;
             }
 
-            function renderRegisteredPhones(phones) {
-                if (!phones || !phones.length) return '';
-                var html = '<div class="chat-registered-phones"><h4>登録済み電話番号</h4>';
-                phones.slice(0, 20).forEach(function(phone) {
-                    var label = phone.display_phone || phone.phone_e164 || phone.phone_normalized || '';
-                    var name = phone.customer_name ? '（' + phone.customer_name + '）' : '';
-                    var date = phone.last_verified_at ? ' / 最終確認: ' + new Date(phone.last_verified_at).toLocaleString('ja-JP') : '';
-                    html += '<p><strong>' + escapeHtml(label) + '</strong> ' + escapeHtml(name + date) + '</p>';
+            // 顧客一覧の表示順プルダウン（一覧の一番上に置く）。
+            // 並び替えはサーバー側（sessions.php の sort）で行うため、切り替えたら読み直す。
+            function sessionSortBarHtml() {
+                var options = SESSION_SORT_OPTIONS.map(function(opt) {
+                    var selected = currentSessionSort === opt[0] ? ' selected' : '';
+                    return '<option value="' + escapeHtml(opt[0]) + '"' + selected + '>' + escapeHtml(opt[1]) + '</option>';
+                }).join('');
+                return '<div class="chat-session-sort-bar">'
+                    + '<label for="chat-session-sort" class="chat-session-sort-label">表示順</label>'
+                    + '<select id="chat-session-sort" class="chat-session-sort">' + options + '</select>'
+                    + '</div>';
+            }
+
+            function bindSessionSort() {
+                var sortEl = document.getElementById('chat-session-sort');
+                if (!sortEl) return;
+                // 一覧の行クリック（詳細を開く）に伝播させない。
+                sortEl.addEventListener('click', function(e) { e.stopPropagation(); });
+                sortEl.addEventListener('change', function() {
+                    currentSessionSort = sortEl.value || 'latest';
+                    loadSessions();
                 });
-                html += '</div>';
-                return html;
             }
 
             function getSelectedSessionIds() {
@@ -4048,6 +4069,18 @@ function editSectionIcon(string $key): string
                 return html;
             }
 
+            // ヒアリング情報から除外する項目。「顧客情報」に同じ内容を出しているため重複させない。
+            // 顧客名 / 電話番号 / SMS認証済み / メールアドレス / 希望連絡方法
+            // （希望連絡方法は preferred_contact と preferred_contact_method の2キーが同じラベルを持つ）
+            var LEAD_HIDDEN_FIELDS = {
+                customer_name: 1,
+                customer_phone: 1,
+                customer_phone_verified: 1,
+                customer_email: 1,
+                preferred_contact: 1,
+                preferred_contact_method: 1
+            };
+
             function renderClassifiedLeadData(groups) {
                 if (!groups) return "";
                 var sections = [
@@ -4055,15 +4088,22 @@ function editSectionIcon(string $key): string
                     ["inferred", "未確認情報"],
                     ["needs_confirmation", "要確認情報"]
                 ];
+                // 「顧客情報」と重複する項目を除いたうえで、表示するものが残っているかを判定する。
+                function visibleLeadItems(key) {
+                    var items = Array.isArray(groups[key]) ? groups[key] : [];
+                    return items.filter(function(item) {
+                        return item && !LEAD_HIDDEN_FIELDS[item.field];
+                    });
+                }
                 var hasAny = sections.some(function(pair) {
-                    return Array.isArray(groups[pair[0]]) && groups[pair[0]].length > 0;
+                    return visibleLeadItems(pair[0]).length > 0;
                 });
                 if (!hasAny) return "";
                 var html = "<h4>ヒアリング情報</h4><div class=\"chat-lead-data chat-lead-classified\">";
                 sections.forEach(function(pair) {
                     var key = pair[0];
                     var title = pair[1];
-                    var items = Array.isArray(groups[key]) ? groups[key] : [];
+                    var items = visibleLeadItems(key);
                     if (!items.length) return;
                     html += "<section class=\"chat-lead-group chat-lead-group-" + key + "\">";
                     html += "<h5>" + escapeHtml(title) + "</h5>";
@@ -4165,38 +4205,6 @@ function editSectionIcon(string $key): string
                         }
                         var d = res.data;
                         var html = '';
-                        html += renderRegisteredPhones(d.registered_phones || []);
-                        if (d.contact) {
-                            html += '<h4>連絡先情報</h4><div class="chat-contact-data">';
-                            html += '<p><strong>顧客名:</strong> ' + escapeHtml(d.contact.customer_name || '未入力') + '</p>';
-                            html += '<p><strong>希望連絡方法:</strong> ' + escapeHtml(d.contact.contact_method || '未分類') + '</p>';
-                            html += '<p><strong>連絡先:</strong> ' + escapeHtml(d.contact.contact_value || d.contact.raw_contact || '') + '</p>';
-                            if (d.contact.phone) html += '<p><strong>電話:</strong> ' + escapeHtml(d.contact.phone) + '</p>';
-                            if (d.contact.email) html += '<p><strong>メール:</strong> ' + escapeHtml(d.contact.email) + '</p>';
-                            if (d.contact.line_id) html += '<p><strong>LINE:</strong> ' + escapeHtml(d.contact.line_id) + '</p>';
-                            html += '</div>';
-                        }
-                        html += renderLoanSimulation(d.loan_simulation);
-                        if (d.lead && d.lead.classified_data) {
-                            html += renderClassifiedLeadData(d.lead.classified_data);
-                        }
-                        var buttonArchive = d.lead && d.lead.structured_data && Array.isArray(d.lead.structured_data._button_selection_archive) ? d.lead.structured_data._button_selection_archive : [];
-                        if (buttonArchive.length) {
-                            html += '<h4>選択ボタン履歴</h4><div class="chat-contact-data">';
-                            buttonArchive.forEach(function(item) {
-                                var label = item.label || '';
-                                if (!label && Array.isArray(item.selected)) {
-                                    label = item.selected.map(function(selectedItem) { return selectedItem.label || ''; }).filter(Boolean).join('、');
-                                }
-                                var field = item.field ? ' / 項目: ' + item.field : '';
-                                var createdAt = item.created_at ? ' / ' + new Date(item.created_at).toLocaleString('ja-JP') : '';
-                                html += '<p><strong>' + escapeHtml(label || '選択内容なし') + '</strong>' + escapeHtml(field + createdAt) + '</p>';
-                            });
-                            html += '</div>';
-                        }
-                        // 物件選定（提案物件の一元管理）パネル（§1-§19）
-                        html += '<h4>物件選定</h4>';
-                        html += '<div id="property-panel" class="prop-wrap"></div>';
 
                         agentChatPendingAttachments = [];
                         var msgs = d.messages || [];
@@ -4205,8 +4213,24 @@ function editSectionIcon(string $key): string
                         // ライブポーリングは担当連絡チャネルのみを返すため、since_id は担当連絡の最終IDを基準にする。
                         agentChatLastMsgId = contactMsgs.length ? (parseInt(contactMsgs[contactMsgs.length - 1].id, 10) || 0) : 0;
 
-                        html += renderAiChatSummary();
+                        // 表示順は「顧客情報 → 担当連絡 → AIチャット履歴 → 物件選定 → ヒアリング情報」。
+                        // 住宅ローン入力・選択ボタン履歴はヒアリング系の補足情報として最後に続ける。
 
+                        // ① 顧客情報（顧客名・電話・メールの3項目のみ。メールはクリックでメーラーが開く）
+                        if (d.contact) {
+                            var contactEmail = String(d.contact.email || '').trim();
+                            // escapeHtml は引用符を変換しないため、href に入れる値だけ追加で退避する。
+                            var contactEmailHtml = contactEmail
+                                ? '<a href="mailto:' + escapeHtml(contactEmail).replace(/"/g, '&quot;') + '">' + escapeHtml(contactEmail) + '</a>'
+                                : '未入力';
+                            html += '<h4>顧客情報</h4><div class="chat-contact-data">';
+                            html += '<p><strong>顧客名:</strong> ' + escapeHtml(d.contact.customer_name || '未入力') + '</p>';
+                            html += '<p><strong>電話:</strong> ' + escapeHtml(d.contact.phone || '未入力') + '</p>';
+                            html += '<p><strong>メール:</strong> ' + contactEmailHtml + '</p>';
+                            html += '</div>';
+                        }
+
+                        // ② 担当連絡（チャット）
                         html += '<h4>担当連絡（チャット）</h4>';
                         html += '<div class="chat-thread" id="agent-chat-thread">';
                         contactMsgs.forEach(function(m) { html += messageBubbleHtml(m); });
@@ -4227,6 +4251,37 @@ function editSectionIcon(string $key): string
                         html += '<textarea id="agent-chat-input" class="chat-compose-input" rows="3" placeholder="顧客へのメッセージを入力。「自動回答作成」で文案を生成、「ブラッシュアップ」で推敲できます。"></textarea>';
                         html += '<div class="chat-compose-actions"><span class="chat-compose-status" id="agent-chat-status"></span><button type="button" class="btn-primary" id="agent-chat-send">送信</button></div>';
                         html += '</div>';
+
+                        // ③ AIチャット履歴（AI整理サマリー・閲覧のみ）
+                        html += renderAiChatSummary();
+
+                        // ④ 物件選定（提案物件の一元管理）パネル（§1-§19）
+                        html += '<h4>物件選定</h4>';
+                        html += '<div id="property-panel" class="prop-wrap"></div>';
+
+                        // ⑤ ヒアリング情報
+                        if (d.lead && d.lead.classified_data) {
+                            html += renderClassifiedLeadData(d.lead.classified_data);
+                        }
+
+                        // ⑥ 住宅ローンシミュレーター入力
+                        html += renderLoanSimulation(d.loan_simulation);
+
+                        // ⑦ 選択ボタン履歴
+                        var buttonArchive = d.lead && d.lead.structured_data && Array.isArray(d.lead.structured_data._button_selection_archive) ? d.lead.structured_data._button_selection_archive : [];
+                        if (buttonArchive.length) {
+                            html += '<h4>選択ボタン履歴</h4><div class="chat-contact-data">';
+                            buttonArchive.forEach(function(item) {
+                                var label = item.label || '';
+                                if (!label && Array.isArray(item.selected)) {
+                                    label = item.selected.map(function(selectedItem) { return selectedItem.label || ''; }).filter(Boolean).join('、');
+                                }
+                                var field = item.field ? ' / 項目: ' + item.field : '';
+                                var createdAt = item.created_at ? ' / ' + new Date(item.created_at).toLocaleString('ja-JP') : '';
+                                html += '<p><strong>' + escapeHtml(label || '選択内容なし') + '</strong>' + escapeHtml(field + createdAt) + '</p>';
+                            });
+                            html += '</div>';
+                        }
 
                         detailContent.innerHTML = html;
                         initAgentChat(sessionId);
