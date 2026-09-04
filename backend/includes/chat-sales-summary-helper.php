@@ -71,6 +71,50 @@ function chatSalesSummaryNormalize($data) {
     ];
 }
 
+/**
+ * お客様が「希望物件種別」を実際にお答えになったかどうか。
+ *
+ * 以前は案件データの初期値として「マンション」が入っていたため、未回答でも
+ * 種別が確定しているように扱われていた（2026/9/1 修正依頼 ⑨）。初期値は撤去したが、
+ * 既に保存済みのお客様のデータには残るため、判定はお客様の回答（structured_data）を正とする。
+ * 実際にお答えいただいた種別は「確定情報／未確認情報」として要約へ渡っているので、
+ * この判定で本物の回答が失われることはない。
+ */
+function chatSalesSummaryPropertyTypeConfirmed($structuredLead) {
+    if (!is_array($structuredLead)) return false;
+    return trim((string)($structuredLead['property_type'] ?? '')) !== '';
+}
+
+/**
+ * 生成結果に「未回答なのに確定扱いされた希望種別」が混ざらないようにし、
+ * 希望条件が1件も無い場合は依頼どおり「未定」と表示する（2026/9/1 修正依頼 ⑨）。
+ *
+ * 入力データ側の修正（初期値の撤去・未確定の明示）に加えて、出力側でも保証する。
+ * プロンプトの遵守だけに頼ると、モデルの揺れで再発しうるため。
+ */
+function chatSalesSummaryApplyUndetermined($summary, $structuredLead) {
+    if (!is_array($summary)) return $summary;
+
+    $items = is_array($summary['property_requirements'] ?? null) ? $summary['property_requirements'] : [];
+
+    if (!chatSalesSummaryPropertyTypeConfirmed($structuredLead)) {
+        // 「種別：マンション」「希望物件種別：マンション」等、種別を確定として書いた行を落とす。
+        $items = array_values(array_filter($items, function ($item) {
+            $text = trim((string)$item);
+            if ($text === '') return false;
+            // ラベル部分（全角/半角コロンの手前）に「種別」を含む行だけを対象にする。
+            $label = preg_split('/[：:]/u', $text)[0] ?? '';
+            return mb_strpos($label, '種別') === false;
+        }));
+    }
+
+    // 確定した希望条件が無い場合は、空欄（セクションごと非表示）ではなく「未定」と出す。
+    if (empty($items)) $items = ['未定'];
+
+    $summary['property_requirements'] = $items;
+    return $summary;
+}
+
 function chatSalesSummaryIsEmpty($summary) {
     if (!is_array($summary)) return true;
     return trim((string)($summary['customer_overview'] ?? '')) === ''
@@ -265,8 +309,13 @@ function chatSalesSummaryResolve($db, $sessionId, $businessCardId, $case, $struc
         $cached = null;
     }
 
+    // 「未定」の保証は、空判定（chatSalesSummaryIsEmpty）を通したあとに適用する。
+    // 先に適用すると property_requirements が常に非空になり、生成失敗の判定が壊れるため。
     if (!$forceRefresh && $cached && ($cached['hash'] ?? '') === $hash && !chatSalesSummaryIsEmpty($cached['summary'])) {
-        return ['summary' => $cached['summary'], 'model' => $model, 'cached' => true, 'generated' => false];
+        return [
+            'summary' => chatSalesSummaryApplyUndetermined($cached['summary'], $structuredLead),
+            'model' => $model, 'cached' => true, 'generated' => false,
+        ];
     }
 
     $generated = chatSalesSummaryGenerate($db, $sessionId, $businessCardId, $sourceText);
@@ -279,12 +328,18 @@ function chatSalesSummaryResolve($db, $sessionId, $businessCardId, $case, $struc
         } catch (Throwable $e) {
             // 保存に失敗しても生成結果は返す。
         }
-        return ['summary' => $generated, 'model' => $model, 'cached' => false, 'generated' => true];
+        return [
+            'summary' => chatSalesSummaryApplyUndetermined($generated, $structuredLead),
+            'model' => $model, 'cached' => false, 'generated' => true,
+        ];
     }
 
     // 生成に失敗した場合、古いキャッシュがあればそれを返す。
     if ($cached && !chatSalesSummaryIsEmpty($cached['summary'])) {
-        return ['summary' => $cached['summary'], 'model' => $model, 'cached' => true, 'generated' => false];
+        return [
+            'summary' => chatSalesSummaryApplyUndetermined($cached['summary'], $structuredLead),
+            'model' => $model, 'cached' => true, 'generated' => false,
+        ];
     }
 
     return null;
