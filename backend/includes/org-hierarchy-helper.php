@@ -18,9 +18,10 @@
  *     OFF の会社にはメニューもAPIも出さない。判定は orgHierarchyEnabledForUser() で、
  *     次の2つを「両方」満たすこと（AND）:
  *       ① 免許番号キーが一致する会社が ON
- *       ② その会社に登録したログインメールに、自分のメールが含まれている
- *     ②が空の会社は「誰も使えない」。ON にしただけでは開かないので、
- *     利用する方（統括・店長）のメールを必ず登録する。
+ *       ② その会社に登録したログインメールに自分のメールが含まれている、
+ *          または自分がその会社の統括に指名されたマネージャー（店長）である
+ *     ②のメール登録が空の会社は、まず統括が使えない。ON にしただけでは開かないので、
+ *     統括の方のメールを必ず登録する。店長は統括が画面から指名するため登録は不要。
  *   なお admin/ 配下の管理画面は運営（リニュアル仲介）専用で、users とは
  *   別テーブル（admins）のログインが必要。各社の統括がそこへ入ることはない。
  */
@@ -113,6 +114,46 @@ function orgRoleLabel($role): string
 function orgCanViewTeam($role): bool
 {
     return in_array(orgNormalizeRole($role), ['manager', 'admin'], true);
+}
+
+/**
+ * 電話番号を国内表記（先頭0・ハイフンなし）へ揃える。
+ *
+ * 顧客の電話番号はSMS認証の都合で E.164（+819072234273）で保存されている。
+ * そのままでは電話帳への貼り付けや発信に使えないため、日本の国番号（+81）を外して
+ * 「09072234273」の形に戻す。CSV出力と配下顧客の閲覧画面で使う。
+ *
+ * 日本以外の国番号は桁数から判別できないため、+ を残した数字だけの形で返す。
+ */
+function orgFormatPhoneLocal($phone): string
+{
+    $raw = trim((string)$phone);
+    if ($raw === '') return '';
+
+    $digits = preg_replace('/\D+/', '', mb_convert_kana($raw, 'n'));
+    if ($digits === '' || $digits === null) return '';
+
+    // 81 + 市外局番（0以外で始まる）… 携帯は12桁、固定は11桁になる。
+    if (strpos($digits, '81') === 0 && strlen($digits) >= 11 && substr($digits, 2, 1) !== '0') {
+        return '0' . substr($digits, 2);
+    }
+
+    // 国内表記（090-1234-5678 など）はハイフン等を落とすだけでよい。
+    return strpos($raw, '+') === 0 ? '+' . $digits : $digits;
+}
+
+/**
+ * CSVの電話番号セルの値。先頭の「0」が消えないようにする。
+ *
+ * 09072234273 とそのまま書くと、Excel（や Google スプレッドシート）が数値と解釈して
+ * 先頭の 0 を落とし、9072234273（国際電話のときの番号）として表示してしまう。
+ * 数字だけの値は ="09072234273" の形にして、文字列として開かせる。
+ * ハイフンや + を含む値はもともと数値と解釈されないため、そのまま返す。
+ */
+function orgCsvPhoneCell(string $phone): string
+{
+    if ($phone === '' || !preg_match('/\A[0-9]+\z/', $phone)) return $phone;
+    return '="' . $phone . '"';
 }
 
 /**
@@ -696,10 +737,33 @@ function orgHierarchyEnabledForUser(PDO $db, int $userId): bool
 {
     if ($userId <= 0) return false;
 
+    $viewer = orgLoadViewer($db, $userId);
+    $isManager = orgNormalizeRole($viewer['org_role']) === 'manager';
     $licenseKey = orgLicenseForUser($db, $userId)['key'];
-    if (!orgHierarchyEnabledForKey($db, $licenseKey)) return false;
 
-    return orgEmailAllowedForKey($db, $licenseKey, (string)orgLoadViewer($db, $userId)['email']);
+    if (orgHierarchyEnabledForKey($db, $licenseKey)) {
+        if (orgEmailAllowedForKey($db, $licenseKey, (string)$viewer['email'])) return true;
+
+        // マネージャー（店長）は、その会社の統括（全閲覧）が「組織・配下顧客」で指名した方に限られる
+        // （update-role.php / orgCanManageMember() で自社かどうかを検証済み）。
+        // 店長の配下メンバーは店長自身が指定する運用のため、運営へのメール登録を待たずに使えるようにする。
+        // 統括（全閲覧）は従来どおりメール登録が必要（統括の指名は運営の管理画面で行うため）。
+        if ($isManager) return true;
+    }
+
+    // 店長の名刺に宅建業者番号がまだ入っていないと、自分の免許番号キーを作れず
+    // 会社の ON / OFF を判定できずにメニューごと消えてしまう。
+    // 店長は統括が指名した方なので、指名した上長（統括）の会社で判定し直す。
+    // 店長が閲覧できる範囲は parent_user_id を辿った自分の配下だけで、
+    // 免許番号は使わないため、これで他社の情報が見えるようになることはない。
+    if ($isManager && !empty($viewer['parent_user_id'])) {
+        $parentKey = orgLicenseForUser($db, (int)$viewer['parent_user_id'])['key'];
+        if ($parentKey !== '' && $parentKey !== $licenseKey && orgHierarchyEnabledForKey($db, $parentKey)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -944,6 +1008,32 @@ function orgVisibleMemberScope(PDO $db, array $viewer): array
     }
 
     return $scope;
+}
+
+/**
+ * 実行者が「その担当者の顧客」を閲覧できるか（閲覧専用の判定）。
+ *
+ * 顧客詳細（org/customer-detail.php）と添付ファイルの配信で、
+ * 同じ条件を使うためにここへまとめている。判定は次のすべてを満たすこと:
+ *   ・実行者が統括（全閲覧）かマネージャー（店長）
+ *   ・実行者の会社で階層分けが使える（法人プラン）
+ *   ・相手が実行者の閲覧範囲（orgVisibleMemberScope）に入っている
+ *
+ * @param int $memberId 顧客を担当しているユーザーのID
+ */
+function orgCanViewMemberCustomers(PDO $db, int $viewerId, int $memberId): bool
+{
+    if ($viewerId <= 0 || $memberId <= 0) return false;
+
+    $viewer = orgLoadViewer($db, $viewerId);
+    if (!orgCanViewTeam($viewer['org_role'])) return false;
+    if (!orgHierarchyEnabledForUser($db, $viewerId)) return false;
+
+    foreach (orgVisibleMemberScope($db, $viewer) as $member) {
+        if ((int)$member['id'] === $memberId) return true;
+    }
+
+    return false;
 }
 
 /**

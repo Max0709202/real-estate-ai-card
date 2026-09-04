@@ -1658,10 +1658,6 @@ function editSectionIcon(string $key): string
                             <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。削除した履歴は「ゴミ箱」から復元できます。</p>
                         </div>
                     </div>
-                    <div id="chat-history-list" class="chat-history-list">
-                        <p class="chat-history-loading">読み込み中...</p>
-                    </div>
-
                     <!-- 顧客ページの事前作成（お客様のSMS認証を待たずに専用ページを用意して案内する導線）。
                          顧客詳細を開いている間は一覧と一緒に隠すため、まとめて #customer-invite-area に入れる。 -->
                     <div id="customer-invite-area">
@@ -1734,6 +1730,10 @@ function editSectionIcon(string $key): string
                     </div>
                     </div>
 
+                    <div id="chat-history-list" class="chat-history-list">
+                        <p class="chat-history-loading">読み込み中...</p>
+                    </div>
+
                     <div id="chat-history-detail" class="chat-history-detail" style="display: none;">
                         <h3>顧客詳細</h3>
                         <div id="chat-history-detail-content"></div>
@@ -1761,6 +1761,8 @@ function editSectionIcon(string $key): string
                         </div>
                     </div>
 
+                    <!-- 一覧（メンバー・顧客）。顧客詳細を開いている間はまとめて隠す。 -->
+                    <div id="org-team-browse">
                     <div id="org-team-summary" class="org-team-summary"></div>
 
                     <div class="org-team-block">
@@ -1795,11 +1797,29 @@ function editSectionIcon(string $key): string
                             </div>
                         </div>
                         <p class="section-note">
-                            店長を選ぶと「店舗全体（店長＋その配下の営業）」の顧客をまとめて確認できます。CSV出力も同じ範囲です。
+                            店長を選ぶと「店舗全体（店長＋その配下の営業）」の顧客をまとめて確認できます。CSV出力も同じ範囲です。<br>
+                            <strong>顧客名</strong>を押すと、担当者のマイページに表示されている顧客詳細を<strong>閲覧のみ</strong>で確認できます。
                         </p>
                         <div id="org-customer-list" class="org-team-list">
                             <p class="chat-history-loading">読み込み中...</p>
                         </div>
+                    </div>
+                    </div>
+
+                    <!-- 配下顧客の詳細（閲覧のみ）。
+                         担当者のマイページ「顧客詳細」と同じ内容を表示するが、
+                         編集・削除・チャットの代理返信の導線は一切置かない。 -->
+                    <div id="org-customer-detail" class="org-team-block" style="display: none;">
+                        <div class="org-team-toolbar">
+                            <h3 id="org-customer-detail-title">顧客詳細（閲覧のみ）</h3>
+                            <div class="org-team-toolbar-actions">
+                                <button type="button" class="btn-secondary" id="org-customer-detail-back">顧客一覧に戻る</button>
+                            </div>
+                        </div>
+                        <p class="section-note">
+                            担当者のマイページに表示されている内容です。<strong>閲覧のみ</strong>で、編集・削除やチャットの代理返信はできません。
+                        </p>
+                        <div id="org-customer-detail-content" class="chat-history-detail org-customer-detail-content"></div>
                     </div>
                 </div>
                 <?php endif; ?>
@@ -3781,6 +3801,14 @@ function editSectionIcon(string $key): string
             var agentChatBusy = false;
             // ゴミ箱の保持日数（サーバー既定30日。sessions.php のレスポンスで上書きする）。
             var trashRetentionDays = 30;
+            // 顧客一覧の表示順（プルダウンで切り替え。既定は最新のアクセス順）。
+            var currentSessionSort = 'latest';
+            var SESSION_SORT_OPTIONS = [
+                ['latest', '最新のアクセス順'],
+                ['viewing', '内見を予定している'],
+                ['contracted', '契約済み'],
+                ['created', '登録日順']
+            ];
 
             // 添付URLを現在のオリジンに揃える。サーバーは絶対URL（BASE_URL=www）を返すため、
             // 担当者が別ホスト（www無しなど）でログインしていると、画像/リンクが別オリジン扱いになり
@@ -3893,25 +3921,26 @@ function editSectionIcon(string $key): string
 
             function loadSessions() {
                 listEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
-                fetch(apiBase + '/sessions.php', { credentials: 'include' })
+                fetch(apiBase + '/sessions.php?sort=' + encodeURIComponent(currentSessionSort), { credentials: 'include' })
                     .then(function(r) { return r.json(); })
                     .then(function(res) {
                         if (typeof res.data === 'object' && res.data && res.data.retention_days) {
                             trashRetentionDays = parseInt(res.data.retention_days, 10) || trashRetentionDays;
                         }
                         if (!res.success || !res.data.sessions) {
-                            listEl.innerHTML = '<p>セッションがありません。</p>' + trashOpenBarHtml();
+                            listEl.innerHTML = sessionSortBarHtml() + '<p>セッションがありません。</p>' + trashOpenBarHtml();
+                            bindSessionSort();
                             bindTrashOpen();
                             return;
                         }
                         var sessions = res.data.sessions;
-                        var phoneHtml = renderRegisteredPhones(res.data.registered_phones || []);
                         if (sessions.length === 0) {
-                            listEl.innerHTML = phoneHtml + '<p>まだチャットのやり取りはありません。</p>' + trashOpenBarHtml();
+                            listEl.innerHTML = sessionSortBarHtml() + '<p>まだチャットのやり取りはありません。</p>' + trashOpenBarHtml();
+                            bindSessionSort();
                             bindTrashOpen();
                             return;
                         }
-                        var html = phoneHtml;
+                        var html = sessionSortBarHtml();
                         html += '<div class="chat-session-bulk-actions">';
                         html += '<label class="chat-session-select-all"><input type="checkbox" id="chat-session-select-all"> すべて選択</label>';
                         html += '<span id="chat-session-selected-count" class="chat-session-selected-count">0件選択中</span>';
@@ -3943,6 +3972,7 @@ function editSectionIcon(string $key): string
                         html += '</ul>';
                         html += trashOpenBarHtml();
                         listEl.innerHTML = html;
+                        bindSessionSort();
                         bindTrashOpen();
                         listEl.querySelectorAll('.chat-session-item').forEach(function(el) {
                             el.addEventListener('click', function() {
@@ -3999,17 +4029,28 @@ function editSectionIcon(string $key): string
                 return d.innerHTML;
             }
 
-            function renderRegisteredPhones(phones) {
-                if (!phones || !phones.length) return '';
-                var html = '<div class="chat-registered-phones"><h4>登録済み電話番号</h4>';
-                phones.slice(0, 20).forEach(function(phone) {
-                    var label = phone.display_phone || phone.phone_e164 || phone.phone_normalized || '';
-                    var name = phone.customer_name ? '（' + phone.customer_name + '）' : '';
-                    var date = phone.last_verified_at ? ' / 最終確認: ' + new Date(phone.last_verified_at).toLocaleString('ja-JP') : '';
-                    html += '<p><strong>' + escapeHtml(label) + '</strong> ' + escapeHtml(name + date) + '</p>';
+            // 顧客一覧の表示順プルダウン（一覧の一番上に置く）。
+            // 並び替えはサーバー側（sessions.php の sort）で行うため、切り替えたら読み直す。
+            function sessionSortBarHtml() {
+                var options = SESSION_SORT_OPTIONS.map(function(opt) {
+                    var selected = currentSessionSort === opt[0] ? ' selected' : '';
+                    return '<option value="' + escapeHtml(opt[0]) + '"' + selected + '>' + escapeHtml(opt[1]) + '</option>';
+                }).join('');
+                return '<div class="chat-session-sort-bar">'
+                    + '<label for="chat-session-sort" class="chat-session-sort-label">表示順</label>'
+                    + '<select id="chat-session-sort" class="chat-session-sort">' + options + '</select>'
+                    + '</div>';
+            }
+
+            function bindSessionSort() {
+                var sortEl = document.getElementById('chat-session-sort');
+                if (!sortEl) return;
+                // 一覧の行クリック（詳細を開く）に伝播させない。
+                sortEl.addEventListener('click', function(e) { e.stopPropagation(); });
+                sortEl.addEventListener('change', function() {
+                    currentSessionSort = sortEl.value || 'latest';
+                    loadSessions();
                 });
-                html += '</div>';
-                return html;
             }
 
             function getSelectedSessionIds() {
@@ -4048,6 +4089,18 @@ function editSectionIcon(string $key): string
                 return html;
             }
 
+            // ヒアリング情報から除外する項目。「顧客情報」に同じ内容を出しているため重複させない。
+            // 顧客名 / 電話番号 / SMS認証済み / メールアドレス / 希望連絡方法
+            // （希望連絡方法は preferred_contact と preferred_contact_method の2キーが同じラベルを持つ）
+            var LEAD_HIDDEN_FIELDS = {
+                customer_name: 1,
+                customer_phone: 1,
+                customer_phone_verified: 1,
+                customer_email: 1,
+                preferred_contact: 1,
+                preferred_contact_method: 1
+            };
+
             function renderClassifiedLeadData(groups) {
                 if (!groups) return "";
                 var sections = [
@@ -4055,15 +4108,22 @@ function editSectionIcon(string $key): string
                     ["inferred", "未確認情報"],
                     ["needs_confirmation", "要確認情報"]
                 ];
+                // 「顧客情報」と重複する項目を除いたうえで、表示するものが残っているかを判定する。
+                function visibleLeadItems(key) {
+                    var items = Array.isArray(groups[key]) ? groups[key] : [];
+                    return items.filter(function(item) {
+                        return item && !LEAD_HIDDEN_FIELDS[item.field];
+                    });
+                }
                 var hasAny = sections.some(function(pair) {
-                    return Array.isArray(groups[pair[0]]) && groups[pair[0]].length > 0;
+                    return visibleLeadItems(pair[0]).length > 0;
                 });
                 if (!hasAny) return "";
                 var html = "<h4>ヒアリング情報</h4><div class=\"chat-lead-data chat-lead-classified\">";
                 sections.forEach(function(pair) {
                     var key = pair[0];
                     var title = pair[1];
-                    var items = Array.isArray(groups[key]) ? groups[key] : [];
+                    var items = visibleLeadItems(key);
                     if (!items.length) return;
                     html += "<section class=\"chat-lead-group chat-lead-group-" + key + "\">";
                     html += "<h5>" + escapeHtml(title) + "</h5>";
@@ -4165,38 +4225,6 @@ function editSectionIcon(string $key): string
                         }
                         var d = res.data;
                         var html = '';
-                        html += renderRegisteredPhones(d.registered_phones || []);
-                        if (d.contact) {
-                            html += '<h4>連絡先情報</h4><div class="chat-contact-data">';
-                            html += '<p><strong>顧客名:</strong> ' + escapeHtml(d.contact.customer_name || '未入力') + '</p>';
-                            html += '<p><strong>希望連絡方法:</strong> ' + escapeHtml(d.contact.contact_method || '未分類') + '</p>';
-                            html += '<p><strong>連絡先:</strong> ' + escapeHtml(d.contact.contact_value || d.contact.raw_contact || '') + '</p>';
-                            if (d.contact.phone) html += '<p><strong>電話:</strong> ' + escapeHtml(d.contact.phone) + '</p>';
-                            if (d.contact.email) html += '<p><strong>メール:</strong> ' + escapeHtml(d.contact.email) + '</p>';
-                            if (d.contact.line_id) html += '<p><strong>LINE:</strong> ' + escapeHtml(d.contact.line_id) + '</p>';
-                            html += '</div>';
-                        }
-                        html += renderLoanSimulation(d.loan_simulation);
-                        if (d.lead && d.lead.classified_data) {
-                            html += renderClassifiedLeadData(d.lead.classified_data);
-                        }
-                        var buttonArchive = d.lead && d.lead.structured_data && Array.isArray(d.lead.structured_data._button_selection_archive) ? d.lead.structured_data._button_selection_archive : [];
-                        if (buttonArchive.length) {
-                            html += '<h4>選択ボタン履歴</h4><div class="chat-contact-data">';
-                            buttonArchive.forEach(function(item) {
-                                var label = item.label || '';
-                                if (!label && Array.isArray(item.selected)) {
-                                    label = item.selected.map(function(selectedItem) { return selectedItem.label || ''; }).filter(Boolean).join('、');
-                                }
-                                var field = item.field ? ' / 項目: ' + item.field : '';
-                                var createdAt = item.created_at ? ' / ' + new Date(item.created_at).toLocaleString('ja-JP') : '';
-                                html += '<p><strong>' + escapeHtml(label || '選択内容なし') + '</strong>' + escapeHtml(field + createdAt) + '</p>';
-                            });
-                            html += '</div>';
-                        }
-                        // 物件選定（提案物件の一元管理）パネル（§1-§19）
-                        html += '<h4>物件選定</h4>';
-                        html += '<div id="property-panel" class="prop-wrap"></div>';
 
                         agentChatPendingAttachments = [];
                         var msgs = d.messages || [];
@@ -4205,8 +4233,24 @@ function editSectionIcon(string $key): string
                         // ライブポーリングは担当連絡チャネルのみを返すため、since_id は担当連絡の最終IDを基準にする。
                         agentChatLastMsgId = contactMsgs.length ? (parseInt(contactMsgs[contactMsgs.length - 1].id, 10) || 0) : 0;
 
-                        html += renderAiChatSummary();
+                        // 表示順は「顧客情報 → 担当連絡 → AIチャット履歴 → 物件選定 → ヒアリング情報」。
+                        // 住宅ローン入力・選択ボタン履歴はヒアリング系の補足情報として最後に続ける。
 
+                        // ① 顧客情報（顧客名・電話・メールの3項目のみ。メールはクリックでメーラーが開く）
+                        if (d.contact) {
+                            var contactEmail = String(d.contact.email || '').trim();
+                            // escapeHtml は引用符を変換しないため、href に入れる値だけ追加で退避する。
+                            var contactEmailHtml = contactEmail
+                                ? '<a href="mailto:' + escapeHtml(contactEmail).replace(/"/g, '&quot;') + '">' + escapeHtml(contactEmail) + '</a>'
+                                : '未入力';
+                            html += '<h4>顧客情報</h4><div class="chat-contact-data">';
+                            html += '<p><strong>顧客名:</strong> ' + escapeHtml(d.contact.customer_name || '未入力') + '</p>';
+                            html += '<p><strong>電話:</strong> ' + escapeHtml(d.contact.phone || '未入力') + '</p>';
+                            html += '<p><strong>メール:</strong> ' + contactEmailHtml + '</p>';
+                            html += '</div>';
+                        }
+
+                        // ② 担当連絡（チャット）
                         html += '<h4>担当連絡（チャット）</h4>';
                         html += '<div class="chat-thread" id="agent-chat-thread">';
                         contactMsgs.forEach(function(m) { html += messageBubbleHtml(m); });
@@ -4227,6 +4271,37 @@ function editSectionIcon(string $key): string
                         html += '<textarea id="agent-chat-input" class="chat-compose-input" rows="3" placeholder="顧客へのメッセージを入力。「自動回答作成」で文案を生成、「ブラッシュアップ」で推敲できます。"></textarea>';
                         html += '<div class="chat-compose-actions"><span class="chat-compose-status" id="agent-chat-status"></span><button type="button" class="btn-primary" id="agent-chat-send">送信</button></div>';
                         html += '</div>';
+
+                        // ③ AIチャット履歴（AI整理サマリー・閲覧のみ）
+                        html += renderAiChatSummary();
+
+                        // ④ 物件選定（提案物件の一元管理）パネル（§1-§19）
+                        html += '<h4>物件選定</h4>';
+                        html += '<div id="property-panel" class="prop-wrap"></div>';
+
+                        // ⑤ ヒアリング情報
+                        if (d.lead && d.lead.classified_data) {
+                            html += renderClassifiedLeadData(d.lead.classified_data);
+                        }
+
+                        // ⑥ 住宅ローンシミュレーター入力
+                        html += renderLoanSimulation(d.loan_simulation);
+
+                        // ⑦ 選択ボタン履歴
+                        var buttonArchive = d.lead && d.lead.structured_data && Array.isArray(d.lead.structured_data._button_selection_archive) ? d.lead.structured_data._button_selection_archive : [];
+                        if (buttonArchive.length) {
+                            html += '<h4>選択ボタン履歴</h4><div class="chat-contact-data">';
+                            buttonArchive.forEach(function(item) {
+                                var label = item.label || '';
+                                if (!label && Array.isArray(item.selected)) {
+                                    label = item.selected.map(function(selectedItem) { return selectedItem.label || ''; }).filter(Boolean).join('、');
+                                }
+                                var field = item.field ? ' / 項目: ' + item.field : '';
+                                var createdAt = item.created_at ? ' / ' + new Date(item.created_at).toLocaleString('ja-JP') : '';
+                                html += '<p><strong>' + escapeHtml(label || '選択内容なし') + '</strong>' + escapeHtml(field + createdAt) + '</p>';
+                            });
+                            html += '</div>';
+                        }
 
                         detailContent.innerHTML = html;
                         initAgentChat(sessionId);
@@ -5312,6 +5387,12 @@ function editSectionIcon(string $key): string
             var assignParentEl = document.getElementById('org-assign-parent');
             var assignBtn = document.getElementById('org-assign-btn');
             var assignStatusEl = document.getElementById('org-assign-status');
+            // 顧客詳細（閲覧のみ）。一覧と入れ替えで表示する。
+            var browseEl = document.getElementById('org-team-browse');
+            var detailEl = document.getElementById('org-customer-detail');
+            var detailTitleEl = document.getElementById('org-customer-detail-title');
+            var detailContentEl = document.getElementById('org-customer-detail-content');
+            var detailBackBtn = document.getElementById('org-customer-detail-back');
             if (!memberListEl || !customerListEl) return;
 
             var apiBase = window.location.origin + '/backend/api/org';
@@ -5535,7 +5616,11 @@ function editSectionIcon(string $key): string
                     var inviteLabel = invitationLabels[customer.invitation_status] || '';
                     html += '<li class="org-team-item">';
                     html += '<div class="org-team-item-main">';
-                    html += '<span class="org-team-name">' + h(customer.customer_name || '（お名前未登録）') + '</span>';
+                    // 顧客名を押すと、担当者のマイページと同じ顧客詳細を閲覧のみで開く。
+                    html += '<button type="button" class="org-team-name org-customer-open" data-session-id="'
+                        + h(customer.session_id) + '" data-customer-name="' + h(customer.customer_name || '')
+                        + '" title="顧客詳細を閲覧する">'
+                        + h(customer.customer_name || '（お名前未登録）') + '</button>';
                     html += '<span class="org-team-owner">担当：' + h(customer.member_name || customer.member_email) + '</span>';
                     if (inviteLabel && customer.invitation_status !== 'registered') {
                         html += '<span class="chat-lead-badge chat-invite-badge">' + h(inviteLabel) + '</span>';
@@ -5550,6 +5635,409 @@ function editSectionIcon(string $key): string
                 });
                 html += '</ul>';
                 customerListEl.innerHTML = html;
+
+                customerListEl.querySelectorAll('.org-customer-open').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        showCustomerDetail(btn.getAttribute('data-session-id'), btn.getAttribute('data-customer-name'));
+                    });
+                });
+            }
+
+            // ---- 配下顧客の詳細（閲覧のみ）----------------------------------------
+            // 担当者のマイページ「顧客詳細」と同じ内容を表示する。
+            // 送信欄・編集・取り消し・削除のボタンは一切描画しない（サーバー側にもAPIを置いていない）。
+            var currentDetailSessionId = '';
+
+            function setDetailVisible(visible) {
+                if (browseEl) browseEl.style.display = visible ? 'none' : '';
+                if (detailEl) detailEl.style.display = visible ? '' : 'none';
+            }
+
+            function detailAttachmentHtml(att) {
+                if (!att) return '';
+                // 添付は認証付きプロキシ経由。担当が別ホストで作った絶対URLでもCookieが送られるよう
+                // 現在のオリジンへ揃える（チャット履歴側と同じ扱い）。
+                var url = String(att.url || '');
+                var idx = url.indexOf('/backend/api/');
+                if (idx >= 0) url = window.location.origin + url.slice(idx);
+                if (att.is_image) {
+                    return '<a class="chat-attach chat-attach-image" href="' + h(url) + '" target="_blank" rel="noopener">'
+                        + '<img src="' + h(url) + '" alt="' + h(att.original_name || '画像') + '" loading="lazy"></a>';
+                }
+                var icon = att.kind === 'pdf' ? '📄' : (att.kind === 'word' ? '📝' : (att.kind === 'excel' ? '📊' : '📎'));
+                return '<a class="chat-attach chat-attach-file" href="' + h(url) + '" target="_blank" rel="noopener">'
+                    + icon + ' ' + h(att.original_name || 'ファイル') + '</a>';
+            }
+
+            function detailMessageHtml(m) {
+                var role = m.role || '';
+                var who = role === 'user' ? 'お客様' : (role === 'agent' ? '担当者' : (role === 'bot' || role === 'assistant' ? 'AI' : 'システム'));
+                var deleted = !!m.deleted;
+                var edited = !!m.edited;
+                var atts = deleted ? '' : (m.attachments || []).map(detailAttachmentHtml).join('');
+                var body = m.message && m.message !== '[ファイルを送信しました]' ? h(m.message) : '';
+                var readMark = (role === 'agent' && m.read_at) ? '<span class="chat-thread-read">既読</span>' : '';
+                var editedMark = (edited && !deleted) ? '<span class="chat-thread-edited">編集済み</span>' : '';
+                return '<div class="chat-thread-msg chat-thread-' + h(role) + '">'
+                    + '<div class="chat-thread-meta"><span class="chat-thread-who">' + who + '</span>'
+                    + '<span class="chat-thread-time">' + h(formatDateTime(m.created_at)) + '</span>' + readMark + editedMark + '</div>'
+                    + (body ? '<div class="chat-thread-bubble' + (deleted ? ' chat-thread-deleted' : '') + '">' + body + '</div>' : '')
+                    + (atts ? '<div class="chat-thread-attachments">' + atts + '</div>' : '')
+                    + '</div>';
+            }
+
+            function detailAiSummarySection(title, value, isList) {
+                var body = '';
+                if (isList) {
+                    var items = Array.isArray(value) ? value.filter(function(v) { return String(v || '').trim() !== ''; }) : [];
+                    if (!items.length) return '';
+                    body = '<ul class="ai-summary-list">';
+                    items.forEach(function(item) { body += '<li>' + h(String(item).trim()) + '</li>'; });
+                    body += '</ul>';
+                } else {
+                    var text = String(value || '').trim();
+                    if (text === '') return '';
+                    body = '<p class="ai-summary-text">' + h(text).replace(/\n/g, '<br>') + '</p>';
+                }
+                return '<section class="ai-summary-section"><h5>' + h(title) + '</h5>' + body + '</section>';
+            }
+
+            function detailAiSummaryContentHtml(summary) {
+                summary = summary && typeof summary === 'object' ? summary : {};
+                var inner = '';
+                inner += detailAiSummarySection('お客様概要', summary.customer_overview, false);
+                inner += detailAiSummarySection('主な希望条件', summary.property_requirements, true);
+                inner += detailAiSummarySection('資金・住宅ローン', summary.financial_status, true);
+                inner += detailAiSummarySection('営業担当者への申し送り', summary.sales_handover, false);
+                inner += detailAiSummarySection('次に確認すること', summary.needs_confirmation, true);
+                return inner || '<p class="chat-thread-empty">AIとの会話内容はまだ整理されていません。</p>';
+            }
+
+            // 枠だけ先に描画し、要約は別リクエストで埋める（担当者のマイページと同じ）。
+            // 生成に時間がかかっても、顧客情報・チャット・物件選定の表示を待たせない。
+            function detailAiSummaryHtml() {
+                return '<h4>AIチャット履歴（AI整理サマリー）</h4>'
+                    + '<div class="chat-ai-summary" id="org-ai-summary-panel">'
+                    + '<p class="chat-thread-empty">AI要約を作成しています…</p></div>';
+            }
+
+            function loadDetailAiSummary(sessionId) {
+                fetch(apiBase + '/customer-detail.php?part=ai_summary&session_id=' + encodeURIComponent(sessionId), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        // 別のお客様を開いた後に古いレスポンスが届いた場合は捨てる。
+                        if (currentDetailSessionId !== sessionId) return;
+                        var panel = detailContentEl.querySelector('#org-ai-summary-panel');
+                        if (!panel) return;
+                        panel.innerHTML = (res && res.success && res.data && res.data.summary)
+                            ? detailAiSummaryContentHtml(res.data.summary)
+                            : '<p class="chat-thread-empty">AI要約を作成できませんでした。</p>';
+                    })
+                    .catch(function() {
+                        if (currentDetailSessionId !== sessionId) return;
+                        var panel = detailContentEl.querySelector('#org-ai-summary-panel');
+                        if (panel) panel.innerHTML = '<p class="chat-thread-empty">AI要約を作成できませんでした。</p>';
+                    });
+            }
+
+            // ヒアリング情報のうち「顧客情報」と重複する項目は出さない（担当画面と同じ扱い）。
+            var DETAIL_LEAD_HIDDEN_FIELDS = {
+                customer_name: 1,
+                customer_phone: 1,
+                customer_phone_verified: 1,
+                customer_email: 1,
+                preferred_contact: 1,
+                preferred_contact_method: 1
+            };
+
+            function detailLeadHtml(groups) {
+                if (!groups) return '';
+                var sections = [
+                    ['confirmed', '確定情報'],
+                    ['inferred', '未確認情報'],
+                    ['needs_confirmation', '要確認情報']
+                ];
+                function visibleItems(key) {
+                    var items = Array.isArray(groups[key]) ? groups[key] : [];
+                    return items.filter(function(item) { return item && !DETAIL_LEAD_HIDDEN_FIELDS[item.field]; });
+                }
+                if (!sections.some(function(pair) { return visibleItems(pair[0]).length > 0; })) return '';
+
+                var html = '<h4>ヒアリング情報</h4><div class="chat-lead-data chat-lead-classified">';
+                sections.forEach(function(pair) {
+                    var items = visibleItems(pair[0]);
+                    if (!items.length) return;
+                    html += '<section class="chat-lead-group chat-lead-group-' + pair[0] + '"><h5>' + h(pair[1]) + '</h5><dl>';
+                    items.forEach(function(item) {
+                        html += '<dt>' + h(item.label || item.field || '項目') + '</dt>';
+                        html += '<dd>' + h(item.value || '') + '</dd>';
+                    });
+                    html += '</dl></section>';
+                });
+                html += '</div>';
+                return html;
+            }
+
+            function detailLoanHtml(data) {
+                if (!data || !Array.isArray(data.groups) || !data.groups.length) return '';
+                var html = '<h4>住宅ローンシミュレーター入力</h4><div class="chat-loan-data">';
+                if (data.updated_at) html += '<p class="chat-loan-updated">最終入力: ' + h(formatDateTime(data.updated_at)) + '</p>';
+                data.groups.forEach(function(group) {
+                    html += '<section class="chat-loan-group"><h5>' + h(group.title || '入力内容') + '</h5><dl>';
+                    (group.items || []).forEach(function(item) {
+                        html += '<dt>' + h(item.label || '項目') + '</dt><dd>' + h(item.value || '') + '</dd>';
+                    });
+                    html += '</dl></section>';
+                });
+                html += '</div>';
+                return html;
+            }
+
+            // ---- 物件選定（閲覧のみ）------------------------------------------
+            // 担当者の画面と同じ共通UI（PropertyUI／property-core.js）でカードを描画する。
+            // 追加・編集・削除・フォルダー変更・ステータス変更のボタンは描画しない。
+            var detailProperties = [];
+            var detailPropertyFolders = [];
+            var detailFolderClosed = {};
+
+            function propUi() {
+                return window.PropertyUI || null;
+            }
+
+            // 物件カード（views: お客様の閲覧状況を担当者と同じように表示する）。
+            function detailPropertyCardsHtml(items) {
+                var UI = propUi();
+                if (!UI || !items.length) return '';
+                return '<div class="prop-list">' + items.map(function(item) {
+                    return UI.cardHtml(item, { views: true });
+                }).join('') + '</div>';
+            }
+
+            // 一覧の中身（フォルダー → フォルダー未格納の物件）。担当画面と同じ並び。
+            function detailPropertyListInnerHtml() {
+                var UI = propUi();
+                if (!UI) return '';
+                var grouped = UI.groupByFolder(detailProperties, detailPropertyFolders);
+                var inner = '';
+                grouped.groups.forEach(function(group) {
+                    inner += UI.folderSectionHtml(group.folder, detailPropertyCardsHtml(group.items), {
+                        open: !detailFolderClosed[group.folder.id],
+                        count: group.items.length,
+                        empty: 'この中に物件はまだありません。'
+                    });
+                });
+                if (grouped.ungrouped.length) {
+                    inner += (grouped.groups.length ? '<div class="prop-folder-rest">フォルダーに入っていない物件</div>' : '')
+                        + detailPropertyCardsHtml(grouped.ungrouped);
+                }
+                return inner || '<div class="prop-empty">提案物件はまだありません。</div>';
+            }
+
+            function detailPropertiesHtml() {
+                if (!propUi()) return '';
+                return '<h4>物件選定（提案物件）</h4>'
+                    + '<div class="prop-wrap" id="org-prop-panel">' + detailPropertyListInnerHtml() + '</div>';
+            }
+
+            // 一覧・詳細の切り替えはこのパネルの中だけで行う（顧客詳細の他の項目はそのまま）。
+            function orgPropPanel() {
+                return detailContentEl ? detailContentEl.querySelector('#org-prop-panel') : null;
+            }
+
+            function bindDetailPropertyList(panel) {
+                var UI = propUi();
+                if (!panel || !UI) return;
+                panel.querySelectorAll('[data-folder-toggle]').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        var id = btn.getAttribute('data-folder-toggle');
+                        var section = btn.closest('.prop-folder');
+                        var open = !section.classList.contains('is-open');
+                        section.classList.toggle('is-open', open);
+                        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                        detailFolderClosed[id] = !open;
+                    });
+                });
+                panel.querySelectorAll('.prop-card').forEach(function(card) {
+                    card.addEventListener('click', function() {
+                        openDetailProperty(parseInt(card.getAttribute('data-prop-id'), 10));
+                    });
+                });
+            }
+
+            function renderDetailPropertyList() {
+                var panel = orgPropPanel();
+                if (!panel) return;
+                panel.innerHTML = detailPropertyListInnerHtml();
+                bindDetailPropertyList(panel);
+            }
+
+            function openDetailProperty(propertyId) {
+                var panel = orgPropPanel();
+                if (!panel || !propertyId) return;
+                panel.innerHTML = '<div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div>';
+                fetch(apiBase + '/customer-property.php?property_id=' + encodeURIComponent(propertyId), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        var target = orgPropPanel();
+                        if (!target) return;
+                        if (!res.success || !res.data || !res.data.property) {
+                            target.innerHTML = '<div class="prop-empty">' + h(res.message || '取得に失敗しました') + '</div>';
+                            return;
+                        }
+                        renderDetailProperty(res.data.property);
+                    })
+                    .catch(function(err) {
+                        console.error(err);
+                        var target = orgPropPanel();
+                        if (target) target.innerHTML = '<div class="prop-empty">取得に失敗しました。</div>';
+                    });
+            }
+
+            function renderDetailProperty(property) {
+                var panel = orgPropPanel();
+                var UI = propUi();
+                if (!panel || !UI) return;
+
+                // 反映済みの一覧データを詳細で置き換えておく（戻ったときに最新の内容を表示する）。
+                for (var i = 0; i < detailProperties.length; i++) {
+                    if (String(detailProperties[i].id) === String(property.id)) {
+                        detailProperties[i] = property;
+                        break;
+                    }
+                }
+
+                panel.innerHTML =
+                    '<div class="prop-toolbar"><button type="button" class="prop-btn prop-btn--ghost" id="org-prop-back">← 物件一覧</button></div>'
+                    + UI.detailHeaderHtml(property)
+                    + UI.passReasonBlockHtml(property, { withAI: true })
+                    + UI.prCommentBlockHtml(property)
+                    + '<div class="prop-tabs">'
+                    + '<button class="prop-tab is-active" data-tab="basic">基本情報</button>'
+                    + '<button class="prop-tab" data-tab="hazard">ハザード等情報</button>'
+                    + '<button class="prop-tab" data-tab="flyer">販売図面</button>'
+                    + '<button class="prop-tab" data-tab="photo">写真・資料</button>'
+                    + '</div>'
+                    + '<div class="prop-tabpane is-active" data-pane="basic">' + UI.basicInfoHtml(property, true) + '</div>'
+                    + '<div class="prop-tabpane" data-pane="hazard">' + UI.hazardHtml(property.hazard, property.hazard_fetched_at) + '</div>'
+                    + '<div class="prop-tabpane" data-pane="flyer">'
+                    + UI.galleryHtml(property.flyers || [], { emptyText: '販売図面は登録されていません。' }) + '</div>'
+                    + '<div class="prop-tabpane" data-pane="photo">'
+                    + UI.galleryHtml(property.photos || [], { emptyText: '写真・資料は登録されていません。' }) + '</div>';
+
+                panel.querySelector('#org-prop-back').addEventListener('click', renderDetailPropertyList);
+
+                // 「見送り」バッジから理由を開く（閲覧のみ）。
+                panel.querySelectorAll('[data-pass-reason]').forEach(function(el) {
+                    el.addEventListener('click', function() { UI.showPassReason(property); });
+                });
+
+                var tabs = panel.querySelectorAll('.prop-tab');
+                tabs.forEach(function(tab) {
+                    tab.addEventListener('click', function() {
+                        tabs.forEach(function(other) { other.classList.remove('is-active'); });
+                        panel.querySelectorAll('.prop-tabpane').forEach(function(pane) { pane.classList.remove('is-active'); });
+                        tab.classList.add('is-active');
+                        var pane = panel.querySelector('[data-pane="' + tab.getAttribute('data-tab') + '"]');
+                        if (pane) pane.classList.add('is-active');
+                    });
+                });
+
+                UI.bindLightbox(panel);
+            }
+
+            function detailButtonArchiveHtml(lead) {
+                var archive = lead && lead.structured_data && Array.isArray(lead.structured_data._button_selection_archive)
+                    ? lead.structured_data._button_selection_archive : [];
+                if (!archive.length) return '';
+                var html = '<h4>選択ボタン履歴</h4><div class="chat-contact-data">';
+                archive.forEach(function(item) {
+                    var label = item.label || '';
+                    if (!label && Array.isArray(item.selected)) {
+                        label = item.selected.map(function(selected) { return selected.label || ''; }).filter(Boolean).join('、');
+                    }
+                    var field = item.field ? ' / 項目: ' + item.field : '';
+                    var createdAt = item.created_at ? ' / ' + formatDateTime(item.created_at) : '';
+                    html += '<p><strong>' + h(label || '選択内容なし') + '</strong>' + h(field + createdAt) + '</p>';
+                });
+                html += '</div>';
+                return html;
+            }
+
+            function renderCustomerDetail(data) {
+                var customer = data.customer || {};
+                var member = data.member || {};
+                var html = '';
+
+                html += '<h4>顧客情報</h4><div class="chat-contact-data">';
+                html += '<p><strong>顧客名:</strong> ' + h(customer.name || '未入力') + '</p>';
+                html += '<p><strong>電話:</strong> ' + h(customer.phone || '未入力') + '</p>';
+                html += '<p><strong>メール:</strong> ' + h(customer.email || '未入力') + '</p>';
+                html += '<p><strong>担当者:</strong> ' + h(member.name || member.email) + '（' + h(member.org_role_label) + '）</p>';
+                html += '<p><strong>登録日時:</strong> ' + h(formatDateTime(customer.created_at)) + '</p>';
+                html += '</div>';
+
+                html += '<h4>担当連絡（チャット）</h4>';
+                var messages = data.messages || [];
+                html += '<div class="chat-thread">';
+                if (!messages.length) {
+                    html += '<p class="chat-thread-empty">まだやり取りはありません。</p>';
+                } else {
+                    messages.forEach(function(message) { html += detailMessageHtml(message); });
+                }
+                html += '</div>';
+
+                detailProperties = Array.isArray(data.properties) ? data.properties : [];
+                detailPropertyFolders = Array.isArray(data.property_folders) ? data.property_folders : [];
+                detailFolderClosed = {};
+
+                html += detailAiSummaryHtml();
+                html += detailPropertiesHtml();
+                html += detailLeadHtml(data.lead && data.lead.classified_data);
+                html += detailLoanHtml(data.loan_simulation);
+                html += detailButtonArchiveHtml(data.lead);
+
+                detailContentEl.innerHTML = html;
+
+                // 物件カードのクリック（詳細表示）を紐づける。
+                bindDetailPropertyList(orgPropPanel());
+
+                // AI整理サマリーは表示後に読み込む。
+                loadDetailAiSummary(data.session_id);
+            }
+
+            function showCustomerDetail(sessionId, customerName) {
+                if (!sessionId || !detailEl || !detailContentEl) return;
+                currentDetailSessionId = sessionId;
+                if (detailTitleEl) {
+                    detailTitleEl.textContent = (customerName ? customerName + ' 様' : 'お客様') + ' の顧客詳細（閲覧のみ）';
+                }
+                detailContentEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
+                setDetailVisible(true);
+                if (detailEl.scrollIntoView) detailEl.scrollIntoView({ block: 'start' });
+
+                fetch(apiBase + '/customer-detail.php?session_id=' + encodeURIComponent(sessionId), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        // 別のお客様を開いた後に古いレスポンスが届いた場合は捨てる。
+                        if (currentDetailSessionId !== sessionId) return;
+                        if (!res.success || !res.data) {
+                            detailContentEl.innerHTML = '<p>' + h(res.message || '取得に失敗しました') + '</p>';
+                            return;
+                        }
+                        renderCustomerDetail(res.data);
+                    })
+                    .catch(function(err) {
+                        console.error(err);
+                        if (currentDetailSessionId !== sessionId) return;
+                        detailContentEl.innerHTML = '<p>取得に失敗しました。</p>';
+                    });
+            }
+
+            if (detailBackBtn) {
+                detailBackBtn.addEventListener('click', function() {
+                    currentDetailSessionId = '';
+                    setDetailVisible(false);
+                });
             }
 
             function loadMembers() {
@@ -5603,6 +6091,9 @@ function editSectionIcon(string $key): string
             }
 
             function loadCustomers() {
+                // 絞り込みや再読み込みで一覧が入れ替わるため、開いていた顧客詳細は閉じる。
+                currentDetailSessionId = '';
+                setDetailVisible(false);
                 customerListEl.innerHTML = '<p class="chat-history-loading">読み込み中...</p>';
                 return fetch(apiBase + '/customers.php' + customerQuery(), { credentials: 'include' })
                     .then(function(r) { return r.json(); })

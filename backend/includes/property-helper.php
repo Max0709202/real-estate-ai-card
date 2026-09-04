@@ -342,6 +342,8 @@ if (!function_exists('propertyStatusDefs')) {
             'application'      => ['label' => '申込検討', 'role' => 'customer', 'color' => '#f08a24', 'icon' => 'application'],
             'brokerage_ok'     => ['label' => '仲介可',   'role' => 'agent',    'color' => '#1f9d57', 'icon' => 'brokerage'],
             'not_introducible' => ['label' => 'ご紹介不可', 'role' => 'agent',  'color' => '#6b3fd1', 'icon' => 'notintro'],
+            // 成約した物件。顧客一覧の並び替え「契約済み」の判定にも使う（chat/sessions.php）。
+            'contracted'       => ['label' => '契約',     'role' => 'agent',    'color' => '#d32f2f', 'icon' => 'contract'],
         ];
     }
 }

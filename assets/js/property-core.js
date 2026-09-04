@@ -34,7 +34,8 @@
     passed:           { label: '見送り',     role: 'customer', color: '#8a8f98', icon: 'passed' },
     application:      { label: '申込検討',   role: 'customer', color: '#f08a24', icon: 'application' },
     brokerage_ok:     { label: '仲介可',     role: 'agent',    color: '#1f9d57', icon: 'brokerage' },
-    not_introducible: { label: 'ご紹介不可', role: 'agent',    color: '#6b3fd1', icon: 'notintro' }
+    not_introducible: { label: 'ご紹介不可', role: 'agent',    color: '#6b3fd1', icon: 'notintro' },
+    contracted:       { label: '契約',       role: 'agent',    color: '#d32f2f', icon: 'contract' }
   };
 
   /* 見送り(passed)理由の選択肢（複数選択可・PHP propertyPassReasonDefs と一致） */
@@ -110,6 +111,7 @@
     application: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13l2 2 4-4"/></svg>',
     brokerage: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11l2.5 2.5a2 2 0 0 0 2.8 0L20 7"/><path d="M2 9l4-4 5 4M22 9l-4-4-4 3"/><path d="M11 13l2 2 2-2 2 2"/></svg>',
     notintro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
+    contract: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M8 17c1.4-2.8 2.4-2.8 3.4 0s2 2.8 3.4-.8"/></svg>',
     agent: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg>',
     customer: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zM8 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 2c-2.7 0-6 1.3-6 4v2h8v-2c0-1 .4-1.9 1.1-2.6A9.4 9.4 0 0 0 8 13zm8 0c-.5 0-1 0-1.5.1A4.3 4.3 0 0 1 16 17v2h6v-2c0-2.7-3.3-4-6-4z"/></svg>',
     upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M12 15V3M7 8l5-5 5 5"/></svg>',

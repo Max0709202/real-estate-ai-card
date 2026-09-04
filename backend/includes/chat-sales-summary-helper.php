@@ -87,8 +87,18 @@ function chatSalesSummaryIsEmpty($summary) {
 function chatSalesSummaryBuildSource($db, $sessionId, $case, $structuredLead) {
     $lines = [];
 
-    $dealTypeLabel = function_exists('chatCrmDealTypeLabel') ? chatCrmDealTypeLabel($case['deal_type'] ?? 'purchase') : '購入';
-    $lines[] = '相談種別: ' . $dealTypeLabel;
+    // 相談種別（購入/売却/賃貸/買い替え）は案件データの既定値が 'purchase' のため、
+    // お客様が何も選んでいなくても「購入」として要約に反映されてしまっていた。
+    // お客様の回答（structured_data の customer_type）があるか、既定値以外に設定されている
+    // 場合だけ確定として渡し、それ以外は「未確定」と明示する。
+    $leadCustomerType = trim((string)($structuredLead['customer_type'] ?? ''));
+    $dealType = trim((string)($case['deal_type'] ?? ''));
+    if ($leadCustomerType !== '' || ($dealType !== '' && $dealType !== 'purchase')) {
+        $dealTypeLabel = function_exists('chatCrmDealTypeLabel') ? chatCrmDealTypeLabel($dealType ?: 'purchase') : '購入';
+        $lines[] = '相談種別: ' . $dealTypeLabel;
+    } else {
+        $lines[] = '相談種別: 未確定（お客様の回答なし）';
+    }
 
     $customerName = trim((string)($case['customer_name'] ?? ''));
     if ($customerName === '' && !empty($structuredLead['customer_name'])) {
@@ -100,8 +110,20 @@ function chatSalesSummaryBuildSource($db, $sessionId, $case, $structuredLead) {
     $temp = $structuredLead['temperature'] ?? '';
     if (isset($tempMap[$temp])) $lines[] = '検討温度感（営業内部評価）: ' . $tempMap[$temp];
 
-    $conditionsSummary = trim((string)chatCrmSummarizeConditions($case));
+    // 「希望物件種別」は、以前の初期値（マンション）が案件データに保存されている既存のお客様がいる。
+    // お客様の回答（structured_data の property_type）で裏付けが取れない種別は要約の入力に含めない。
+    // 実際に伺った種別は下の「確定情報／未確認情報」として別途渡すため、情報は失われない。
+    $caseForSummary = $case;
+    if (trim((string)($structuredLead['property_type'] ?? '')) === '' && is_array($caseForSummary['conditions'] ?? null)) {
+        foreach (['buyer', 'renter'] as $section) {
+            if (isset($caseForSummary['conditions'][$section]['property_type'])) {
+                $caseForSummary['conditions'][$section]['property_type'] = null;
+            }
+        }
+    }
+    $conditionsSummary = trim((string)chatCrmSummarizeConditions($caseForSummary));
     if ($conditionsSummary !== '') $lines[] = '整理済み条件: ' . $conditionsSummary;
+    else $lines[] = '整理済み条件: まだありません（お客様の回答なし）';
 
     // 分類済みリード項目（確定 / 未確認 / 要確認）。低情報の入力は既にフィルタ済み。
     $classified = function_exists('chatIntakeClassifiedLeadItems') && is_array($structuredLead)
@@ -159,6 +181,10 @@ function chatSalesSummaryGenerate($db, $sessionId, $businessCardId, $sourceText)
 
     $rules = "厳守事項:\n"
         . "- 入力に書かれていない情報は推測・創作しない。\n"
+        . "- 「未確定」「未確認」「まだありません」と書かれた項目は、確定した希望条件として書かない。「未定」と明記する。\n"
+        . "- 相談種別（購入/売却/賃貸）と希望物件種別は、お客様の回答がある場合だけ書く。両方とも未確定なら"
+        . "customer_overview は「ご相談内容も、希望物件種別も未定です。」から始める。\n"
+        . "- 確定した希望条件が1件も無い場合、property_requirements は [\"未定\"] とする（空配列にしない）。\n"
         . "- 質問文や案内文（例:「条件整理を進めてください」）を顧客の希望条件として採用しない。明らかに不自然な値は無視する。\n"
         . "- 意味や単位が不明な数値は「要確認」とする。\n"
         . "- 入力に無い / 未回答の項目は無理に埋めず、必要なら「次に確認すること」に回す。\n"
