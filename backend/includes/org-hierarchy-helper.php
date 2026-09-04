@@ -143,6 +143,20 @@ function orgFormatPhoneLocal($phone): string
 }
 
 /**
+ * CSVの電話番号セルの値。先頭の「0」が消えないようにする。
+ *
+ * 09072234273 とそのまま書くと、Excel（や Google スプレッドシート）が数値と解釈して
+ * 先頭の 0 を落とし、9072234273（国際電話のときの番号）として表示してしまう。
+ * 数字だけの値は ="09072234273" の形にして、文字列として開かせる。
+ * ハイフンや + を含む値はもともと数値と解釈されないため、そのまま返す。
+ */
+function orgCsvPhoneCell(string $phone): string
+{
+    if ($phone === '' || !preg_match('/\A[0-9]+\z/', $phone)) return $phone;
+    return '="' . $phone . '"';
+}
+
+/**
  * ログイン中ユーザーの組織情報を取得する。
  * 列がまだ無いDBでも落ちないよう、失敗時は staff 相当を返す。
  */

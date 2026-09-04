@@ -5702,7 +5702,7 @@ function editSectionIcon(string $key): string
                 return '<section class="ai-summary-section"><h5>' + h(title) + '</h5>' + body + '</section>';
             }
 
-            function detailAiSummaryHtml(summary) {
+            function detailAiSummaryContentHtml(summary) {
                 summary = summary && typeof summary === 'object' ? summary : {};
                 var inner = '';
                 inner += detailAiSummarySection('お客様概要', summary.customer_overview, false);
@@ -5710,8 +5710,34 @@ function editSectionIcon(string $key): string
                 inner += detailAiSummarySection('資金・住宅ローン', summary.financial_status, true);
                 inner += detailAiSummarySection('営業担当者への申し送り', summary.sales_handover, false);
                 inner += detailAiSummarySection('次に確認すること', summary.needs_confirmation, true);
-                if (inner === '') inner = '<p class="chat-thread-empty">AIとの会話内容はまだ整理されていません。</p>';
-                return '<h4>AIチャット履歴（AI整理サマリー）</h4><div class="chat-ai-summary">' + inner + '</div>';
+                return inner || '<p class="chat-thread-empty">AIとの会話内容はまだ整理されていません。</p>';
+            }
+
+            // 枠だけ先に描画し、要約は別リクエストで埋める（担当者のマイページと同じ）。
+            // 生成に時間がかかっても、顧客情報・チャット・物件選定の表示を待たせない。
+            function detailAiSummaryHtml() {
+                return '<h4>AIチャット履歴（AI整理サマリー）</h4>'
+                    + '<div class="chat-ai-summary" id="org-ai-summary-panel">'
+                    + '<p class="chat-thread-empty">AI要約を作成しています…</p></div>';
+            }
+
+            function loadDetailAiSummary(sessionId) {
+                fetch(apiBase + '/customer-detail.php?part=ai_summary&session_id=' + encodeURIComponent(sessionId), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        // 別のお客様を開いた後に古いレスポンスが届いた場合は捨てる。
+                        if (currentDetailSessionId !== sessionId) return;
+                        var panel = detailContentEl.querySelector('#org-ai-summary-panel');
+                        if (!panel) return;
+                        panel.innerHTML = (res && res.success && res.data && res.data.summary)
+                            ? detailAiSummaryContentHtml(res.data.summary)
+                            : '<p class="chat-thread-empty">AI要約を作成できませんでした。</p>';
+                    })
+                    .catch(function() {
+                        if (currentDetailSessionId !== sessionId) return;
+                        var panel = detailContentEl.querySelector('#org-ai-summary-panel');
+                        if (panel) panel.innerHTML = '<p class="chat-thread-empty">AI要約を作成できませんでした。</p>';
+                    });
             }
 
             // ヒアリング情報のうち「顧客情報」と重複する項目は出さない（担当画面と同じ扱い）。
@@ -5767,25 +5793,156 @@ function editSectionIcon(string $key): string
                 return html;
             }
 
-            function detailPropertiesHtml(properties) {
-                if (!Array.isArray(properties) || !properties.length) return '';
-                var html = '<h4>物件選定（提案物件）</h4><ul class="org-team-items org-detail-properties">';
-                properties.forEach(function(property) {
-                    var meta = [property.price_text, property.layout, property.area, property.address, property.transport]
-                        .filter(function(value) { return String(value || '').trim() !== ''; });
-                    html += '<li class="org-team-item">';
-                    html += '<div class="org-team-item-main">';
-                    html += '<span class="org-team-name">' + h(property.name || '（物件名未登録）') + '</span>';
-                    if (property.status_label) {
-                        html += '<span class="org-team-role"' + (property.status_color ? ' style="color:' + h(property.status_color) + ';"' : '')
-                            + '>' + h(property.status_label) + '</span>';
-                    }
-                    html += '</div>';
-                    html += '<div class="org-team-item-meta"><span>' + h(meta.join('／')) + '</span></div>';
-                    html += '</li>';
+            // ---- 物件選定（閲覧のみ）------------------------------------------
+            // 担当者の画面と同じ共通UI（PropertyUI／property-core.js）でカードを描画する。
+            // 追加・編集・削除・フォルダー変更・ステータス変更のボタンは描画しない。
+            var detailProperties = [];
+            var detailPropertyFolders = [];
+            var detailFolderClosed = {};
+
+            function propUi() {
+                return window.PropertyUI || null;
+            }
+
+            // 物件カード（views: お客様の閲覧状況を担当者と同じように表示する）。
+            function detailPropertyCardsHtml(items) {
+                var UI = propUi();
+                if (!UI || !items.length) return '';
+                return '<div class="prop-list">' + items.map(function(item) {
+                    return UI.cardHtml(item, { views: true });
+                }).join('') + '</div>';
+            }
+
+            // 一覧の中身（フォルダー → フォルダー未格納の物件）。担当画面と同じ並び。
+            function detailPropertyListInnerHtml() {
+                var UI = propUi();
+                if (!UI) return '';
+                var grouped = UI.groupByFolder(detailProperties, detailPropertyFolders);
+                var inner = '';
+                grouped.groups.forEach(function(group) {
+                    inner += UI.folderSectionHtml(group.folder, detailPropertyCardsHtml(group.items), {
+                        open: !detailFolderClosed[group.folder.id],
+                        count: group.items.length,
+                        empty: 'この中に物件はまだありません。'
+                    });
                 });
-                html += '</ul>';
-                return html;
+                if (grouped.ungrouped.length) {
+                    inner += (grouped.groups.length ? '<div class="prop-folder-rest">フォルダーに入っていない物件</div>' : '')
+                        + detailPropertyCardsHtml(grouped.ungrouped);
+                }
+                return inner || '<div class="prop-empty">提案物件はまだありません。</div>';
+            }
+
+            function detailPropertiesHtml() {
+                if (!propUi()) return '';
+                return '<h4>物件選定（提案物件）</h4>'
+                    + '<div class="prop-wrap" id="org-prop-panel">' + detailPropertyListInnerHtml() + '</div>';
+            }
+
+            // 一覧・詳細の切り替えはこのパネルの中だけで行う（顧客詳細の他の項目はそのまま）。
+            function orgPropPanel() {
+                return detailContentEl ? detailContentEl.querySelector('#org-prop-panel') : null;
+            }
+
+            function bindDetailPropertyList(panel) {
+                var UI = propUi();
+                if (!panel || !UI) return;
+                panel.querySelectorAll('[data-folder-toggle]').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        var id = btn.getAttribute('data-folder-toggle');
+                        var section = btn.closest('.prop-folder');
+                        var open = !section.classList.contains('is-open');
+                        section.classList.toggle('is-open', open);
+                        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                        detailFolderClosed[id] = !open;
+                    });
+                });
+                panel.querySelectorAll('.prop-card').forEach(function(card) {
+                    card.addEventListener('click', function() {
+                        openDetailProperty(parseInt(card.getAttribute('data-prop-id'), 10));
+                    });
+                });
+            }
+
+            function renderDetailPropertyList() {
+                var panel = orgPropPanel();
+                if (!panel) return;
+                panel.innerHTML = detailPropertyListInnerHtml();
+                bindDetailPropertyList(panel);
+            }
+
+            function openDetailProperty(propertyId) {
+                var panel = orgPropPanel();
+                if (!panel || !propertyId) return;
+                panel.innerHTML = '<div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div>';
+                fetch(apiBase + '/customer-property.php?property_id=' + encodeURIComponent(propertyId), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        var target = orgPropPanel();
+                        if (!target) return;
+                        if (!res.success || !res.data || !res.data.property) {
+                            target.innerHTML = '<div class="prop-empty">' + h(res.message || '取得に失敗しました') + '</div>';
+                            return;
+                        }
+                        renderDetailProperty(res.data.property);
+                    })
+                    .catch(function(err) {
+                        console.error(err);
+                        var target = orgPropPanel();
+                        if (target) target.innerHTML = '<div class="prop-empty">取得に失敗しました。</div>';
+                    });
+            }
+
+            function renderDetailProperty(property) {
+                var panel = orgPropPanel();
+                var UI = propUi();
+                if (!panel || !UI) return;
+
+                // 反映済みの一覧データを詳細で置き換えておく（戻ったときに最新の内容を表示する）。
+                for (var i = 0; i < detailProperties.length; i++) {
+                    if (String(detailProperties[i].id) === String(property.id)) {
+                        detailProperties[i] = property;
+                        break;
+                    }
+                }
+
+                panel.innerHTML =
+                    '<div class="prop-toolbar"><button type="button" class="prop-btn prop-btn--ghost" id="org-prop-back">← 物件一覧</button></div>'
+                    + UI.detailHeaderHtml(property)
+                    + UI.passReasonBlockHtml(property, { withAI: true })
+                    + UI.prCommentBlockHtml(property)
+                    + '<div class="prop-tabs">'
+                    + '<button class="prop-tab is-active" data-tab="basic">基本情報</button>'
+                    + '<button class="prop-tab" data-tab="hazard">ハザード等情報</button>'
+                    + '<button class="prop-tab" data-tab="flyer">販売図面</button>'
+                    + '<button class="prop-tab" data-tab="photo">写真・資料</button>'
+                    + '</div>'
+                    + '<div class="prop-tabpane is-active" data-pane="basic">' + UI.basicInfoHtml(property, true) + '</div>'
+                    + '<div class="prop-tabpane" data-pane="hazard">' + UI.hazardHtml(property.hazard, property.hazard_fetched_at) + '</div>'
+                    + '<div class="prop-tabpane" data-pane="flyer">'
+                    + UI.galleryHtml(property.flyers || [], { emptyText: '販売図面は登録されていません。' }) + '</div>'
+                    + '<div class="prop-tabpane" data-pane="photo">'
+                    + UI.galleryHtml(property.photos || [], { emptyText: '写真・資料は登録されていません。' }) + '</div>';
+
+                panel.querySelector('#org-prop-back').addEventListener('click', renderDetailPropertyList);
+
+                // 「見送り」バッジから理由を開く（閲覧のみ）。
+                panel.querySelectorAll('[data-pass-reason]').forEach(function(el) {
+                    el.addEventListener('click', function() { UI.showPassReason(property); });
+                });
+
+                var tabs = panel.querySelectorAll('.prop-tab');
+                tabs.forEach(function(tab) {
+                    tab.addEventListener('click', function() {
+                        tabs.forEach(function(other) { other.classList.remove('is-active'); });
+                        panel.querySelectorAll('.prop-tabpane').forEach(function(pane) { pane.classList.remove('is-active'); });
+                        tab.classList.add('is-active');
+                        var pane = panel.querySelector('[data-pane="' + tab.getAttribute('data-tab') + '"]');
+                        if (pane) pane.classList.add('is-active');
+                    });
+                });
+
+                UI.bindLightbox(panel);
             }
 
             function detailButtonArchiveHtml(lead) {
@@ -5829,13 +5986,23 @@ function editSectionIcon(string $key): string
                 }
                 html += '</div>';
 
-                html += detailAiSummaryHtml(data.ai_summary);
-                html += detailPropertiesHtml(data.properties);
+                detailProperties = Array.isArray(data.properties) ? data.properties : [];
+                detailPropertyFolders = Array.isArray(data.property_folders) ? data.property_folders : [];
+                detailFolderClosed = {};
+
+                html += detailAiSummaryHtml();
+                html += detailPropertiesHtml();
                 html += detailLeadHtml(data.lead && data.lead.classified_data);
                 html += detailLoanHtml(data.loan_simulation);
                 html += detailButtonArchiveHtml(data.lead);
 
                 detailContentEl.innerHTML = html;
+
+                // 物件カードのクリック（詳細表示）を紐づける。
+                bindDetailPropertyList(orgPropPanel());
+
+                // AI整理サマリーは表示後に読み込む。
+                loadDetailAiSummary(data.session_id);
             }
 
             function showCustomerDetail(sessionId, customerName) {
