@@ -73,6 +73,28 @@ try {
 
     $businessCardId = (int)$session['business_card_id'];
 
+    // AI整理サマリーは生成に時間がかかることがあるため、担当者のマイページと同じく別リクエストで返す。
+    // （顧客詳細の他の項目が要約の生成待ちで表示されなくなるのを避ける）
+    if (($_GET['part'] ?? '') === 'ai_summary') {
+        $summary = null;
+        try {
+            $stmt = $db->prepare('SELECT structured_data FROM chat_leads WHERE session_id = ? LIMIT 1');
+            $stmt->execute([$sessionId]);
+            $leadRow = $stmt->fetch(PDO::FETCH_ASSOC);
+            $structuredLead = [];
+            if ($leadRow && !empty($leadRow['structured_data'])) {
+                $decoded = json_decode($leadRow['structured_data'], true);
+                if (is_array($decoded)) $structuredLead = $decoded;
+            }
+            $case = chatCrmLoadCase($db, $sessionId, $businessCardId) ?: chatCrmDefaultCase();
+            $result = chatSalesSummaryResolve($db, $sessionId, $businessCardId, $case, $structuredLead);
+            if ($result !== null) $summary = $result['summary'];
+        } catch (Throwable $e) {
+            error_log('org customer detail summary error: ' . $e->getMessage());
+        }
+        sendSuccessResponse(['summary' => $summary], 'OK');
+    }
+
     // ① 顧客情報（連絡先）
     ensureChatLeadContactTable($db);
     $stmt = $db->prepare('SELECT customer_name, phone, email, created_at, updated_at FROM chat_lead_contacts WHERE session_id = ? LIMIT 1');
@@ -124,16 +146,7 @@ try {
         'classified_data' => chatIntakeClassifiedLeadItems($structuredLead),
     ] : null;
 
-    // ④ AIチャット履歴（AI整理サマリー）。担当画面と同じく、内容が変わっていなければ保存済みを返す。
-    $aiSummary = null;
-    try {
-        $case = chatCrmLoadCase($db, $sessionId, $businessCardId) ?: chatCrmDefaultCase();
-        $summaryResult = chatSalesSummaryResolve($db, $sessionId, $businessCardId, $case, $structuredLead);
-        if ($summaryResult !== null) $aiSummary = $summaryResult['summary'];
-    } catch (Throwable $e) {
-        // 要約が作れなくても他の情報は見せる。
-        error_log('org customer detail summary error: ' . $e->getMessage());
-    }
+    // ④ AIチャット履歴（AI整理サマリー）は ?part=ai_summary で別に取得する（上の分岐）。
 
     // ⑤ 住宅ローンシミュレーター入力
     $loanSimulationData = null;
@@ -145,37 +158,30 @@ try {
         ];
     }
 
-    // ⑥ 提案物件（物件選定）。閲覧専用のため、一覧に出る項目だけを返す。
+    // ⑥ 物件選定（提案物件・フォルダー）。
+    // 担当者の画面（property/list.php）と同じ並び・同じ項目を返し、
+    // 画面側では共通の PropertyUI で担当者と同じカードを描画する（操作ボタンは出さない）。
     $properties = [];
+    $propertyFolders = [];
     try {
         propertyEnsureTables($db);
-        $statusDefs = propertyStatusDefs();
-        $stmt = $db->prepare("
-            SELECT id, status, property_type, property_name, building_name, price_text,
-                   address, transport, layout, exclusive_area, land_area, building_area,
-                   is_favorite, created_at
-            FROM properties
-            WHERE session_id = ? AND business_card_id = ?
-            ORDER BY created_at DESC, id DESC
-            LIMIT 200
-        ");
-        $stmt->execute([$sessionId, $businessCardId]);
+        // 担当画面と同じく session_id だけで絞る（business_card_id では絞らない）。
+        $stmt = $db->prepare(
+            "SELECT p.*" . propertyViewStatsSelectSql('p') . " FROM properties p
+             WHERE p.session_id = ?
+             ORDER BY (CASE COALESCE(NULLIF(p.status, ''), 'considering')
+                 WHEN 'application'     THEN 0
+                 WHEN 'viewing_request' THEN 1
+                 WHEN 'considering'     THEN 2
+                 WHEN 'passed'          THEN 3
+                 ELSE 4 END) ASC,
+                 p.created_at DESC, p.id DESC"
+        );
+        $stmt->execute([$sessionId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $statusKey = (string)($row['status'] ?? '');
-            $properties[] = [
-                'id' => (int)$row['id'],
-                'name' => trim((string)($row['property_name'] ?: $row['building_name'])),
-                'status_label' => $statusDefs[$statusKey]['label'] ?? '',
-                'status_color' => $statusDefs[$statusKey]['color'] ?? '',
-                'price_text' => (string)($row['price_text'] ?? ''),
-                'address' => (string)($row['address'] ?? ''),
-                'transport' => (string)($row['transport'] ?? ''),
-                'layout' => (string)($row['layout'] ?? ''),
-                'area' => (string)($row['exclusive_area'] ?: ($row['land_area'] ?: $row['building_area'])),
-                'is_favorite' => (int)($row['is_favorite'] ?? 0),
-                'created_at' => $row['created_at'],
-            ];
+            $properties[] = propertySerialize($db, $row, true, false);
         }
+        $propertyFolders = propertyFoldersFor($db, $sessionId, true);
     } catch (Throwable $e) {
         // 物件選定が未使用のDBでも顧客詳細は開けるようにする。
         error_log('org customer detail property error: ' . $e->getMessage());
@@ -199,10 +205,10 @@ try {
             'last_seen_at' => $session['last_seen_at'],
         ],
         'messages' => $messages,
-        'ai_summary' => $aiSummary,
         'lead' => $lead,
         'loan_simulation' => $loanSimulationData,
         'properties' => $properties,
+        'property_folders' => $propertyFolders,
     ], 'OK');
 } catch (Exception $e) {
     error_log('org customer detail error: ' . $e->getMessage());

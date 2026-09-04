@@ -3,7 +3,7 @@
  * 物件画像の配信（認証付きプロキシ）。直リンク禁止。
  * GET ?id=<image_id>&session_id=&visitor_id=&variant=original|preview|masked
  * GET ?id=<image_id>&view_token=（物件提案メールのリンクから来た未認証の閲覧）
- *  - 担当（ログイン＋名刺所有）: 既定で原本。variant=preview/masked も取得可。
+ *  - 担当（ログイン＋名刺所有）とその上長（統括・店長／閲覧のみ）: 既定で原本。variant=preview/masked も取得可。
  *  - 顧客: 販売図面はマスク確定済（masked）のみ取得可能（売主情報の自動非表示）。写真等は原本。
  */
 require_once __DIR__ . '/../../config/config.php';
@@ -39,6 +39,15 @@ try {
     if (!empty($_SESSION['user_id']) && (int)$_SESSION['user_id'] === (int)$img['user_id']) {
         $isAgent = true;
     }
+    // 上長（統括（全閲覧）・マネージャー（店長））が「組織・配下顧客」から閲覧している場合。
+    // 社内の方なので担当者と同じ扱い（原本）で通す。閲覧範囲内の担当者の物件だけが対象。
+    if (!$isAgent && !empty($_SESSION['user_id'])) {
+        require_once __DIR__ . '/../../includes/org-hierarchy-helper.php';
+        if (orgCanViewMemberCustomers($db, (int)$_SESSION['user_id'], (int)$img['user_id'])) {
+            $isAgent = true;
+        }
+    }
+
     // 同一電話番号でSMS認証済みの別端末も許可する（複数端末での物件画像共有）。
     if (!$isAgent && $sessionId !== '' && $sessionId === $img['prop_session']) {
         if (chatSessionVisitorAuthorized($db, $img['prop_session'], $visitorId, $img['visitor_identifier'])) {
