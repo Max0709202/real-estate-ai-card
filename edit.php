@@ -2062,7 +2062,7 @@ function editSectionIcon(string $key): string
     </script>
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="assets/js/edit.js"></script>
+    <script src="assets/js/edit.js?v=<?php echo filemtime(__DIR__ . '/assets/js/edit.js'); ?>"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>"></script>
     <script src="assets/js/property-map.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-map.js'); ?>"></script>
