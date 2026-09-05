@@ -446,11 +446,11 @@ if (!function_exists('propertyPrCommentMaxLength')) {
 }
 
 if (!function_exists('propertyPrCommentModel')) {
-    /** PRコメント生成に使うモデル（ご指定: gpt-5.6-luna）。環境変数で上書き可。 */
+    /** PRコメント生成（分析・執筆とも）に使うモデル（ご指定: gpt-5.6-terra）。環境変数で上書き可。 */
     function propertyPrCommentModel(): string
     {
         if (defined('OPENAI_MODEL_PR_COMMENT') && OPENAI_MODEL_PR_COMMENT !== '') return OPENAI_MODEL_PR_COMMENT;
-        return getenv('OPENAI_MODEL_PR_COMMENT') ?: 'gpt-5.6-luna';
+        return getenv('OPENAI_MODEL_PR_COMMENT') ?: 'gpt-5.6-terra';
     }
 }
 
@@ -490,92 +490,328 @@ if (!function_exists('propertyNormalizePrComment')) {
     }
 }
 
-if (!function_exists('propertyPrCommentPrompt')) {
-    /** PRコメントの生成ルール（ご指定の6条件）をそのままシステムプロンプトにしたもの。 */
-    function propertyPrCommentPrompt(): string
+if (!function_exists('propertyPrCommentSimilarityMax')) {
+    /** 「他の物件と似すぎ」と判定する類似度のしきい値（0〜1）。超えたら自動で再生成する。 */
+    function propertyPrCommentSimilarityMax(): float
     {
-        return "あなたは不動産売買仲介のベテラン営業担当者です。担当しているお客様へ1件の物件を提案するにあたり、その物件のPRコメントを日本語で書いてください。\n"
+        $v = (float)(getenv('PROPERTY_PR_COMMENT_SIMILARITY_MAX') ?: 0);
+        return ($v > 0 && $v < 1) ? $v : 0.45;
+    }
+}
+
+if (!function_exists('propertyPrCommentBannedPhrases')) {
+    /** どの物件にも当てはまる定型表現。含まれていたら書き直させる。 */
+    function propertyPrCommentBannedPhrases(): array
+    {
+        return [
+            '駅近', '利便性が高い', '利便性の高い', '生活利便性',
+            '快適な暮らし', '快適な生活', '快適にお過ごし',
+            'おすすめの物件', 'おすすめです', '魅力的な物件', '理想の住まい',
+            '安心して暮らせ', '暮らしやすい環境', '住みやすい環境',
+            '便利な立地', '人気のエリア',
+        ];
+    }
+}
+
+if (!function_exists('propertyPrCommentSimilarity')) {
+    /**
+     * 2つの文章の似ぐあいを 0〜1 で返す（文字2-gramのDice係数）。
+     * 同じ型に情報を差し込んだだけの文章は値が高く出る。
+     */
+    function propertyPrCommentSimilarity(string $a, string $b): float
+    {
+        $grams = function (string $t): array {
+            $t = preg_replace('/[\s、。，．・「」『』（）()\[\]〜~\-―…!！?？]/u', '', $t);
+            $len = mb_strlen((string)$t);
+            $out = [];
+            for ($i = 0; $i + 1 < $len; $i++) $out[mb_substr((string)$t, $i, 2)] = true;
+            return $out;
+        };
+        $ga = $grams($a); $gb = $grams($b);
+        if (empty($ga) || empty($gb)) return 0.0;
+        $inter = count(array_intersect_key($ga, $gb));
+        return (2.0 * $inter) / (count($ga) + count($gb));
+    }
+}
+
+if (!function_exists('propertyRecentPrComments')) {
+    /**
+     * 同じ担当者が最近ほかの物件に付けたPRコメント（似せないための参照用）。
+     * 「どの物件も似たり寄ったり」を防ぐため、生成結果をこれらと突き合わせる。
+     */
+    function propertyRecentPrComments(PDO $db, int $businessCardId, int $excludePropertyId, int $limit = 8): array
+    {
+        if ($businessCardId <= 0) return [];
+        try {
+            $limit = max(1, min(20, $limit));
+            $stmt = $db->prepare("SELECT pr_comment FROM properties
+                WHERE business_card_id = ? AND id <> ? AND pr_comment IS NOT NULL AND pr_comment <> ''
+                ORDER BY COALESCE(pr_comment_updated_at, updated_at) DESC LIMIT " . $limit);
+            $stmt->execute([$businessCardId, $excludePropertyId]);
+            $out = [];
+            foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $c) {
+                $c = trim((string)$c);
+                if ($c !== '') $out[] = $c;
+            }
+            return $out;
+        } catch (Throwable $e) {
+            return [];
+        }
+    }
+}
+
+if (!function_exists('propertyPrCommentParseJson')) {
+    /** AI応答から最初の { 〜 最後の } を取り出して連想配列にする。失敗時 null。 */
+    function propertyPrCommentParseJson(?string $reply): ?array
+    {
+        if (!$reply) return null;
+        $t = trim($reply);
+        $t = preg_replace('/^```[a-zA-Z]*\s*/', '', $t);
+        $t = preg_replace('/```$/', '', trim((string)$t));
+        $s = strpos((string)$t, '{'); $e = strrpos((string)$t, '}');
+        if ($s === false || $e === false || $e < $s) return null;
+        $data = json_decode(substr((string)$t, $s, $e - $s + 1), true);
+        return is_array($data) ? $data : null;
+    }
+}
+
+if (!function_exists('propertyPrCommentAnalyzePrompt')) {
+    /**
+     * 第1段階（下調べ）のシステムプロンプト。
+     * 物件概要をまとめさせるのではなく、①住戸固有 ②マンション全体 ③立地・周辺環境 に分けて
+     * 訴求ポイントを洗い出し、その中から本当に効くものをAI自身に選ばせる。
+     */
+    function propertyPrCommentAnalyzePrompt(): string
+    {
+        return "あなたは不動産売買仲介で数多くの成約を重ねてきた営業担当者です。\n"
+            . "これから1件の物件について、担当しているお客様に「この部屋ならここを伝えたい」と考えるための下調べを行います。\n"
+            . "物件概要を要約するのではなく、その物件・その住戸ならではの訴求ポイントを自分の目で選び抜いてください。\n"
             . "\n"
-            . "【書き方の手順】\n"
-            . "1. 与えられた物件情報の中から、その物件ならではの特徴を3〜5個選ぶ。\n"
-            . "2. お客様にとって重要と思われる特徴から順に、文章を組み立てる。\n"
+            . "【必ず3つに分けて分析する】\n"
+            . "① 住戸固有の魅力：その住戸にしかないもの（所在階・部屋番号・専有面積・間取り・バルコニー面積・向き・角部屋・現況・引渡時期など）\n"
+            . "② マンション（建物）全体の魅力：総戸数・構造・築年月・管理形態・管理会社・管理費/修繕積立金の水準・土地権利など\n"
+            . "③ 立地・周辺環境：所在地・交通など、与えられた情報から確実に言えることだけ\n"
+            . "※ 一戸建て・土地の場合は、①をその建物・土地そのものの固有条件（土地面積・建物面積・間取り・築年月・現況など）、②を構造・土地権利などの建物条件として読み替えてください。\n"
+            . "\n"
+            . "【選び方のルール】\n"
+            . "・与えられた登録情報に書かれていないことは、どれだけもっともらしくても挙げてはいけません（設備・眺望・学区・将来の資産価値なども同様）。\n"
+            . "・①住戸固有の特徴を最優先で拾います。①が乏しい物件に限って②③の比重を上げてください。\n"
+            . "・本当に訴求力が高いと判断したものだけを3〜5個選びます。数合わせで弱いポイントを入れないでください。\n"
+            . "・「駅が近い」「利便性が高い」のように多くの物件に当てはまる一般論は選ばないでください。数値や固有名詞で裏づけられる、この物件にしか書けないことを選びます。\n"
+            . "・同じ数値でも、この物件では何を意味するのか（相場との関係・住まい方への影響）まで考えてから選んでください。\n"
+            . "・この物件をどの軸で語るのが最も効果的かを自分で決めてください（unit=住戸中心 / building=マンション中心 / location=立地中心）。\n"
+            . "\n"
+            . "【出力】次のJSONだけを出力します。説明文・マークダウンは書かないでください。\n"
+            . "{\n"
+            . "  \"unit\": [\"①で見つけた特徴\"],\n"
+            . "  \"building\": [\"②で見つけた特徴\"],\n"
+            . "  \"location\": [\"③で見つけた特徴\"],\n"
+            . "  \"focus\": \"unit または building または location\",\n"
+            . "  \"selected\": [\n"
+            . "    {\"point\": \"選んだ訴求ポイント\", \"category\": \"unit / building / location\", \"why\": \"なぜお客様に効くのか\", \"evidence\": \"根拠になる登録情報の値\"}\n"
+            . "  ],\n"
+            . "  \"opening\": \"書き出しで最初に触れる内容（この物件ならではのもの）\",\n"
+            . "  \"structure\": \"どの順番で何を伝えるかの構成メモ\"\n"
+            . "}\n"
+            . "selected は訴求力が高い順に3〜5件。①住戸固有のポイントを必ず先頭に置けるか検討してください。";
+    }
+}
+
+if (!function_exists('propertyPrCommentAnalyze')) {
+    /** 第1段階: 訴求ポイントの分析。失敗時 null。 */
+    function propertyPrCommentAnalyze(array $facts, array $logCtx): ?array
+    {
+        $model = propertyPrCommentModel();
+        $apiKey = chatOpenAIApiKeyForModel($model);
+        $messages = [
+            ['role' => 'system', 'content' => propertyPrCommentAnalyzePrompt()],
+            ['role' => 'user', 'content' => "【この物件の登録情報（物件資料から取り込んだ内容を含む）】\n" . implode("\n", $facts)],
+        ];
+        $res = callOpenAIChat($messages, $apiKey, $model, $logCtx + [
+            'purpose' => 'pr_comment_analyze', 'max_tokens' => 900, 'temperature' => 0.6, 'timeout' => 40,
+        ]);
+        if (empty($res['reply'])) {
+            error_log('property pr-comment analyze failed: ' . (string)($res['error'] ?? 'unknown'));
+            return null;
+        }
+        $plan = propertyPrCommentParseJson((string)$res['reply']);
+        if (!$plan || empty($plan['selected']) || !is_array($plan['selected'])) return null;
+        // 選定は3〜5件に整える（多すぎるとスペック羅列に戻ってしまう）。
+        $plan['selected'] = array_slice(array_values($plan['selected']), 0, 5);
+        if (!in_array(($plan['focus'] ?? ''), ['unit', 'building', 'location'], true)) $plan['focus'] = 'unit';
+        return $plan;
+    }
+}
+
+if (!function_exists('propertyPrCommentWritePrompt')) {
+    /**
+     * 第2段階（執筆）のシステムプロンプト。
+     * 何を一番に伝えるか・どの順番で・どう書き出すかは分析結果に従わせ、
+     * 決まった型に情報を差し込む書き方を明確に禁止する。
+     */
+    function propertyPrCommentWritePrompt(): string
+    {
+        return "あなたは不動産売買仲介のベテラン営業担当者です。\n"
+            . "自分で行った下調べ（分析結果）をもとに、担当しているお客様へ送るPRコメントを日本語で書いてください。\n"
+            . "物件概要の要約ではなく、「この部屋ならここをお客様に伝えたい」という営業の言葉として書きます。\n"
             . "\n"
             . "【必ず守るルール】\n"
-            . "・全体で250〜350字程度にする。\n"
-            . "・その物件固有の情報（物件名・価格・所在地・交通・面積・間取り・築年月・所在階・管理体制などの具体的な値）を最低3つ、本文に自然に織り込む。\n"
-            . "・与えられた物件情報に書かれていないことは推測して書かない。設備・周辺環境・学区・将来の資産価値なども、情報がなければ触れない。\n"
-            . "・「おすすめ」「便利」「魅力」「魅力的」「最適」といった評価語を多用しない（使うとしても全体で1回まで）。\n"
-            . "・スペックを並べただけの羅列にしない。読んだお客様がその住まいでの暮らしを思い描ける、丁寧で自然な文章にする。\n"
-            . "・どの物件にも当てはまる一般論や定型的な言い回しで字数を埋めない。この物件だけの内容にする。\n"
-            . "・見出し・箇条書き・記号・マークダウン・絵文字は使わない。\n"
-            . "・前置き（「以下が〜です」等）・挨拶・署名は書かず、PRコメントの本文だけを出力する。";
+            . "・全体で250〜350字程度。\n"
+            . "・分析結果の selected に挙げたポイントを、その順番で伝える。selected にないことは書かない。\n"
+            . "・登録情報・分析結果にないことは推測して書かない。\n"
+            . "・書き出しは opening の内容から入る。「この物件は」「本物件は」「〇〇マンションは」のような説明的な入り方はしない。\n"
+            . "・この物件固有の具体的な値（価格・所在階・専有面積・間取り・築年月・所在地・交通・総戸数・管理費など）を最低3つ、文中に自然に織り込む。\n"
+            . "・数値を書くときは必ず「だからどう良いのか」まで書く。数値だけを並べたスペックの羅列にはしない。\n"
+            . "・次の言い回しは使わない（どの物件にも当てはまる決まり文句のため）：「" . implode('」「', propertyPrCommentBannedPhrases()) . "」。\n"
+            . "・「おすすめ」「便利」「魅力」「最適」といった評価語は全体で1回まで。\n"
+            . "・毎回同じ型（「〇〇が△△で、□□も◇◇です」の繰り返し）で書かない。この物件の内容に合わせて、書き出し・文の長さ・区切り方・語り口そのものを変える。\n"
+            . "・見出し・箇条書き・記号・マークダウン・絵文字は使わない。前置き・挨拶・署名も書かない。PRコメントの本文だけを出力する。";
+    }
+}
+
+if (!function_exists('propertyPrCommentWrite')) {
+    /** 第2段階: 分析結果に沿ってPRコメントを執筆する。失敗時 null。 */
+    function propertyPrCommentWrite(array $facts, array $plan, array $avoid, array $feedback, array $logCtx): ?string
+    {
+        $model = propertyPrCommentModel();
+        $apiKey = chatOpenAIApiKeyForModel($model);
+
+        $user = "【この物件の登録情報（物件資料から取り込んだ内容を含む）】\n" . implode("\n", $facts)
+            . "\n\n【下調べ（あなた自身の分析結果）】\n"
+            . json_encode($plan, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+        if (!empty($avoid)) {
+            $lines = [];
+            foreach (array_slice($avoid, 0, 6) as $i => $prev) {
+                $lines[] = ($i + 1) . '. ' . mb_substr($prev, 0, 160);
+            }
+            $user .= "\n\n【最近ほかの物件で書いたコメント】\n" . implode("\n", $lines)
+                . "\n上の文章と、書き出し・構成・言い回しが似ないようにしてください。同じ順番で同じ種類の情報を並べることも避けてください。";
+        }
+        if (!empty($feedback)) {
+            $user .= "\n\n【前回の出力に対する指摘（必ず直してください）】\n・" . implode("\n・", $feedback);
+        }
+
+        $res = callOpenAIChat(
+            [
+                ['role' => 'system', 'content' => propertyPrCommentWritePrompt()],
+                ['role' => 'user', 'content' => $user],
+            ],
+            $apiKey,
+            $model,
+            $logCtx + ['purpose' => 'pr_comment', 'max_tokens' => 700, 'temperature' => 0.9, 'timeout' => 40]
+        );
+        if (empty($res['reply'])) {
+            error_log('property pr-comment write failed: ' . (string)($res['error'] ?? 'unknown'));
+            return null;
+        }
+        $text = propertyNormalizePrComment((string)$res['reply']);
+        return $text !== '' ? $text : null;
+    }
+}
+
+if (!function_exists('propertyPrCommentReview')) {
+    /**
+     * 生成された文章を点検する。
+     * 返り値: ['issues' => 指摘の配列（空なら合格）, 'similarity' => 既存コメントとの最大類似度]
+     */
+    function propertyPrCommentReview(string $text, array $avoid): array
+    {
+        $issues = [];
+        $len = mb_strlen($text);
+        if ($len < 230) {
+            $issues[] = '文章が短すぎます（' . $len . '字）。250〜350字に収めてください。';
+        } elseif ($len > 380) {
+            $issues[] = '文章が長すぎます（' . $len . '字）。250〜350字に収めてください。';
+        }
+
+        $hit = [];
+        foreach (propertyPrCommentBannedPhrases() as $ng) {
+            if (mb_strpos($text, $ng) !== false) $hit[] = $ng;
+        }
+        if (!empty($hit)) {
+            $issues[] = 'どの物件にも当てはまる決まり文句が含まれています（' . implode('・', $hit)
+                . '）。この物件にしか書けない具体的な表現に置き換えてください。';
+        }
+
+        $max = 0.0; $similar = '';
+        foreach ($avoid as $prev) {
+            $sim = propertyPrCommentSimilarity($text, $prev);
+            if ($sim > $max) { $max = $sim; $similar = $prev; }
+        }
+        if ($max >= propertyPrCommentSimilarityMax() && $similar !== '') {
+            $issues[] = 'ほかの物件のコメントと文章構成・言い回しが似すぎています（類似度' . round($max * 100) . '％）。'
+                . "取り上げる順番・書き出し・語り口を変え、次の文章とは別物にしてください。\n" . mb_substr($similar, 0, 200);
+        }
+        return ['issues' => $issues, 'similarity' => $max];
     }
 }
 
 if (!function_exists('propertyGeneratePrComment')) {
     /**
      * 物件資料・登録情報をもとにPRコメントを生成する（保存はしない。担当者が確認・編集して保存する）。
-     * $options: ['previous' => 直前の文章（再生成時に別の切り口にするため）]
-     * 返り値: ['comment' => string|null, 'error' => string|null]
+     *   第1段階: ①住戸固有 ②マンション全体 ③立地・周辺環境 に分けて訴求ポイントを分析し、
+     *            本当に効くものを3〜5個・語る軸・書き出し・構成までAI自身に決めさせる。
+     *   第2段階: その方針に沿って執筆し、字数・定型表現・他物件との類似度を点検して、
+     *            引っかかれば指摘を渡して自動で書き直させる（最大3回）。
+     * $options: ['previous' => 入力欄にある直前の文章（再生成時に似せないため）]
+     * 返り値: ['comment' => string|null, 'plan' => array|null, 'error' => string|null]
      */
     function propertyGeneratePrComment(PDO $db, array $row, array $options = []): array
     {
         if (!function_exists('callOpenAIChat')) {
-            return ['comment' => null, 'error' => 'AI機能を利用できません'];
+            return ['comment' => null, 'plan' => null, 'error' => 'AI機能を利用できません'];
         }
         $facts = propertyPrCommentFacts($row);
         // 「物件固有の情報を最低3つ」を満たせない状態では生成しない（推測で埋めさせないため）。
         if (count($facts) < 4) {
-            return ['comment' => null, 'error' => '物件情報が不足しているため生成できません。基本情報を登録してからお試しください。'];
+            return ['comment' => null, 'plan' => null, 'error' => '物件情報が不足しているため生成できません。基本情報を登録してからお試しください。'];
         }
 
         $model = propertyPrCommentModel();
-        $apiKey = function_exists('chatOpenAIApiKeyForModel') ? chatOpenAIApiKeyForModel($model) : (getenv('OPENAI_API_KEY') ?: '');
+        $apiKey = chatOpenAIApiKeyForModel($model);
         if ($apiKey === '' || $apiKey === 'YOUR_OPENAI_API_KEY_HERE') {
-            return ['comment' => null, 'error' => 'AIの設定が未完了のため生成できません'];
+            return ['comment' => null, 'plan' => null, 'error' => 'AIの設定が未完了のため生成できません'];
         }
 
-        $user = "【この物件の登録情報（物件資料から取り込んだ内容を含む）】\n" . implode("\n", $facts);
-        $previous = trim((string)($options['previous'] ?? ''));
-        if ($previous !== '') {
-            // 再生成: 前回と同じ文章・同じ書き出しにならないよう、前回分を見せて別の切り口を指示する。
-            $user .= "\n\n【前回生成した文章（この内容とは別の切り口で書き直してください）】\n"
-                . mb_substr($previous, 0, 600)
-                . "\n\n取り上げる特徴の組み合わせ・順序・書き出しを変え、前回と同じ言い回しを繰り返さないでください。";
-        }
-
-        $messages = [
-            ['role' => 'system', 'content' => propertyPrCommentPrompt()],
-            ['role' => 'user', 'content' => $user],
-        ];
         $logCtx = [
-            'purpose' => 'pr_comment', 'max_tokens' => 700, 'temperature' => 0.85, 'timeout' => 45,
             'db' => $db,
             'session_id' => $row['session_id'] ?? null,
             'business_card_id' => isset($row['business_card_id']) ? (int)$row['business_card_id'] : null,
         ];
 
-        // 字数が大きく外れたときだけ1回だけ書き直させる（250〜350字「程度」を担保する）。
-        $comment = null;
-        for ($attempt = 0; $attempt < 2; $attempt++) {
-            $res = callOpenAIChat($messages, $apiKey, $model, $logCtx);
-            if (empty($res['reply'])) {
-                if ($comment !== null) break;
-                error_log('property pr-comment generate failed: ' . (string)($res['error'] ?? 'unknown'));
-                return ['comment' => null, 'error' => 'PRコメントを生成できませんでした。時間をおいてお試しください。'];
+        $plan = propertyPrCommentAnalyze($facts, $logCtx);
+        if ($plan === null) {
+            return ['comment' => null, 'plan' => null, 'error' => 'PRコメントを生成できませんでした。時間をおいてお試しください。'];
+        }
+
+        // 似せたくない文章: 同じ担当者が最近ほかの物件に付けたコメント＋（再生成なら）入力欄の下書き。
+        // 書き直しの比較対象はこの一覧だけにする（自分の前回出力と比べると、字数直しの書き直しまで
+        // 「似すぎ」と判定されてしまい、良くなった文章を捨てることになるため）。
+        $avoid = propertyRecentPrComments($db, (int)($row['business_card_id'] ?? 0), (int)($row['id'] ?? 0));
+        $previous = trim((string)($options['previous'] ?? ''));
+        if ($previous !== '') array_unshift($avoid, $previous);
+
+        $feedback = [];
+        $best = null; $bestScore = null;
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $text = propertyPrCommentWrite($facts, $plan, $avoid, $feedback, $logCtx);
+            if ($text === null) break;
+            $review = propertyPrCommentReview($text, $avoid);
+            if (empty($review['issues'])) {
+                return ['comment' => mb_substr($text, 0, propertyPrCommentMaxLength()), 'plan' => $plan, 'error' => null];
             }
-            $comment = propertyNormalizePrComment((string)$res['reply']);
-            $len = mb_strlen($comment);
-            if ($len >= 230 && $len <= 380) break;
-            $messages[] = ['role' => 'assistant', 'content' => $comment];
-            $messages[] = ['role' => 'user', 'content' =>
-                ($len < 230 ? '文章が短すぎます。' : '文章が長すぎます。')
-                . '取り上げる特徴はそのままに、250〜350字に収まるよう書き直してください。本文だけを出力してください。'];
+            // 合格しなかった中でも、指摘が少なく類似度の低いものを控えておく。
+            $score = count($review['issues']) + $review['similarity'];
+            if ($best === null || $score < $bestScore) { $best = $text; $bestScore = $score; }
+            // 指摘（字数・決まり文句・似すぎている文章）を渡して書き直させる。
+            $feedback = $review['issues'];
         }
-        if ($comment === null || $comment === '') {
-            return ['comment' => null, 'error' => 'PRコメントを生成できませんでした。時間をおいてお試しください。'];
+
+        if ($best === null) {
+            return ['comment' => null, 'plan' => null, 'error' => 'PRコメントを生成できませんでした。時間をおいてお試しください。'];
         }
-        return ['comment' => mb_substr($comment, 0, propertyPrCommentMaxLength()), 'error' => null];
+        return ['comment' => mb_substr($best, 0, propertyPrCommentMaxLength()), 'plan' => $plan, 'error' => null];
     }
 }
 
