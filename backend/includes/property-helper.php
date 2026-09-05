@@ -114,6 +114,7 @@ if (!function_exists('propertyEnsureTables')) {
         propertyEnsureFlyerMaskColumns($db);
         propertyEnsureRetentionColumns($db);
         propertyEnsurePrCommentColumns($db);
+        propertyEnsureGeoColumns($db);
         propertyEnsureFolderTable($db);
         // 閲覧トークン・閲覧回数のテーブル（property-view-helper.php）。
         propertyViewEnsureTables($db);
@@ -141,6 +142,31 @@ if (!function_exists('propertyEnsureFlyerMaskColumns')) {
                 $stmt->execute([$name]);
                 if ((int)$stmt->fetchColumn() === 0) {
                     $db->exec("ALTER TABLE property_images " . $ddl);
+                }
+            } catch (Throwable $e) { /* 既に存在 / 権限不足は無視 */ }
+        }
+    }
+}
+
+if (!function_exists('propertyEnsureGeoColumns')) {
+    /**
+     * 物件詳細「マップ」機能で使う緯度・経度カラムを冪等に追加する（既存テーブル向け）。
+     * 住所から一度ジオコーディングしたら保存し、次回以降は再取得しない（§1 マップの基本表示）。
+     */
+    function propertyEnsureGeoColumns(PDO $db): void
+    {
+        $alters = [
+            'lat'            => "ADD COLUMN lat DECIMAL(10,7) NULL DEFAULT NULL AFTER address",
+            'lng'            => "ADD COLUMN lng DECIMAL(10,7) NULL DEFAULT NULL AFTER lat",
+            // ジオコーディングを試みた日時（成功・失敗の双方で記録し、失敗の再試行間隔に使う）
+            'geo_fetched_at' => "ADD COLUMN geo_fetched_at TIMESTAMP NULL DEFAULT NULL AFTER lng",
+        ];
+        foreach ($alters as $col => $ddl) {
+            try {
+                $stmt = $db->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'properties' AND COLUMN_NAME = ?");
+                $stmt->execute([$col]);
+                if ((int)$stmt->fetchColumn() === 0) {
+                    $db->exec("ALTER TABLE properties " . $ddl);
                 }
             } catch (Throwable $e) { /* 既に存在 / 権限不足は無視 */ }
         }
@@ -1432,6 +1458,18 @@ if (!function_exists('propertyApplyFields')) {
         if (isset($fields['price_text']) && !isset($fields['price_man'])) {
             $man = propertyPriceToMan((string)$fields['price_text']);
             if ($man !== null) { $set[] = "`price_man` = ?"; $params[] = $man; }
+        }
+        // 所在地が書き換わったら、マップ用に保存済みの緯度・経度を破棄する。
+        // 次にマップを開いたときに新しい住所でジオコーディングし直す（古い位置を出さないため）。
+        if (array_key_exists('address', $fields)) {
+            $stmt = $db->prepare("SELECT address FROM properties WHERE id = ? LIMIT 1");
+            $stmt->execute([$propertyId]);
+            $before = (string)($stmt->fetchColumn() ?: '');
+            if (trim($before) !== trim((string)$fields['address'])) {
+                $set[] = "`lat` = NULL";
+                $set[] = "`lng` = NULL";
+                $set[] = "`geo_fetched_at` = NULL";
+            }
         }
         $params[] = $propertyId;
         $sql = "UPDATE properties SET " . implode(', ', $set) . " WHERE id = ?";

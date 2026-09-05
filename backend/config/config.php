@@ -353,3 +353,20 @@ if (!defined('ESTAT_APP_ID')) {
 if (!defined('GOOGLE_GEOCODING_API_KEY')) {
     define('GOOGLE_GEOCODING_API_KEY', getenv('GOOGLE_GEOCODING_API_KEY') ?: '');
 }
+
+// 物件詳細「マップ・周辺情報」機能（Google Maps Platform）。
+// ・GOOGLE_MAPS_API_KEY   : 地図表示（Maps JavaScript API）。仕様上ブラウザへ渡す必要があるため、
+//                           Google Cloud 側で「HTTPリファラー制限」＋「Maps JavaScript API のみ許可」を必ず設定する。
+// ・GOOGLE_PLACES_API_KEY : 周辺施設検索（Places API (New)）。サーバー側からのみ呼び出し、
+//                           ブラウザには絶対に露出させない。未設定時は GOOGLE_MAPS_API_KEY を流用する。
+// キーはリポジトリに含めない。backend/config/secrets.php または環境変数で設定する。
+if (!defined('GOOGLE_MAPS_API_KEY')) {
+    define('GOOGLE_MAPS_API_KEY', getenv('GOOGLE_MAPS_API_KEY') ?: '');
+}
+if (!defined('GOOGLE_PLACES_API_KEY')) {
+    define('GOOGLE_PLACES_API_KEY', getenv('GOOGLE_PLACES_API_KEY') ?: GOOGLE_MAPS_API_KEY);
+}
+// 周辺施設の基本検索範囲（半径メートル・依頼書§6「対象物件を中心に半径1000m程度」）。
+if (!defined('PROPERTY_MAP_RADIUS_M')) {
+    define('PROPERTY_MAP_RADIUS_M', (int)(getenv('PROPERTY_MAP_RADIUS_M') ?: 1000));
+}

@@ -135,11 +135,19 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-detail__badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .prop-detail__date { font-size: 12px; color: #8a8f98; margin-top: 6px; }
 
-/* ===== タブ（§10） ===== */
-.prop-tabs { display: flex; gap: 4px; border-bottom: 2px solid #eef1f6; margin: 12px 0; overflow-x: auto; }
-.prop-tab { flex: 0 0 auto; background: none; border: none; cursor: pointer; padding: 9px 12px;
-  font-size: 13px; font-weight: 700; color: #6b7585; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; }
-.prop-tab.is-active { color: #2d6cdf; border-bottom-color: #2d6cdf; }
+/* ===== タブ（§10） =====
+   「基本情報／ハザード等情報／販売図面／写真・資料／マップ」を、どれを見ているかが
+   ひと目で分かるセグメント型にする。横に入り切らない場合はスクロールできる（スマホ）。 */
+.prop-tabs { display: flex; gap: 4px; margin: 14px 0 12px; padding: 4px;
+  background: #f2f5fa; border: 1px solid #e6ebf3; border-radius: 12px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.prop-tabs::-webkit-scrollbar { display: none; }
+.prop-tab { flex: 1 0 auto; background: none; border: none; cursor: pointer; padding: 10px 14px;
+  font-size: 13px; font-weight: 700; color: #6b7585; border-radius: 9px; white-space: nowrap;
+  transition: background .15s, color .15s, box-shadow .15s; }
+.prop-tab:hover { color: #38465c; }
+.prop-tab.is-active { background: #fff; color: #2d6cdf; box-shadow: 0 1px 3px rgba(20, 34, 58, .16); }
+.prop-tab:focus-visible { outline: 2px solid #bcd4ff; outline-offset: 1px; }
 .prop-tabpane { display: none; }
 .prop-tabpane.is-active { display: block; }
 
@@ -379,3 +387,59 @@ a.prop-source--orange:hover { background: #ffe3c7; }
   .prop-form { grid-template-columns: 1fr; }
   .prop-card__thumb { width: 80px; height: 80px; flex-basis: 80px; }
 }
+
+/* ===== マップ・周辺情報（マップ情報表示依頼 2026.9.3） =====
+   PC・スマートフォンの両方で、地図の上に周辺情報の切り替えボタンを並べる（§4）。 */
+.prop-map { display: flex; flex-direction: column; gap: 10px; }
+.prop-map__loading { display: flex; align-items: center; gap: 8px; padding: 28px 8px; color: #6b7585; font-size: 13px; }
+
+/* 周辺情報の切り替えボタン（10カテゴリー・複数同時ON可） */
+.prop-map__bar { display: flex; flex-wrap: wrap; gap: 6px; }
+.prop-map__cat {
+  --cat-color: #2d6cdf;
+  position: relative; cursor: pointer; white-space: nowrap;
+  background: #fff; border: 1px solid #dbe2ec; border-radius: 999px;
+  padding: 7px 13px 7px 26px; font-size: 12px; font-weight: 700; color: #4a5566;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.prop-map__cat::before {
+  content: ''; position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  width: 9px; height: 9px; border-radius: 50%; background: var(--cat-color); opacity: .55;
+}
+.prop-map__cat:hover { border-color: var(--cat-color); color: #14223a; }
+/* ONになっているカテゴリーは色で分かるようにする（§4） */
+.prop-map__cat.is-active { background: var(--cat-color); border-color: var(--cat-color); color: #fff; }
+.prop-map__cat.is-active::before { background: #fff; opacity: 1; }
+.prop-map__cat.is-loading { opacity: .6; pointer-events: none; }
+.prop-map__cat.is-loading::before { animation: prop-map-blink .9s linear infinite; }
+@keyframes prop-map-blink { 50% { opacity: .2; } }
+.prop-map__fit {
+  cursor: pointer; white-space: nowrap; background: #eef3fb; border: 1px dashed #b9cbe8;
+  border-radius: 999px; padding: 7px 13px; font-size: 12px; font-weight: 700; color: #2d6cdf;
+}
+.prop-map__fit:hover { background: #e3ecfa; }
+
+/* 地図本体。PCは高さを広く、スマートフォンは画面に収まる高さにする。 */
+.prop-map__canvas { width: 100%; height: 420px; border-radius: 12px; overflow: hidden; border: 1px solid #e5e9f0; background: #eef1f6; }
+@media (max-width: 760px) { .prop-map__canvas { height: 340px; } }
+
+/* ハザード・学区の色分け凡例 */
+.prop-map__legend { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+/* display:flex が UA の [hidden]{display:none} に勝ってしまうため、明示的に隠す。 */
+.prop-map__legend[hidden], .prop-map__notes[hidden] { display: none; }
+.prop-map__legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #4a5566; }
+.prop-map__legend-item i { width: 14px; height: 10px; border-radius: 3px; opacity: .85; }
+
+/* 注意書き（学区の変更・出典など） */
+.prop-map__notes { display: flex; flex-direction: column; gap: 6px; }
+.prop-map__note { font-size: 12px; line-height: 1.6; color: #6b7585; background: #f7f9fc; border-left: 3px solid #d6dde8; border-radius: 6px; padding: 8px 10px; }
+.prop-map__note--flash { color: #8a5a12; background: #fff7e8; border-left-color: #f0b04a; }
+
+/* ピンの吹き出し（施設名と「Googleマップで見る」だけ） */
+.prop-map__iw { min-width: 150px; max-width: 240px; font-size: 13px; line-height: 1.6; color: #1f2933; }
+.prop-map__iw-title { font-weight: 800; color: #14223a; }
+.prop-map__iw-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700; color: #e8384f; background: rgba(232, 56, 79, .12); vertical-align: middle; }
+.prop-map__iw-price { font-weight: 800; color: #e8384f; margin-top: 2px; }
+.prop-map__iw-meta { color: #5b6675; font-size: 12px; }
+.prop-map__iw-link { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; color: #2d6cdf; text-decoration: none; }
+.prop-map__iw-link:hover { text-decoration: underline; }
