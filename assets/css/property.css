@@ -293,6 +293,13 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 /* 目安（250〜350字）から外れている間は字数を強調する */
 .prop-pr__count-num.is-off { color: #d2820f; }
 .prop-pr__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+/* AIが選んだ訴求ポイント（生成直後に入力欄の下へ表示し、担当者が根拠を確認できるようにする） */
+.prop-pr__plan { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #eef4ff; border: 1px solid #d6e4ff; }
+.prop-pr__plan-head { font-size: 11px; font-weight: 800; color: #2459bd; margin-bottom: 6px; }
+.prop-pr__plan-list { margin: 0; padding-left: 18px; }
+.prop-pr__plan-list li { font-size: 12px; color: #38465c; line-height: 1.7; }
+.prop-pr__plan-cat { display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 999px;
+  background: #fff; border: 1px solid #cfdcf5; color: #2459bd; font-size: 10px; font-weight: 800; vertical-align: 1px; }
 
 /* 顧客側の物件詳細に表示する読み取り専用ブロック */
 .prop-pr-view { margin: 12px 0; padding: 14px; border-radius: 12px; background: #eef4ff; border: 1px solid #d6e4ff; }
