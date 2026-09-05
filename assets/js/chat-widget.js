@@ -3258,7 +3258,28 @@
             });
     }
 
+    /* ===== マップ・周辺情報（マップ情報表示依頼 2026.9.3） =====
+       「マップ」タブを開いた時点で初めて描画する。この時点では現在の物件・検討中物件・
+       Googleマップだけを表示し、Places API は呼ばない（§11）。 */
+    var propMapPropertyId = null;   // マップを描画済みの物件ID（タブを行き来しても作り直さない）
+    function propLoadMap(box, p) {
+        var pane = box.querySelector('[data-cpane="map"]');
+        if (!pane) return;
+        if (propMapPropertyId === p.id) return;
+        if (!window.PropertyMap) { pane.innerHTML = '<div class="prop-empty">マップを表示できません。</div>'; return; }
+        propMapPropertyId = p.id;
+        window.PropertyMap.mount(pane, {
+            propertyId: p.id,
+            apiBase: siteBase + '/backend/api/property',
+            authQS: propAuthQS(),
+            // 検討中物件の吹き出しから、その物件の詳細へ移動する（§3）。
+            onOpenProperty: function (id) { propOpenDetail(id); }
+        });
+    }
+
     function propRenderDetail(p) {
+        // マップは物件詳細を開き直すたびに描き直す（前の物件の地図が残らないようにする）。
+        propMapPropertyId = null;
         // SMS認証前（物件提案メールの閲覧トークン）は、物件情報の閲覧のみ。
         // ステータス更新・内見予約の依頼は、これまで通りSMS認証を行ってから利用いただく。
         var viewOnly = propViewOnly();
@@ -3282,11 +3303,13 @@
                 '<button class="prop-tab" data-ctab="hazard">ハザード等情報</button>' +
                 '<button class="prop-tab" data-ctab="flyer">販売図面</button>' +
                 '<button class="prop-tab" data-ctab="photo">写真・資料</button>' +
+                '<button class="prop-tab" data-ctab="map">マップ</button>' +
             '</div>' +
             '<div class="prop-tabpane is-active" data-cpane="basic">' + PUI.basicInfoHtml(p, false) + '</div>' +
             '<div class="prop-tabpane" data-cpane="hazard">' + PUI.hazardHtml(p.hazard, p.hazard_fetched_at) + '</div>' +
             '<div class="prop-tabpane" data-cpane="flyer">' + PUI.galleryHtml(p.flyers, flyerOpts) + '</div>' +
             '<div class="prop-tabpane" data-cpane="photo">' + PUI.galleryHtml(p.photos, photoOpts) + '</div>' +
+            '<div class="prop-tabpane" data-cpane="map"></div>' +
             '<div class="prop-form-actions" style="margin-top:16px"><button type="button" class="prop-btn prop-btn--primary" id="prop-cust-viewing">' + PUI.icon('calendar') + '内見予約を依頼する</button></div>' +
         '</div>';
         renderFeaturePanel(html);
@@ -3320,7 +3343,9 @@
                 tabs.forEach(function (x) { x.classList.remove('is-active'); });
                 box.querySelectorAll('.prop-tabpane').forEach(function (x) { x.classList.remove('is-active'); });
                 t.classList.add('is-active');
-                box.querySelector('[data-cpane="' + t.getAttribute('data-ctab') + '"]').classList.add('is-active');
+                var ctab = t.getAttribute('data-ctab');
+                box.querySelector('[data-cpane="' + ctab + '"]').classList.add('is-active');
+                if (ctab === 'map') propLoadMap(box, p);
             });
         });
         box.querySelector('#prop-cust-viewing').addEventListener('click', function () {

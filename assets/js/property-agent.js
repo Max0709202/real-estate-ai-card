@@ -514,11 +514,16 @@
         '<button class="prop-tab" data-tab="hazard">ハザード等情報</button>' +
         '<button class="prop-tab" data-tab="flyer">販売図面</button>' +
         '<button class="prop-tab" data-tab="photo">写真・資料</button>' +
+        '<button class="prop-tab" data-tab="map">マップ</button>' +
       '</div>' +
       '<div class="prop-tabpane is-active" data-pane="basic">' + UI.basicInfoHtml(p, true) + '</div>' +
       '<div class="prop-tabpane" data-pane="hazard"></div>' +
       '<div class="prop-tabpane" data-pane="flyer"></div>' +
-      '<div class="prop-tabpane" data-pane="photo"></div>';
+      '<div class="prop-tabpane" data-pane="photo"></div>' +
+      '<div class="prop-tabpane" data-pane="map"></div>';
+
+    // マップは詳細を開き直すたびに描き直す（前回の物件の地図が残らないようにする）。
+    MAP_PROPERTY_ID = null;
 
     // PRコメント（お客様へ届ける紹介文）。AI生成前の下書き状態は詳細を開き直したらリセットする。
     PR_AI_DRAFT = null;
@@ -579,6 +584,7 @@
         if (name === 'hazard') loadHazard(p);
         if (name === 'flyer') loadImages(p, 'flyer');
         if (name === 'photo') loadImages(p, 'photo');
+        if (name === 'map') loadMap(p);
       });
     });
     UI.bindLightbox(d);
@@ -774,6 +780,26 @@
   }
 
   /* ハザード（§12/§13） */
+  /* ===== マップ・周辺情報（マップ情報表示依頼 2026.9.3） =====
+     「マップ」タブを開いた時点で初めて描画する。この時点では現在の物件・検討中物件・
+     Googleマップだけを表示し、Places API は呼ばない（§11）。 */
+  var MAP_PROPERTY_ID = null;   // 現在マップを描画済みの物件ID（タブを行き来しても作り直さない）
+  function loadMap(p) {
+    var pane = P.querySelector('[data-pane="map"]');
+    if (!pane) return;
+    if (MAP_PROPERTY_ID === p.id) return;
+    if (!w.PropertyMap) { pane.innerHTML = '<div class="prop-empty">マップを表示できません。</div>'; return; }
+    MAP_PROPERTY_ID = p.id;
+    w.PropertyMap.mount(pane, {
+      propertyId: p.id,
+      apiBase: API,
+      authQS: '',                 // 担当はログインセッション（Cookie）で認証する
+      credentials: 'include',
+      // 検討中物件の吹き出しから、その物件の詳細へ移動する（§3）。
+      onOpenProperty: function (id) { openDetail(id); }
+    });
+  }
+
   function loadHazard(p) {
     var pane = P.querySelector('[data-pane="hazard"]');
     var btnRow = '<div class="prop-toolbar" style="margin-top:8px">' +

@@ -2065,6 +2065,7 @@ function editSectionIcon(string $key): string
     <script src="assets/js/edit.js"></script>
     <script src="assets/js/mobile-menu.js"></script>
     <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>"></script>
+    <script src="assets/js/property-map.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-map.js'); ?>"></script>
     <script src="assets/js/property-agent.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-agent.js'); ?>"></script>
     <script>
         // Direct Input button handler and mobile touch support

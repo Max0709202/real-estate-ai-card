@@ -1417,6 +1417,7 @@ if (!empty($card['profile_photo'])) {
     </div>
     <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
     <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>" defer></script>
+    <script src="assets/js/property-map.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-map.js'); ?>" defer></script>
     <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>
     <?php $vapidPublicKey = getenv('VAPID_PUBLIC_KEY') ?: ''; if ($vapidPublicKey !== ''): ?>
     <!-- ホーム画面アイコンのアプリバッジ（Web Push / PWA） -->
