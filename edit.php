@@ -4212,6 +4212,10 @@ function editSectionIcon(string $key): string
 
             function showDetail(sessionId) {
                 if (!sessionId) return;
+                // 右スワイプ（戻る操作）で顧客一覧に戻れるよう、詳細を開いたことを履歴に残す。
+                if (typeof window.openEditSubView === 'function') {
+                    window.openEditSubView('chat-history-detail', { sessionId: sessionId });
+                }
                 currentDetailSessionId = sessionId;
                 detailContent.innerHTML = '<p>読み込み中...</p>';
                 detailEl.style.display = 'block';
@@ -4598,13 +4602,11 @@ function editSectionIcon(string $key): string
                             return;
                         }
                         if (currentDetailSessionId === sessionId) {
-                            stopAgentChatPoll();
-                            currentDetailSessionId = '';
-                            detailEl.style.display = 'none';
-                            listEl.style.display = '';
-                            setInviteAreaVisible(true);
+                            // 詳細を閉じて一覧に戻す（一覧の再読み込みもここで行われる）
+                            backToSessionList();
+                        } else {
+                            loadSessions();
                         }
-                        loadSessions();
                     })
                     .catch(function() {
                         alert('削除に失敗しました');
@@ -4640,17 +4642,16 @@ function editSectionIcon(string $key): string
                             });
                     });
                 }, Promise.resolve()).then(function() {
+                    var detailClosed = false;
                     if (currentDetailSessionId && selectedIds.indexOf(currentDetailSessionId) !== -1) {
-                        stopAgentChatPoll();
-                        currentDetailSessionId = '';
-                        detailEl.style.display = 'none';
-                        listEl.style.display = '';
-                        setInviteAreaVisible(true);
+                        // 詳細を閉じて一覧に戻す（一覧の再読み込みもここで行われる）
+                        backToSessionList();
+                        detailClosed = true;
                     }
                     if (failed > 0) {
                         alert('ゴミ箱に移動: ' + succeeded + '件 / 失敗: ' + failed + '件');
                     }
-                    loadSessions();
+                    if (!detailClosed) loadSessions();
                 });
             }
 
@@ -4816,14 +4817,43 @@ function editSectionIcon(string $key): string
                 });
             }
 
+            // 顧客詳細を閉じて顧客一覧を表示する（表示の切り替えのみ）
+            function closeDetailView() {
+                stopAgentChatPoll();
+                detailEl.style.display = 'none';
+                currentDetailSessionId = '';
+                listEl.style.display = '';
+                setInviteAreaVisible(true);
+            }
+
+            // 「一覧に戻る」操作。履歴に詳細が積まれていれば戻る操作に任せ、
+            // 右スワイプで戻ったときとまったく同じ流れ（下の close）で閉じる。
+            function backToSessionList() {
+                if (typeof window.closeEditSubViewByHistory === 'function'
+                    && window.closeEditSubViewByHistory('chat-history-detail')) {
+                    return;
+                }
+                closeDetailView();
+                loadSessions();
+            }
+
+            // 右スワイプ（戻る操作）で顧客詳細から顧客一覧に戻れるようにする
+            if (typeof window.registerEditSubView === 'function') {
+                window.registerEditSubView('chat-history-detail', {
+                    isOpen: function() { return detailEl.style.display !== 'none'; },
+                    open: function(param) {
+                        if (param && param.sessionId) showDetail(param.sessionId);
+                    },
+                    close: function() {
+                        closeDetailView();
+                        loadSessions();
+                    }
+                });
+            }
+
             if (backBtn) {
                 backBtn.addEventListener('click', function() {
-                    stopAgentChatPoll();
-                    detailEl.style.display = 'none';
-                    currentDetailSessionId = '';
-                    listEl.style.display = '';
-                    setInviteAreaVisible(true);
-                    loadSessions();
+                    backToSessionList();
                 });
             }
 
@@ -6008,6 +6038,13 @@ function editSectionIcon(string $key): string
 
             function showCustomerDetail(sessionId, customerName) {
                 if (!sessionId || !detailEl || !detailContentEl) return;
+                // 右スワイプ（戻る操作）で顧客一覧に戻れるよう、詳細を開いたことを履歴に残す。
+                if (typeof window.openEditSubView === 'function') {
+                    window.openEditSubView('org-customer-detail', {
+                        sessionId: sessionId,
+                        customerName: customerName || ''
+                    });
+                }
                 currentDetailSessionId = sessionId;
                 if (detailTitleEl) {
                     detailTitleEl.textContent = (customerName ? customerName + ' 様' : 'お客様') + ' の顧客詳細（閲覧のみ）';
@@ -6034,10 +6071,31 @@ function editSectionIcon(string $key): string
                     });
             }
 
+            // 顧客詳細を閉じて顧客一覧を表示する（表示の切り替えのみ）
+            function closeCustomerDetail() {
+                currentDetailSessionId = '';
+                setDetailVisible(false);
+            }
+
+            // 右スワイプ（戻る操作）で顧客詳細から顧客一覧に戻れるようにする
+            if (typeof window.registerEditSubView === 'function') {
+                window.registerEditSubView('org-customer-detail', {
+                    isOpen: function() { return !!detailEl && detailEl.style.display !== 'none'; },
+                    open: function(param) {
+                        if (param && param.sessionId) showCustomerDetail(param.sessionId, param.customerName);
+                    },
+                    close: closeCustomerDetail
+                });
+            }
+
             if (detailBackBtn) {
                 detailBackBtn.addEventListener('click', function() {
-                    currentDetailSessionId = '';
-                    setDetailVisible(false);
+                    // 履歴に詳細が積まれていれば戻る操作に任せる（close ハンドラで閉じる）
+                    if (typeof window.closeEditSubViewByHistory === 'function'
+                        && window.closeEditSubViewByHistory('org-customer-detail')) {
+                        return;
+                    }
+                    closeCustomerDetail();
                 });
             }
 

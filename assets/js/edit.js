@@ -2581,7 +2581,7 @@ function pushEditSectionHistory(sectionId) {
     if (currentState && currentState.editSection === sectionId) {
         return;
     }
-    window.history.pushState({ editSection: sectionId }, '', window.location.href);
+    window.history.pushState({ editSection: sectionId, subView: null }, '', window.location.href);
 }
 
 // 戻る／進む操作に合わせて、対応するセクションを表示し直す
@@ -2592,25 +2592,86 @@ function initializeEditSectionHistory() {
 
     const initialSectionId = getCurrentEditSectionId();
     if (initialSectionId) {
-        window.history.replaceState({ editSection: initialSectionId }, '', window.location.href);
+        window.history.replaceState({ editSection: initialSectionId, subView: null }, '', window.location.href);
     }
     editSectionHistoryEnabled = true;
 
     window.addEventListener('popstate', function(event) {
-        const sectionId = event.state && event.state.editSection;
-        if (!sectionId || !document.getElementById(sectionId)) {
-            return;
-        }
-        if (sectionId === getCurrentEditSectionId()) {
-            return;
-        }
+        const state = event.state || null;
 
         // 履歴からの復元中は新しい履歴を積まない
         isRestoringEditSection = true;
         try {
-            window.goToEditSection(sectionId);
+            const sectionId = state && state.editSection;
+            if (sectionId && document.getElementById(sectionId) && sectionId !== getCurrentEditSectionId()) {
+                window.goToEditSection(sectionId);
+            }
+            // セクション内の詳細画面（顧客詳細など）の開閉も履歴に合わせる
+            restoreEditSubViews(state);
         } finally {
             isRestoringEditSection = false;
+        }
+    });
+}
+
+// --- セクション内の画面切り替え（顧客一覧 ⇄ 顧客詳細）も履歴に残す ---
+// 一覧から詳細を開く操作はセクション移動ではないため、そのままでは履歴に残らず、
+// 戻る操作（右スワイプ）で一覧ではなく前のページまで抜けてしまう。
+// 詳細を開くときに openEditSubView、閉じるときに closeEditSubViewByHistory を呼ぶことで、
+// 一覧 → 詳細 → 一覧 の行き来を戻る／進む操作に対応させる。
+const editSubViews = {};
+
+// 詳細画面ごとの開閉処理を登録する
+// handlers: { isOpen: 表示中かどうか, open: 開く(openEditSubViewで渡した値), close: 閉じる }
+window.registerEditSubView = function(viewId, handlers) {
+    if (!viewId || !handlers) {
+        return;
+    }
+    editSubViews[viewId] = handlers;
+};
+
+// 詳細画面を開いたことを履歴に積む（URL自体は変更しない）
+window.openEditSubView = function(viewId, param) {
+    if (!editSectionHistoryEnabled || isRestoringEditSection || !supportsEditSectionHistory()) {
+        return;
+    }
+    window.history.pushState({
+        editSection: getCurrentEditSectionId(),
+        subView: viewId,
+        subViewParam: param || null
+    }, '', window.location.href);
+};
+
+// 「一覧に戻る」ボタン用。履歴に詳細が積まれていれば戻る操作に任せて true を返す
+// （実際に閉じる処理は popstate から close ハンドラが呼ばれて行われる）。
+// 積まれていなければ false を返すので、呼び出し元でそのまま閉じる。
+window.closeEditSubViewByHistory = function(viewId) {
+    if (!editSectionHistoryEnabled || !supportsEditSectionHistory()) {
+        return false;
+    }
+    const state = window.history.state;
+    if (!state || state.subView !== viewId) {
+        return false;
+    }
+    window.history.back();
+    return true;
+};
+
+// 履歴の状態に合わせて、詳細画面の開閉をそろえる
+function restoreEditSubViews(state) {
+    const targetViewId = (state && state.subView) || null;
+    Object.keys(editSubViews).forEach(function(viewId) {
+        const view = editSubViews[viewId];
+        if (!view || typeof view.isOpen !== 'function') {
+            return;
+        }
+        const isOpen = view.isOpen();
+        if (viewId === targetViewId) {
+            if (!isOpen && typeof view.open === 'function') {
+                view.open(state.subViewParam || null);
+            }
+        } else if (isOpen && typeof view.close === 'function') {
+            view.close();
         }
     });
 }
