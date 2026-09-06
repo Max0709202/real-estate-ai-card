@@ -41,6 +41,24 @@
     return mapsPromise;
   }
 
+  /* ===== Googleマップの認証エラー =====
+     APIキーのリファラー／IP制限に合致しない、請求が未設定、APIが未有効 などの場合、
+     Googleはスクリプトの読み込み自体は成功させたうえで地図に灰色の警告を重ねて表示し、
+     グローバル関数 gm_authFailure を呼ぶ。そのままだとお客様には「壊れた地図」に見えるため、
+     こちらで受け取って通常のエラー案内に差し替える。 */
+  var authFailureTargets = [];   // {root, show} 認証エラー時に案内へ差し替える地図
+  if (!w.gm_authFailure) {
+    w.gm_authFailure = function () {
+      if (w.console && w.console.warn) {
+        w.console.warn('[PropertyMap] Googleマップの認証に失敗しました。APIキーの制限（HTTPリファラー）・請求設定・APIの有効化をご確認ください。');
+      }
+      authFailureTargets.forEach(function (t) {
+        if (!document.body.contains(t.root)) return;   // 既に閉じた地図には触れない
+        try { t.show(); } catch (e) { /* 他の地図の表示は止めない */ }
+      });
+    };
+  }
+
   /* ===== ピンの見た目 ===== */
   // 物件ピン（雫型）。現在の物件は赤・大きめ、検討中物件は青・通常サイズ（§2・§3）。
   var PIN_PATH = 'M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z';
@@ -134,6 +152,14 @@
     function fail(message) {
       root.innerHTML = '<div class="prop-empty">' + esc(message) + '</div>';
     }
+
+    // Googleマップの認証エラーが起きたら、灰色の警告地図ではなく案内を表示する。
+    // 物件詳細を開くたびに増えないよう、画面から外れた地図の登録は先に捨てる。
+    authFailureTargets = authFailureTargets.filter(function (t) { return document.body.contains(t.root); });
+    authFailureTargets.push({
+      root: root,
+      show: function () { fail('ただいま地図をご利用いただけません。恐れ入りますが、時間をおいて再度お試しください。'); }
+    });
 
     api('/map.php?id=' + encodeURIComponent(propertyId))
       .then(function (res) {
