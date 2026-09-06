@@ -141,7 +141,15 @@
         bootstrap = res.data;
         CATEGORIES = bootstrap.categories || [];
         if (!bootstrap.property) { fail(bootstrap.message || 'この物件の位置を特定できませんでした。'); return; }
-        if (!bootstrap.maps_api_key) { fail('地図の表示設定が未完了です（Google Maps APIキーが設定されていません）。'); return; }
+        if (!bootstrap.maps_api_key) {
+          // サーバーに地図表示用のキーが設定されていない状態。お客様・営業担当の画面には
+          // 技術的な理由を出さず、原因が分かる情報は開発者向けにコンソールへ残す。
+          if (w.console && w.console.warn) {
+            w.console.warn('[PropertyMap] 地図表示用のキー（GOOGLE_MAPS_API_KEY）がサーバーに設定されていません。');
+          }
+          fail('ただいま地図をご利用いただけません。恐れ入りますが、時間をおいて再度お試しください。');
+          return;
+        }
         return loadMaps(bootstrap.maps_api_key).then(initMap).catch(function () {
           fail('Googleマップを読み込めませんでした。通信環境をご確認ください。');
         });
