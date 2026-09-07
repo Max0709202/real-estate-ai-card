@@ -514,11 +514,16 @@
         '<button class="prop-tab" data-tab="hazard">ハザード等情報</button>' +
         '<button class="prop-tab" data-tab="flyer">販売図面</button>' +
         '<button class="prop-tab" data-tab="photo">写真・資料</button>' +
+        '<button class="prop-tab" data-tab="map">マップ</button>' +
       '</div>' +
       '<div class="prop-tabpane is-active" data-pane="basic">' + UI.basicInfoHtml(p, true) + '</div>' +
       '<div class="prop-tabpane" data-pane="hazard"></div>' +
       '<div class="prop-tabpane" data-pane="flyer"></div>' +
-      '<div class="prop-tabpane" data-pane="photo"></div>';
+      '<div class="prop-tabpane" data-pane="photo"></div>' +
+      '<div class="prop-tabpane" data-pane="map"></div>';
+
+    // マップは詳細を開き直すたびに描き直す（前回の物件の地図が残らないようにする）。
+    MAP_PROPERTY_ID = null;
 
     // PRコメント（お客様へ届ける紹介文）。AI生成前の下書き状態は詳細を開き直したらリセットする。
     PR_AI_DRAFT = null;
@@ -579,23 +584,43 @@
         if (name === 'hazard') loadHazard(p);
         if (name === 'flyer') loadImages(p, 'flyer');
         if (name === 'photo') loadImages(p, 'photo');
+        if (name === 'map') loadMap(p);
       });
     });
     UI.bindLightbox(d);
   }
 
-  /* ===== PRコメント（物件提案時にお客様へ届ける紹介文） =====
+  /* ===== PRコメント（物件提案時にお客様へ届ける営業コメント） =====
      ・営業担当者が最初から自分で入力できる（追加・編集・削除）
      ・「AIでPRコメントを生成」で下書きを作り、そのまま入力欄で加筆・修正できる
      ・「AIで再生成」で別の切り口の下書きに作り直せる
-     ・保存するのは担当者が確認・編集したあとの文章だけ（AIの出力は自動保存しない） */
+     ・保存するのは担当者が確認・編集したあとの文章だけ（AIの出力は自動保存しない）
+     AI側は①住戸固有 ②マンション全体 ③立地・周辺環境 を分析して訴求ポイントを選び、
+     語る軸・順番・書き出しまで判断する。選ばれたポイントは入力欄の下に表示する。 */
   var PR_MAX = 1000;                 // 保存できる最大文字数（PHP propertyPrCommentMaxLength と一致）
   var PR_SOURCE_LABELS = { manual: '手入力', ai: 'AI生成', ai_edited: 'AI生成を編集' };
+  var PR_FOCUS_LABELS = { unit: '住戸', building: 'マンション', location: '立地' };
+  var PR_CATEGORY_LABELS = { unit: '住戸', building: '建物', location: '立地' };
   var PR_AI_DRAFT = null;            // 直近にAIが生成した文章（保存時の入力方法の判定に使う）
 
   function prHost() { return P ? P.querySelector('#prop-pr') : null; }
 
-  /* state: { editing: 編集中か, draft: 入力欄に表示する文章（未指定なら保存済みの文章） } */
+  /* AIが選んだ訴求ポイント（生成直後のみ表示。担当者が根拠を確認して編集できるようにする） */
+  function prPlanHtml(state) {
+    if (!state.points || !state.points.length) return '';
+    var focus = PR_FOCUS_LABELS[state.focus];
+    return '<div class="prop-pr__plan">' +
+      '<div class="prop-pr__plan-head">AIが選んだ訴求ポイント' + (focus ? '（' + esc(focus) + 'を軸に構成）' : '') + '</div>' +
+      '<ol class="prop-pr__plan-list">' +
+        state.points.map(function (pt) {
+          var cat = PR_CATEGORY_LABELS[pt.category];
+          return '<li>' + (cat ? '<span class="prop-pr__plan-cat">' + esc(cat) + '</span>' : '') + esc(pt.point) + '</li>';
+        }).join('') +
+      '</ol></div>';
+  }
+
+  /* state: { editing: 編集中か, draft: 入力欄に表示する文章（未指定なら保存済みの文章）,
+             points/focus: AIが選んだ訴求ポイント（生成直後のみ） } */
   function renderPr(p, state) {
     var host = prHost();
     if (!host) return;
@@ -612,6 +637,7 @@
           'placeholder="お客様へ届けるPRコメントを入力してください（250〜350字程度）。「AIでPRコメントを生成」で下書きを作り、加筆・修正することもできます。">' +
           esc(text) + '</textarea>' +
         '<div class="prop-pr__count" id="prop-pr-count"></div>' +
+        prPlanHtml(state) +
         '<div class="prop-pr__actions">' +
           '<button type="button" class="prop-btn prop-btn--ghost" data-pr="gen">' + UI.icon('refresh') +
             (text.trim() ? 'AIで再生成' : 'AIでPRコメントを生成') + '</button>' +
@@ -681,7 +707,8 @@
     if (!host) return;
     host.querySelectorAll('[data-pr]').forEach(function (b) { b.disabled = true; });
     var btn = host.querySelector('[data-pr="gen"]');
-    if (btn) btn.innerHTML = '<span class="prop-spinner"></span> 生成中...';
+    // 分析→執筆→点検（似すぎ・定型表現なら書き直し）と複数回やり取りするため少し時間がかかる。
+    if (btn) btn.innerHTML = '<span class="prop-spinner"></span> 分析・作成中...';
 
     api('/pr-comment-ai.php', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -694,7 +721,10 @@
       }
       // 生成結果は入力欄に表示するだけ。担当者が確認・編集して「保存」を押すまで保存しない。
       PR_AI_DRAFT = res.data.pr_comment;
-      renderPr(p, { editing: true, draft: res.data.pr_comment });
+      renderPr(p, {
+        editing: true, draft: res.data.pr_comment,
+        points: res.data.points || [], focus: res.data.focus || ''
+      });
       notify('ok', 'PRコメントを生成しました。内容をご確認・編集のうえ保存してください。');
     }).catch(function () {
       notify('error', '通信に失敗しました');
@@ -750,6 +780,26 @@
   }
 
   /* ハザード（§12/§13） */
+  /* ===== マップ・周辺情報（マップ情報表示依頼 2026.9.3） =====
+     「マップ」タブを開いた時点で初めて描画する。この時点では現在の物件・検討中物件・
+     Googleマップだけを表示し、Places API は呼ばない（§11）。 */
+  var MAP_PROPERTY_ID = null;   // 現在マップを描画済みの物件ID（タブを行き来しても作り直さない）
+  function loadMap(p) {
+    var pane = P.querySelector('[data-pane="map"]');
+    if (!pane) return;
+    if (MAP_PROPERTY_ID === p.id) return;
+    if (!w.PropertyMap) { pane.innerHTML = '<div class="prop-empty">マップを表示できません。</div>'; return; }
+    MAP_PROPERTY_ID = p.id;
+    w.PropertyMap.mount(pane, {
+      propertyId: p.id,
+      apiBase: API,
+      authQS: '',                 // 担当はログインセッション（Cookie）で認証する
+      credentials: 'include',
+      // 検討中物件の吹き出しから、その物件の詳細へ移動する（§3）。
+      onOpenProperty: function (id) { openDetail(id); }
+    });
+  }
+
   function loadHazard(p) {
     var pane = P.querySelector('[data-pane="hazard"]');
     var btnRow = '<div class="prop-toolbar" style="margin-top:8px">' +

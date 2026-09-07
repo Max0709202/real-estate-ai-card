@@ -1559,6 +1559,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize navigation functionality
     initializeEditNavigation();
+
+    // セクション移動の履歴管理（戻る操作・右スワイプ対応）
+    initializeEditSectionHistory();
+
+    // 左右スワイプでのセクション移動
+    initializeEditSwipeNavigation();
     
     // Setup communication checkboxes
     setupCommunicationCheckboxes();
@@ -2550,6 +2556,261 @@ function initializeDragAndDropForUploadArea(uploadArea) {
     });
 }
 
+// --- 編集画面内のセクション移動を履歴に残す ---
+// スマホの「右スワイプで戻る」やブラウザの戻るボタンで1つ前のセクションに戻れるようにする。
+// 履歴を積まないとセクション移動が履歴に残らず、1回目の戻る操作でページ自体を抜けてしまう。
+// なお、戻り先のセクションが無い場合は従来どおり直前のページ（ログイン画面など）へ戻る。
+let editSectionHistoryEnabled = false;
+let isRestoringEditSection = false;
+
+function supportsEditSectionHistory() {
+    return typeof window.history !== 'undefined' && typeof window.history.pushState === 'function';
+}
+
+function getCurrentEditSectionId() {
+    const activeSection = document.querySelector('.edit-section.active');
+    return activeSection ? activeSection.id : null;
+}
+
+// 表示したセクションを履歴に積む（URL自体は変更しない）
+function pushEditSectionHistory(sectionId) {
+    if (!editSectionHistoryEnabled || isRestoringEditSection || !supportsEditSectionHistory()) {
+        return;
+    }
+    const currentState = window.history.state;
+    if (currentState && currentState.editSection === sectionId) {
+        return;
+    }
+    window.history.pushState({ editSection: sectionId, subView: null }, '', window.location.href);
+}
+
+// 戻る／進む操作に合わせて、対応するセクションを表示し直す
+function initializeEditSectionHistory() {
+    if (editSectionHistoryEnabled || !supportsEditSectionHistory()) {
+        return;
+    }
+
+    const initialSectionId = getCurrentEditSectionId();
+    if (initialSectionId) {
+        window.history.replaceState({ editSection: initialSectionId, subView: null }, '', window.location.href);
+    }
+    editSectionHistoryEnabled = true;
+
+    window.addEventListener('popstate', function(event) {
+        const state = event.state || null;
+
+        // 履歴からの復元中は新しい履歴を積まない
+        isRestoringEditSection = true;
+        try {
+            const sectionId = state && state.editSection;
+            if (sectionId && document.getElementById(sectionId) && sectionId !== getCurrentEditSectionId()) {
+                window.goToEditSection(sectionId);
+            }
+            // セクション内の詳細画面（顧客詳細など）の開閉も履歴に合わせる
+            restoreEditSubViews(state);
+        } finally {
+            isRestoringEditSection = false;
+        }
+    });
+}
+
+// --- セクション内の画面切り替え（顧客一覧 ⇄ 顧客詳細）も履歴に残す ---
+// 一覧から詳細を開く操作はセクション移動ではないため、そのままでは履歴に残らず、
+// 戻る操作（右スワイプ）で一覧ではなく前のページまで抜けてしまう。
+// 詳細を開くときに openEditSubView、閉じるときに closeEditSubViewByHistory を呼ぶことで、
+// 一覧 → 詳細 → 一覧 の行き来を戻る／進む操作に対応させる。
+const editSubViews = {};
+
+// 詳細画面ごとの開閉処理を登録する
+// handlers: { isOpen: 表示中かどうか, open: 開く(openEditSubViewで渡した値), close: 閉じる }
+window.registerEditSubView = function(viewId, handlers) {
+    if (!viewId || !handlers) {
+        return;
+    }
+    editSubViews[viewId] = handlers;
+};
+
+// 詳細画面を開いたことを履歴に積む（URL自体は変更しない）
+window.openEditSubView = function(viewId, param) {
+    if (!editSectionHistoryEnabled || isRestoringEditSection || !supportsEditSectionHistory()) {
+        return;
+    }
+    window.history.pushState({
+        editSection: getCurrentEditSectionId(),
+        subView: viewId,
+        subViewParam: param || null
+    }, '', window.location.href);
+};
+
+// 「一覧に戻る」ボタン用。履歴に詳細が積まれていれば戻る操作に任せて true を返す
+// （実際に閉じる処理は popstate から close ハンドラが呼ばれて行われる）。
+// 積まれていなければ false を返すので、呼び出し元でそのまま閉じる。
+window.closeEditSubViewByHistory = function(viewId) {
+    if (!editSectionHistoryEnabled || !supportsEditSectionHistory()) {
+        return false;
+    }
+    const state = window.history.state;
+    if (!state || state.subView !== viewId) {
+        return false;
+    }
+    window.history.back();
+    return true;
+};
+
+// 履歴の状態に合わせて、詳細画面の開閉をそろえる
+function restoreEditSubViews(state) {
+    const targetViewId = (state && state.subView) || null;
+    Object.keys(editSubViews).forEach(function(viewId) {
+        const view = editSubViews[viewId];
+        if (!view || typeof view.isOpen !== 'function') {
+            return;
+        }
+        const isOpen = view.isOpen();
+        if (viewId === targetViewId) {
+            if (!isOpen && typeof view.open === 'function') {
+                view.open(state.subViewParam || null);
+            }
+        } else if (isOpen && typeof view.close === 'function') {
+            view.close();
+        }
+    });
+}
+
+// --- 編集画面のスワイプ操作 ---
+// 左スワイプで次のセクションへ進み、右スワイプは「戻る」と同じ挙動にする。
+// 直前が別ページ（ログイン画面など）であれば、右スワイプでそのページへ戻る。
+// 画面端からのスワイプは端末標準の戻る／進む操作と二重に反応するため対象外にする。
+const EDIT_SWIPE_MIN_DISTANCE = 70;   // スワイプとみなす横方向の最小移動量(px)
+const EDIT_SWIPE_MAX_DURATION = 1000; // スワイプとみなす最大時間(ms)
+const EDIT_SWIPE_EDGE_MARGIN = 30;    // 端末標準ジェスチャーとみなす画面端の幅(px)
+
+let editSwipeTracking = false;
+let editSwipeStartX = 0;
+let editSwipeStartY = 0;
+let editSwipeStartTime = 0;
+
+// ナビゲーションの並び順＝セクションの並び順（非表示のメニューは含まれない）
+function getEditSectionOrder() {
+    return Array.from(document.querySelectorAll('.edit-nav .nav-item[data-section]'))
+        .map(item => item.getAttribute('data-section'))
+        .filter(sectionId => document.getElementById(sectionId));
+}
+
+function isEditModalOpen() {
+    return Array.from(document.querySelectorAll('.modal-overlay'))
+        .some(modal => window.getComputedStyle(modal).display !== 'none');
+}
+
+// 横スクロールする要素（表・タブなど）の上ではセクション移動させない
+function hasHorizontalScrollableAncestor(element) {
+    let node = element;
+    while (node && node.nodeType === 1 && node !== document.body) {
+        if (node.scrollWidth - node.clientWidth > 8) {
+            const overflowX = window.getComputedStyle(node).overflowX;
+            if (overflowX === 'auto' || overflowX === 'scroll') {
+                return true;
+            }
+        }
+        node = node.parentElement;
+    }
+    return false;
+}
+
+function isEditSwipeBlocked(element) {
+    if (isEditModalOpen()) {
+        return true;
+    }
+    if (!element || typeof element.closest !== 'function') {
+        return false;
+    }
+    // 入力・操作用の要素やスライダーの上での指の動きは、そのまま本来の操作に任せる
+    if (element.closest('input, textarea, select, button, a, [contenteditable="true"], .swiper, .swiper-container')) {
+        return true;
+    }
+    return hasHorizontalScrollableAncestor(element);
+}
+
+// 左スワイプ：次のセクションへ
+function goToNextEditSectionBySwipe() {
+    const sectionOrder = getEditSectionOrder();
+    const currentIndex = sectionOrder.indexOf(getCurrentEditSectionId());
+    if (currentIndex < 0 || currentIndex >= sectionOrder.length - 1) {
+        return;
+    }
+    window.goToEditSection(sectionOrder[currentIndex + 1]);
+}
+
+// 右スワイプ：ブラウザの「戻る」と同じ挙動。
+// ページ内に戻り先のセクションがあればそこへ、なければ直前のページ（ログイン画面など）へ戻る。
+function goBackFromEditSectionBySwipe() {
+    window.history.back();
+}
+
+function initializeEditSwipeNavigation() {
+    const swipeArea = document.querySelector('.edit-main');
+    if (!swipeArea) {
+        return;
+    }
+
+    swipeArea.addEventListener('touchstart', function(event) {
+        editSwipeTracking = false;
+        if (event.touches.length !== 1) {
+            return;
+        }
+        const touch = event.touches[0];
+        if (touch.clientX <= EDIT_SWIPE_EDGE_MARGIN ||
+            touch.clientX >= window.innerWidth - EDIT_SWIPE_EDGE_MARGIN) {
+            return;
+        }
+        if (isEditSwipeBlocked(event.target)) {
+            return;
+        }
+        editSwipeTracking = true;
+        editSwipeStartX = touch.clientX;
+        editSwipeStartY = touch.clientY;
+        editSwipeStartTime = Date.now();
+    }, { passive: true });
+
+    // ピンチ操作などマルチタッチになった場合はスワイプ扱いにしない
+    swipeArea.addEventListener('touchmove', function(event) {
+        if (editSwipeTracking && event.touches.length > 1) {
+            editSwipeTracking = false;
+        }
+    }, { passive: true });
+
+    swipeArea.addEventListener('touchend', function(event) {
+        if (!editSwipeTracking) {
+            return;
+        }
+        editSwipeTracking = false;
+
+        const touch = event.changedTouches[0];
+        if (!touch || Date.now() - editSwipeStartTime > EDIT_SWIPE_MAX_DURATION) {
+            return;
+        }
+
+        const diffX = touch.clientX - editSwipeStartX;
+        const diffY = touch.clientY - editSwipeStartY;
+        if (Math.abs(diffX) < EDIT_SWIPE_MIN_DISTANCE) {
+            return;
+        }
+        // 縦スクロールの途中で横に振れただけの動きは無視する
+        if (Math.abs(diffX) < Math.abs(diffY) * 1.5) {
+            return;
+        }
+
+        if (diffX < 0) {
+            goToNextEditSectionBySwipe();
+        } else {
+            goBackFromEditSectionBySwipe();
+        }
+    }, { passive: true });
+
+    swipeArea.addEventListener('touchcancel', function() {
+        editSwipeTracking = false;
+    }, { passive: true });
+}
+
 // Navigate to specific edit section
 window.goToEditSection = function(sectionId) {
     // Close cropper modal before navigation - ensures clean state when user returns to upload
@@ -2599,7 +2860,10 @@ window.goToEditSection = function(sectionId) {
         if (targetNavItem) {
             targetNavItem.classList.add('active');
         }
-        
+
+        // 戻る操作で1つ前のセクションに戻れるように履歴へ積む
+        pushEditSectionHistory(sectionId);
+
         // Scroll to top of the page
         setTimeout(() => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2666,7 +2930,10 @@ function initializeEditNavigation() {
                     // Update active nav item
                     navItems.forEach(item => item.classList.remove('active'));
                     this.classList.add('active');
-                    
+
+                    // 戻る操作で1つ前のセクションに戻れるように履歴へ積む
+                    pushEditSectionHistory(targetSectionId);
+
                     // Scroll to top of the page for better UX
                     setTimeout(() => {
                         window.scrollTo({ top: 0, behavior: 'smooth' });

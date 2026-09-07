@@ -1363,7 +1363,7 @@ if (!empty($card['profile_photo'])) {
                             <path d="M15 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path>
                         </svg>
                     </button>
-                    <button type="button" id="chat-widget-refresh" class="chat-widget-icon-btn chat-widget-refresh" aria-label="チャットを最初から始める" title="チャットを最初から始める">
+                    <button type="button" id="chat-widget-refresh" class="chat-widget-icon-btn chat-widget-refresh" aria-label="ページを再読み込みする" title="ページを再読み込みする">
                         <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                             <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h8V3l-3.35 3.35z"></path>
                         </svg>
@@ -1417,6 +1417,7 @@ if (!empty($card['profile_photo'])) {
     </div>
     <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
     <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>" defer></script>
+    <script src="assets/js/property-map.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-map.js'); ?>" defer></script>
     <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>
     <?php $vapidPublicKey = getenv('VAPID_PUBLIC_KEY') ?: ''; if ($vapidPublicKey !== ''): ?>
     <!-- ホーム画面アイコンのアプリバッジ（Web Push / PWA） -->

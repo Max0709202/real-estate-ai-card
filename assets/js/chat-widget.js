@@ -3258,7 +3258,28 @@
             });
     }
 
+    /* ===== マップ・周辺情報（マップ情報表示依頼 2026.9.3） =====
+       「マップ」タブを開いた時点で初めて描画する。この時点では現在の物件・検討中物件・
+       Googleマップだけを表示し、Places API は呼ばない（§11）。 */
+    var propMapPropertyId = null;   // マップを描画済みの物件ID（タブを行き来しても作り直さない）
+    function propLoadMap(box, p) {
+        var pane = box.querySelector('[data-cpane="map"]');
+        if (!pane) return;
+        if (propMapPropertyId === p.id) return;
+        if (!window.PropertyMap) { pane.innerHTML = '<div class="prop-empty">マップを表示できません。</div>'; return; }
+        propMapPropertyId = p.id;
+        window.PropertyMap.mount(pane, {
+            propertyId: p.id,
+            apiBase: siteBase + '/backend/api/property',
+            authQS: propAuthQS(),
+            // 検討中物件の吹き出しから、その物件の詳細へ移動する（§3）。
+            onOpenProperty: function (id) { propOpenDetail(id); }
+        });
+    }
+
     function propRenderDetail(p) {
+        // マップは物件詳細を開き直すたびに描き直す（前の物件の地図が残らないようにする）。
+        propMapPropertyId = null;
         // SMS認証前（物件提案メールの閲覧トークン）は、物件情報の閲覧のみ。
         // ステータス更新・内見予約の依頼は、これまで通りSMS認証を行ってから利用いただく。
         var viewOnly = propViewOnly();
@@ -3282,11 +3303,13 @@
                 '<button class="prop-tab" data-ctab="hazard">ハザード等情報</button>' +
                 '<button class="prop-tab" data-ctab="flyer">販売図面</button>' +
                 '<button class="prop-tab" data-ctab="photo">写真・資料</button>' +
+                '<button class="prop-tab" data-ctab="map">マップ</button>' +
             '</div>' +
             '<div class="prop-tabpane is-active" data-cpane="basic">' + PUI.basicInfoHtml(p, false) + '</div>' +
             '<div class="prop-tabpane" data-cpane="hazard">' + PUI.hazardHtml(p.hazard, p.hazard_fetched_at) + '</div>' +
             '<div class="prop-tabpane" data-cpane="flyer">' + PUI.galleryHtml(p.flyers, flyerOpts) + '</div>' +
             '<div class="prop-tabpane" data-cpane="photo">' + PUI.galleryHtml(p.photos, photoOpts) + '</div>' +
+            '<div class="prop-tabpane" data-cpane="map"></div>' +
             '<div class="prop-form-actions" style="margin-top:16px"><button type="button" class="prop-btn prop-btn--primary" id="prop-cust-viewing">' + PUI.icon('calendar') + '内見予約を依頼する</button></div>' +
         '</div>';
         renderFeaturePanel(html);
@@ -3320,7 +3343,9 @@
                 tabs.forEach(function (x) { x.classList.remove('is-active'); });
                 box.querySelectorAll('.prop-tabpane').forEach(function (x) { x.classList.remove('is-active'); });
                 t.classList.add('is-active');
-                box.querySelector('[data-cpane="' + t.getAttribute('data-ctab') + '"]').classList.add('is-active');
+                var ctab = t.getAttribute('data-ctab');
+                box.querySelector('[data-cpane="' + ctab + '"]').classList.add('is-active');
+                if (ctab === 'map') propLoadMap(box, p);
             });
         });
         box.querySelector('#prop-cust-viewing').addEventListener('click', function () {
@@ -3886,11 +3911,35 @@
         else hidePanel();
     });
     closeBtn.addEventListener('click', hidePanel);
+    // 更新ボタンで再読み込みしたときに、チャットを開いた状態へ戻すための目印。
+    // 名刺ページではチャットが吹き出し表示のため、目印が無いと再読み込みで閉じてしまう。
+    var REOPEN_AFTER_RELOAD_KEY = 'aiFcardChatReopenAfterReload';
+
+    function markReopenAfterReload() {
+        try {
+            window.sessionStorage.setItem(REOPEN_AFTER_RELOAD_KEY, '1');
+        } catch (e) {}
+    }
+
+    function consumeReopenAfterReload() {
+        try {
+            if (window.sessionStorage.getItem(REOPEN_AFTER_RELOAD_KEY) !== '1') return false;
+            window.sessionStorage.removeItem(REOPEN_AFTER_RELOAD_KEY);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
     if (refreshBtn) {
+        // ヘッダーの更新ボタンは「今開いているページの再読み込み」。
+        // 一般的なリロードのアイコンのため、チャットだけを開き直す動きでは
+        // 利用者の認識とずれる。再読み込み後は showReloadNoticeIfNeeded() が
+        // 「チャットを再接続しました」の案内を表示し、相談は続きから再開できる。
         refreshBtn.addEventListener('click', function () {
-            if (sessionStarting || sendingMessage) return;
             if (isListening) stopVoiceInput();
-            startSession(true, true);
+            if (!panel.hidden) markReopenAfterReload();
+            window.location.reload();
         });
     }
     if (inviteBtn) {
@@ -4230,10 +4279,15 @@
             }
         });
     }
+    // 目印は必ずここで消費し、別ページへ持ち越さないようにする。
+    var reopenAfterReload = consumeReopenAfterReload();
     if (chatOnly) {
         showPanel();
     } else if (deepLinkTab) {
         // メール通知のリンクから来訪 → パネルを自動で開く（セッション復帰後に該当タブを表示）。
+        showPanel();
+    } else if (reopenAfterReload) {
+        // 更新ボタンでの再読み込み直後 → チャットを開いたままにする。
         showPanel();
     }
 })();

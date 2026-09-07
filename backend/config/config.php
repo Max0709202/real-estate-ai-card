@@ -198,7 +198,7 @@ if (!defined('OPENAI_API_KEY_SUMMARY')) {
 //                  進捗管理／通常の文章生成／自動回答生成）
 //                  および画像解析（販売図面OCR・間取り図/外観の抽出・画像認識）
 //   gpt-5.5      … 品質重視（文章ブラッシュアップ等）
-//   gpt-5.6-luna … 物件PRコメント（物件提案時にお客様へ届ける紹介文）の生成
+//   gpt-5.6-terra … 物件PRコメント（AIが訴求ポイントを判断して書く営業コメント）の生成
 //   ※ gpt-5.4（無印）は使用しません。
 // いずれも環境変数で上書き可能です。
 // ---------------------------------------------------------------------------
@@ -231,9 +231,10 @@ if (!defined('OPENAI_MODEL_REPLY_DRAFT')) {
 if (!defined('OPENAI_MODEL_POLISH')) {
     define('OPENAI_MODEL_POLISH', getenv('OPENAI_MODEL_POLISH') ?: 'gpt-5.5');
 }
-// 物件PRコメント（物件提案時にお客様へ届ける250〜350字程度の紹介文）の生成に使うモデル。
+// 物件PRコメントの生成に使うモデル。訴求ポイントの分析（住戸/建物/立地）と
+// 執筆をAI自身に判断させるため、推論力の高いモデルを指定する。
 if (!defined('OPENAI_MODEL_PR_COMMENT')) {
-    define('OPENAI_MODEL_PR_COMMENT', getenv('OPENAI_MODEL_PR_COMMENT') ?: 'gpt-5.6-luna');
+    define('OPENAI_MODEL_PR_COMMENT', getenv('OPENAI_MODEL_PR_COMMENT') ?: 'gpt-5.6-terra');
 }
 // 販売図面のOCR・間取り図/外観写真の抽出・画像分類に使うVisionモデル。
 if (!defined('OPENAI_MODEL_FLYER')) {
@@ -351,4 +352,21 @@ if (!defined('ESTAT_APP_ID')) {
 // 呼び出し、ブラウザには絶対に露出させない。未設定時は従来のGSI逆ジオコーダにフォールバック。
 if (!defined('GOOGLE_GEOCODING_API_KEY')) {
     define('GOOGLE_GEOCODING_API_KEY', getenv('GOOGLE_GEOCODING_API_KEY') ?: '');
+}
+
+// 物件詳細「マップ・周辺情報」機能（Google Maps Platform）。
+// ・GOOGLE_MAPS_API_KEY   : 地図表示（Maps JavaScript API）。仕様上ブラウザへ渡す必要があるため、
+//                           Google Cloud 側で「HTTPリファラー制限」＋「Maps JavaScript API のみ許可」を必ず設定する。
+// ・GOOGLE_PLACES_API_KEY : 周辺施設検索（Places API (New)）。サーバー側からのみ呼び出し、
+//                           ブラウザには絶対に露出させない。未設定時は GOOGLE_MAPS_API_KEY を流用する。
+// キーはリポジトリに含めない。backend/config/secrets.php または環境変数で設定する。
+if (!defined('GOOGLE_MAPS_API_KEY')) {
+    define('GOOGLE_MAPS_API_KEY', getenv('GOOGLE_MAPS_API_KEY') ?: '');
+}
+if (!defined('GOOGLE_PLACES_API_KEY')) {
+    define('GOOGLE_PLACES_API_KEY', getenv('GOOGLE_PLACES_API_KEY') ?: GOOGLE_MAPS_API_KEY);
+}
+// 周辺施設の基本検索範囲（半径メートル・依頼書§6「対象物件を中心に半径1000m程度」）。
+if (!defined('PROPERTY_MAP_RADIUS_M')) {
+    define('PROPERTY_MAP_RADIUS_M', (int)(getenv('PROPERTY_MAP_RADIUS_M') ?: 1000));
 }
