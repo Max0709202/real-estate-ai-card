@@ -86,15 +86,14 @@ try {
             'sufficient' => 1,
             'notice'     => '出典: 国土交通省「不動産情報ライブラリ」。表示は概略です。詳細は各自治体のハザードマップをご確認ください。',
         ];
-    } elseif ($category === 'school_district') {
-        // §8⑥ 指定小学校・指定中学校の学区。
-        $layers = propertyMapSchoolDistricts($db, $lat, $lng);
-        $found = false;
-        foreach ($layers as $l) { if (!empty($l['polygons'])) { $found = true; break; } }
-        $results['school_district'] = [
+    } elseif (isset(propertyMapSchoolDistrictDefs()[$category])) {
+        // §8⑥ 指定学区（小学校・中学校をそれぞれ別のボタンで表示する）。
+        $layer = propertyMapSchoolDistrict($db, $lat, $lng, $category);
+        $found = !empty($layer['polygons']);
+        $results[$category] = [
             'render'     => 'polygon',
             'items'      => [],
-            'layers'     => $layers,
+            'layers'     => [$layer],
             'sufficient' => 1,
             'notice'     => $found
                 ? '学区は変更される場合があります。最新情報は自治体へご確認ください。'

@@ -80,7 +80,9 @@
     store: '#f08a24',
     hospital: '#d93f8c',
     school: '#0f9b8e',
-    school_district: '#1f9d57',
+    // 学区は色をそのままに、小学校（緑）・中学校（オレンジ）で分ける。
+    school_district_elem: '#1f9d57',
+    school_district_junior: '#f08a24',
     cram: '#7b4bd1',
     restaurant: '#c2571a',
     shelter: '#1f9d57',
@@ -369,6 +371,19 @@
             });
             objs.push(p);
           });
+
+          // 指定校そのものの位置を、学区と同じ色の●で示す。
+          if (layer.point) {
+            var sp = new maps.Marker({
+              map: map,
+              position: { lat: layer.point.lat, lng: layer.point.lng },
+              icon: facilityIcon(maps, layer.color),
+              zIndex: 200,
+              title: layer.point.name
+            });
+            sp.addListener('click', function () { openInfo(sp, facilityInfoHtml(layer.point)); });
+            objs.push(sp);
+          }
         });
       } else {
         var color = CAT_COLOR[key] || '#2d6cdf';
