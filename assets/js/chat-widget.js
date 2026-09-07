@@ -3911,11 +3911,35 @@
         else hidePanel();
     });
     closeBtn.addEventListener('click', hidePanel);
+    // 更新ボタンで再読み込みしたときに、チャットを開いた状態へ戻すための目印。
+    // 名刺ページではチャットが吹き出し表示のため、目印が無いと再読み込みで閉じてしまう。
+    var REOPEN_AFTER_RELOAD_KEY = 'aiFcardChatReopenAfterReload';
+
+    function markReopenAfterReload() {
+        try {
+            window.sessionStorage.setItem(REOPEN_AFTER_RELOAD_KEY, '1');
+        } catch (e) {}
+    }
+
+    function consumeReopenAfterReload() {
+        try {
+            if (window.sessionStorage.getItem(REOPEN_AFTER_RELOAD_KEY) !== '1') return false;
+            window.sessionStorage.removeItem(REOPEN_AFTER_RELOAD_KEY);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
     if (refreshBtn) {
+        // ヘッダーの更新ボタンは「今開いているページの再読み込み」。
+        // 一般的なリロードのアイコンのため、チャットだけを開き直す動きでは
+        // 利用者の認識とずれる。再読み込み後は showReloadNoticeIfNeeded() が
+        // 「チャットを再接続しました」の案内を表示し、相談は続きから再開できる。
         refreshBtn.addEventListener('click', function () {
-            if (sessionStarting || sendingMessage) return;
             if (isListening) stopVoiceInput();
-            startSession(true, true);
+            if (!panel.hidden) markReopenAfterReload();
+            window.location.reload();
         });
     }
     if (inviteBtn) {
@@ -4255,10 +4279,15 @@
             }
         });
     }
+    // 目印は必ずここで消費し、別ページへ持ち越さないようにする。
+    var reopenAfterReload = consumeReopenAfterReload();
     if (chatOnly) {
         showPanel();
     } else if (deepLinkTab) {
         // メール通知のリンクから来訪 → パネルを自動で開く（セッション復帰後に該当タブを表示）。
+        showPanel();
+    } else if (reopenAfterReload) {
+        // 更新ボタンでの再読み込み直後 → チャットを開いたままにする。
         showPanel();
     }
 })();
