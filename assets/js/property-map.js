@@ -65,6 +65,14 @@
   // 指定緊急避難場所は通常の周辺施設と区別できる形にする（§8⑨）。
   var SHELTER_PATH = 'M12 3l9 17H3z';
 
+  /* 地図の初期倍率。「物件の位置に戻る」を押したときもこの倍率へ戻す。 */
+  var DEFAULT_ZOOM = 16;
+
+  /* 「物件の位置に戻る」ボタンのアイコン。赤い物件ピンと同じ形にして、
+     どのピンへ戻るのかがひと目で分かるようにする。 */
+  var HOME_ICON_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+    '<path d="' + PIN_PATH + '"/><circle cx="12" cy="9" r="2.6" fill="#fff"/></svg>';
+
   /* カテゴリーごとのピンの色（凡例にも使う） */
   var CAT_COLOR = {
     hazard: '#8a94a6',
@@ -137,6 +145,8 @@
     var OVERLAYS = {};
     var CATEGORIES = [];
     var maps = null, map = null, infoWindow = null;
+    // 現在見ている物件の位置。地図を動かしたあと、ここへ戻すために保持する。
+    var homeCenter = null;
     var currentMarker = null;
     var propertyMarkers = [];
     var bootstrap = null;
@@ -193,10 +203,11 @@
 
       var canvas = root.querySelector('.prop-map__canvas');
       var center = { lat: bootstrap.property.lat, lng: bootstrap.property.lng };
+      homeCenter = center;
       // 操作感はできるだけ通常のGoogleマップと同じにする（PC・スマートフォン両対応・§1）。
       map = new maps.Map(canvas, {
         center: center,
-        zoom: 16,
+        zoom: DEFAULT_ZOOM,
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: true,
@@ -244,6 +255,9 @@
           ' style="--cat-color:' + esc(CAT_COLOR[c.key] || '#2d6cdf') + '"' +
           ' aria-pressed="false">' + esc(c.label) + '</button>';
       }).join('');
+      // 地図を動かして物件を見失っても、いつでも元の位置へ戻せるようにする。
+      html += '<button type="button" class="prop-map__home" data-map-home="1"' +
+        ' title="地図をこの物件の位置に戻します">' + HOME_ICON_SVG + '物件の位置に戻る</button>';
       // 検討中物件がある場合だけ「全体表示」を出す。初期表示は必ず現在の物件が中心（§1）。
       if ((bootstrap.considering || []).length) {
         html += '<button type="button" class="prop-map__fit" data-map-fit="1">検討中物件も含めて表示</button>';
@@ -255,8 +269,19 @@
       root.querySelectorAll('[data-map-cat]').forEach(function (b) {
         b.addEventListener('click', function () { toggleCategory(b.getAttribute('data-map-cat'), b); });
       });
+      var home = root.querySelector('[data-map-home]');
+      if (home) home.addEventListener('click', recenterToProperty);
       var fit = root.querySelector('[data-map-fit]');
       if (fit) fit.addEventListener('click', fitProperties);
+    }
+
+    /* 地図を動かしたあとに、最初の表示（現在見ている物件が中心）へ戻す。
+       周辺情報の表示ON/OFFはそのまま保つ（見ていた施設が消えないように）。 */
+    function recenterToProperty() {
+      if (!map || !homeCenter) return;
+      if (infoWindow) infoWindow.close();
+      map.setZoom(DEFAULT_ZOOM);
+      map.panTo(homeCenter);
     }
 
     function fitProperties() {
