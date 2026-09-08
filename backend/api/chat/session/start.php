@@ -15,6 +15,7 @@ require_once __DIR__ . '/../../../includes/chat-crm-helper.php';
 require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../../includes/customer-invitation-helper.php';
 require_once __DIR__ . '/../../../includes/session-participant-helper.php';
+require_once __DIR__ . '/../../../includes/property-view-helper.php'; // propertyViewTokenSession()（物件提案メールの閲覧トークン）
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -38,6 +39,9 @@ $currentSessionId = trim($input['current_session_id'] ?? '');
 $inviteToken = trim($input['invite_token'] ?? '');
 // 2人目（ご家族）の招待URL（card.php?...&couple=...）から来た場合のトークン。
 $coupleInviteToken = trim($input['couple_invite'] ?? '');
+// 物件提案メールのリンク（card.php?...&open=property&pv=...）から来た場合の閲覧トークン。
+// このリンクには招待トークン（invite=）が付かないため、これを手がかりに顧客ページへ戻す。
+$propertyViewToken = trim($input['property_view_token'] ?? '');
 if ($visitorId !== '' && !preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $visitorId)) {
     $visitorId = '';
 }
@@ -134,6 +138,49 @@ try {
         $stmt->execute([$sessionId]);
     }
 
+    // 物件提案メールのリンク（card.php?...&open=property&pv=<token>）。
+    // このリンクには招待トークン（invite=）が付かないため、お客様が招待メールより先に
+    // 物件提案メールを開くと、担当が事前作成した顧客ページに合流できず新しい履歴ができ、
+    // 顧客一覧に同じお客様が二重に並んでいた。閲覧トークンは顧客ページ（chat_sessions）ごとに
+    // 発行しているので、これを手がかりに本来の顧客ページへ戻す。
+    // デモ名刺では閲覧トークンを発行しないため、デモ時は無視する。
+    $viewSessionId = '';
+    if (!$isDemo && !$invite && !$coupleInvite && $propertyViewToken !== ''
+        && propertyViewTokenIsValidFormat($propertyViewToken)) {
+        $foundViewSessionId = propertyViewTokenSession($db, $propertyViewToken);
+        // 別の名刺のトークンで他人のセッションを開かせない。
+        if ($foundViewSessionId !== '') {
+            $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
+            $stmt->execute([$foundViewSessionId, $card['id']]);
+            if ($stmt->fetchColumn()) {
+                $viewSessionId = $foundViewSessionId;
+            }
+        }
+    }
+
+    if ($viewSessionId !== '') {
+        $sessionId = $viewSessionId;
+        $isResumed = true;
+
+        // 所有者の扱いは招待URLと同じ。まだやり取りの無い顧客ページだけ、開いた端末を
+        // 所有者として紐づける（メールが第三者へ転送された場合に、本来のお客様の端末が
+        // 締め出されるのを防ぐ）。閲覧トークン自体は履歴の閲覧権を与えない
+        // （履歴の表示は下の device_auth の判定に従う）。
+        $stmt = $db->prepare("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?");
+        $stmt->execute([$sessionId]);
+        $viewSessionHasMessages = ((int)$stmt->fetchColumn()) > 0;
+        $canClaimViewSession = !$viewSessionHasMessages
+            || ($visitorId !== '' && chatSessionDeviceAuth($db, $sessionId, $visitorId));
+
+        if ($visitorId !== '' && $canClaimViewSession) {
+            $stmt = $db->prepare("UPDATE chat_sessions SET visitor_identifier = ?, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$visitorId, $sessionId]);
+        } else {
+            $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$sessionId]);
+        }
+    }
+
     if ($isDemo) {
         // デモは visitor_id に紐づく未失効のデモセッションだけを再開する。
         // session_id 単体では再開させない（他人のデモ session_id を送られると、
@@ -155,19 +202,19 @@ try {
 
     // 同じ端末・同じ訪問者のチャットは、新しい履歴を増やさず既存履歴へ戻す。
     // まず保存済み session_id を優先し、次に visitor_id の最新履歴を探す。
-    if (!$isDemo && !$invite && !$coupleInvite && $currentSessionId !== '') {
+    if (!$isDemo && !$invite && !$coupleInvite && $viewSessionId === '' && $currentSessionId !== '') {
         $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE id = ? AND business_card_id = ? LIMIT 1");
         $stmt->execute([$currentSessionId, $card['id']]);
         $sessionId = (string)($stmt->fetchColumn() ?: '');
     }
 
-    if (!$isDemo && !$invite && !$coupleInvite && $sessionId === '' && $visitorId !== '') {
+    if (!$isDemo && !$invite && !$coupleInvite && $viewSessionId === '' && $sessionId === '' && $visitorId !== '') {
         $stmt = $db->prepare("SELECT id FROM chat_sessions WHERE business_card_id = ? AND visitor_identifier = ? ORDER BY last_seen_at DESC, created_at DESC LIMIT 1");
         $stmt->execute([$card['id'], $visitorId]);
         $sessionId = (string)($stmt->fetchColumn() ?: '');
     }
 
-    if (!$isDemo && !$invite && !$coupleInvite && $sessionId !== '') {
+    if (!$isDemo && !$invite && !$coupleInvite && $viewSessionId === '' && $sessionId !== '') {
         $isResumed = true;
         $deviceAuth = $visitorId !== '' ? chatSessionDeviceAuth($db, $sessionId, $visitorId) : null;
         if ($visitorId !== '' && $deviceAuth) {

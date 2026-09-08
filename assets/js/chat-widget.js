@@ -38,6 +38,8 @@
     // このトークンがあれば、SMS認証前でも提案物件の詳細（基本情報・ハザード等情報・販売図面・
     // 写真/資料）を閲覧できる。閲覧専用で、他の機能（AI担当・条件整理・進捗管理・ツール・日程調整・
     // 担当連絡・ステータス更新・内見予約など）はこれまで通りSMS認証が必要。
+    // このリンクには招待トークン（invite=）が付かないため、session/start へも渡して
+    // 担当が事前作成した顧客ページへ合流させる（顧客一覧の二重登録を防ぐ）。
     var propertyViewToken = root.getAttribute('data-property-view-token') || '';
     // 「●●様専用」とヘッダーに出すための顧客名。SMS認証前は招待時の申告値を使う。
     var headerCustomerName = '';
@@ -1242,7 +1244,7 @@
         fetch(apiBase + '/session/start.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: savedSessionId, resume: !reset || !!keepSavedSession, invite_token: inviteToken, couple_invite: coupleToken })
+            body: JSON.stringify({ card_slug: cardSlug, visitor_id: visitorId, current_session_id: savedSessionId, resume: !reset || !!keepSavedSession, invite_token: inviteToken, couple_invite: coupleToken, property_view_token: propertyViewToken })
         })
             .then(function (res) {
                 return res.json().catch(function () {
