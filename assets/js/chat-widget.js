@@ -115,6 +115,9 @@
     var crmState = null;
     var crmLoading = false;
     var activeChatTab = 'ai';
+    // 更新ボタンで再読み込みしたとき、押す前に開いていたタブへ戻すための保持値。
+    var reopenTabAfterReload = null;
+    var reopenTabHandled = false;
     var attachBtn = document.getElementById('chat-widget-attach');
     var fileInput = document.getElementById('chat-widget-file');
     var attachListEl = document.getElementById('chat-widget-attach-list');
@@ -1293,6 +1296,16 @@
                     if (deepLinkTab && !deepLinkHandled) {
                         deepLinkHandled = true;
                         try { renderFeatureTab(deepLinkTab); } catch (e) {}
+                    }
+                    // 更新ボタンでの再読み込み直後は、押す前に開いていたタブへ戻す。
+                    // これをしないと、担当連絡や物件選定を見ていても必ずAI担当に戻ってしまう。
+                    if (reopenTabAfterReload && !reopenTabHandled) {
+                        reopenTabHandled = true;
+                        var tabToRestore = reopenTabAfterReload;
+                        reopenTabAfterReload = null;
+                        if (tabToRestore !== 'ai') {
+                            try { renderFeatureTab(tabToRestore); } catch (e) {}
+                        }
                     }
                 } else {
                     appendBotMessage(data.message || '申し訳ございません。いまチャットをご利用いただけません。');
@@ -3917,17 +3930,18 @@
 
     function markReopenAfterReload() {
         try {
-            window.sessionStorage.setItem(REOPEN_AFTER_RELOAD_KEY, '1');
+            window.sessionStorage.setItem(REOPEN_AFTER_RELOAD_KEY, activeChatTab || 'ai');
         } catch (e) {}
     }
 
     function consumeReopenAfterReload() {
         try {
-            if (window.sessionStorage.getItem(REOPEN_AFTER_RELOAD_KEY) !== '1') return false;
+            var saved = window.sessionStorage.getItem(REOPEN_AFTER_RELOAD_KEY);
+            if (!saved) return null;
             window.sessionStorage.removeItem(REOPEN_AFTER_RELOAD_KEY);
-            return true;
+            return saved;
         } catch (e) {
-            return false;
+            return null;
         }
     }
 
@@ -4280,13 +4294,13 @@
         });
     }
     // 目印は必ずここで消費し、別ページへ持ち越さないようにする。
-    var reopenAfterReload = consumeReopenAfterReload();
+    reopenTabAfterReload = consumeReopenAfterReload();
     if (chatOnly) {
         showPanel();
     } else if (deepLinkTab) {
         // メール通知のリンクから来訪 → パネルを自動で開く（セッション復帰後に該当タブを表示）。
         showPanel();
-    } else if (reopenAfterReload) {
+    } else if (reopenTabAfterReload) {
         // 更新ボタンでの再読み込み直後 → チャットを開いたままにする。
         showPanel();
     }
