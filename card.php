@@ -5,6 +5,7 @@
 require_once __DIR__ . '/backend/config/config.php';
 require_once __DIR__ . '/backend/config/database.php';
 require_once __DIR__ . '/backend/includes/functions.php';
+require_once __DIR__ . '/backend/includes/qr-helper.php';
 
 /**
  * Convert URLs in text to clickable links
@@ -1098,18 +1099,12 @@ if (!empty($card['profile_photo'])) {
         <?php if (!$preview): ?>
         <hr>
         <!-- QRコード -->
-        <?php if (!empty($card['qr_code']) && $card['qr_code_issued']): ?>
-            <?php
-                $qrCodePath = trim((string) $card['qr_code']);
-                $qrCodeSrc = $qrCodePath;
-                if (!preg_match('~^https?://~i', $qrCodePath)) {
-                    $qrCodePath = ltrim($qrCodePath, '/');
-                    if (strpos($qrCodePath, 'backend/') !== 0) {
-                        $qrCodePath = 'backend/' . $qrCodePath;
-                    }
-                    $qrCodeSrc = rtrim(BASE_URL, '/') . '/' . $qrCodePath;
-                }
-            ?>
+        <?php
+            // QRコードが未発行、または画像ファイルが存在しない場合はここで発行し直す。
+            // 入金確認時の発行に失敗した名刺でも、公開中であれば必ずQRコードを表示する。
+            $qrCodeSrc = resolveBusinessCardQRCodeSrc($card, $db);
+        ?>
+        <?php if (!empty($qrCodeSrc)): ?>
             <div class="qr-code-section">
                 <div class="qr-code-container">
                     <img src="<?php echo htmlspecialchars($qrCodeSrc); ?>" alt="QRコード"

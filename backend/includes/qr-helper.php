@@ -4,7 +4,10 @@
  * Helper functions for generating QR codes for business cards
  */
 
-require_once __DIR__ . '/../vendor/autoload.php';
+// Composer autoload は functions.php でも読み込むため、ここでは存在する場合のみ読み込む
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+}
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/../config/config.php';
 
@@ -86,6 +89,12 @@ function generateBusinessCardQRCode($businessCardId, $db, $sendEmails = true) {
 
             $writer = new PngWriter();
             $writer->write($qrCode)->saveToFile($qrCodePath);
+
+            // saveToFile() は file_put_contents のため書き込み失敗時も例外を投げない。
+            // ファイルが作られていない状態で発行済みとして記録しないよう検証する。
+            if (!is_file($qrCodePath) || filesize($qrCodePath) === 0) {
+                throw new RuntimeException("QR code file could not be written: " . $qrCodePath);
+            }
         } catch (Throwable $e) {
             error_log("PNG QR code generation failed, trying SVG fallback: " . $e->getMessage());
             try {
@@ -112,6 +121,10 @@ function generateBusinessCardQRCode($businessCardId, $db, $sendEmails = true) {
                 $qrCodeRelativePath = "uploads/qr_codes/" . $qrCodeFileName;
                 $writer = new SvgWriter();
                 $writer->write($qrCode)->saveToFile($qrCodePath);
+
+                if (!is_file($qrCodePath) || filesize($qrCodePath) === 0) {
+                    throw new RuntimeException("QR code file could not be written: " . $qrCodePath);
+                }
             } catch (Throwable $e2) {
                 error_log("QR Code generation failed: " . $e2->getMessage());
                 return [
@@ -259,4 +272,142 @@ function qrCodeExists($qrCodePath) {
     
     $fullPath = __DIR__ . '/../' . $qrCodePath;
     return file_exists($fullPath);
+}
+/**
+ * Build the absolute display URL for a stored QR code path
+ *
+ * @param string $qrCodePath Value stored in business_cards.qr_code
+ * @return string Absolute URL (empty string when the path is empty)
+ */
+function businessCardQRCodeUrl($qrCodePath) {
+    $qrCodePath = trim((string) $qrCodePath);
+    if ($qrCodePath === '') {
+        return '';
+    }
+
+    if (preg_match('~^https?://~i', $qrCodePath)) {
+        return $qrCodePath;
+    }
+
+    $qrCodePath = ltrim($qrCodePath, '/');
+    if (strpos($qrCodePath, 'backend/') !== 0) {
+        $qrCodePath = 'backend/' . $qrCodePath;
+    }
+
+    return rtrim(BASE_URL, '/') . '/' . $qrCodePath;
+}
+
+/**
+ * Resolve the local file path for a stored QR code path
+ *
+ * @param string $qrCodePath Value stored in business_cards.qr_code
+ * @return string|null Absolute file path, or null when it is not a local file
+ */
+function businessCardQRCodeFilePath($qrCodePath) {
+    $qrCodePath = ltrim(trim((string) $qrCodePath), '/');
+    if ($qrCodePath === '' || preg_match('~^https?://~i', $qrCodePath)) {
+        return null;
+    }
+
+    if (strpos($qrCodePath, 'backend/') === 0) {
+        $qrCodePath = substr($qrCodePath, strlen('backend/'));
+    }
+
+    return __DIR__ . '/../' . $qrCodePath;
+}
+
+/**
+ * Generate a QR code image in memory and return it as a data URI
+ *
+ * 保存先ディレクトリに書き込めない場合でも名刺ページに QR コードを表示するための最終手段。
+ *
+ * @param string $slug business_cards.url_slug
+ * @return string|null Data URI, or null when the image could not be generated
+ */
+function buildBusinessCardQRCodeDataUri($slug) {
+    $slug = trim((string) $slug);
+    if ($slug === '') {
+        return null;
+    }
+
+    try {
+        if (!class_exists(QrCode::class)) {
+            return null;
+        }
+
+        $qrCode = QrCode::create(rtrim(BASE_URL, '/') . '/card.php?slug=' . $slug)
+            ->setEncoding(new Encoding('UTF-8'))
+            ->setErrorCorrectionLevel(new ErrorCorrectionLevelLow())
+            ->setSize(400)
+            ->setMargin(16)
+            ->setRoundBlockSizeMode(new RoundBlockSizeModeMargin())
+            ->setForegroundColor(new Color(0, 0, 0))
+            ->setBackgroundColor(new Color(255, 255, 255));
+
+        try {
+            if (class_exists(PngWriter::class)) {
+                return (new PngWriter())->write($qrCode)->getDataUri();
+            }
+        } catch (Throwable $e) {
+            error_log('In-memory PNG QR code generation failed, trying SVG fallback: ' . $e->getMessage());
+        }
+
+        if (class_exists(SvgWriter::class)) {
+            return (new SvgWriter())->write($qrCode)->getDataUri();
+        }
+    } catch (Throwable $e) {
+        error_log('In-memory QR code generation failed: ' . $e->getMessage());
+    }
+
+    return null;
+}
+
+/**
+ * Resolve the QR code image to show on the public business card page
+ *
+ * 入金確認時の QR 発行が失敗すると qr_code_issued が 0 のまま残り、その後どの処理でも
+ * 再発行されないため名刺ページに QR コードが表示されなくなる。画像ファイルが消えている
+ * 場合も同様。表示時にここで発行し直すことで、公開中の名刺には必ず QR コードを表示する。
+ *
+ * @param array $card business_cards row (id, url_slug, qr_code, payment_status)
+ * @param PDO $db Database connection
+ * @return string|null Image src (absolute URL or data URI), or null when unavailable
+ */
+function resolveBusinessCardQRCodeSrc(array $card, $db) {
+    // 1. 発行済みでファイルも存在する場合はそのまま使う
+    $storedPath = trim((string) ($card['qr_code'] ?? ''));
+    if ($storedPath !== '') {
+        if (preg_match('~^https?://~i', $storedPath)) {
+            return $storedPath;
+        }
+
+        $filePath = businessCardQRCodeFilePath($storedPath);
+        if ($filePath !== null && is_file($filePath)) {
+            return businessCardQRCodeUrl($storedPath);
+        }
+    }
+
+    // 2. 入金確認済み（CR/BANK_PAID/ST）の名刺のみ再発行の対象とする
+    if (empty($card['id']) || !in_array($card['payment_status'] ?? '', ['CR', 'BANK_PAID', 'ST'], true)) {
+        return null;
+    }
+
+    // 3. 未発行・ファイル欠損の場合はこの場で発行し、DB にも保存する（メールは送らない）
+    try {
+        $result = generateBusinessCardQRCode($card['id'], $db, false);
+        if (!empty($result['success']) && !empty($result['qr_code_path'])) {
+            $newFilePath = businessCardQRCodeFilePath($result['qr_code_path']);
+            if ($newFilePath !== null && is_file($newFilePath)) {
+                return businessCardQRCodeUrl($result['qr_code_path']);
+            }
+            error_log('QR code re-issue on card page saved no file for business_card_id ' . $card['id'] . ': ' . $result['qr_code_path']);
+        } else {
+            error_log('QR code re-issue on card page failed for business_card_id ' . $card['id'] . ': ' . ($result['message'] ?? 'Unknown error'));
+        }
+    } catch (Throwable $e) {
+        error_log('QR code re-issue on card page error for business_card_id ' . $card['id'] . ': ' . $e->getMessage());
+    }
+
+    // 4. 保存に失敗した場合でも、生成した画像を直接埋め込んで表示する
+    return buildBusinessCardQRCodeDataUri($card['url_slug'] ?? '');
 }
