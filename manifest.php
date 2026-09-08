@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/backend/config/config.php';
 require_once __DIR__ . '/backend/config/database.php';
+require_once __DIR__ . '/backend/includes/functions.php';
 
 $slug = $_GET['slug'] ?? '';
 if (empty($slug)) {
@@ -18,7 +19,7 @@ $database = new Database();
 $db = $database->getConnection();
 
 $stmt = $db->prepare("
-    SELECT bc.name, bc.url_slug, bc.payment_status, bc.is_published
+    SELECT bc.id, bc.name, bc.url_slug, bc.payment_status, bc.is_published
     FROM business_cards bc
     JOIN users u ON bc.user_id = u.id
     WHERE bc.url_slug = ? AND u.status = 'active'
@@ -32,7 +33,9 @@ if (!$card) {
     echo json_encode(['error' => 'Not Found']);
     exit;
 }
-if (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || (int)$card['is_published'] !== 1) {
+// 未入金・非公開に加え、利用期間が終了している名刺も配信しない（card.php と同じ基準）。
+if (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || (int)$card['is_published'] !== 1
+    || business_card_usage_period_expired($db, $card['id'])) {
     header('HTTP/1.0 404 Not Found');
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode(['error' => 'Not Found']);

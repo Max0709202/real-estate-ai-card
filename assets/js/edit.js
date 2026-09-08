@@ -2572,6 +2572,13 @@ function getCurrentEditSectionId() {
     return activeSection ? activeSection.id : null;
 }
 
+// マイページを開いてから何画面進んだか。
+// 0 =「最初の画面」で、アプリ内にはこれ以上戻り先が無い状態。
+function getEditHistoryDepth() {
+    const state = window.history.state;
+    return (state && typeof state.editDepth === 'number') ? state.editDepth : 0;
+}
+
 // 表示したセクションを履歴に積む（URL自体は変更しない）
 function pushEditSectionHistory(sectionId) {
     if (!editSectionHistoryEnabled || isRestoringEditSection || !supportsEditSectionHistory()) {
@@ -2581,7 +2588,7 @@ function pushEditSectionHistory(sectionId) {
     if (currentState && currentState.editSection === sectionId) {
         return;
     }
-    window.history.pushState({ editSection: sectionId, subView: null }, '', window.location.href);
+    window.history.pushState({ editSection: sectionId, subView: null, editDepth: getEditHistoryDepth() + 1 }, '', window.location.href);
 }
 
 // 戻る／進む操作に合わせて、対応するセクションを表示し直す
@@ -2592,7 +2599,7 @@ function initializeEditSectionHistory() {
 
     const initialSectionId = getCurrentEditSectionId();
     if (initialSectionId) {
-        window.history.replaceState({ editSection: initialSectionId, subView: null }, '', window.location.href);
+        window.history.replaceState({ editSection: initialSectionId, subView: null, editDepth: 0 }, '', window.location.href);
     }
     editSectionHistoryEnabled = true;
 
@@ -2638,7 +2645,8 @@ window.openEditSubView = function(viewId, param) {
     window.history.pushState({
         editSection: getCurrentEditSectionId(),
         subView: viewId,
-        subViewParam: param || null
+        subViewParam: param || null,
+        editDepth: getEditHistoryDepth() + 1
     }, '', window.location.href);
 };
 
@@ -2740,9 +2748,14 @@ function goToNextEditSectionBySwipe() {
     window.goToEditSection(sectionOrder[currentIndex + 1]);
 }
 
-// 右スワイプ：ブラウザの「戻る」と同じ挙動。
-// ページ内に戻り先のセクションがあればそこへ、なければ直前のページ（ログイン画面など）へ戻る。
+// 右スワイプ：マイページ内の1つ前の画面（顧客一覧・前のメニューなど）へ戻る。
+// 最初の画面ではアプリ内に戻り先が無いため、何もしない。
+// ここでページを離れると、ログイン直後は「ログイン画面に戻った」ように見えてしまうため。
+// なお、端末の画面端からの戻る操作は従来どおりで、直前のページへ戻る。
 function goBackFromEditSectionBySwipe() {
+    if (!supportsEditSectionHistory() || getEditHistoryDepth() <= 0) {
+        return;
+    }
     window.history.back();
 }
 

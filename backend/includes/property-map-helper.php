@@ -52,7 +52,9 @@ if (!function_exists('propertyMapCategoryDefs')) {
             'store'           => ['label' => 'スーパー／コンビニ', 'source' => 'places',   'group' => 'A',  'render' => 'marker'],
             'hospital'        => ['label' => '病院',             'source' => 'places',    'group' => 'B',  'render' => 'marker'],
             'school'          => ['label' => '学校（全て）',      'source' => 'places',    'group' => 'B',  'render' => 'marker'],
-            'school_district' => ['label' => '学校（学区）',      'source' => 'reinfolib', 'group' => null, 'render' => 'polygon'],
+            // 学区は小学校・中学校を別ボタンにする（お客様ご要望 2026.9.7）。
+            'school_district_elem'   => ['label' => '小学校（学区）', 'source' => 'reinfolib', 'group' => null, 'render' => 'polygon'],
+            'school_district_junior' => ['label' => '中学校（学区）', 'source' => 'reinfolib', 'group' => null, 'render' => 'polygon'],
             'cram'            => ['label' => '学習塾',           'source' => 'places',    'group' => 'B',  'render' => 'marker'],
             'restaurant'      => ['label' => 'レストラン',        'source' => 'places',    'group' => 'C',  'render' => 'marker'],
             'shelter'         => ['label' => '緊急避難場所',      'source' => 'reinfolib', 'group' => null, 'render' => 'marker'],
@@ -96,6 +98,10 @@ if (!defined('PROPERTY_MAP_PLACES_PAGE')) define('PROPERTY_MAP_PLACES_PAGE', 20)
 /** Places / 不動産情報ライブラリのサーバー側キャッシュ保持時間（秒）。 */
 if (!defined('PROPERTY_MAP_PLACES_TTL')) define('PROPERTY_MAP_PLACES_TTL', 2592000);   // 30日
 if (!defined('PROPERTY_MAP_REINFO_TTL')) define('PROPERTY_MAP_REINFO_TTL', 2592000);   // 30日
+/** ハザードのタイル1枚あたりの取り込み上限（方角ごとに同じ量を取り、偏りを防ぐ）。 */
+if (!defined('PROPERTY_MAP_HAZARD_TILE_FEATURES')) define('PROPERTY_MAP_HAZARD_TILE_FEATURES', 150);
+/** ハザード1種類あたりの描画上限（物件に近いエリアから残す）。 */
+if (!defined('PROPERTY_MAP_HAZARD_POLYGONS')) define('PROPERTY_MAP_HAZARD_POLYGONS', 400);
 
 /* ──────────────────────────────────────────────────────────
  * 緯度・経度（§1 / §2）
@@ -625,7 +631,7 @@ if (!function_exists('propertyMapReinfoTiles')) {
      * $ring=true で中心タイルの3x3を取得し、地図に表示される範囲をひととおり覆う。
      * 返り値: ['features' => [...], 'ok' => bool]
      */
-    function propertyMapReinfoTiles(PDO $db, string $code, float $lat, float $lng, int $z, bool $ring, array $extraQuery = []): array
+    function propertyMapReinfoTiles(PDO $db, string $code, float $lat, float $lng, int $z, bool $ring, array $extraQuery = [], int $perTileLimit = 0): array
     {
         if (!defined('REINFOLIB_API_KEY') || REINFOLIB_API_KEY === '') return ['features' => [], 'ok' => false];
         $center = chatGeoLatLonToTile($lat, $lng, $z);
@@ -646,8 +652,11 @@ if (!function_exists('propertyMapReinfoTiles')) {
             if (empty($res['ok']) || !is_array($res['data'])) continue;
             $ok = true;
             $f = $res['data']['features'] ?? [];
-            if (is_array($f) && !empty($f)) $features = array_merge($features, $f);
-            if (count($features) >= 800) break;   // 描画量の上限（地図が重くならないように）
+            if (!is_array($f) || empty($f)) continue;
+            // 件数はタイル単位で切る。全体の合計で打ち切ると、先に取得した方角のタイルだけが
+            // 残り、物件の片側にしかデータが無いように見えてしまうため（＝中心に見えない）。
+            if ($perTileLimit > 0 && count($f) > $perTileLimit) $f = array_slice($f, 0, $perTileLimit);
+            $features = array_merge($features, $f);
         }
         return ['features' => $features, 'ok' => $ok];
     }
@@ -678,17 +687,26 @@ if (!function_exists('propertyMapHazardLayers')) {
     {
         $layers = [];
         foreach (propertyMapHazardDefs() as $key => $def) {
-            $res = propertyMapReinfoTiles($db, $def['code'], $lat, $lng, (int)$def['z'], true);
-            $polygons = [];
+            $res = propertyMapReinfoTiles($db, $def['code'], $lat, $lng, (int)$def['z'], true, [], PROPERTY_MAP_HAZARD_TILE_FEATURES);
+            // 表示件数を絞るときは「物件に近いエリアから」残す。取得した順（タイル順）で
+            // 切ると物件の片側だけが残ってしまうため、必ず距離で並べ替えてから上限を適用する。
+            $cands = [];
             foreach ($res['features'] as $f) {
                 if (!is_array($f)) continue;
                 $rings = propertyMapGeometryRings($f['geometry'] ?? null);
                 if (empty($rings)) continue;
+                $note = propertyMapHazardNote($f['properties'] ?? []);
                 foreach ($rings as $ring) {
-                    $polygons[] = ['ring' => $ring, 'note' => propertyMapHazardNote($f['properties'] ?? [])];
-                    if (count($polygons) >= 300) break 2;
+                    $cands[] = [
+                        'd'    => propertyMapRingDistanceM($lat, $lng, $ring),
+                        'poly' => ['ring' => $ring, 'note' => $note],
+                    ];
                 }
             }
+            usort($cands, static function ($a, $b) { return $a['d'] <=> $b['d']; });
+            $polygons = [];
+            foreach (array_slice($cands, 0, PROPERTY_MAP_HAZARD_POLYGONS) as $c) $polygons[] = $c['poly'];
+
             $layers[] = [
                 'key'      => $key,
                 'label'    => $def['label'],
@@ -757,42 +775,114 @@ if (!function_exists('propertyMapGeometryRings')) {
     }
 }
 
-if (!function_exists('propertyMapSchoolDistricts')) {
+if (!function_exists('propertyMapSchoolDistrict')) {
     /**
-     * §8⑥ 学校（学区）。その物件の指定小学校区・指定中学校区のポリゴンと学校名を返す。
+     * §8⑥ 学区。その物件の指定小学校区・指定中学校区のポリゴンと学校名・学校位置を返す。
      * 地点を含むポリゴンだけを採用し、見つからない場合は「確認できませんでした」とする
      * （自治体が公開していない場合があるため、近くの学校名で代用しない）。
      */
-    function propertyMapSchoolDistricts(PDO $db, float $lat, float $lng): array
+    function propertyMapSchoolDistrictDefs(): array
     {
-        $defs = [
-            ['key' => 'elementary', 'code' => 'XKT004', 'label' => '指定小学校', 'hint' => '小学校', 'color' => '#1f9d57'],
-            ['key' => 'junior',     'code' => 'XKT005', 'label' => '指定中学校', 'hint' => '中学校', 'color' => '#f08a24'],
+        return [
+            'school_district_elem'   => ['code' => 'XKT004', 'label' => '指定小学校', 'hint' => '小学校', 'color' => '#1f9d57'],
+            'school_district_junior' => ['code' => 'XKT005', 'label' => '指定中学校', 'hint' => '中学校', 'color' => '#f08a24'],
         ];
-        $out = [];
-        foreach ($defs as $def) {
-            $res = propertyMapReinfoTiles($db, $def['code'], $lat, $lng, 14, false);
-            $matched = null;
-            foreach ($res['features'] as $f) {
-                if (!is_array($f)) continue;
-                if (chatGeoPointInFeature($lng, $lat, $f['geometry'] ?? null)) { $matched = $f; break; }
-            }
-            $entry = [
-                'key'      => $def['key'],
-                'label'    => $def['label'],
-                'color'    => $def['color'],
-                'name'     => '',
-                'polygons' => [],
-            ];
-            if ($matched) {
-                $entry['name'] = propertyMapFeatureName($matched['properties'] ?? [], ['A27_005', 'A27_004', 'name', 'name_ja'], $def['hint']);
-                foreach (propertyMapGeometryRings($matched['geometry'] ?? null) as $ring) {
-                    $entry['polygons'][] = ['ring' => $ring, 'note' => $entry['name']];
-                }
-            }
-            $out[] = $entry;
+    }
+
+    /**
+     * 指定学区を1つ（小学校区 または 中学校区）返す。
+     * 返り値: ['key','label','color','name','point','polygons']
+     *   name     … 指定校の学校名（住所や設置主体を拾わないよう、値の中身で判定する）
+     *   point    … 学校そのものの位置。学区ポリゴンには学校の座標が含まれないため、
+     *              データ内の所在地をジオコーディングして求める。取れない場合は null
+     *              （推測で位置を作らない）。
+     */
+    function propertyMapSchoolDistrict(PDO $db, float $lat, float $lng, string $category): array
+    {
+        $defs = propertyMapSchoolDistrictDefs();
+        $def = $defs[$category] ?? null;
+        $entry = [
+            'key'      => $category,
+            'label'    => $def ? $def['label'] : '',
+            'color'    => $def ? $def['color'] : '#1f9d57',
+            'name'     => '',
+            'point'    => null,
+            'polygons' => [],
+        ];
+        if (!$def) return $entry;
+
+        $res = propertyMapReinfoTiles($db, $def['code'], $lat, $lng, 14, false);
+        $matched = null;
+        foreach ($res['features'] as $f) {
+            if (!is_array($f)) continue;
+            if (chatGeoPointInFeature($lng, $lat, $f['geometry'] ?? null)) { $matched = $f; break; }
         }
-        return $out;
+        if (!$matched) return $entry;
+
+        $props = is_array($matched['properties'] ?? null) ? $matched['properties'] : [];
+        $entry['name'] = propertyMapSchoolName($props, $def['hint']);
+        foreach (propertyMapGeometryRings($matched['geometry'] ?? null) as $ring) {
+            $entry['polygons'][] = ['ring' => $ring, 'note' => $entry['name']];
+        }
+
+        // 学校の位置（地図に同色の●で出す）。所在地から求め、取れなければ表示しない。
+        $address = propertyMapSchoolAddress($props);
+        if ($address !== '') {
+            $geo = propertyMapGeocodeAddress($db, $address);
+            if ($geo) {
+                $entry['point'] = [
+                    'name'    => $entry['name'] !== '' ? $entry['name'] : $def['label'],
+                    'lat'     => $geo['lat'],
+                    'lng'     => $geo['lng'],
+                    'map_url' => propertyMapGoogleUrl('', $geo['lat'], $geo['lng']),
+                ];
+            }
+        }
+        return $entry;
+    }
+}
+
+if (!function_exists('propertyMapSchoolName')) {
+    /**
+     * 学区データから指定校の「学校名」を取り出す。
+     *
+     * 通学区域データは項目名がデータによって異なり、所在地・設置主体・学校コードが
+     * 同じような位置に入っている。キー名で決め打ちすると所在地（例:「川口市南町2-3-1」）を
+     * 学校名として拾ってしまうため、値そのものに「小学校」「中学校」が含まれるかで判定する。
+     */
+    function propertyMapSchoolName(array $props, string $hint): string
+    {
+        $best = '';
+        foreach ($props as $v) {
+            if (!is_scalar($v)) continue;
+            $s = trim((string)$v);
+            // 学校名としては長すぎる値（備考など）は除く。UTF-8の日本語で約40文字相当。
+            if ($s === '' || strlen($s) > 120) continue;
+            if (strpos($s, $hint) === false) continue;
+            if ($best === '' || strlen($s) < strlen($best)) $best = $s;
+        }
+        if ($best !== '') return $best;
+        // 「小学校」「中学校」を含む値が無い場合だけ、名称キーから拾う。
+        return propertyMapFeatureName($props, ['A27_004', 'name', 'name_ja'], '');
+    }
+}
+
+if (!function_exists('propertyMapSchoolAddress')) {
+    /**
+     * 学区データから指定校の「所在地」を取り出す（学校位置の●を出すためにジオコーディングする）。
+     * 学校名を住所と取り違えないよう、数字（丁目・番地）を含む値だけを住所とみなす。
+     */
+    function propertyMapSchoolAddress(array $props): string
+    {
+        foreach (['A27_005', 'address', 'address_ja', '所在地'] as $k) {
+            if (!isset($props[$k]) || !is_scalar($props[$k])) continue;
+            $s = trim((string)$props[$k]);
+            if ($s === '' || strlen($s) > 300) continue;
+            if (strpos($s, '小学校') !== false || strpos($s, '中学校') !== false) continue;
+            if (!preg_match('/[0-9０-９]/u', $s)) continue;
+            return $s;
+        }
+        return '';
     }
 }
 
@@ -869,6 +959,29 @@ if (!function_exists('propertyMapFeatureName')) {
             }
         }
         return '';
+    }
+}
+
+if (!function_exists('propertyMapRingDistanceM')) {
+    /**
+     * 物件からポリゴン（外周の点列）までのおおよその近さ。
+     * 表示件数を絞るときに「物件に近いエリアを優先して残す」ためだけに使う内部処理で、
+     * 画面には距離を一切表示しない（§5 / §12）。
+     * 頂点は間引いて評価する（重いポリゴンでも一定の計算量に収めるため）。
+     */
+    function propertyMapRingDistanceM(float $lat, float $lng, array $ring): float
+    {
+        $n = count($ring);
+        if ($n === 0) return PHP_FLOAT_MAX;
+        $step = max(1, (int)ceil($n / 40));
+        $min = PHP_FLOAT_MAX;
+        for ($i = 0; $i < $n; $i += $step) {
+            $p = $ring[$i];
+            if (!isset($p['lat'], $p['lng'])) continue;
+            $d = propertyMapDistanceM($lat, $lng, (float)$p['lat'], (float)$p['lng']);
+            if ($d < $min) $min = $d;
+        }
+        return $min;
     }
 }
 

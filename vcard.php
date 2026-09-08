@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/backend/config/config.php';
 require_once __DIR__ . '/backend/config/database.php';
+require_once __DIR__ . '/backend/includes/functions.php';
 
 $slug = $_GET['slug'] ?? '';
 if (empty($slug)) {
@@ -16,7 +17,7 @@ $database = new Database();
 $db = $database->getConnection();
 
 $stmt = $db->prepare("
-    SELECT bc.name, bc.name_romaji, bc.company_name, bc.mobile_phone, bc.company_phone,
+    SELECT bc.id, bc.name, bc.name_romaji, bc.company_name, bc.mobile_phone, bc.company_phone,
            bc.company_address, bc.company_postal_code, bc.company_website, bc.position, bc.branch_department,
            bc.payment_status, bc.is_published, u.email
     FROM business_cards bc
@@ -30,7 +31,9 @@ if (!$card) {
     header('HTTP/1.0 404 Not Found');
     exit('Not Found');
 }
-if (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || (int)$card['is_published'] !== 1) {
+// 未入金・非公開に加え、利用期間が終了している名刺も配信しない（card.php と同じ基準）。
+if (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || (int)$card['is_published'] !== 1
+    || business_card_usage_period_expired($db, $card['id'])) {
     header('HTTP/1.0 404 Not Found');
     exit('Not Found');
 }

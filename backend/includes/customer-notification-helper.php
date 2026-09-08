@@ -25,6 +25,7 @@ require_once __DIR__ . '/functions.php'; // sendEmail()
 require_once __DIR__ . '/session-participant-helper.php'; // participantActiveEmails()（2名対応の通知配信先）
 require_once __DIR__ . '/property-view-helper.php'; // propertyViewTokenFor()（物件提案リンクの閲覧トークン）
 require_once __DIR__ . '/property-email-helper.php'; // propertyEmailCompose()（物件提案メールの本文組み立て）
+require_once __DIR__ . '/customer-invitation-helper.php'; // customerInviteFindBySession()（ご登録前の顧客ページの招待トークン）
 
 if (!defined('CUSTOMER_NOTIFY_WAIT_SECONDS')) {
     // 顧客向け通知のバッチ集約時間（既定5分）。担当向け（NOTIFY_WAIT_SECONDS）とは独立。
@@ -487,8 +488,13 @@ function customerNotifySubject(
  * メール内の確認リンク（カードページを開き、該当タブを自動表示）。
  * 物件提案は、SMS認証なしで提案物件の詳細を閲覧できるよう、顧客ごとの閲覧トークン（pv）を付ける。
  * トークンは物件情報の閲覧のみに使え、他の機能はこれまで通りSMS認証が必要。
+ *
+ * 担当連絡（contact）のリンクには顧客を特定できるトークンが無く、担当が事前作成した顧客ページ
+ * （まだご登録前）へお送りした場合、お客様がこのリンクから開くと新しい履歴ができ、顧客一覧に
+ * 同じお客様が二重に並んでしまう。ご登録前に限り招待トークン（invite）を付け、招待メールと
+ * 同じ顧客ページへ戻す。物件提案は pv から顧客ページを特定できるため付けない。
  */
-function customerNotifyDeepLinkUrl(string $feature, string $cardSlug, string $viewToken = ''): string
+function customerNotifyDeepLinkUrl(string $feature, string $cardSlug, string $viewToken = '', string $inviteToken = ''): string
 {
     $base = rtrim(BASE_URL, '/') . '/card.php?slug=' . rawurlencode($cardSlug);
     $open = $feature === 'property' ? 'property' : 'contact';
@@ -496,7 +502,29 @@ function customerNotifyDeepLinkUrl(string $feature, string $cardSlug, string $vi
     if ($feature === 'property' && $viewToken !== '') {
         $url .= '&pv=' . rawurlencode($viewToken);
     }
+    if ($feature !== 'property' && $inviteToken !== '') {
+        $url .= '&invite=' . rawurlencode($inviteToken);
+    }
     return $url;
+}
+
+/**
+ * ご登録前の顧客ページ（担当が事前作成したもの）の招待トークンを返す。
+ * ご登録済み（registered）や、事前作成でない顧客ページでは空文字を返す。
+ */
+function customerNotifyPendingInviteToken(?PDO $db, string $sessionId): string
+{
+    if ($db === null || trim($sessionId) === '' || !function_exists('customerInviteFindBySession')) {
+        return '';
+    }
+    try {
+        $invite = customerInviteFindBySession($db, $sessionId);
+        if (!$invite || (string)($invite['status'] ?? '') === 'registered') return '';
+        return (string)($invite['invite_token'] ?? '');
+    } catch (Throwable $e) {
+        error_log('customerNotifyPendingInviteToken error: ' . $e->getMessage());
+        return '';
+    }
 }
 
 /**
@@ -517,7 +545,10 @@ function customerNotifyBuildBody(
     int $businessCardId = 0
 ): array {
     $name = customerNotifyAgentDisplay($agentName);
-    $url = customerNotifyDeepLinkUrl($feature, $cardSlug, $viewToken);
+    $url = customerNotifyDeepLinkUrl(
+        $feature, $cardSlug, $viewToken,
+        customerNotifyPendingInviteToken($db, $sessionId)
+    );
 
     if ($feature === 'property' && $db !== null && trim($sessionId) !== '') {
         try {

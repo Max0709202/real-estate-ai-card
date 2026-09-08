@@ -419,6 +419,16 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 }
 .prop-map__fit:hover { background: #e3ecfa; }
 
+/* 「物件の位置に戻る」。赤い物件ピンと同じ色にして、どこへ戻るのかが分かるようにする。 */
+.prop-map__home {
+  display: inline-flex; align-items: center; gap: 5px;
+  cursor: pointer; white-space: nowrap; background: #fff; border: 1px solid #f2c4cb;
+  border-radius: 999px; padding: 7px 13px; font-size: 12px; font-weight: 700; color: #e8384f;
+  transition: background .15s, border-color .15s;
+}
+.prop-map__home:hover { background: #fdeef1; border-color: #e8384f; }
+.prop-map__home svg { width: 13px; height: 13px; flex: 0 0 auto; }
+
 /* 地図本体。PCは高さを広く、スマートフォンは画面に収まる高さにする。 */
 .prop-map__canvas { width: 100%; height: 420px; border-radius: 12px; overflow: hidden; border: 1px solid #e5e9f0; background: #eef1f6; }
 @media (max-width: 760px) { .prop-map__canvas { height: 340px; } }
