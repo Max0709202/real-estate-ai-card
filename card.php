@@ -115,17 +115,24 @@ if (!$card) {
     exit('Not Found');
 }
 
-// Check payment status and publication status
-// Card can only be viewed if payment_status is CR, BANK_PAID, or ST, and is_published is 1
+// Check payment status, publication status and usage period
+// Card can only be viewed if payment_status is CR, BANK_PAID, or ST, is_published is 1,
+// and the usage period (subscriptions.next_billing_date) has not passed.
+// 利用期間の判定は cron（check-overdue-payments）と同じ基準。cron が未実行でも期限切れの名刺は表示しない。
 // However, allow preview mode when preview=1 parameter is set (for edit page)
-if (!$preview && (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || $card['is_published'] == 0)) {
-    // 未入金/非公開時は理由説明モーダルを表示
+$isUsagePeriodExpired = !$preview && business_card_usage_period_expired($db, $card['id']);
+if (!$preview && (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) || $card['is_published'] == 0 || $isUsagePeriodExpired)) {
+    // 未入金/非公開/期限切れ時は理由説明モーダルを表示
     $isPaymentAllowed = in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST'], true);
     $isPublished = ((int)($card['is_published'] ?? 0) === 1);
     $reasonTitle = 'この名刺は現在ご利用いただけません';
-    $reasonMessage = !$isPaymentAllowed
-        ? '現在、入金確認が完了していないため名刺を公開できません。'
-        : '現在、名刺が非公開設定のため表示できません。';
+    if (!$isPaymentAllowed) {
+        $reasonMessage = '現在、入金確認が完了していないため名刺を公開できません。';
+    } elseif ($isUsagePeriodExpired) {
+        $reasonMessage = 'ご利用期間が終了しているため名刺を表示できません。';
+    } else {
+        $reasonMessage = '現在、名刺が非公開設定のため表示できません。';
+    }
     ?>
     <!DOCTYPE html>
     <html lang="ja">
@@ -150,6 +157,10 @@ if (!$preview && (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) 
                         <?php if (!$isPaymentAllowed): ?>
                             <li style="margin:0 0 8px;">マイページでお支払い手続きを完了してください。</li>
                             <li style="margin:0 0 8px;">入金確認後、名刺が自動で公開されます。</li>
+                        <?php endif; ?>
+                        <?php if ($isUsagePeriodExpired): ?>
+                            <li style="margin:0 0 8px;">マイページから更新（お支払い）手続きを行ってください。</li>
+                            <li style="margin:0 0 8px;">入金確認後、名刺が再度ご利用いただけます。</li>
                         <?php endif; ?>
                         <?php if (!$isPublished): ?>
                             <li style="margin:0 0 8px;">管理者またはご本人による公開設定（OPEN）が必要です。</li>
