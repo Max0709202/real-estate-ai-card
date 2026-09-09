@@ -1079,8 +1079,15 @@ if (!function_exists('propertySerialize')) {
         if ($thumbId) {
             // サムネイルは「写真・資料」（クリーンな画像）なので担当・顧客の双方で表示可能。
             foreach ($photos as $ph) { if ((int)$ph['id'] === $thumbId) { $mainImageUrl = $ph['url']; break; } }
+            // 指定された写真が削除済みなら「未指定」として扱う（写真の先頭に自動で戻す）。
+            if ($mainImageUrl === null) $thumbId = 0;
         }
-        if ($mainImageUrl === null && !empty($photos)) $mainImageUrl = $photos[0]['url'];
+        // 未指定なら「写真・資料」の先頭の画像を使う（PDF等の資料はサムネイルにできない）。
+        if ($mainImageUrl === null) {
+            foreach ($photos as $ph) {
+                if (empty($ph['mime_type']) || strpos($ph['mime_type'], 'image/') === 0) { $mainImageUrl = $ph['url']; break; }
+            }
+        }
         if ($mainImageUrl === null && $forAgent && !empty($flyers)) $mainImageUrl = $flyers[0]['preview_url'] ?? $flyers[0]['url'];
 
         $out = [
@@ -1115,6 +1122,8 @@ if (!function_exists('propertySerialize')) {
             'property_type_label' => $types[$row['property_type'] ?? 'mansion'] ?? '',
             'ocr_status' => $row['ocr_status'] ?? 'none',
             'main_image_url' => $mainImageUrl,
+            // 一覧サムネイルに指定中の写真ID（担当が「写真・資料」から選び直せる。null=自動）
+            'thumbnail_image_id' => $thumbId ?: null,
             'has_hazard' => !empty($row['hazard_json']) ? 1 : 0,
             'created_at' => $row['created_at'] ?? null,
             'updated_at' => $row['updated_at'] ?? null,
@@ -2056,6 +2065,23 @@ if (!function_exists('propertyFlyerSaveableCategories')) {
     }
 }
 
+if (!function_exists('propertyPhotoLabelMaxLength')) {
+    /** 「写真・資料」の名前（分類ラベル）の最大文字数。property_images.subcategory の桁に合わせる。 */
+    function propertyPhotoLabelMaxLength(): int { return 30; }
+}
+
+if (!function_exists('propertyNormalizePhotoLabel')) {
+    /** 担当者が入力した写真の名前を正規化する（前後空白・改行を除去し最大文字数で切る）。空なら null。 */
+    function propertyNormalizePhotoLabel($value): ?string
+    {
+        $s = (string)$value;
+        $r = preg_replace('/\s+/u', ' ', $s);   // 不正なUTF-8では null が返るため元の値を使う
+        $s = trim($r === null ? $s : $r);
+        if ($s === '') return null;
+        return mb_substr($s, 0, propertyPhotoLabelMaxLength());
+    }
+}
+
 if (!function_exists('propertyRasterizePdfAllPages')) {
     /** PDF全ページ（最大 $maxPages）を Ghostscript で JPEG にラスタライズ。ファイルパス配列を返す（呼び出し側で削除）。 */
     function propertyRasterizePdfAllPages(string $pdfPath, int $maxPages = 6, int $dpi = 150): array
@@ -2750,8 +2776,18 @@ if (!function_exists('propertyFlyerProcessUploaded')) {
             $db->prepare("UPDATE property_images SET preview_path=?, masked_path=?, masked_thumb_path=?, mask_regions=?, mask_status=?, expires_at=? WHERE id=?")
                ->execute([$previewRel, $maskedRel, $maskedThumbRel, json_encode($maskByPage, JSON_UNESCAPED_UNICODE), $maskedRel ? 'masked' : 'pending', $expiresAt, $imageId]);
 
-            // ⑥ サムネイル（建物外観・間取り図のどちらも無ければ未設定）
-            if ($thumb) {
+            // ⑥ サムネイル（建物外観・間取り図のどちらも無ければ未設定）。
+            //    担当者が選んだサムネイル（または前の販売図面で決まったもの）が残っている場合は上書きしない。
+            $stmt = $db->prepare("SELECT thumbnail_image_id FROM properties WHERE id = ? LIMIT 1");
+            $stmt->execute([$propertyId]);
+            $curThumb = (int)($stmt->fetchColumn() ?: 0);
+            if ($curThumb > 0) {
+                // 参照先の写真が削除済みなら未設定として扱う。
+                $stmt = $db->prepare("SELECT id FROM property_images WHERE id = ? AND property_id = ? AND category = 'photo' LIMIT 1");
+                $stmt->execute([$curThumb, $propertyId]);
+                if (!$stmt->fetchColumn()) $curThumb = 0;
+            }
+            if ($thumb && $curThumb === 0) {
                 $db->prepare("UPDATE properties SET thumbnail_image_id=?, expires_at=? WHERE id=?")->execute([$thumb['id'], $expiresAt, $propertyId]);
             } else {
                 $db->prepare("UPDATE properties SET expires_at=? WHERE id=?")->execute([$expiresAt, $propertyId]);
