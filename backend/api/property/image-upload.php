@@ -20,8 +20,8 @@ $userId = requireAuth();
 
 $propertyId = isset($_POST['property_id']) ? (int)$_POST['property_id'] : 0;
 $category = ($_POST['category'] ?? 'photo') === 'flyer' ? 'flyer' : 'photo';
-$subcategory = trim($_POST['subcategory'] ?? '');
-$subcategory = $subcategory === '' ? null : mb_substr($subcategory, 0, 30);
+// 写真の名前（建物外観など）。担当者が自由に付けられる（未指定なら名前なし）。
+$subcategory = propertyNormalizePhotoLabel($_POST['subcategory'] ?? '');
 if ($propertyId <= 0) sendErrorResponse('property_id is required', 400);
 
 $files = [];
@@ -64,6 +64,11 @@ try {
         // 販売図面は売主情報マスクのプレビュー生成＋AI提案を行う（担当の確認待ち）
         if ($category === 'flyer') {
             propertyFlyerProcessUploaded($db, (int)$r['id'], $r['abs_path'], !empty($r['is_pdf']), $cardId, $propertyId);
+        }
+        // 手動で追加した写真もAI抽出分と同じ保存期間（既定6か月）を適用する。
+        if ($category === 'photo') {
+            $db->prepare("UPDATE property_images SET expires_at = ? WHERE id = ?")
+               ->execute([propertyRetentionExpiresAt(), (int)$r['id']]);
         }
         unset($r['abs_path']);
         $saved[] = $r;
