@@ -724,6 +724,39 @@ function orgEmailAllowedForKey(PDO $db, string $licenseKey, string $email): bool
 }
 
 /**
+ * 統括（全閲覧）に指名された方のログインメールを、その会社の利用可能メール一覧へ加える。
+ *
+ * マイページ「組織・配下顧客」で統括が別のメンバーを統括に指名したときに使う。
+ * 店長指名と同じく、運営がメール登録するのを待たずに指名された統括がすぐ全閲覧を
+ * 使えるようにするのが狙い。既に含まれていれば何もしない。
+ * 会社の行がまだ無ければ何もしない（行が無い＝階層機能OFFで、指名操作まで到達しない）。
+ */
+function orgAllowAdminEmailForKey(PDO $db, string $licenseKey, string $email): bool
+{
+    $email = strtolower(trim($email));
+    if ($licenseKey === '' || $email === '') return false;
+    orgEnsureLicenseSettingsTable($db);
+
+    try {
+        $stmt = $db->prepare('SELECT admin_email FROM org_license_settings WHERE license_key = ? LIMIT 1');
+        $stmt->execute([$licenseKey]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return false;
+
+        $emails = orgParseEmailList($row['admin_email'] ?? '');
+        if (in_array($email, $emails, true)) return true;
+
+        $emails[] = $email;
+        $stmt = $db->prepare('UPDATE org_license_settings SET admin_email = ? WHERE license_key = ?');
+        $stmt->execute([implode(', ', $emails), $licenseKey]);
+        return true;
+    } catch (Exception $e) {
+        error_log('orgAllowAdminEmailForKey error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * ログイン中のユーザーが階層分けを使えるか。
  *
  * 次の2つを「両方」満たすときだけ使える（AND）:

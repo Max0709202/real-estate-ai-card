@@ -1,14 +1,16 @@
 <?php
 /**
- * 配下メンバーの権限を変更する（担当者 ⇄ マネージャー）。
+ * 配下メンバーの権限を変更する（担当者 ⇄ マネージャー ⇄ 統括）。
  *
- * POST { user_id: int, org_role: 'staff'|'manager' }
+ * POST { user_id: int, org_role: 'staff'|'manager'|'admin' }
  *
- * 実行できるのは統括（全閲覧）のみ。統括が自社の方を店長に指名する想定。
- * 統括（全閲覧）そのものを増やす・外すことはここではできない
- * （統括の指名は運営側の管理画面 admin/dashboard.php の☑で行う）。
+ * 実行できるのは統括（全閲覧）のみ。統括が自社の方を店長・統括に指名する想定。
+ * 統括（全閲覧）を複数人にできる（既定は登録1人目のみ統括）。
+ * ただし既に統括の方をここで降格・解除することはできない
+ * （統括の解除は運営側の管理画面 admin/dashboard.php の☑で行う）。
  *
  * 店長に指名すると、3段（統括 → 店長 → 営業）を保つために上長を統括本人へ付け替える。
+ * 統括に指名すると上長を外し、運営へのメール登録を待たずに全閲覧を使えるようにする。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -46,12 +48,12 @@ try {
     if ($targetId <= 0) {
         sendErrorResponse('対象のユーザーを指定してください', 400);
     }
-    if (!in_array($newRole, ['staff', 'manager'], true)) {
-        sendErrorResponse('指定できる権限は担当者またはマネージャーです', 400);
+    if (!in_array($newRole, ['staff', 'manager', 'admin'], true)) {
+        sendErrorResponse('指定できる権限は担当者・マネージャー・統括です', 400);
     }
-    // 自社（同じ免許番号）のメンバーのみ。他の統括には触れない。
+    // 自社（同じ免許番号）のメンバーのみ。既に統括の方には触れない（解除は運営の管理画面）。
     if (!orgCanManageMember($db, $viewer, $targetId)) {
-        sendErrorResponse('この方の権限は変更できません（自社のメンバーではないか、統括の方です）', 403);
+        sendErrorResponse('この方の権限は変更できません（自社のメンバーではないか、すでに統括の方です）', 403);
     }
 
     // 配下を持ったまま担当者へ戻すと、その配下が宙に浮くため先に整理してもらう。
@@ -63,7 +65,22 @@ try {
         }
     }
 
-    if ($newRole === 'manager') {
+    if ($newRole === 'admin') {
+        // 統括（全閲覧）は自社の全員が閲覧範囲のため、上長は持たせない。
+        $stmt = $db->prepare('SELECT email FROM users WHERE id = ? LIMIT 1');
+        $stmt->execute([$targetId]);
+        $targetEmail = (string)($stmt->fetchColumn() ?: '');
+
+        $stmt = $db->prepare("UPDATE users SET org_role = 'admin', parent_user_id = NULL WHERE id = ?");
+        $stmt->execute([$targetId]);
+
+        // 店長指名と同じ考え方で、指名された統括は運営へのメール登録を待たずに使えるようにする
+        // （判定は orgHierarchyEnabledForUser()）。降格時に残っても権限が無ければ無効。
+        $license = orgLicenseForUser($db, $actorId);
+        if ($license['key'] !== '' && $targetEmail !== '') {
+            orgAllowAdminEmailForKey($db, $license['key'], $targetEmail);
+        }
+    } elseif ($newRole === 'manager') {
         // 3段（統括 → 店長 → 営業）を保つため、店長は指名した統括の直下へ移す。
         if (!orgIsAssignableParent($db, $targetId, $actorId)) {
             sendErrorResponse('その方は店長にできません（階層が循環します）', 400);
