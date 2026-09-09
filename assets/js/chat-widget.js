@@ -1297,7 +1297,10 @@
                     // メール通知リンク（&open=contact|property）から開いた場合、該当タブを自動表示。
                     if (deepLinkTab && !deepLinkHandled) {
                         deepLinkHandled = true;
-                        try { renderFeatureTab(deepLinkTab); } catch (e) {}
+                        try {
+                            renderFeatureTab(deepLinkTab);
+                            pushChatView({ chatView: 'tab', chatTab: deepLinkTab });
+                        } catch (e) {}
                     }
                     // 更新ボタンでの再読み込み直後は、押す前に開いていたタブへ戻す。
                     // これをしないと、担当連絡や物件選定を見ていても必ずAI担当に戻ってしまう。
@@ -1306,7 +1309,10 @@
                         var tabToRestore = reopenTabAfterReload;
                         reopenTabAfterReload = null;
                         if (tabToRestore !== 'ai') {
-                            try { renderFeatureTab(tabToRestore); } catch (e) {}
+                            try {
+                                renderFeatureTab(tabToRestore);
+                                pushChatView({ chatView: 'tab', chatTab: tabToRestore });
+                            } catch (e) {}
                         }
                     }
                 } else {
@@ -2808,6 +2814,119 @@
         if (featurePanel) featurePanel.hidden = false;
     }
 
+    // --- 画面遷移の履歴管理 ---------------------------------------------------
+    // スマホの「右スワイプ＝戻る／左スワイプ＝進む」は、ブラウザの履歴をたどる操作。
+    // チャット内の画面（機能タブ・物件詳細）はURLが変わらないまま切り替わるため、
+    // 履歴に記録しないと戻る操作でページごと抜けてしまう（LPまで戻ってしまう）。
+    // 画面の重なりは AI担当(0) → 機能タブ(1) → 物件詳細(2) の3段。
+    // 機能タブ同士の切り替えは同じ段の移動なので、履歴は積まずに置き換える。
+    var chatHistoryEnabled = false;
+    var isRestoringChatView = false;
+
+    function supportsChatHistory() {
+        return typeof window.history !== 'undefined' && typeof window.history.pushState === 'function';
+    }
+
+    // チャットを開いてから何段進んだか（0 = AI担当＝チャット内に戻り先が無い）
+    function getChatHistoryDepth() {
+        var state = window.history.state;
+        return (state && typeof state.chatDepth === 'number') ? state.chatDepth : 0;
+    }
+
+    function chatViewState(view, depth) {
+        var state = { chatView: view.chatView, chatDepth: depth };
+        if (view.chatTab) state.chatTab = view.chatTab;
+        if (view.chatPropertyId) state.chatPropertyId = view.chatPropertyId;
+        return state;
+    }
+
+    function pushChatView(view) {
+        if (!chatHistoryEnabled || isRestoringChatView || !supportsChatHistory()) return;
+        var current = window.history.state;
+        // 同じ段どうしの移動（機能タブ同士、物件詳細から別の物件詳細）は、
+        // 履歴を増やさず置き換える。こうすると「← 物件一覧」「← AI担当」の
+        // 戻り先と、右スワイプの戻り先が食い違わない。
+        if (current && current.chatView === view.chatView) {
+            window.history.replaceState(chatViewState(view, getChatHistoryDepth()), '', window.location.href);
+            return;
+        }
+        window.history.pushState(chatViewState(view, getChatHistoryDepth() + 1), '', window.location.href);
+    }
+
+    // チャット内の「戻る」用。履歴に戻り先があれば戻る操作に任せて true を返す。
+    function goBackChatView() {
+        if (!chatHistoryEnabled || !supportsChatHistory() || getChatHistoryDepth() <= 0) return false;
+        window.history.back();
+        return true;
+    }
+
+    // 「← AI担当」用。何段進んでいても一番手前（AI担当）まで戻す。
+    function goToChatBase() {
+        var depth = getChatHistoryDepth();
+        if (!chatHistoryEnabled || !supportsChatHistory() || depth <= 0) return false;
+        window.history.go(-depth);
+        return true;
+    }
+
+    // 機能タブを開く（履歴には積まない）。開けたときだけ true を返す。
+    function showChatTabView(tab) {
+        if (!tab || tab === 'ai') {
+            exitFeatureView();
+            return true;
+        }
+        // 接続中・ユーザー認識中は、AI担当以外のタブを開かせない。
+        // 認識前に遷移するとスタックし、誰の履歴か分からないまま操作が進むため。
+        // ただし物件提案メールの閲覧トークンがある場合、物件選定タブ（提案物件の閲覧）だけは開く。
+        if (!chatFeaturesReady() && !(tab === 'property' && propViewOnly())) {
+            return false;
+        }
+        if (tab === 'property') {
+            // 物件選定は専用API。CRM状態に依存しないため、そのまま描画する。
+            enterFeatureView(tab);
+            renderPropertiesTab();
+            return true;
+        }
+        if (tab === 'contact') {
+            // 担当連絡は専用チャット。CRMロードを挟まず即表示し、全履歴をサーバーから取得。
+            enterFeatureView(tab);
+            renderContactThread();
+            loadContactHistory();
+            return true;
+        }
+        enterFeatureView(tab);
+        loadCrmState(false).then(function () {
+            renderFeatureTab(tab);
+        });
+        return true;
+    }
+
+    // 戻る／進む操作に合わせて、その履歴の画面を表示し直す
+    function restoreChatView(state) {
+        var view = (state && state.chatView) || 'ai';
+        isRestoringChatView = true;
+        try {
+            if (view === 'property' && state.chatPropertyId) {
+                enterFeatureView('property');
+                propOpenDetail(state.chatPropertyId);
+            } else if (view === 'tab') {
+                if (!showChatTabView(state.chatTab)) exitFeatureView();
+            } else {
+                exitFeatureView();
+            }
+        } finally {
+            isRestoringChatView = false;
+        }
+    }
+
+    function initializeChatHistory() {
+        if (chatHistoryEnabled || !supportsChatHistory()) return;
+        window.history.replaceState({ chatView: 'ai', chatDepth: 0 }, '', window.location.href);
+        chatHistoryEnabled = true;
+        window.addEventListener('popstate', function (event) {
+            restoreChatView(event.state);
+        });
+    }
+
     function showConstructionNotice(tabLabel) {
         setActiveChatTab('ai');
         if (featurePanel) featurePanel.hidden = true;
@@ -3249,6 +3368,8 @@
     }
 
     function propOpenDetail(id) {
+        // 物件詳細も1つの画面。右スワイプ（戻る）で物件一覧に戻れるよう履歴に積む。
+        pushChatView({ chatView: 'property', chatPropertyId: id });
         renderFeaturePanel('<div class="prop-wrap" id="prop-cust"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>');
         propApi('/get.php?id=' + id + '&' + propAuthQS()).then(function (res) {
             if (!res.success) { featurePanel.querySelector('#prop-cust').innerHTML = '<div class="prop-empty">取得に失敗しました。</div>'; return; }
@@ -3329,7 +3450,11 @@
         '</div>';
         renderFeaturePanel(html);
         var box = featurePanel.querySelector('#prop-cust');
-        box.querySelector('#prop-cust-back').addEventListener('click', renderPropertiesTab);
+        // 「← 物件一覧」は右スワイプ（戻る）と同じ結果になるようにそろえる
+        box.querySelector('#prop-cust-back').addEventListener('click', function () {
+            if (goBackChatView()) return;
+            renderPropertiesTab();
+        });
         PUI.bindLightbox(box);
         // 見送りバッジをタップで理由を確認
         box.querySelectorAll('[data-pass-reason]').forEach(function (el) {
@@ -4001,32 +4126,13 @@
                 if (!btn) return;
                 var tab = btn.getAttribute('data-chat-tab') || 'ai';
                 if (tab === 'ai') {
-                    exitFeatureView();
+                    // AI担当は一番手前の画面。履歴もそこまで戻す。
+                    if (!goToChatBase()) exitFeatureView();
                     return;
                 }
-                // 接続中・ユーザー認識中は、AI担当以外のタブを開かせない。
-                // 認識前に遷移するとスタックし、誰の履歴か分からないまま操作が進むため。
-                // ただし物件提案メールの閲覧トークンがある場合、物件選定タブ（提案物件の閲覧）だけは開く。
-                if (!chatFeaturesReady() && !(tab === 'property' && propViewOnly())) {
-                    return;
-                }
-                if (tab === 'property') {
-                    // 物件選定は専用API。CRM状態に依存しないため、そのまま描画する。
-                    enterFeatureView(tab);
-                    renderPropertiesTab();
-                    return;
-                }
-                if (tab === 'contact') {
-                    // 担当連絡は専用チャット。CRMロードを挟まず即表示し、全履歴をサーバーから取得。
-                    enterFeatureView(tab);
-                    renderContactThread();
-                    loadContactHistory();
-                    return;
-                }
-                enterFeatureView(tab);
-                loadCrmState(false).then(function () {
-                    renderFeatureTab(tab);
-                });
+                if (!showChatTabView(tab)) return;
+                // 開いた画面を履歴に積む（右スワイプで1つ前の画面に戻れるようにする）
+                pushChatView({ chatView: 'tab', chatTab: tab });
             } catch (err) {
                 // 黙って死なせない：以降のクリックは生かしつつ原因をコンソールに残す。
                 if (window.console && console.error) console.error('[chat-widget] tab click failed:', err);
@@ -4151,7 +4257,8 @@
         featurePanel.addEventListener('click', function (e) {
             var backBtn = e.target.closest('[data-feature-back]');
             if (backBtn) {
-                exitFeatureView();
+                // AI担当は一番手前の画面。履歴もそこまで戻し、戻る／進むと食い違わないようにする。
+                if (!goToChatBase()) exitFeatureView();
                 return;
             }
             var saveBtn = e.target.closest('[data-save-feature]');
@@ -4295,6 +4402,8 @@
             }
         });
     }
+    // 右スワイプ（戻る）・左スワイプ（進む）でチャット内の画面をたどれるようにする。
+    initializeChatHistory();
     // 目印は必ずここで消費し、別ページへ持ち越さないようにする。
     reopenTabAfterReload = consumeReopenAfterReload();
     if (chatOnly) {
