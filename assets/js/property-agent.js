@@ -893,18 +893,22 @@
         // PDF等の資料はサムネイルに使えないため、クリックでの指定対象から外す。
         var isImg = !im.mime_type || im.mime_type.indexOf('image/') === 0;
         var isThumb = isImg && (thumbId ? (parseInt(im.id, 10) === thumbId) : (parseInt(im.id, 10) === autoId));
-        var mark = isThumb
-          ? '<span class="prop-thumb__mark">' + (thumbId ? 'サムネイル' : 'サムネイル（自動）') + '</span>' : '';
+        // サムネイルの印は写真の下に置く（写真の上に重ねると拡大ボタンが隠れてしまうため）。
+        // 印が無い写真も同じ高さの行を確保し、写真の大きさをそろえる。
+        var mark = '<div class="prop-photo-mark">' + (isThumb
+          ? '<span class="prop-photo-mark__chip">' + (thumbId ? 'サムネイル' : '自動サムネイル') + '</span>' : '') + '</div>';
         var inner = isImg
           ? '<img src="' + UI.esc(url) + '" alt="" loading="lazy">' +
             '<button type="button" class="prop-thumb__zoom" data-full="' + UI.esc(url) + '" aria-label="写真を拡大" title="写真を拡大">' + UI.icon('considering') + '</button>'
           : '<a class="prop-thumb__pdf" href="' + UI.esc(url) + '" target="_blank" rel="noopener noreferrer">PDF</a>';
-        return '<div class="prop-thumb' + (isImg ? ' prop-thumb--pick' : '') + (isThumb ? ' is-thumb' : '') + '"' +
+        return '<div class="prop-photo-item">' +
+          '<div class="prop-thumb' + (isImg ? ' prop-thumb--pick' : '') + (isThumb ? ' is-thumb' : '') + '"' +
           (isImg ? ' data-pick-thumb="' + im.id + '" title="クリックして一覧のサムネイルにする"' : '') + '>' +
-          inner + mark +
+          inner +
           '<button type="button" class="prop-thumb__del" data-del-img="' + im.id + '" aria-label="この写真を削除" title="この写真を削除">' + UI.icon('trash') + '</button>' +
           '<span class="prop-photo-cap"><span class="prop-photo-cap__txt">' + UI.esc(im.subcategory || '名前なし') + '</span>' +
           '<button type="button" class="prop-photo-cap__edit" data-rename-img="' + im.id + '" aria-label="名前を変更" title="名前を変更">' + UI.icon('edit') + '</button></span>' +
+          '</div>' + mark +
           '</div>';
       }).join('') + '</div>';
       bindDeletes(body, p, category);

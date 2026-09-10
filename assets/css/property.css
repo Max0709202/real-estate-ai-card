@@ -218,7 +218,10 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 /* 一覧サムネイルの選択（写真をクリックして指定・写真の名前を変更） */
 .prop-thumb--pick { cursor: pointer; }
 .prop-thumb.is-thumb { border-color: #2d6cdf; box-shadow: 0 0 0 2px rgba(45,108,223,.35); }
-.prop-thumb__mark { position: absolute; left: 4px; top: 4px; background: rgba(45,108,223,.92); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; pointer-events: none; z-index: 2; }
+.prop-photo-item { display: flex; flex-direction: column; }
+.prop-photo-item .prop-thumb { flex: 0 0 auto; }
+.prop-photo-mark { min-height: 18px; margin-top: 4px; display: flex; align-items: center; justify-content: center; }
+.prop-photo-mark__chip { max-width: 100%; background: #2d6cdf; color: #fff; font-size: 10px; font-weight: 700; line-height: 1.4; padding: 2px 8px; border-radius: 6px; text-align: center; }
 .prop-thumb__zoom { position: absolute; top: 4px; right: 32px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; z-index: 2; }
 .prop-thumb__zoom:hover { background: #2d6cdf; }
 .prop-thumb__zoom svg { width: 14px; height: 14px; }
