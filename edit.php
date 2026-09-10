@@ -450,13 +450,15 @@ try {
         // 月額請求が無い既存・ＥＲＡ会員は、管理画面で設定された利用期限があればそれを表示する。
         // 未設定の場合は期限なしのため、従来どおり「初期費用お支払い済み」と表示する。
         $usageExpiresAt = null;
-        try {
-            $stmt = $db->prepare("SELECT usage_expires_at FROM business_cards WHERE user_id = ? LIMIT 1");
-            $stmt->execute([$userId]);
-            $usageExpiresAt = $stmt->fetchColumn();
-        } catch (Exception $usageExpiryException) {
-            // usage_expires_at 未追加（マイグレーション未実行）の場合は従来表示のままにする。
-            error_log('Error fetching usage_expires_at: ' . $usageExpiryException->getMessage());
+        // 列が未追加（マイグレーション未実行）の環境では問い合わせず、従来表示のままにする。
+        if (business_cards_has_usage_expires_at($db)) {
+            try {
+                $stmt = $db->prepare("SELECT usage_expires_at FROM business_cards WHERE user_id = ? LIMIT 1");
+                $stmt->execute([$userId]);
+                $usageExpiresAt = $stmt->fetchColumn();
+            } catch (Throwable $usageExpiryException) {
+                error_log('Error fetching usage_expires_at: ' . $usageExpiryException->getMessage());
+            }
         }
         $usagePeriodDisplay = !empty($usageExpiresAt)
             ? (new DateTime($usageExpiresAt))->format('Y年n月j日') . '迄'

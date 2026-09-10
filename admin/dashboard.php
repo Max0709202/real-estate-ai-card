@@ -133,6 +133,12 @@ if (!in_array($sortOrder, ['ASC', 'DESC'], true)) {
     $sortOrder = 'DESC';
 }
 
+// usage_expires_at はマイグレーションで追加する列のため、未追加の環境では参照しない。
+// （参照するとクエリ全体が失敗し、管理画面が開けなくなる）
+$hasUsageExpiresAtColumn = business_cards_has_usage_expires_at($db);
+$usageExpiresAtSelect = $hasUsageExpiresAtColumn ? 'bc.usage_expires_at' : 'NULL as usage_expires_at';
+$usageExpiresAtGroupBy = $hasUsageExpiresAtColumn ? 'bc.usage_expires_at, ' : '';
+
 $sql = "
     SELECT
         bc.id,
@@ -153,7 +159,7 @@ $sql = "
         bc.is_published as is_open,
         bc.admin_notes,
         bc.payment_status,
-        bc.usage_expires_at,
+        $usageExpiresAtSelect,
         COALESCE((
             SELECT GROUP_CONCAT(DISTINCT COALESCE(cvp.display_phone, cvp.phone_e164) ORDER BY cvp.last_verified_at DESC SEPARATOR ', ')
             FROM chat_verified_phones cvp
@@ -193,7 +199,7 @@ $sql = "
     $whereClause
     GROUP BY bc.id, u.id, u.email, u.user_type, u.is_era_member, u.agent, u.utm_source, u.utm_medium, u.utm_campaign, u.first_accessed_at,
              bc.company_name, bc.name, bc.mobile_phone, bc.url_slug, bc.company_slug,
-             bc.is_published, bc.admin_notes, bc.payment_status, bc.usage_expires_at, bc.created_at, u.last_login_at,
+             bc.is_published, bc.admin_notes, bc.payment_status, {$usageExpiresAtGroupBy}bc.created_at, u.last_login_at,
              s.next_billing_date, s.cancelled_at
     ORDER BY $sortField $sortOrder
     LIMIT ? OFFSET ?

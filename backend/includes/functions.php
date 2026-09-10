@@ -350,6 +350,38 @@ function user_subscription_needs_payment($subscriptionInfo, $paymentStatus, $has
 }
 
 /**
+ * business_cards.usage_expires_at 列が存在するかを返す（リクエスト内で1回だけ判定してキャッシュ）。
+ *
+ * この列はマイグレーション（backend/database/migrations/add_usage_expires_at_to_business_cards.sql）で
+ * 追加するため、コードだけ先にデプロイされた環境では存在しない。
+ * 列が無い状態で参照すると PDO::prepare が例外を投げ、名刺ページ全体が落ちるため、
+ * 参照する前に必ずこの関数で存在確認を行うこと。
+ *
+ * @param PDO $db
+ * @return bool 列が存在すれば true
+ */
+function business_cards_has_usage_expires_at($db) {
+    static $hasColumn = null;
+
+    if ($hasColumn !== null) {
+        return $hasColumn;
+    }
+
+    $hasColumn = false;
+
+    try {
+        // SHOW COLUMNS は列が無くてもエラーにならず、0件を返すだけなので安全に存在確認できる。
+        $stmt = $db->query("SHOW COLUMNS FROM business_cards LIKE 'usage_expires_at'");
+        $hasColumn = ($stmt !== false && $stmt->fetch() !== false);
+    } catch (Throwable $e) {
+        error_log('business_cards_has_usage_expires_at check failed: ' . $e->getMessage());
+        $hasColumn = false;
+    }
+
+    return $hasColumn;
+}
+
+/**
  * 公開面（名刺ページ等）での「利用期間切れ」判定。
  * バッチ任せにせず表示時にも判定するため、cron が未実行・失敗中でも期限を過ぎた名刺は公開されない。
  * 判定に必要な情報が無い場合は false（＝従来どおり表示）を返す。
@@ -377,26 +409,29 @@ function business_card_usage_period_expired($db, $businessCardId) {
 
     // (1) 既存・ＥＲＡ会員（月額請求なし）: 名刺に保存した利用期限で判定する。
     // 月額請求ユーザーは更新のたびに next_billing_date が延びるため、この列では判定しない。
-    try {
-        $stmt = $db->prepare("
-            SELECT bc.usage_expires_at
-            FROM business_cards bc
-            JOIN users u ON bc.user_id = u.id
-            WHERE bc.id = ?
-              AND bc.usage_expires_at IS NOT NULL
-              AND NOT (u.user_type = 'new' AND COALESCE(u.is_era_member, 0) = 0)
-            LIMIT 1
-        ");
-        $stmt->execute([$businessCardId]);
-        $usageExpiresAt = $stmt->fetchColumn();
+    // 列が未追加（マイグレーション未実行）の環境では問い合わせ自体を行わず、(2) の判定のみに任せる。
+    if (business_cards_has_usage_expires_at($db)) {
+        try {
+            $stmt = $db->prepare("
+                SELECT bc.usage_expires_at
+                FROM business_cards bc
+                JOIN users u ON bc.user_id = u.id
+                WHERE bc.id = ?
+                  AND bc.usage_expires_at IS NOT NULL
+                  AND NOT (u.user_type = 'new' AND COALESCE(u.is_era_member, 0) = 0)
+                LIMIT 1
+            ");
+            $stmt->execute([$businessCardId]);
+            $usageExpiresAt = $stmt->fetchColumn();
 
-        // 利用期限当日までは利用できる。翌日から期限切れ。
-        if (!empty($usageExpiresAt) && new DateTime('today') > new DateTime($usageExpiresAt)) {
-            return true;
+            // 利用期限当日までは利用できる。翌日から期限切れ。
+            if (!empty($usageExpiresAt) && new DateTime('today') > new DateTime($usageExpiresAt)) {
+                return true;
+            }
+        } catch (Throwable $e) {
+            // 判定できない場合でも公開面を落とさない。(2) の判定のみ行う。
+            error_log('business_card_usage_period_expired (usage_expires_at) error: ' . $e->getMessage());
         }
-    } catch (Exception $e) {
-        // usage_expires_at 未追加（マイグレーション未実行）などの場合は (2) の判定のみ行う。
-        error_log('business_card_usage_period_expired (usage_expires_at) error: ' . $e->getMessage());
     }
 
     // (2) 月額課金対象ユーザー: 次回請求日で判定する。
@@ -438,7 +473,7 @@ function business_card_usage_period_expired($db, $businessCardId) {
         $stmt->execute([$businessCardId, $nextBillingDate]);
 
         return $stmt->fetchColumn() === false;
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         // 判定できないときは表示を止めない（正常な利用者を巻き込まないため）。
         error_log('business_card_usage_period_expired error: ' . $e->getMessage());
         return false;
