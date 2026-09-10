@@ -351,14 +351,19 @@ function user_subscription_needs_payment($subscriptionInfo, $paymentStatus, $has
 
 /**
  * 公開面（名刺ページ等）での「利用期間切れ」判定。
- * check-overdue-payments（cron）と同じ基準を表示時にも適用するため、cron が未実行・失敗中でも
- * 期限を過ぎた名刺は公開されない。判定に必要な情報が無い場合は false（＝従来どおり表示）を返す。
+ * バッチ任せにせず表示時にも判定するため、cron が未実行・失敗中でも期限を過ぎた名刺は公開されない。
+ * 判定に必要な情報が無い場合は false（＝従来どおり表示）を返す。
  *
- * 期限切れの条件（cron の SQL と同一）:
- *   - 月額課金対象ユーザー（user_type = 'new' かつ ERA会員でない）
- *   - subscriptions.next_billing_date が設定済みで、今日以降ではない（利用期限は next_billing_date の前日）
- *   - サブスクリプションの状態が canceled 以外
- *   - next_billing_date 以降に新規／更新の入金（completed）が無い
+ * 利用期限の持ち方は課金形態で異なるため、2通りを判定する。
+ *
+ * (1) 月額請求が無い既存・ＥＲＡ会員:
+ *     サブスクリプションを持たないため、管理画面で入力した利用期限を
+ *     business_cards.usage_expires_at に保存している。当日までは利用可、翌日から期限切れ。
+ *
+ * (2) 月額課金対象ユーザー（user_type = 'new' かつ ＥＲＡ会員でない）: cron の SQL と同一基準。
+ *     - subscriptions.next_billing_date が設定済みで、今日以降ではない（利用期限は next_billing_date の前日）
+ *     - サブスクリプションの状態が canceled 以外
+ *     - next_billing_date 以降に新規／更新の入金（completed）が無い
  *
  * @param PDO $db
  * @param int $businessCardId business_cards.id
@@ -370,6 +375,31 @@ function business_card_usage_period_expired($db, $businessCardId) {
         return false;
     }
 
+    // (1) 既存・ＥＲＡ会員（月額請求なし）: 名刺に保存した利用期限で判定する。
+    // 月額請求ユーザーは更新のたびに next_billing_date が延びるため、この列では判定しない。
+    try {
+        $stmt = $db->prepare("
+            SELECT bc.usage_expires_at
+            FROM business_cards bc
+            JOIN users u ON bc.user_id = u.id
+            WHERE bc.id = ?
+              AND bc.usage_expires_at IS NOT NULL
+              AND NOT (u.user_type = 'new' AND COALESCE(u.is_era_member, 0) = 0)
+            LIMIT 1
+        ");
+        $stmt->execute([$businessCardId]);
+        $usageExpiresAt = $stmt->fetchColumn();
+
+        // 利用期限当日までは利用できる。翌日から期限切れ。
+        if (!empty($usageExpiresAt) && new DateTime('today') > new DateTime($usageExpiresAt)) {
+            return true;
+        }
+    } catch (Exception $e) {
+        // usage_expires_at 未追加（マイグレーション未実行）などの場合は (2) の判定のみ行う。
+        error_log('business_card_usage_period_expired (usage_expires_at) error: ' . $e->getMessage());
+    }
+
+    // (2) 月額課金対象ユーザー: 次回請求日で判定する。
     try {
         $stmt = $db->prepare("
             SELECT s.next_billing_date

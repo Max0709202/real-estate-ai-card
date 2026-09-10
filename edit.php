@@ -447,7 +447,20 @@ try {
     }
 
     if (!$isMonthlyBillingUser && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true)) {
-        $usagePeriodDisplay = '初期費用お支払い済み';
+        // 月額請求が無い既存・ＥＲＡ会員は、管理画面で設定された利用期限があればそれを表示する。
+        // 未設定の場合は期限なしのため、従来どおり「初期費用お支払い済み」と表示する。
+        $usageExpiresAt = null;
+        try {
+            $stmt = $db->prepare("SELECT usage_expires_at FROM business_cards WHERE user_id = ? LIMIT 1");
+            $stmt->execute([$userId]);
+            $usageExpiresAt = $stmt->fetchColumn();
+        } catch (Exception $usageExpiryException) {
+            // usage_expires_at 未追加（マイグレーション未実行）の場合は従来表示のままにする。
+            error_log('Error fetching usage_expires_at: ' . $usageExpiryException->getMessage());
+        }
+        $usagePeriodDisplay = !empty($usageExpiresAt)
+            ? (new DateTime($usageExpiresAt))->format('Y年n月j日') . '迄'
+            : '初期費用お支払い済み';
         $canRenew = false;
     }
 
@@ -5507,17 +5520,19 @@ function editSectionIcon(string $key): string
                     var unread = parseInt(member.unread_count, 10) || 0;
                     var memberId = parseInt(member.user_id, 10) || 0;
                     // 統括は自社の全員を、店長は直属のみを操作できる（サーバー側の判定と同じ）。
-                    // 他の統括の行は触れない（統括の指名・解除は運営側の管理画面で行うため）。
+                    // 既に統括の方の行は触れない（統括の解除は運営側の管理画面で行うため）。
                     var isAdminMember = member.org_role === 'admin';
                     var canEditThis = !isAdminMember && (isAdmin || depth === 1);
                     html += '<li class="org-team-item org-team-depth-' + indent + '">';
                     html += '<div class="org-team-item-main">';
                     html += '<span class="org-team-name">' + h(member.name || member.email) + '</span>';
                     if (isAdmin && !isAdminMember) {
-                        // 統括だけが、自社の方を店長に指名できる（指名すると統括の直下へ移る）。
+                        // 統括だけが、自社の方を店長・統括に指名できる
+                        //（店長にすると統括の直下へ移る。統括にすると上長が外れる）。
                         html += '<select class="org-team-role-select" data-member-id="' + memberId + '" data-current="' + h(member.org_role) + '">';
                         html += '<option value="staff"' + (member.org_role === 'staff' ? ' selected' : '') + '>担当者（営業）</option>';
                         html += '<option value="manager"' + (member.org_role === 'manager' ? ' selected' : '') + '>マネージャー（店長）</option>';
+                        html += '<option value="admin"' + (member.org_role === 'admin' ? ' selected' : '') + '>統括（全閲覧）</option>';
                         html += '</select>';
                     } else {
                         html += '<span class="org-team-role">' + h(member.org_role_label) + '</span>';
@@ -5556,6 +5571,11 @@ function editSectionIcon(string $key): string
                     select.addEventListener('change', function() {
                         var memberId = parseInt(select.getAttribute('data-member-id'), 10);
                         var newRole = select.value;
+                        // 統括（全閲覧）への指名は影響が大きく、解除は運営対応になるため確認する。
+                        if (newRole === 'admin' && !confirm('この方を「統括（全閲覧）」に設定しますか？\n統括は自社の全メンバーとお客様を閲覧できます。\n解除はリニュアル仲介へご連絡ください。')) {
+                            select.value = select.getAttribute('data-current');
+                            return;
+                        }
                         select.disabled = true;
                         postOrg('/update-role.php', { user_id: memberId, org_role: newRole }, function(res) {
                             select.disabled = false;

@@ -820,13 +820,23 @@
   }
 
   /* 画像（§14 販売図面 / §15 写真・資料）
-     写真・資料は販売図面アップロード時にAIが自動抽出・分類して登録する（手動追加は不可）。
+     写真・資料は販売図面アップロード時にAIが自動抽出・分類して登録する。
+     加えて担当者が手動で追加でき（ファイル選択・ドラッグ＆ドロップ・貼り付け）、
+     写真の名前（建物外観など）の変更と、一覧サムネイルに使う写真の指定ができる。
      誤抽出された写真は、各写真の削除ボタンで個別に削除できる。 */
+  var PHOTO_MAX = 10;              // 「写真・資料」の上限枚数（PHP image-upload.php と一致）
+  var PHOTO_LABEL_MAX = 30;        // 写真の名前の最大文字数（PHP propertyPhotoLabelMaxLength と一致）
+  var PHOTO_LABELS = ['建物外観', '間取り図', '室内写真', '設備写真', '地図', 'その他'];
+  var PASTE_BOUND = null;          // 貼り付け（Ctrl+V / ⌘V）用のドキュメントリスナー
+
   function loadImages(p, category) {
     var pane = P.querySelector('[data-pane="' + category + '"]');
     if (category === 'photo') {
-      pane.innerHTML = '<div class="prop-msg prop-msg--info" style="margin-top:8px">販売図面のアップロード時に、AIが建物外観・間取り図・室内・設備・地図を自動で抽出し登録します（最大10枚）。会社情報を含む画像は登録されません。建物外観の写真が無い場合は抽出されません。誤って抽出された写真は、各写真の削除ボタンで削除できます。</div>' +
+      pane.innerHTML = '<div class="prop-msg prop-msg--info" style="margin-top:8px">販売図面のアップロード時に、AIが建物外観・間取り図・室内・設備・地図を自動で抽出し登録します（最大' + PHOTO_MAX + '枚）。会社情報を含む画像は登録されません。建物外観の写真が無い場合は抽出されません。誤って抽出された写真は、各写真の削除ボタンで削除できます。</div>' +
+        '<div class="prop-msg prop-msg--info">お客様の物件一覧に表示するサムネイル写真は、<b>下の写真をクリック</b>すると変更できます。使える写真が無い場合は、下の枠から写真・資料を追加してください。写真の名前は鉛筆ボタンから変更できます。</div>' +
+        photoUploaderHtml() +
         '<div id="prop-img-body"><div class="prop-empty"><span class="prop-spinner"></span></div></div>';
+      bindPhotoUploader(pane, p);
       refreshImages(p, category);
       return;
     }
@@ -859,17 +869,203 @@
       if (!res.success) return;
       var prop = res.data.property;
       if (category === 'flyer') { renderFlyerList(p, body, prop.flyers || []); return; }
-      // 写真・資料: 分類ラベル付き。誤抽出時は写真ごとに削除できる。
+      // 写真・資料: 分類ラベル付き。写真をクリックすると一覧サムネイルに設定できる。
+      //             誤抽出時は写真ごとに削除でき、名前は鉛筆ボタンから変更できる。
       var photos = prop.photos || [];
-      if (!photos.length) { body.innerHTML = '<div class="prop-empty">販売図面をアップロードすると、AIが抽出した写真・資料が自動で表示されます。</div>'; return; }
+      // 一覧に戻ったときのために、詳細側の保持データも最新の状態にそろえておく。
+      p.photos = photos;
+      p.thumbnail_image_id = prop.thumbnail_image_id || null;
+      p.main_image_url = prop.main_image_url || null;
+      updatePhotoUploaderState(photos.length);
+      if (!photos.length) {
+        body.innerHTML = '<div class="prop-empty">写真・資料はまだありません。販売図面をアップロードするとAIが抽出した写真が表示されます。上の枠から手動で追加することもできます。</div>';
+        return;
+      }
+      var thumbId = prop.thumbnail_image_id ? parseInt(prop.thumbnail_image_id, 10) : 0;
+      // 未指定のときは先頭の写真（画像）が自動でサムネイルになる（PHP propertySerialize と同じ判定）。
+      var autoId = 0;
+      photos.forEach(function (x) {
+        if (autoId) return;
+        if (!x.mime_type || x.mime_type.indexOf('image/') === 0) autoId = parseInt(x.id, 10);
+      });
       body.innerHTML = '<div class="prop-gallery">' + photos.map(function (im) {
         var url = UI.addAuth(im.url, {});
-        var cap = im.subcategory ? '<span class="prop-photo-cap">' + UI.esc(im.subcategory) + '</span>' : '';
-        return '<div class="prop-thumb"><img src="' + UI.esc(url) + '" alt="" loading="lazy" data-full="' + UI.esc(url) + '">' + cap +
-          '<button type="button" class="prop-thumb__del" data-del-img="' + im.id + '" aria-label="この写真を削除" title="この写真を削除">' + UI.icon('trash') + '</button></div>';
+        // PDF等の資料はサムネイルに使えないため、クリックでの指定対象から外す。
+        var isImg = !im.mime_type || im.mime_type.indexOf('image/') === 0;
+        var isThumb = isImg && (thumbId ? (parseInt(im.id, 10) === thumbId) : (parseInt(im.id, 10) === autoId));
+        // サムネイルの印は写真の下に置く（写真の上に重ねると拡大ボタンが隠れてしまうため）。
+        // 印が無い写真も同じ高さの行を確保し、写真の大きさをそろえる。
+        var mark = '<div class="prop-photo-mark">' + (isThumb
+          ? '<span class="prop-photo-mark__chip">' + (thumbId ? 'サムネイル' : '自動サムネイル') + '</span>' : '') + '</div>';
+        var inner = isImg
+          ? '<img src="' + UI.esc(url) + '" alt="" loading="lazy">' +
+            '<button type="button" class="prop-thumb__zoom" data-full="' + UI.esc(url) + '" aria-label="写真を拡大" title="写真を拡大">' + UI.icon('considering') + '</button>'
+          : '<a class="prop-thumb__pdf" href="' + UI.esc(url) + '" target="_blank" rel="noopener noreferrer">PDF</a>';
+        return '<div class="prop-photo-item">' +
+          '<div class="prop-thumb' + (isImg ? ' prop-thumb--pick' : '') + (isThumb ? ' is-thumb' : '') + '"' +
+          (isImg ? ' data-pick-thumb="' + im.id + '" title="クリックして一覧のサムネイルにする"' : '') + '>' +
+          inner +
+          '<button type="button" class="prop-thumb__del" data-del-img="' + im.id + '" aria-label="この写真を削除" title="この写真を削除">' + UI.icon('trash') + '</button>' +
+          '<span class="prop-photo-cap"><span class="prop-photo-cap__txt">' + UI.esc(im.subcategory || '名前なし') + '</span>' +
+          '<button type="button" class="prop-photo-cap__edit" data-rename-img="' + im.id + '" aria-label="名前を変更" title="名前を変更">' + UI.icon('edit') + '</button></span>' +
+          '</div>' + mark +
+          '</div>';
       }).join('') + '</div>';
       bindDeletes(body, p, category);
+      bindPhotoActions(body, p, photos, thumbId);
     });
+  }
+
+  /* ===== 写真・資料の追加（ファイル選択 / ドラッグ＆ドロップ / 貼り付け） ===== */
+  function photoUploaderHtml() {
+    return '<div class="prop-photo-add" id="prop-photo-drop">' +
+      '<div class="prop-photo-add__row">' +
+        '<label class="prop-photo-add__label" for="prop-photo-name">写真の名前</label>' +
+        '<input type="text" id="prop-photo-name" class="prop-photo-add__name" list="prop-photo-names" maxlength="' + PHOTO_LABEL_MAX + '" value="建物外観" placeholder="例）建物外観">' +
+        '<datalist id="prop-photo-names">' + PHOTO_LABELS.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist>' +
+        '<button type="button" class="prop-btn prop-btn--primary" id="prop-photo-pick">' + UI.icon('upload') + 'ファイルを選択</button>' +
+      '</div>' +
+      '<div class="prop-photo-add__hint" id="prop-photo-hint">この枠にドラッグ＆ドロップ、またはコピーした画像の貼り付け（Ctrl+V / ⌘V）でも追加できます。</div>' +
+      '</div>';
+  }
+
+  /* 残り枚数の表示と、上限に達したときの追加ボタンの無効化。 */
+  function updatePhotoUploaderState(count) {
+    var pane = P.querySelector('[data-pane="photo"]');
+    if (!pane) return;
+    var hint = pane.querySelector('#prop-photo-hint');
+    var btn = pane.querySelector('#prop-photo-pick');
+    var full = count >= PHOTO_MAX;
+    if (hint) {
+      hint.textContent = full
+        ? '写真・資料は最大' + PHOTO_MAX + '枚です。追加するには、不要な写真を削除してください。'
+        : 'この枠にドラッグ＆ドロップ、またはコピーした画像の貼り付け（Ctrl+V / ⌘V）でも追加できます。（あと' + (PHOTO_MAX - count) + '枚）';
+    }
+    if (btn) btn.disabled = full;
+  }
+
+  function bindPhotoUploader(pane, p) {
+    var dz = pane.querySelector('#prop-photo-drop');
+    var nameInput = pane.querySelector('#prop-photo-name');
+    if (!dz) return;
+    function label() { return nameInput ? nameInput.value.trim() : ''; }
+
+    pane.querySelector('#prop-photo-pick').addEventListener('click', function () {
+      var inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*,application/pdf'; inp.multiple = true;
+      inp.addEventListener('change', function () { if (inp.files.length) uploadPhotos(p, inp.files, label()); });
+      inp.click();
+    });
+
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      dz.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); dz.classList.add('is-over'); });
+    });
+    ['dragleave', 'dragend'].forEach(function (ev) {
+      dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('is-over'); });
+    });
+    dz.addEventListener('drop', function (e) {
+      e.preventDefault(); e.stopPropagation(); dz.classList.remove('is-over');
+      var files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length) uploadPhotos(p, files, label());
+    });
+
+    // 貼り付け（Ctrl+V / ⌘V）は「写真・資料」タブを開いている間だけ有効にする。
+    if (PASTE_BOUND) { document.removeEventListener('paste', PASTE_BOUND); PASTE_BOUND = null; }
+    PASTE_BOUND = function (e) {
+      var cur = P ? P.querySelector('[data-pane="photo"]') : null;
+      if (!cur || !document.body.contains(cur)) {
+        document.removeEventListener('paste', PASTE_BOUND); PASTE_BOUND = null; return;
+      }
+      if (!cur.classList.contains('is-active')) return;
+      if (document.querySelector('.prop-modal-overlay')) return;   // モーダルを開いている間は無効
+      var items = (e.clipboardData && e.clipboardData.items) || [];
+      var files = [];
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].kind === 'file') { var f = items[i].getAsFile(); if (f) files.push(f); }
+      }
+      if (!files.length) return;   // 文字列の貼り付け（名前欄への入力など）はそのまま通す
+      e.preventDefault();
+      uploadPhotos(p, files, label());
+    };
+    document.addEventListener('paste', PASTE_BOUND);
+  }
+
+  function uploadPhotos(p, files, label) {
+    var body = P.querySelector('[data-pane="photo"] #prop-img-body');
+    var fd = new FormData();
+    fd.append('property_id', p.id);
+    fd.append('category', 'photo');
+    if (label) fd.append('subcategory', label);
+    for (var i = 0; i < files.length; i++) fd.append('files[]', files[i]);
+    if (body) body.innerHTML = '<div class="prop-empty"><span class="prop-spinner"></span> アップロード中...</div>';
+    api('/image-upload.php', { method: 'POST', body: fd })
+      .then(function (res) {
+        if (!res.success) notify('error', res.message || 'アップロードに失敗しました');
+        else notify('ok', '写真・資料を追加しました');
+        refreshImages(p, 'photo');
+      })
+      .catch(function () { notify('error', '通信に失敗しました'); refreshImages(p, 'photo'); });
+  }
+
+  /* ===== 写真のクリック＝サムネイルに設定 / 名前の変更 ===== */
+  function bindPhotoActions(body, p, photos, thumbId) {
+    body.querySelectorAll('[data-pick-thumb]').forEach(function (tile) {
+      tile.addEventListener('click', function (e) {
+        if (e.target.closest('button')) return;   // 拡大・削除・名前変更のボタンは除く
+        var id = parseInt(tile.getAttribute('data-pick-thumb'), 10);
+        if (id === thumbId) return;               // すでにサムネイルに指定済み
+        setThumbnail(p, id);
+      });
+    });
+    body.querySelectorAll('[data-rename-img]').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = parseInt(b.getAttribute('data-rename-img'), 10);
+        var im = null;
+        photos.forEach(function (x) { if (parseInt(x.id, 10) === id) im = x; });
+        if (im) openPhotoLabelForm(p, im);
+      });
+    });
+  }
+
+  function setThumbnail(p, imageId) {
+    api('/thumbnail.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ property_id: p.id, image_id: imageId })
+    }).then(function (res) {
+      if (!res.success) { notify('error', res.message || 'サムネイルを変更できませんでした'); return; }
+      notify('ok', res.message || 'サムネイルを変更しました');
+      refreshImages(p, 'photo');
+    }).catch(function () { notify('error', '通信に失敗しました'); });
+  }
+
+  function openPhotoLabelForm(p, image) {
+    var html = '<div class="prop-field full"><label>写真の名前</label>' +
+      '<input type="text" id="prop-photo-label" list="prop-photo-label-list" maxlength="' + PHOTO_LABEL_MAX + '"' +
+      ' placeholder="例）建物外観" value="' + esc(image.subcategory || '') + '">' +
+      '<datalist id="prop-photo-label-list">' + PHOTO_LABELS.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist></div>' +
+      '<div class="prop-msg prop-msg--info">AIが自動で付けた名前は、ここで自由に変更できます。空欄にすると「名前なし」になります。</div>' +
+      '<div class="prop-form-actions"><button type="button" class="prop-btn prop-btn--primary" id="prop-photo-label-save">変更する</button></div>';
+    var m = UI.modal('写真の名前を変更', html);
+    var input = m.body.querySelector('#prop-photo-label');
+    var btn = m.body.querySelector('#prop-photo-label-save');
+
+    function submit() {
+      btn.disabled = true;
+      api('/image-label.php', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_id: image.id, subcategory: input.value })
+      }).then(function (res) {
+        btn.disabled = false;
+        if (!res.success) { notify('error', res.message || '変更に失敗しました'); return; }
+        m.close();
+        notify('ok', res.message || '名前を変更しました');
+        refreshImages(p, 'photo');
+      }).catch(function () { btn.disabled = false; notify('error', '通信に失敗しました'); });
+    }
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    input.focus();
   }
   function bindDeletes(body, p, category) {
     body.querySelectorAll('[data-del-img]').forEach(function (b) {
@@ -880,7 +1076,8 @@
           .then(function (r) { if (r.success) refreshImages(p, category); else notify('error', r.message || '削除に失敗'); });
       });
     });
-    UI.bindLightbox(body);
+    // 拡大表示は要素に一度だけ結び付ける（再描画のたびに重ねない）。
+    if (!body.dataset.lightboxBound) { body.dataset.lightboxBound = '1'; UI.bindLightbox(body); }
   }
 
   /* ===== 販売図面リスト（マスク状態・顧客公開状態つき） ===== */

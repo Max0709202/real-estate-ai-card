@@ -134,6 +134,18 @@ try {
             } else {
                 $nextBillingDate = null;
             }
+
+            // 月額請求が無い既存・ＥＲＡ会員はサブスクリプションで期限を管理できないため、
+            // 入力された利用期限を名刺側（business_cards.usage_expires_at）に保存する。
+            // これが無いと利用期限が破棄され、期限を過ぎても名刺が公開され続ける。
+            if (!$hasMonthlyBilling && $expirationDate) {
+                $stmt = $db->prepare("
+                    UPDATE business_cards
+                    SET usage_expires_at = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([$expirationDate, $businessCardId]);
+            }
             
             // Update or create subscription record
             $stmt = $db->prepare("
@@ -217,6 +229,14 @@ try {
                 WHERE business_card_id = ? AND payment_method = 'bank_transfer'
                 ORDER BY created_at DESC
                 LIMIT 1
+            ");
+            $stmt->execute([$businessCardId]);
+
+            // 振込予定に戻す場合は、保存済みの利用期限も取り消す（古い期限を残さない）。
+            $stmt = $db->prepare("
+                UPDATE business_cards
+                SET usage_expires_at = NULL
+                WHERE id = ?
             ");
             $stmt->execute([$businessCardId]);
             

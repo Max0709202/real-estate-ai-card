@@ -206,10 +206,33 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-pdfviewer__close { background: none; border: none; color: #fff; font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
 .prop-pdfviewer__body { flex: 1 1 auto; overflow: auto; -webkit-overflow-scrolling: touch; display: flex; align-items: flex-start; justify-content: center; padding: 12px; }
 .prop-pdfviewer__body img { max-width: 100%; height: auto; border-radius: 4px; background: #fff; }
-.prop-photo-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; padding: 2px 4px; text-align: center; }
+.prop-photo-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; padding: 2px 4px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; z-index: 2; }
+.prop-photo-cap__txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-photo-cap__edit { background: none; border: none; color: #fff; padding: 0; cursor: pointer; display: flex; align-items: center; line-height: 1; flex: 0 0 auto; }
+.prop-photo-cap__edit svg { width: 12px; height: 12px; }
+.prop-photo-cap__edit:hover { color: #cfe0ff; }
 .prop-thumb__del { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; z-index: 2; }
 .prop-thumb__del:hover { background: #e8384f; }
 .prop-thumb__del svg { width: 14px; height: 14px; }
+
+/* 一覧サムネイルの選択（写真をクリックして指定・写真の名前を変更） */
+.prop-thumb--pick { cursor: pointer; }
+.prop-thumb.is-thumb { border-color: #2d6cdf; box-shadow: 0 0 0 2px rgba(45,108,223,.35); }
+.prop-photo-item { display: flex; flex-direction: column; }
+.prop-photo-item .prop-thumb { flex: 0 0 auto; }
+.prop-photo-mark { min-height: 18px; margin-top: 4px; display: flex; align-items: center; justify-content: center; }
+.prop-photo-mark__chip { max-width: 100%; background: #2d6cdf; color: #fff; font-size: 10px; font-weight: 700; line-height: 1.4; padding: 2px 8px; border-radius: 6px; text-align: center; }
+.prop-thumb__zoom { position: absolute; top: 4px; right: 32px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; z-index: 2; }
+.prop-thumb__zoom:hover { background: #2d6cdf; }
+.prop-thumb__zoom svg { width: 14px; height: 14px; }
+
+/* 写真・資料の追加（ファイル選択 / ドラッグ＆ドロップ / 貼り付け） */
+.prop-photo-add { border: 1px dashed #b9c4d6; border-radius: 12px; padding: 12px; margin: 8px 0; background: #fafbfd; }
+.prop-photo-add.is-over { border-color: #2d6cdf; background: #eef4ff; }
+.prop-photo-add__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.prop-photo-add__label { font-size: 12px; font-weight: 700; color: #38465c; }
+.prop-photo-add__name { flex: 1 1 160px; min-width: 120px; padding: 8px 10px; border: 1px solid #d6dde8; border-radius: 8px; font-size: 13px; }
+.prop-photo-add__hint { margin-top: 6px; font-size: 12px; color: #6b7585; }
 .prop-flyer-view img { width: 100%; border-radius: 10px; border: 1px solid #e5e9f0; }
 
 /* ===== 販売図面マスク（売主情報の自動非表示） ===== */

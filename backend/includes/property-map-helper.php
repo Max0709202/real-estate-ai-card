@@ -99,9 +99,12 @@ if (!defined('PROPERTY_MAP_PLACES_PAGE')) define('PROPERTY_MAP_PLACES_PAGE', 20)
 if (!defined('PROPERTY_MAP_PLACES_TTL')) define('PROPERTY_MAP_PLACES_TTL', 2592000);   // 30日
 if (!defined('PROPERTY_MAP_REINFO_TTL')) define('PROPERTY_MAP_REINFO_TTL', 2592000);   // 30日
 /** ハザードのタイル1枚あたりの取り込み上限（方角ごとに同じ量を取り、偏りを防ぐ）。 */
-if (!defined('PROPERTY_MAP_HAZARD_TILE_FEATURES')) define('PROPERTY_MAP_HAZARD_TILE_FEATURES', 150);
+if (!defined('PROPERTY_MAP_HAZARD_TILE_FEATURES')) define('PROPERTY_MAP_HAZARD_TILE_FEATURES', 400);
 /** ハザード1種類あたりの描画上限（物件に近いエリアから残す）。 */
-if (!defined('PROPERTY_MAP_HAZARD_POLYGONS')) define('PROPERTY_MAP_HAZARD_POLYGONS', 400);
+if (!defined('PROPERTY_MAP_HAZARD_POLYGONS')) define('PROPERTY_MAP_HAZARD_POLYGONS', 500);
+/** ハザードのポリゴン1つあたりの頂点上限。面の塗り分けなので粗くても支障がなく、
+ *  頂点を減らした分だけ多くのエリアを途切れさせずに表示できる。 */
+if (!defined('PROPERTY_MAP_HAZARD_RING_POINTS')) define('PROPERTY_MAP_HAZARD_RING_POINTS', 150);
 
 /* ──────────────────────────────────────────────────────────
  * 緯度・経度（§1 / §2）
@@ -691,12 +694,18 @@ if (!function_exists('propertyMapHazardLayers')) {
             // 表示件数を絞るときは「物件に近いエリアから」残す。取得した順（タイル順）で
             // 切ると物件の片側だけが残ってしまうため、必ず距離で並べ替えてから上限を適用する。
             $cands = [];
+            $seen = [];
             foreach ($res['features'] as $f) {
                 if (!is_array($f)) continue;
-                $rings = propertyMapGeometryRings($f['geometry'] ?? null);
+                $rings = propertyMapGeometryRings($f['geometry'] ?? null, PROPERTY_MAP_HAZARD_RING_POINTS);
                 if (empty($rings)) continue;
                 $note = propertyMapHazardNote($f['properties'] ?? []);
                 foreach ($rings as $ring) {
+                    // 隣り合うタイルに同じエリアが重複して含まれることがある。重ねて描くと
+                    // その部分だけ濃くなり、境目が四角い線のように見えるため1つにまとめる。
+                    $sig = md5(json_encode($ring));
+                    if (isset($seen[$sig])) continue;
+                    $seen[$sig] = true;
                     $cands[] = [
                         'd'    => propertyMapRingDistanceM($lat, $lng, $ring),
                         'poly' => ['ring' => $ring, 'note' => $note],
@@ -711,6 +720,10 @@ if (!function_exists('propertyMapHazardLayers')) {
                 'key'      => $key,
                 'label'    => $def['label'],
                 'color'    => $def['color'],
+                // ハザードのデータは地図のタイル単位に切り取られて配信される。
+                // 輪郭線を描くと、その「切り取り線」がそのまま四角い枠として見えてしまうため、
+                // ハザードは塗りつぶしだけで表示する（隣のタイルと繋がって見えるようになる）。
+                'stroke'   => false,
                 'polygons' => $polygons,
             ];
         }
@@ -741,17 +754,18 @@ if (!function_exists('propertyMapHazardNote')) {
 
 if (!function_exists('propertyMapGeometryRings')) {
     /** GeoJSON の Polygon / MultiPolygon → [[ ['lat'=>..,'lng'=>..], ... ], ...]（外周のみ）。 */
-    function propertyMapGeometryRings($geom): array
+    function propertyMapGeometryRings($geom, int $maxPoints = 400): array
     {
         if (!is_array($geom)) return [];
         $type = $geom['type'] ?? '';
         $coords = $geom['coordinates'] ?? null;
         if (!is_array($coords)) return [];
-        $toRing = static function ($ring) {
+        $maxPoints = max(8, $maxPoints);
+        $toRing = static function ($ring) use ($maxPoints) {
             $out = [];
             if (!is_array($ring)) return $out;
             // 頂点が多すぎるポリゴンは間引く（形は保ったまま描画を軽くする）。
-            $step = max(1, (int)ceil(count($ring) / 400));
+            $step = max(1, (int)ceil(count($ring) / $maxPoints));
             $i = 0;
             foreach ($ring as $pt) {
                 if (($i++ % $step) !== 0) continue;
