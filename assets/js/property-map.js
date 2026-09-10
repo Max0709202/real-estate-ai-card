@@ -352,15 +352,19 @@
       var objs = [];
       if (data.render === 'polygon') {
         (data.layers || []).forEach(function (layer) {
+          // ハザードのように、データが地図のタイル単位に切り取られて届くレイヤーは
+          // 輪郭線を描かない（切り取り線が四角い枠として見えてしまうため）。
+          // 塗りつぶしだけなら隣のタイルと繋がり、1つのエリアとして見える。
+          var outlined = layer.stroke !== false;
           (layer.polygons || []).forEach(function (poly) {
             var p = new maps.Polygon({
               map: map,
               paths: poly.ring,
               strokeColor: layer.color,
-              strokeOpacity: 0.85,
-              strokeWeight: 1.5,
+              strokeOpacity: outlined ? 0.85 : 0,
+              strokeWeight: outlined ? 1.5 : 0,
               fillColor: layer.color,
-              fillOpacity: 0.28,
+              fillOpacity: outlined ? 0.28 : 0.34,
               clickable: true,
               zIndex: 10
             });
