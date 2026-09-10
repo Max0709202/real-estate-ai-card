@@ -447,7 +447,20 @@ try {
     }
 
     if (!$isMonthlyBillingUser && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true)) {
-        $usagePeriodDisplay = '初期費用お支払い済み';
+        // 月額請求が無い既存・ＥＲＡ会員は、管理画面で設定された利用期限があればそれを表示する。
+        // 未設定の場合は期限なしのため、従来どおり「初期費用お支払い済み」と表示する。
+        $usageExpiresAt = null;
+        try {
+            $stmt = $db->prepare("SELECT usage_expires_at FROM business_cards WHERE user_id = ? LIMIT 1");
+            $stmt->execute([$userId]);
+            $usageExpiresAt = $stmt->fetchColumn();
+        } catch (Exception $usageExpiryException) {
+            // usage_expires_at 未追加（マイグレーション未実行）の場合は従来表示のままにする。
+            error_log('Error fetching usage_expires_at: ' . $usageExpiryException->getMessage());
+        }
+        $usagePeriodDisplay = !empty($usageExpiresAt)
+            ? (new DateTime($usageExpiresAt))->format('Y年n月j日') . '迄'
+            : '初期費用お支払い済み';
         $canRenew = false;
     }
 

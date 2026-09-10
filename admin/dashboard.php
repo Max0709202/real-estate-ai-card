@@ -153,6 +153,7 @@ $sql = "
         bc.is_published as is_open,
         bc.admin_notes,
         bc.payment_status,
+        bc.usage_expires_at,
         COALESCE((
             SELECT GROUP_CONCAT(DISTINCT COALESCE(cvp.display_phone, cvp.phone_e164) ORDER BY cvp.last_verified_at DESC SEPARATOR ', ')
             FROM chat_verified_phones cvp
@@ -192,7 +193,7 @@ $sql = "
     $whereClause
     GROUP BY bc.id, u.id, u.email, u.user_type, u.is_era_member, u.agent, u.utm_source, u.utm_medium, u.utm_campaign, u.first_accessed_at,
              bc.company_name, bc.name, bc.mobile_phone, bc.url_slug, bc.company_slug,
-             bc.is_published, bc.admin_notes, bc.payment_status, bc.created_at, u.last_login_at,
+             bc.is_published, bc.admin_notes, bc.payment_status, bc.usage_expires_at, bc.created_at, u.last_login_at,
              s.next_billing_date, s.cancelled_at
     ORDER BY $sortField $sortOrder
     LIMIT ? OFFSET ?
@@ -647,9 +648,14 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                             $type = $user['user_type'] ?? 'new';
                             $isEra = $user['is_era_member'] ?? 0;
                             $classification = $isEra ? 'era' : $type;
-                            // 既存・ＥＲＡ会員はセルフィンPro利用期間中で月額請求が無いため、利用期限の代わりに「利用期間中」と表示する
+                            // 既存・ＥＲＡ会員は月額請求が無いため、振込済への変更時に入力した利用期限
+                            // （business_cards.usage_expires_at）を表示する。
+                            // 未設定の場合はセルフィンPro利用期間中とみなし、従来どおり「利用期間中」と表示する。
                             if (in_array($classification, ['existing', 'era'], true)) {
-                                $usagePeriodDisplay = '利用期間中';
+                                $usageExpiresAt = $user['usage_expires_at'] ?? null;
+                                $usagePeriodDisplay = !empty($usageExpiresAt)
+                                    ? (new DateTime($usageExpiresAt))->format('Y年n月j日') . '迄'
+                                    : '利用期間中';
                             }
                             $classificationLabels = ['new' => '新規', 'existing' => '既存', 'era' => 'ＥＲＡ'];
                             $classificationLabel = $classificationLabels[$classification] ?? '新規';
