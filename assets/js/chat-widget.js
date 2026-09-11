@@ -83,6 +83,8 @@
             return (v === 'contact' || v === 'property') ? v : null;
         } catch (e) { return null; }
     })();
+    // 該当タブを実際に開いたか。まだこの端末がSMS認証を終えていない（＝どのお客様か
+    // 確定していない）間は開かずに保留し、認証で本人のご相談へ合流したあとに開く。
     var deepLinkHandled = false;
     var sessionId = null;
     var sessionGeo = null; // 同一セッションで再利用するGPS座標 {lat, lon}
@@ -631,6 +633,26 @@
         reloadNoticeShown = true;
     }
 
+    /**
+     * メール通知のリンクから来たものの、この端末がまだSMS認証を終えていないため、
+     * 該当タブ（担当連絡／物件選定）の表示を保留している状態かどうか。
+     */
+    function deepLinkTabPending() {
+        if (!deepLinkTab || deepLinkHandled) return false;
+        // 物件提案メールのリンクは閲覧トークン（pv=）を持ち、SMS認証前でも提案物件を
+        // 表示できる。こちらは従来どおりすぐに開く（保留しない）。
+        if (deepLinkTab === 'property' && propertyViewToken) return false;
+        return !(startupData && startupData.device_auth_valid);
+    }
+
+    /** メール通知のリンクから来られた方へ、SMS認証のあとに開くタブをお伝えする文面。 */
+    function deepLinkPendingNoticeText() {
+        if (deepLinkTab === 'property') {
+            return "担当者から物件のご提案が届いています。\n\n内容は、SMS認証のあと「物件選定」に表示いたします。";
+        }
+        return "担当者からのメッセージが届いています。\n\n内容は、SMS認証のあと「担当連絡」に表示いたします。";
+    }
+
     function showFirstTimeEntry(data) {
         entryAwaitingChoice = true;
         greetingShown = true;
@@ -643,6 +665,12 @@
         // その後の登録の流れ（SMS認証→お名前→メールアドレス）は通常と同じ。
         var entryText = (startupData && startupData.invite_welcome) ? startupData.invite_welcome : entryNoticeText;
         appendBotMessage(personalize(entryText, startupData));
+        // メール通知のリンク（&open=contact|property）から来られた場合、SMS認証が済んだあとに
+        // 該当タブを開いてご案内することをお伝えする（お知らせが無いまま認証だけを求めると、
+        // メールの「内容を確認する」を押したのに何も出ていないように見えるため）。
+        if (deepLinkTabPending()) {
+            appendBotMessage(deepLinkPendingNoticeText());
+        }
         showSmsAuth('upfront');
     }
 
@@ -1020,6 +1048,9 @@
                     // 登録済みの電話番号: 別端末・機種変更でも前回の相談を引き継いで再開する。
                     registrationFlow = false;
                     continueSavedConsultation(startupData, true);
+                    // メール通知のリンクから来られた場合は、ここで該当タブを開く
+                    // （本人のご相談へ合流できたので、担当からのメッセージを表示できる）。
+                    openDeepLinkTabIfReady(true);
                 } else {
                     // 新規登録: 続けてお名前→メールアドレスを登録してもらう。
                     showNameForm();
@@ -1032,9 +1063,11 @@
                 appendBotMessage('ご登録ありがとうございました。\n\n次回以降は、\n・スマートフォン\n・タブレット\n・パソコン\nなど別のデバイスから接続した場合でも、SMS認証を行うことで、これまでのご相談内容を引き継いでご利用いただけます。');
                 setInputEnabled(true);
                 inputEl.focus();
+                openDeepLinkTabIfReady(true);
             } else if (data.data.matched) {
                 if (reason === 'other') appendBotMessage(personalize(registeredPhoneNoticeText, startupData));
                 continueSavedConsultation(startupData, reason !== 'other');
+                openDeepLinkTabIfReady(true);
             } else {
                 appendBotMessage('この電話番号で登録された前回のご相談は見つかりませんでした。初めてのご相談としてご案内します。');
                 beginFirstConsultation(startupData);
@@ -1151,6 +1184,9 @@
                 inviteReady = true;
                 updateInviteButtonVisibility();
                 beginFirstConsultation(startupData);
+                // 担当が事前に作成した顧客ページへメール通知のリンクから来られた場合、
+                // 登録が終わったこの時点で該当タブを開き、担当からのメッセージを表示する。
+                openDeepLinkTabIfReady(true);
             }).catch(function (error) {
                 submit.disabled = false;
                 status.textContent = (error && error.message) || 'メールアドレスの形式をご確認ください。';
@@ -1295,13 +1331,8 @@
                     updateInviteButtonVisibility();
                     maybeRequestNotificationPermission();
                     // メール通知リンク（&open=contact|property）から開いた場合、該当タブを自動表示。
-                    if (deepLinkTab && !deepLinkHandled) {
-                        deepLinkHandled = true;
-                        try {
-                            renderFeatureTab(deepLinkTab);
-                            pushChatView({ chatView: 'tab', chatTab: deepLinkTab });
-                        } catch (e) {}
-                    }
+                    // ただし本人確認前（SMS認証がまだの端末）は開かず保留する。
+                    openDeepLinkTabIfReady(false);
                     // 更新ボタンでの再読み込み直後は、押す前に開いていたタブへ戻す。
                     // これをしないと、担当連絡や物件選定を見ていても必ずAI担当に戻ってしまう。
                     if (reopenTabAfterReload && !reopenTabHandled) {
@@ -3556,6 +3587,26 @@
         });
         html += '</div>';
         renderFeaturePanel(html);
+    }
+
+    /**
+     * メール通知のリンク（card.php?...&open=contact|property）から開かれたときに、
+     * 該当タブ（担当連絡／物件選定）を自動表示する。
+     *
+     * この端末がまだSMS認証を済ませていない場合は開かない。認証前は「どのお客様か」が
+     * 確定せず、担当からのメッセージや提案物件を持たない空のセッションが割り当たるため、
+     * そのまま開くと中身が無いタブだけが表示され、入口のSMS認証も隠れてしまう
+     * （PCなど、初めて使う端末でメールのボタンから開いたときに起きていた）。
+     * その場合は保留し、SMS認証で本人のご相談へ合流したあとに force = true で開く。
+     */
+    function openDeepLinkTabIfReady(force) {
+        if (!deepLinkTab || deepLinkHandled) return;
+        if (!force && deepLinkTabPending()) return;
+        deepLinkHandled = true;
+        try {
+            renderFeatureTab(deepLinkTab);
+            pushChatView({ chatView: 'tab', chatTab: deepLinkTab });
+        } catch (e) {}
     }
 
     function renderFeatureTab(tab) {
