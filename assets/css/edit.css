@@ -1758,6 +1758,55 @@ body {
     border-top: 0;
 }
 
+/* 顧客情報（顧客詳細の先頭）。見出しの右に「修正」を置き、同じ枠で編集する（改善要望 1-3） */
+.chat-contact-block [hidden] {
+    display: none !important;
+}
+
+.chat-contact-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+}
+
+/* 他のセクション見出し（#chat-history-detail-content > h4）と同じ見え方に揃える。
+   入れ子になった分だけ直接の子セレクタから外れるため、ここで指定する。 */
+.chat-contact-head h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: #1f2d3d;
+}
+
+.chat-contact-edit-btn {
+    flex: none;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.85rem;
+}
+
+.chat-contact-form {
+    margin-top: 0.75rem;
+}
+
+.chat-contact-form .form-group {
+    margin-bottom: 0.75rem;
+}
+
+.chat-contact-status {
+    margin: 0 0 0.5rem;
+    min-height: 1.2em;
+    font-size: 0.85rem;
+    color: #6b7a89;
+}
+
+.chat-contact-form-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
 /* AI整理サマリー（お客様概要 / 主な希望条件 / 資金・住宅ローン / 申し送り / 次に確認すること） */
 .chat-ai-summary {
     display: flex;
@@ -2244,6 +2293,52 @@ body {
     color: #6b7a89;
 }
 
+/* 「名刺編集」の折りたたみ（改善要望 1-4） --------------------- */
+.edit-nav-group--collapsible {
+    padding-bottom: 0.6rem;
+}
+
+.edit-nav-group-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+}
+
+.edit-nav-group-toggle:hover .edit-nav-group-title {
+    color: #0066cc;
+}
+
+.edit-nav-group-caret {
+    flex: none;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #8595a5;
+    transition: transform 0.2s ease;
+}
+
+.edit-nav-group-toggle[aria-expanded="false"] .edit-nav-group-caret {
+    transform: rotate(-90deg);
+}
+
+/* ステップの入れ物。display:contents で各ステップをそのままナビの並びに出すため、
+   開いている間のレイアウトは折りたたみ導入前とまったく同じになる。 */
+.edit-nav-steps {
+    display: contents;
+}
+
+.edit-nav-steps[data-collapsed="1"] {
+    display: none;
+}
+
 /* 選択中メニューの視認性（淡い水色＋白文字だと読みにくいため） */
 .edit-nav .nav-item.active {
     background: #0066cc;
@@ -2268,6 +2363,12 @@ body {
 @media (max-width: 968px) {
     .edit-nav-group {
         display: none;
+    }
+
+    /* 折りたたみの見出しごと隠れるため、開く操作ができない。ステップは常に出す。 */
+    .edit-nav-steps,
+    .edit-nav-steps[data-collapsed="1"] {
+        display: contents;
     }
 
     .edit-container .edit-header {
