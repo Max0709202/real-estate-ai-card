@@ -19,6 +19,7 @@
 
 require_once __DIR__ . '/../config/config.php'; // BASE_URL
 require_once __DIR__ . '/functions.php';        // sendEmail()
+require_once __DIR__ . '/chat-session-trash-helper.php'; // chatSessionTrashRestoreOnCustomerActivity()
 
 /** テーブルが無ければ作成（冪等）。migrations/20260720_add_customer_invitations.sql と同じ定義。 */
 function customerInviteEnsureTable(PDO $db): void
@@ -163,6 +164,31 @@ function customerInviteMarkRegistered(PDO $db, string $sessionId): void
 }
 
 /**
+ * 顧客ページをゴミ箱から顧客一覧へ戻す。
+ *
+ * 担当者が一覧から削除（ゴミ箱へ移動）した顧客ページは、実体が残っているため
+ * あとから「合流先」や「作成済みの顧客ページ」として再び使われることがある。
+ * そのとき deleted_at を立てたままにすると、担当者がいま管理画面で作成した顧客が
+ * 一覧に出てこない（作成した直後に消えたように見える）。
+ * 担当者は管理画面でその顧客ページを作る操作をしているので、一覧へ戻すのが正しい。
+ *
+ * 実処理は chat-session-trash-helper.php と共通（ゴミ箱の復元は1か所にまとめる）。
+ */
+function customerInviteRestoreSessionFromTrash(PDO $db, string $sessionId): bool
+{
+    $sessionId = trim($sessionId);
+    if ($sessionId === '' || !function_exists('chatSessionTrashRestoreOnCustomerActivity')) {
+        return false;
+    }
+    try {
+        return (bool)chatSessionTrashRestoreOnCustomerActivity($db, $sessionId);
+    } catch (Throwable $e) {
+        error_log('customerInviteRestoreSessionFromTrash error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
  * 事前作成したセッションを、SMS認証で判明した既存セッションへ引き継ぐ。
  *
  * 既存顧客（この名刺で認証済みの電話番号）が専用URLからSMS認証すると、
@@ -228,6 +254,11 @@ function customerInviteTransferSession(PDO $db, string $fromSessionId, string $t
 
         $stmt = $db->prepare("DELETE FROM chat_sessions WHERE id = ? AND business_card_id = ?");
         $stmt->execute([$fromSessionId, $businessCardId]);
+
+        // 合流先がゴミ箱に入っていた場合は顧客一覧へ戻す。
+        // 事前作成した顧客ページ（$fromSessionId）はここで削除されるため、合流先が隠れたままだと、
+        // 担当者が作成して一覧に表示されていた顧客が、お客様のSMS認証と同時に一覧から消えてしまう。
+        customerInviteRestoreSessionFromTrash($db, $toSessionId);
     } catch (Throwable $e) {
         error_log('customerInviteTransferSession error: ' . $e->getMessage());
     }

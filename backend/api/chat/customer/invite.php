@@ -94,8 +94,13 @@ try {
     $existing = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     $existingToken = (string)($existing['invite_token'] ?? '');
     if ($existingToken !== '') {
+        $existingSessionId = (string)($existing['session_id'] ?? '');
+        // 作成済みの顧客ページがゴミ箱に入っていると、ここで作成済みとして返すだけでは
+        // 顧客一覧に出てこない（担当者から見ると「作成したのに一覧に居ない／消えた」状態になる）。
+        // 担当者はいまこの顧客ページを作る操作をしているので、一覧へ戻す。
+        $restored = customerInviteRestoreSessionFromTrash($db, $existingSessionId);
         // 作成済みの専用URLにも、SMS認証なしで提案物件を閲覧できる閲覧トークンを付ける。
-        $existingViewToken = propertyViewTokenFor($db, (string)($existing['session_id'] ?? ''));
+        $existingViewToken = propertyViewTokenFor($db, $existingSessionId);
         sendSuccessResponse([
             'session_id' => '',
             'invite_url' => customerInviteUrl($cardSlug, $existingToken, $existingViewToken),
@@ -103,7 +108,10 @@ try {
             'email' => $email,
             'mail_sent' => false,
             'already_exists' => true,
-        ], 'このメールアドレス宛の顧客ページは作成済みです。お客様がまだご登録されていないため、下記の専用URLをそのままご案内ください。');
+            'restored_from_trash' => $restored ? 1 : 0,
+        ], $restored
+            ? 'このメールアドレス宛の顧客ページは作成済みです。ゴミ箱に入っていたため顧客一覧へ戻しました。下記の専用URLをそのままご案内ください。'
+            : 'このメールアドレス宛の顧客ページは作成済みです。お客様がまだご登録されていないため、下記の専用URLをそのままご案内ください。');
     }
 
     // 顧客ページの実体＝チャットセッション。訪問者はまだ未確定なので
