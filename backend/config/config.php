@@ -26,7 +26,15 @@ date_default_timezone_set('Asia/Tokyo');
 
 // セッション設定
 // 無操作タイムアウト（最終アクセスからの経過時間）
-define('SESSION_IDLE_LIFETIME', 6 * 3600);        // 一般ユーザー（エージェント）: 6時間
+//
+// エージェント（顧客管理）は、開くたびにログインし直さずに済むよう長めに保つ（改善要望 1-11）。
+// SMS認証を「初回のみ」に変えたときと同じ考え方で、日々の利用の妨げにならないことを優先する。
+// 期間を短くしたい会社では、環境変数 SESSION_IDLE_LIFETIME_DAYS に日数を設定する。
+// ※「ログアウト」を押せば、この設定に関わらずその場でログアウトできる。
+$agentSessionDays = (int)(getenv('SESSION_IDLE_LIFETIME_DAYS') ?: 30);
+$agentSessionDays = max(1, min(365, $agentSessionDays));
+define('SESSION_IDLE_LIFETIME', $agentSessionDays * 86400);  // 一般ユーザー（エージェント）: 既定30日
+// システム管理画面（/admin/）は取り扱う情報の範囲が広いため、従来どおり短いままにする。
 define('SESSION_IDLE_LIFETIME_ADMIN', 3 * 3600);  // 管理画面: 3時間（無操作時のみ再ログイン）
 
 ini_set('session.cookie_httponly', 1);

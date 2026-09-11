@@ -161,7 +161,7 @@ if (!empty($token)) {
                 新しいメールアドレスでログインできます。
             </p>
             <div>
-                <a href="../edit.php" class="btn-primary">マイページへ</a>
+                <a href="../edit.php" class="btn-primary">顧客管理へ</a>
                 <a href="../login.php" class="btn-secondary">ログインページへ</a>
             </div>
         <?php else: ?>

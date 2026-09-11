@@ -152,7 +152,7 @@ if (empty($_SESSION['user_id'])) {
             </form>
             
             <div class="back-link">
-                <a href="../edit.php">マイページに戻る</a>
+                <a href="../edit.php">顧客管理に戻る</a>
             </div>
         </div>
     </div>

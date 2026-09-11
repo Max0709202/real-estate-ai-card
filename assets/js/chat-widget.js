@@ -58,6 +58,8 @@
     var roleEl = document.getElementById('chat-widget-role');
     var toggleAvatarEl = document.getElementById('chat-widget-toggle-avatar');
     var toggleLabelEl = document.getElementById('chat-widget-toggle-label');
+    // 起動ボタン上段の「●●様専用」。お客様が分かるまでは出さない。
+    var toggleOwnerEl = document.getElementById('chat-widget-toggle-owner');
     var quickActions = document.getElementById('chat-widget-quick-actions');
     var featurePanel = document.getElementById('chat-widget-feature-panel');
     var tabBar = document.querySelector('.chat-widget-tabbar');
@@ -340,7 +342,19 @@
                 roleEl.classList.remove('is-personalized');
             }
         }
-        if (toggleLabelEl) toggleLabelEl.textContent = agentName + ' AIエージェント';
+        // 起動ボタンは「●●様専用 / AI住まいコンシェルジュ」の2段組み（改善要望 1-9）。
+        // 担当者名は写真とパネル側のヘッダーで分かるため、ボタンでは名称を大きく見せる。
+        if (toggleOwnerEl) {
+            if (headerCustomerName) {
+                var toggleHonorific = /(様|さん)$/.test(headerCustomerName) ? headerCustomerName : headerCustomerName + '様';
+                toggleOwnerEl.textContent = toggleHonorific + '専用';
+                toggleOwnerEl.hidden = false;
+            } else {
+                toggleOwnerEl.textContent = '';
+                toggleOwnerEl.hidden = true;
+            }
+        }
+        if (toggleLabelEl) toggleLabelEl.textContent = 'AI住まいコンシェルジュ';
         if (toggleAvatarEl) {
             if (agentPhoto && toggleAvatarEl.tagName === 'IMG') {
                 toggleAvatarEl.src = agentPhoto;

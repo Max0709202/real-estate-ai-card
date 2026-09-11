@@ -49,6 +49,23 @@ html[data-font-scale="xlarge"] {
        切替UIが一緒に大きくなると画面を圧迫し、元に戻す操作がしづらくなるため。 */
     font-size: 13px;
     line-height: 1;
+    /* つまんで移動できるようにする（改善要望 1-8）。
+       touch-action: none でタッチ中のスクロールに取られず、指の動きで運べるようにする。 */
+    cursor: grab;
+    touch-action: none;
+}
+
+.font-scale-switch.is-dragging {
+    cursor: grabbing;
+    /* 運んでいる最中に文字が選択されたり、影で浮いて見えるようにする。 */
+    user-select: none;
+    -webkit-user-select: none;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+/* ボタン自体は「押す」ものなので、掴む見た目にはしない。 */
+.font-scale-switch button {
+    cursor: pointer;
 }
 
 .font-scale-switch-label {

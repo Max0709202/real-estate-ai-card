@@ -705,6 +705,37 @@ ease;
     margin: 0;
 }
 
+/* QRコードを端末へ保存するボタン（改善要望 1-10） */
+.qr-code-save-button {
+    display: inline-block;
+    /* 手元が不安定でも押せる大きさ（44px以上）。 */
+    min-height: 44px;
+    padding: 0.7rem 1.5rem;
+    border-radius: 999px;
+    background: #0b4f9f;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(11, 79, 159, 0.28);
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qr-code-save-button:hover,
+.qr-code-save-button:focus-visible {
+    background: #0a4488;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(11, 79, 159, 0.4);
+}
+
+.qr-code-save-note {
+    max-width: 22rem;
+    margin: 0;
+    color: #888;
+    font-size: 0.8rem;
+    line-height: 1.6;
+}
+
 .edit-link {
     text-align: center;
     margin-top: 2rem;

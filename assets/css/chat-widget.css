@@ -22,8 +22,8 @@
 }
 
 .chat-widget-toggle {
-    min-width: 220px;
-    max-width: min(88vw, 320px);
+    min-width: 260px;
+    max-width: min(92vw, 360px);
     height: 58px;
     border-radius: 999px;
     background: #0b4f9f;
@@ -55,12 +55,36 @@
     color: #0b4f9f;
     font-weight: 700;
 }
+/* 「●●様専用 / AI住まいコンシェルジュ」の2段組み（改善要望 1-9）。
+   文字サイズ切替（標準／大／特大）で大きくなると58pxの高さに収まらなくなるため、
+   ここだけは px 固定にして、どの設定でもボタンの形が崩れないようにする。 */
+.chat-widget-toggle-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    min-width: 0;
+    gap: 1px;
+    text-align: left;
+}
+.chat-widget-toggle-owner {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    opacity: 0.92;
+}
 .chat-widget-toggle-label {
     min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 700;
+    font-size: 19px;
     line-height: 1.2;
     letter-spacing: 0;
 }
@@ -1174,7 +1198,7 @@
     }
 
     .chat-widget-toggle {
-        min-width: min(86vw, 290px);
+        min-width: min(90vw, 320px);
         height: 56px;
         padding-right: 0.9rem;
     }
@@ -1183,8 +1207,11 @@
         height: 44px;
         flex-basis: 44px;
     }
+    .chat-widget-toggle-owner {
+        font-size: 12px;
+    }
     .chat-widget-toggle-label {
-        font-size: 0.95rem;
+        font-size: 17px;
     }
 
     .chat-widget-input-wrap {

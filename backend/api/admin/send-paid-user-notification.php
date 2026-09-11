@@ -105,7 +105,7 @@ try {
                                     <h1 style="margin:0 0 20px 0; font-size:20px; line-height:1.5; color:#2c5282;">{$subjectHtml}</h1>
                                     <div style="font-size:15px; line-height:1.9; color:#333;">{$messageHtml}</div>
                                     <div style="text-align:center; margin:28px 0;">
-                                        <a href="{$mypageUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block; background:#0066cc; color:#ffffff; text-decoration:none; font-weight:bold; padding:12px 24px; border-radius:6px;">マイページを開く</a>
+                                        <a href="{$mypageUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block; background:#0066cc; color:#ffffff; text-decoration:none; font-weight:bold; padding:12px 24px; border-radius:6px;">顧客管理を開く</a>
                                     </div>
                                     <p style="margin:20px 0 0 0; color:#666; font-size:13px;">送信日時: {$sentAtHtml}</p>
                                 </td>
@@ -125,7 +125,7 @@ try {
 HTML;
 
     $plainBody = $subject . "\n\n" . $message . "\n\n" .
-        "マイページ: " . $baseUrl . "/edit.php\n" .
+        "顧客管理: " . $baseUrl . "/edit.php\n" .
         "送信日時: " . $sentAt . "\n";
 
     $campaignId = time();
