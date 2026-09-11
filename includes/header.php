@@ -138,7 +138,8 @@ if ($isLoggedIn) {
     <div class="container">
         <div class="header-content">
             <div class="logo">
-                <a href="index.php<?php echo htmlspecialchars($existingNavSuffix); ?>" style="position: relative; display: inline-block;">
+                <!-- 編集途中の内容を失わないよう、ロゴからの遷移は別タブで開く（改善要望 1-7）。 -->
+                <a href="index.php<?php echo htmlspecialchars($existingNavSuffix); ?>" target="_blank" rel="noopener" style="position: relative; display: inline-block;">
                     <img src="assets/images/logo.png" alt="不動産AI名刺">
                     <!-- 未読通知バッジ（担当連絡の未読件数）。ログイン中のみJSで表示。 -->
                     <span id="home-notify-badge" class="home-notify-badge" style="display:none;position:absolute;top:-6px;right:-10px;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;background:#e53935;color:#fff;border-radius:9px;font-size:11px;line-height:18px;text-align:center;font-weight:bold;box-shadow:0 0 0 2px #fff;">0</span>
@@ -438,11 +439,11 @@ if ($isLoggedIn) {
                     <div class="user-dropdown" id="user-dropdown">
                         <?php if ($showMyCard): ?>
                         <a href="card.php?slug=<?php echo htmlspecialchars($cardSlug); ?><?php echo htmlspecialchars($existingNavAmp); ?>" class="dropdown-item" target="_blank">
-                            <span>マイ名刺</span>
+                            <span>自分の名刺</span>
                         </a>
                         <?php endif; ?>
                         <a href="edit.php<?php echo htmlspecialchars($existingNavSuffix); ?>" class="dropdown-item">
-                            <span>マイページ</span>
+                            <span>顧客管理</span>
                         </a>
                         <?php if ($headerHasActiveSubscription): ?>
                         <!-- <div class="dropdown-divider"></div> -->
@@ -596,8 +597,8 @@ if ($isLoggedIn) {
         const headerEndDateDisplay = headerEndDateText !== '未設定' ? headerEndDateText : '（未設定）';
 
         const headerConfirmMessage =
-          '・停止されても、マイページで作って頂いたAI名刺はアカウントに残っています。\n\n' +
-          '・マイページからお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
+          '・停止されても、顧客管理で作って頂いたAI名刺はアカウントに残っています。\n\n' +
+          '・顧客管理からお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
           '・不動産DXツールをご利用いただいているお客様からの反響は配信されなくなります。\n\n' +
           '・期間終了時（' + headerEndDateDisplay + '）に不動産AI名刺がご利用いただけなくなります。\n\n' +
           '利用を停止しますか？（次回のご請求はございません。）';
@@ -692,7 +693,7 @@ if ($isLoggedIn) {
     refresh();
     // 30秒毎に更新（タブが非表示の間はスキップ）。
     setInterval(function() { if (!document.hidden) refresh(); }, 30000);
-    // 既読などで未読数が変わった時に即時反映（マイページ等が発火）。
+    // 既読などで未読数が変わった時に即時反映（顧客管理等が発火）。
     window.refreshHomeNotifyBadge = refresh;
     window.addEventListener('chat:unread-changed', refresh);
   }

@@ -156,11 +156,11 @@ if (!$preview && (!in_array($card['payment_status'], ['CR', 'BANK_PAID', 'ST']) 
                     <strong>ご利用を再開するには</strong>
                     <ul style="margin:10px 0 0; padding-left:1.2em;">
                         <?php if (!$isPaymentAllowed): ?>
-                            <li style="margin:0 0 8px;">マイページでお支払い手続きを完了してください。</li>
+                            <li style="margin:0 0 8px;">顧客管理でお支払い手続きを完了してください。</li>
                             <li style="margin:0 0 8px;">入金確認後、名刺が自動で公開されます。</li>
                         <?php endif; ?>
                         <?php if ($isUsagePeriodExpired): ?>
-                            <li style="margin:0 0 8px;">マイページから更新（お支払い）手続きを行ってください。</li>
+                            <li style="margin:0 0 8px;">顧客管理から更新（お支払い）手続きを行ってください。</li>
                             <li style="margin:0 0 8px;">入金確認後、名刺が再度ご利用いただけます。</li>
                         <?php endif; ?>
                         <?php if (!$isPublished): ?>
@@ -1112,6 +1112,15 @@ if (!empty($card['profile_photo'])) {
                     <div class="qr-code-content">
                         <h3>不動産AI名刺のQRコード</h3>
                         <p class="qr-code-description">このQRコードをスキャンして名刺を共有できます</p>
+                        <!-- QRコードを画像として端末に保存する（改善要望 1-10）。
+                             QRコードは同一ドメインの画像（またはデータURI）なので、
+                             download 属性だけでそのまま保存できる。 -->
+                        <a class="qr-code-save-button"
+                           href="<?php echo htmlspecialchars($qrCodeSrc); ?>"
+                           download="<?php echo htmlspecialchars(($card['url_slug'] ?? 'card') . '-qr.png'); ?>">
+                            QRコードを保存する
+                        </a>
+                        <p class="qr-code-save-note">保存できない場合は、QRコードを長押し（PCは右クリック）して保存してください。</p>
                     </div>
                 </div>
             </div>
@@ -1354,7 +1363,11 @@ if (!empty($card['profile_photo'])) {
             <?php else: ?>
                 <span id="chat-widget-toggle-avatar" class="chat-widget-toggle-avatar chat-widget-toggle-avatar-fallback" aria-hidden="true"><?php echo htmlspecialchars(mb_substr($card['name'] ?? 'AI', 0, 1)); ?></span>
             <?php endif; ?>
-            <span id="chat-widget-toggle-label" class="chat-widget-toggle-label"><?php echo htmlspecialchars(($card['name'] ?? '担当者') . ' AIエージェント'); ?></span>
+            <span class="chat-widget-toggle-text">
+                <!-- お客様のお名前が分かったら chat-widget.js が「●●様専用」を入れて表示する。 -->
+                <span id="chat-widget-toggle-owner" class="chat-widget-toggle-owner" hidden></span>
+                <span id="chat-widget-toggle-label" class="chat-widget-toggle-label">AI住まいコンシェルジュ</span>
+            </span>
         </button>
         <div id="chat-widget-panel" hidden class="chat-widget-panel">
             <div class="chat-widget-header" title="ドラッグで移動できます（PC）">

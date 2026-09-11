@@ -337,7 +337,7 @@ function orgAdminDisplayName(array $row): string
                     その免許番号で最初に登録した方は、免許番号の初回入力時に自動で<strong>統括（全閲覧）</strong>になります。以降の方は<strong>担当者（営業）</strong>です。<br>
                     統括（全閲覧）は<strong>同じ免許番号のメンバー全員</strong>を、マネージャー（店長）は<strong>自分の配下だけ</strong>を閲覧できます。
                     いずれも<strong>閲覧のみ</strong>で、顧客情報の編集・削除はできません。<br>
-                    マイページの一覧に出るのは<strong>入金済み（CR／振込済／ST送金）かつ OPEN</strong> の方のみです。<br>
+                    顧客管理の一覧に出るのは<strong>入金済み（CR／振込済／ST送金）かつ OPEN</strong> の方のみです。<br>
                     権限を「担当者」へ戻しても配下の紐付けは自動では外れません。配下がいる方を担当者に戻す場合は、配下の「上長」も付け替えてください。
                 </p>
 
@@ -345,7 +345,7 @@ function orgAdminDisplayName(array $row): string
                     <h3>法人プラン：階層分け機能の ON / OFF</h3>
                     <p class="org-note">
                         会社（宅建業免許番号）ごとに、階層分け機能を使えるかどうかを切り替えます。<br>
-                        <strong>OFF の会社では、マイページに「組織・配下顧客」が表示されません</strong>（URLを直接開いてもエラーになります）。<br>
+                        <strong>OFF の会社では、顧客管理に「組織・配下顧客」が表示されません</strong>（URLを直接開いてもエラーになります）。<br>
                         OFF にしても統括・店長・配下の設定は消えません。ON に戻せば、そのままの階層でご利用いただけます。<br>
                         <strong>既定は OFF です。</strong>法人プランをご契約いただいた会社だけを ON にしてください。<br>
                         会社の判定は免許番号で行うため、会社名の表記ゆれの影響は受けません。<br>
@@ -646,8 +646,8 @@ function orgAdminDisplayName(array $row): string
                     var label = self.getAttribute('data-company-name') || self.getAttribute('data-license-text') || 'この会社';
 
                     var confirmText = enabled
-                        ? label + ' の階層分け機能をONにします。\nマイページに「組織・配下顧客」が表示されるようになります。'
-                        : label + ' の階層分け機能をOFFにします。\nマイページから「組織・配下顧客」が非表示になります。\n（統括・店長・配下の設定は消えません）';
+                        ? label + ' の階層分け機能をONにします。\n顧客管理に「組織・配下顧客」が表示されるようになります。'
+                        : label + ' の階層分け機能をOFFにします。\n顧客管理から「組織・配下顧客」が非表示になります。\n（統括・店長・配下の設定は消えません）';
                     if (!confirm(confirmText)) {
                         self.checked = !enabled;
                         return;

@@ -874,7 +874,7 @@ function editSectionIcon(string $key): string
     <div class="edit-container">
         <header class="edit-header">
             <div class="edit-header-content">
-                <h1>マイページ（デジタル名刺作成・編集）</h1>
+                <h1>顧客管理</h1>
                 <p class="edit-header-lead">名刺の内容・顧客一覧・AI育成をこのページでまとめて管理できます。</p>
             </div>
             <button type="button" id="direct-input-btn" class="btn-direct-input">
@@ -1819,7 +1819,7 @@ function editSectionIcon(string $key): string
                         </div>
                         <p class="section-note">
                             店長を選ぶと「店舗全体（店長＋その配下の営業）」の顧客をまとめて確認できます。CSV出力も同じ範囲です。<br>
-                            <strong>顧客名</strong>を押すと、担当者のマイページに表示されている顧客詳細を<strong>閲覧のみ</strong>で確認できます。
+                            <strong>顧客名</strong>を押すと、担当者の顧客管理に表示されている顧客詳細を<strong>閲覧のみ</strong>で確認できます。
                         </p>
                         <div id="org-customer-list" class="org-team-list">
                             <p class="chat-history-loading">読み込み中...</p>
@@ -1828,7 +1828,7 @@ function editSectionIcon(string $key): string
                     </div>
 
                     <!-- 配下顧客の詳細（閲覧のみ）。
-                         担当者のマイページ「顧客詳細」と同じ内容を表示するが、
+                         担当者の顧客管理「顧客詳細」と同じ内容を表示するが、
                          編集・削除・チャットの代理返信の導線は一切置かない。 -->
                     <div id="org-customer-detail" class="org-team-block" style="display: none;">
                         <div class="org-team-toolbar">
@@ -1838,7 +1838,7 @@ function editSectionIcon(string $key): string
                             </div>
                         </div>
                         <p class="section-note">
-                            担当者のマイページに表示されている内容です。<strong>閲覧のみ</strong>で、編集・削除やチャットの代理返信はできません。
+                            担当者の顧客管理に表示されている内容です。<strong>閲覧のみ</strong>で、編集・削除やチャットの代理返信はできません。
                         </p>
                         <div id="org-customer-detail-content" class="chat-history-detail org-customer-detail-content"></div>
                     </div>
@@ -2586,8 +2586,8 @@ function editSectionIcon(string $key): string
     const endDateDisplay = endDateText !== '未設定' ? endDateText : '（未設定）';
 
     const confirmMessage =
-      '・停止されても、マイページで作って頂いたAI名刺はアカウントに残っています。\n\n' +
-      '・マイページからお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
+      '・停止されても、顧客管理で作って頂いたAI名刺はアカウントに残っています。\n\n' +
+      '・顧客管理からお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
       '・不動産DXツールをご利用いただいているお客様からの反響は配信されなくなります。\n\n' +
       '・期間終了時（' + endDateDisplay + '）に不動産AI名刺がご利用いただけなくなります。\n\n' +
       '利用を停止しますか？（次回のご請求はございません。）';
