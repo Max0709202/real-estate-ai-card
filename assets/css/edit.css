@@ -1933,7 +1933,7 @@ body {
 .chat-compose-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 8px; }
 .chat-compose-status { font-size: 0.8rem; color: #2a6db0; margin-right: auto; }
 
-/* ---- 組織・配下顧客（マネージャー／管理者向けの閲覧専用一覧）---- */
+/* ---- 組織・メンバー顧客（マネージャー／管理者向けの閲覧専用一覧）---- */
 .org-team-summary {
     display: flex;
     flex-wrap: wrap;

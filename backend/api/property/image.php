@@ -39,7 +39,7 @@ try {
     if (!empty($_SESSION['user_id']) && (int)$_SESSION['user_id'] === (int)$img['user_id']) {
         $isAgent = true;
     }
-    // 上長（統括（全閲覧）・マネージャー（店長））が「組織・配下顧客」から閲覧している場合。
+    // 上長（統括（全閲覧）・マネージャー（店長））が「組織・メンバー顧客」から閲覧している場合。
     // 社内の方なので担当者と同じ扱い（原本）で通す。閲覧範囲内の担当者の物件だけが対象。
     if (!$isAgent && !empty($_SESSION['user_id'])) {
         require_once __DIR__ . '/../../includes/org-hierarchy-helper.php';

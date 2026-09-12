@@ -190,7 +190,7 @@ if ($isLoggedIn) {
                     try {
                         $headerOrgUserId = (int)$_SESSION['user_id'];
                         $headerOrgLicenseKey = orgLicenseForUser($db, $headerOrgUserId)['key'];
-                        // 自分の宅建業者番号で会社が ON か、または「組織・配下顧客」を実際に使える方
+                        // 自分の宅建業者番号で会社が ON か、または「組織・メンバー顧客」を実際に使える方
                         // （宅建業者番号が未登録の店長など）に権限を表示する。
                         if (orgHierarchyEnabledForKey($db, $headerOrgLicenseKey)
                             || orgHierarchyEnabledForUser($db, $headerOrgUserId)) {

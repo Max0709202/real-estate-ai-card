@@ -61,7 +61,7 @@ Also ensure `BASE_URL` is correct for your environment.
   - `admin/org-hierarchy.php` — **operator (リニュアル仲介) only**. Shows every company, so it
     is never handed to a client. Requires an `admins` row; client `users` accounts cannot reach it.
     Its job is appointing each client company's top person as `admin` (統括).
-  - `edit.php` → **組織・配下顧客** — the client company's own screen. A 統括/店長 builds their
+  - `edit.php` → **組織・メンバー顧客** — the client company's own screen. A 統括/店長 builds their
     own hierarchy here, scoped to their own company.
 - Company scoping: `orgCompanyKey()` normalizes `business_cards.company_name`
   (strips 株式会社/(株)/whitespace, folds full-width) and assignment candidates must match it

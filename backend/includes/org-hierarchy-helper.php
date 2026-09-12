@@ -725,7 +725,7 @@ function orgEmailAllowedForKey(PDO $db, string $licenseKey, string $email): bool
 /**
  * 統括（全閲覧）に指名された方のログインメールを、その会社の利用可能メール一覧へ加える。
  *
- * マイページ「組織・配下顧客」で統括が別のメンバーを統括に指名したときに使う。
+ * マイページ「組織・メンバー顧客」で統括が別のメンバーを統括に指名したときに使う。
  * 店長指名と同じく、運営がメール登録するのを待たずに指名された統括がすぐ全閲覧を
  * 使えるようにするのが狙い。既に含まれていれば何もしない。
  * 会社の行がまだ無ければ何もしない（行が無い＝階層機能OFFで、指名操作まで到達しない）。
@@ -780,7 +780,7 @@ function orgHierarchyEnabledForUser(PDO $db, int $userId): bool
     if (orgHierarchyEnabledForKey($db, $licenseKey)) {
         if (orgEmailAllowedForKey($db, $licenseKey, (string)$viewer['email'])) return true;
 
-        // マネージャー（店長）は、その会社の統括（全閲覧）が「組織・配下顧客」で指名した方に限られる
+        // マネージャー（店長）は、その会社の統括（全閲覧）が「組織・メンバー顧客」で指名した方に限られる
         // （update-role.php / orgCanManageMember() で自社かどうかを検証済み）。
         // 店長の配下メンバーは店長自身が指定する運用のため、運営へのメール登録を待たずに使えるようにする。
         if ($isManager) return true;
@@ -788,7 +788,7 @@ function orgHierarchyEnabledForUser(PDO $db, int $userId): bool
         // 統括（全閲覧）に指名済みの方。
         // 指名そのものが運営（または既存の統括）の操作なので、利用可能メールの登録が
         // まだでも使えるようにする。登録漏れがあると、ヘッダーには「統括（全閲覧）」と
-        // 出ているのにメニューの「組織・配下顧客」だけ出ない、という食い違いになるため。
+        // 出ているのにメニューの「組織・メンバー顧客」だけ出ない、という食い違いになるため。
         // 黙って通すのではなく、ここで利用可能メールへ登録し、運営の管理画面からも
         // 「誰に許可されているか」が見えて解除もできる状態に揃える。
         if ($isAdmin && orgAllowAdminEmailForKey($db, $licenseKey, (string)$viewer['email'])) return true;

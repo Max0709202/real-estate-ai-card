@@ -17,7 +17,7 @@
 | section-template.webp | 6. テンプレート選択 | 物件外観 | https://unsplash.com/photos/1564013799919-ab600027ffc6 |
 | section-payment.webp | 7. 決済 | カード決済 | https://unsplash.com/photos/1563013544-824ae1b704d3 |
 | section-chat.webp | チャット履歴・顧客一覧 | 商談 | https://unsplash.com/photos/1681569685386-b7bda397672e |
-| section-org.webp | 組織・配下顧客 | チーム会議 | https://unsplash.com/photos/1731458769726-cef60c792665 |
+| section-org.webp | 組織・メンバー顧客 | チーム会議 | https://unsplash.com/photos/1731458769726-cef60c792665 |
 | section-ai.webp | AI育成 | AIイメージ | https://unsplash.com/photos/1677442136019-21780ecad995 |
 | section-band.webp | 自社帯登録 | 図面の作成 | https://unsplash.com/photos/1503387762-592deb58ef4e |
 
@@ -44,7 +44,7 @@ Unsplash License: https://unsplash.com/license
 | icons/layout-template.svg | 6. テンプレート選択 |
 | icons/credit-card.svg | 7. 決済 |
 | icons/message-square-text.svg | チャット履歴・顧客一覧 |
-| icons/network.svg | 組織・配下顧客 |
+| icons/network.svg | 組織・メンバー顧客 |
 | icons/brain-circuit.svg | AI育成 |
 | icons/panel-bottom.svg | 自社帯登録 |
 

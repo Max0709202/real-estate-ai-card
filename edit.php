@@ -511,7 +511,7 @@ $isUtilizingUser = !$isGuestAccess
     && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true);
 
 // 組織階層（統括→店長→営業）での閲覧権限。
-// 統括（全閲覧）・マネージャー（店長）にだけ「組織・配下顧客」を表示する。
+// 統括（全閲覧）・マネージャー（店長）にだけ「組織・メンバー顧客」を表示する。
 // 担当者（営業）と未設定のユーザーは従来どおり自分の顧客だけを見る。
 // さらに、階層分けは法人プランの機能なので、運営が ON にした会社（免許番号）に限る。
 // OFF の会社ではメニューもページ本体も出力しない（APIも同じ条件で拒否する）。
@@ -570,7 +570,7 @@ function editSectionIcon(string $key): string
         'template' => 'layout-template',      // テンプレート選択
         'payment'  => 'credit-card',          // 決済
         'chat'     => 'message-square-text',  // 顧客一覧
-        'org'      => 'network',              // 組織・配下顧客
+        'org'      => 'network',              // 組織・メンバー顧客
         'ai'       => 'brain-circuit',        // AI育成
         'band'     => 'panel-bottom',         // 自社帯登録
     ];
@@ -938,7 +938,7 @@ function editSectionIcon(string $key): string
                     </div>
                     <?php if ($canViewTeam): ?>
                     <a href="#org-team" class="nav-item" data-step="org" data-section="org-team-section">
-                        <span class="step-label">組織・配下顧客</span>
+                        <span class="step-label">組織・メンバー顧客</span>
                     </a>
                     <?php endif; ?>
                     <a href="#agent-training" class="nav-item" data-step="agent" data-section="agent-training-section">
@@ -1765,13 +1765,13 @@ function editSectionIcon(string $key): string
                     </div>
                 </div>
 
-                <!-- 組織・配下顧客（マネージャー／管理者のみ。閲覧専用） -->
+                <!-- 組織・メンバー顧客（マネージャー／管理者のみ。閲覧専用） -->
                 <?php if ($canViewTeam): ?>
                 <div id="org-team-section" class="edit-section" style="display: none;">
                     <div class="section-hero section-hero--org">
                         <?php echo editSectionIcon('org'); ?>
                         <div class="section-hero-text">
-                            <h2>組織・配下顧客</h2>
+                            <h2>組織・メンバー顧客</h2>
                             <p class="step-description">
                                 あなた（<?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>）が閲覧できる自社メンバーと、その方が対応しているお客様の一覧です。<br>
                                 統括（全閲覧）は<strong>自社の全員</strong>を、マネージャー（店長）は<strong>自分の配下</strong>を閲覧できます。<br>
@@ -5523,7 +5523,7 @@ function editSectionIcon(string $key): string
     </script>
 <?php if ($canViewTeam): ?>
     <script>
-        // 組織・配下顧客（マネージャー／管理者のみ）。
+        // 組織・メンバー顧客（マネージャー／管理者のみ）。
         // 顧客データは閲覧専用。書き込むのは「自組織の階層（誰が誰の配下か・権限）」だけで、
         // 対象はいずれも自社かつ自分の配下に限られる（サーバー側でも同じ条件を検証）。
         (function() {
