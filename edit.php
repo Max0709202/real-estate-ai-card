@@ -6070,7 +6070,7 @@ function editSectionIcon(string $key): string
                     + UI.prCommentBlockHtml(property)
                     + '<div class="prop-tabs">'
                     + '<button class="prop-tab is-active" data-tab="basic">基本情報</button>'
-                    + '<button class="prop-tab" data-tab="hazard">ハザード等情報</button>'
+                    + '<button class="prop-tab" data-tab="hazard">ハザード</button>'
                     + '<button class="prop-tab" data-tab="flyer">販売図面</button>'
                     + '<button class="prop-tab" data-tab="photo">写真・資料</button>'
                     + '</div>'

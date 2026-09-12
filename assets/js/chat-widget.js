@@ -3483,20 +3483,22 @@
             PUI.prCommentBlockHtml(p) +
             '<div class="prop-section-title">あなたの検討ステータス</div>' +
             '<div class="prop-status-grid" id="prop-cust-status">' + statusChips + '</div>' +
+            // タブは横スクロールせずに全部見えるようにする（スマートフォンは2段組み。property.css §10）。
+            // 並びは「基本情報→マップ→ハザード→販売図面→写真・資料→追加資料」。
             '<div class="prop-tabs">' +
                 '<button class="prop-tab is-active" data-ctab="basic">基本情報</button>' +
-                '<button class="prop-tab" data-ctab="hazard">ハザード等情報</button>' +
+                '<button class="prop-tab" data-ctab="map">マップ</button>' +
+                '<button class="prop-tab" data-ctab="hazard">ハザード</button>' +
                 '<button class="prop-tab" data-ctab="flyer">販売図面</button>' +
                 '<button class="prop-tab" data-ctab="photo">写真・資料</button>' +
                 '<button class="prop-tab" data-ctab="document">追加資料</button>' +
-                '<button class="prop-tab" data-ctab="map">マップ</button>' +
             '</div>' +
             '<div class="prop-tabpane is-active" data-cpane="basic">' + PUI.basicInfoHtml(p, false) + '</div>' +
+            '<div class="prop-tabpane" data-cpane="map"></div>' +
             '<div class="prop-tabpane" data-cpane="hazard">' + PUI.hazardHtml(p.hazard, p.hazard_fetched_at) + '</div>' +
             '<div class="prop-tabpane" data-cpane="flyer">' + PUI.galleryHtml(p.flyers, flyerOpts) + '</div>' +
             '<div class="prop-tabpane" data-cpane="photo">' + PUI.galleryHtml(p.photos, photoOpts) + '</div>' +
             '<div class="prop-tabpane" data-cpane="document">' + PUI.galleryHtml(p.documents, docOpts) + '</div>' +
-            '<div class="prop-tabpane" data-cpane="map"></div>' +
             '<div class="prop-form-actions" style="margin-top:16px"><button type="button" class="prop-btn prop-btn--primary" id="prop-cust-viewing">' + PUI.icon('calendar') + '内見予約を依頼する</button></div>' +
         '</div>';
         renderFeaturePanel(html);

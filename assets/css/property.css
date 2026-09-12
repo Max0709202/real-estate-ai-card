@@ -136,8 +136,11 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-detail__date { font-size: 12px; color: #8a8f98; margin-top: 6px; }
 
 /* ===== タブ（§10） =====
-   「基本情報／ハザード等情報／販売図面／写真・資料／マップ」を、どれを見ているかが
-   ひと目で分かるセグメント型にする。横に入り切らない場合はスクロールできる（スマホ）。 */
+   「基本情報／マップ／ハザード／販売図面／写真・資料／追加資料」を、どれを見ているかが
+   ひと目で分かるセグメント型にする。
+   PC・タブレットは1段の横並び。スマートフォンは横スクロールすると右端のタブ（マップなど）に
+   気づいてもらえないため、3列×2段のグリッドにして全部のタブを一度に見せる
+   （タブ表示改善依頼 2026.9.12）。 */
 .prop-tabs { display: flex; gap: 4px; margin: 14px 0 12px; padding: 4px;
   background: #f2f5fa; border: 1px solid #e6ebf3; border-radius: 12px;
   overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
@@ -150,6 +153,12 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-tab:focus-visible { outline: 2px solid #bcd4ff; outline-offset: 1px; }
 .prop-tabpane { display: none; }
 .prop-tabpane.is-active { display: block; }
+/* スマートフォン：3列×2段。iPhone SE（幅320px）でもはみ出さず、横スクロールも起きない。 */
+@media (max-width: 640px) {
+  .prop-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; overflow-x: visible; }
+  .prop-tab { flex: none; min-width: 0; padding: 10px 4px; font-size: 12px; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; }
+}
 
 /* ===== 基本情報テーブル（§11） ===== */
 .prop-info { width: 100%; border-collapse: collapse; }

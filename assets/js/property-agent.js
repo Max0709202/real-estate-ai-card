@@ -619,20 +619,21 @@
       '<div class="prop-pr" id="prop-pr"></div>' +
       '<div class="prop-section-title">対応ステータス（エージェント）</div>' +
       '<div class="prop-status-grid" id="prop-agent-status">' + statusChips + '</div>' +
+      // 顧客画面（chat-widget.js）と同じ並び・同じ呼び方にそろえる。
       '<div class="prop-tabs">' +
         '<button class="prop-tab is-active" data-tab="basic">基本情報</button>' +
-        '<button class="prop-tab" data-tab="hazard">ハザード等情報</button>' +
+        '<button class="prop-tab" data-tab="map">マップ</button>' +
+        '<button class="prop-tab" data-tab="hazard">ハザード</button>' +
         '<button class="prop-tab" data-tab="flyer">販売図面</button>' +
         '<button class="prop-tab" data-tab="photo">写真・資料</button>' +
         '<button class="prop-tab" data-tab="document">追加資料</button>' +
-        '<button class="prop-tab" data-tab="map">マップ</button>' +
       '</div>' +
       '<div class="prop-tabpane is-active" data-pane="basic">' + UI.basicInfoHtml(p, true) + '</div>' +
+      '<div class="prop-tabpane" data-pane="map"></div>' +
       '<div class="prop-tabpane" data-pane="hazard"></div>' +
       '<div class="prop-tabpane" data-pane="flyer"></div>' +
       '<div class="prop-tabpane" data-pane="photo"></div>' +
-      '<div class="prop-tabpane" data-pane="document"></div>' +
-      '<div class="prop-tabpane" data-pane="map"></div>';
+      '<div class="prop-tabpane" data-pane="document"></div>';
 
     // マップは詳細を開き直すたびに描き直す（前回の物件の地図が残らないようにする）。
     MAP_PROPERTY_ID = null;
