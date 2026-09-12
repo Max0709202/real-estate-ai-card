@@ -1339,7 +1339,7 @@ function editSectionIcon(string $key): string
                                         </div>
                                         <span>LINE</span>
                                     </label>
-                                    <div class="comm-details">
+                                    <div class="comm-details" style="display: none;">
                                         <input type="text" name="comm_line_id" class="form-control" placeholder="QRコードのリンクを入力">
                                     </div>
                                     <div class="comm-help-button-wrapper">
@@ -1360,7 +1360,7 @@ function editSectionIcon(string $key): string
                                         </div>
                                         <span>Messenger</span>
                                     </label>
-                                    <div class="comm-details">
+                                    <div class="comm-details" style="display: none;">
                                         <input type="text" name="comm_messenger_id" class="form-control" placeholder="プロフィールURLを入力">
                                     </div>
                                     <div class="comm-help-button-wrapper">
@@ -1381,7 +1381,7 @@ function editSectionIcon(string $key): string
                                         </div>
                                         <span>Chatwork</span>
                                     </label>
-                                    <div class="comm-details">
+                                    <div class="comm-details" style="display: none;">
                                         <input type="text" name="comm_chatwork_id" class="form-control" placeholder="チャットワークIDを入力">
                                     </div>
                                     <div class="comm-help-button-wrapper">

@@ -1832,6 +1832,18 @@ document.querySelectorAll('.communication-checkbox input[type="checkbox"]').forE
     });
 });
 
+// 入力欄に文字が入っているのにチェックが外れていると、保存時にその項目ごと
+// 捨てられてしまう（保存したつもりでも名刺に出ない）。入力を始めた時点で
+// チェックを入れ、入力した内容が必ず保存対象に入るようにする。
+document.querySelectorAll('.comm-details input').forEach(input => {
+    input.addEventListener('input', function() {
+        if (!this.value.trim()) return;
+        const item = this.closest('.communication-item');
+        const checkbox = item ? item.querySelector('.communication-checkbox input[type="checkbox"]') : null;
+        if (checkbox && !checkbox.checked) checkbox.checked = true;
+    });
+});
+
 // Step 1: Header & Greeting (Note: Account registration is now in new_register.php)
 // Track submission state for each form to prevent double submissions (especially important for iPhone)
 let isSubmittingStep1 = false;
