@@ -637,8 +637,9 @@
     // マップは詳細を開き直すたびに描き直す（前回の物件の地図が残らないようにする）。
     MAP_PROPERTY_ID = null;
 
-    // PRコメント（お客様へ届ける紹介文）。AI生成前の下書き状態は詳細を開き直したらリセットする。
-    PR_AI_DRAFT = null;
+    // PRコメント（お客様へ届ける紹介文）。AI生成・ブラッシュアップ前の下書き状態は
+    // 詳細を開き直したらリセットする。
+    PR_AI_DRAFT = null; PR_POLISH_DRAFT = null;
     renderPr(p, { editing: false });
 
     d.querySelector('#prop-back').addEventListener('click', renderList);
@@ -707,14 +708,17 @@
      ・営業担当者が最初から自分で入力できる（追加・編集・削除）
      ・「AIでPRコメントを生成」で下書きを作り、そのまま入力欄で加筆・修正できる
      ・「AIで再生成」で別の切り口の下書きに作り直せる
+     ・「AIでブラッシュアップ」で、自分で書いた文章の誤字・言い回しだけを整えられる
+       （内容は変えない。結果はプレビューで確認し、採用したときだけ入力欄に反映する）
      ・保存するのは担当者が確認・編集したあとの文章だけ（AIの出力は自動保存しない）
      AI側は①住戸固有 ②マンション全体 ③立地・周辺環境 を分析して訴求ポイントを選び、
      語る軸・順番・書き出しまで判断する。選ばれたポイントは入力欄の下に表示する。 */
   var PR_MAX = 1000;                 // 保存できる最大文字数（PHP propertyPrCommentMaxLength と一致）
-  var PR_SOURCE_LABELS = { manual: '手入力', ai: 'AI生成', ai_edited: 'AI生成を編集' };
+  var PR_SOURCE_LABELS = { manual: '手入力', ai: 'AI生成', ai_edited: 'AI生成を編集', ai_polished: 'AIでブラッシュアップ' };
   var PR_FOCUS_LABELS = { unit: '住戸', building: 'マンション', location: '立地' };
   var PR_CATEGORY_LABELS = { unit: '住戸', building: '建物', location: '立地' };
   var PR_AI_DRAFT = null;            // 直近にAIが生成した文章（保存時の入力方法の判定に使う）
+  var PR_POLISH_DRAFT = null;        // 直近にブラッシュアップを採用した文章（同上）
 
   function prHost() { return P ? P.querySelector('#prop-pr') : null; }
 
@@ -732,8 +736,22 @@
       '</ol></div>';
   }
 
+  /* ブラッシュアップ結果のプレビュー（担当連絡チャットの推敲と同じく、採用するまで入力欄は書き換えない） */
+  function prPolishHtml(state) {
+    if (!state.polish) return '';
+    return '<div class="prop-pr__polish">' +
+      '<div class="prop-pr__polish-head">ブラッシュアップ結果プレビュー' +
+        '<span class="prop-pr__polish-len">' + state.polish.length + '字</span></div>' +
+      '<div class="prop-pr__polish-body">' + esc(state.polish) + '</div>' +
+      '<div class="prop-pr__polish-actions">' +
+        '<button type="button" class="prop-btn prop-btn--primary" data-pr="polish-apply">この文章に置き換える</button>' +
+        '<button type="button" class="prop-btn prop-btn--ghost" data-pr="polish-close">閉じる</button>' +
+      '</div></div>';
+  }
+
   /* state: { editing: 編集中か, draft: 入力欄に表示する文章（未指定なら保存済みの文章）,
-             points/focus: AIが選んだ訴求ポイント（生成直後のみ） } */
+             points/focus: AIが選んだ訴求ポイント（生成直後のみ）,
+             polish: ブラッシュアップ結果（採用・閉じるまで表示） } */
   function renderPr(p, state) {
     var host = prHost();
     if (!host) return;
@@ -747,13 +765,16 @@
     if (state.editing) {
       html = head +
         '<textarea class="prop-pr__input" id="prop-pr-input" rows="9" maxlength="' + PR_MAX + '" ' +
-          'placeholder="お客様へ届けるPRコメントを入力してください（250〜350字程度）。「AIでPRコメントを生成」で下書きを作り、加筆・修正することもできます。">' +
+          'placeholder="お客様へ届けるPRコメントを入力してください（250〜350字程度）。「AIでPRコメントを生成」で下書きを作ることも、書いた文章を「AIでブラッシュアップ」で整えることもできます。">' +
           esc(text) + '</textarea>' +
         '<div class="prop-pr__count" id="prop-pr-count"></div>' +
         prPlanHtml(state) +
+        prPolishHtml(state) +
         '<div class="prop-pr__actions">' +
           '<button type="button" class="prop-btn prop-btn--ghost" data-pr="gen">' + UI.icon('refresh') +
             (text.trim() ? 'AIで再生成' : 'AIでPRコメントを生成') + '</button>' +
+          '<button type="button" class="prop-btn prop-btn--ghost" data-pr="polish">' + UI.icon('edit') +
+            'AIでブラッシュアップ</button>' +
           '<button type="button" class="prop-btn prop-btn--primary" data-pr="save">保存</button>' +
           '<button type="button" class="prop-btn prop-btn--ghost" data-pr="cancel">キャンセル</button>' +
         '</div>';
@@ -779,10 +800,10 @@
     }
 
     host.innerHTML = html;
-    bindPr(p);
+    bindPr(p, state);
   }
 
-  function bindPr(p) {
+  function bindPr(p, state) {
     var host = prHost();
     if (!host) return;
     var input = host.querySelector('#prop-pr-input');
@@ -807,6 +828,17 @@
         }
         if (act === 'cancel') { renderPr(p, { editing: false }); return; }
         if (act === 'gen') { prGenerate(p, input ? input.value : '', !!input); return; }
+        if (act === 'polish') { prPolish(p, input ? input.value : ''); return; }
+        // 採用＝入力欄を推敲後の文章に置き換える／閉じる＝入力中の文章を保ったままプレビューだけ消す。
+        if (act === 'polish-apply') {
+          PR_POLISH_DRAFT = state.polish;
+          renderPr(p, { editing: true, draft: state.polish, points: state.points, focus: state.focus });
+          return;
+        }
+        if (act === 'polish-close') {
+          renderPr(p, { editing: true, draft: input ? input.value : '', points: state.points, focus: state.focus });
+          return;
+        }
         if (act === 'save') { prSave(p, input ? input.value : ''); return; }
         if (act === 'del') { prDelete(p); return; }
       });
@@ -845,12 +877,45 @@
     });
   }
 
+  /* ブラッシュアップ（保存はしない）。担当者が書いた文章の内容は変えず、誤字・言い回しだけ整える。
+     結果はプレビューに表示し、「この文章に置き換える」を押したときだけ入力欄へ反映する。 */
+  function prPolish(p, current) {
+    var text = (current || '').trim();
+    if (!text) { notify('error', 'ブラッシュアップする文章を入力してください'); return; }
+    if (text.length > PR_MAX) { notify('error', 'PRコメントは' + PR_MAX + '字以内で入力してください'); return; }
+    var host = prHost();
+    if (!host) return;
+    host.querySelectorAll('[data-pr]').forEach(function (b) { b.disabled = true; });
+    var btn = host.querySelector('[data-pr="polish"]');
+    if (btn) btn.innerHTML = '<span class="prop-spinner"></span> 推敲中...';
+
+    api('/pr-comment-polish.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ property_id: p.id, text: current })
+    }).then(function (res) {
+      if (!res.success || !res.data || !res.data.pr_comment) {
+        notify('error', (res && res.message) || 'ブラッシュアップできませんでした');
+        renderPr(p, { editing: true, draft: current || '' });
+        return;
+      }
+      renderPr(p, { editing: true, draft: current || '', polish: res.data.pr_comment });
+      notify('ok', 'ブラッシュアップしました。内容をご確認のうえ、採用する場合は入力欄へ反映してください。');
+    }).catch(function () {
+      notify('error', '通信に失敗しました');
+      renderPr(p, { editing: true, draft: current || '' });
+    });
+  }
+
   function prSave(p, value) {
     var text = (value || '').trim();
     if (!text) { notify('error', 'PRコメントを入力してください'); return; }
     if (text.length > PR_MAX) { notify('error', 'PRコメントは' + PR_MAX + '字以内で入力してください'); return; }
-    // 入力方法（担当画面の表示用）: AI生成をそのまま保存したか、編集して保存したか、手入力か。
-    var source = PR_AI_DRAFT == null ? 'manual' : (text === PR_AI_DRAFT.trim() ? 'ai' : 'ai_edited');
+    // 入力方法（担当画面の表示用）: AI生成をそのまま／AIでブラッシュアップした文章をそのまま／
+    // AIの文章を編集して保存したか、手入力か。
+    var source = 'manual';
+    if (PR_AI_DRAFT != null && text === PR_AI_DRAFT.trim()) source = 'ai';
+    else if (PR_POLISH_DRAFT != null && text === PR_POLISH_DRAFT.trim()) source = 'ai_polished';
+    else if (PR_AI_DRAFT != null || PR_POLISH_DRAFT != null) source = 'ai_edited';
     var host = prHost();
     if (host) {
       host.querySelectorAll('[data-pr]').forEach(function (b) { b.disabled = true; });
@@ -869,7 +934,7 @@
       p.pr_comment = res.data.pr_comment;
       p.pr_comment_source = res.data.pr_comment_source;
       p.pr_comment_updated_at = res.data.pr_comment_updated_at;
-      PR_AI_DRAFT = null;
+      PR_AI_DRAFT = null; PR_POLISH_DRAFT = null;
       renderPr(p, { editing: false });
       notify('ok', 'PRコメントを保存しました');
     }).catch(function () {
@@ -886,7 +951,7 @@
     }).then(function (res) {
       if (!res.success) { notify('error', res.message || '削除に失敗しました'); return; }
       p.pr_comment = null; p.pr_comment_source = null; p.pr_comment_updated_at = null;
-      PR_AI_DRAFT = null;
+      PR_AI_DRAFT = null; PR_POLISH_DRAFT = null;
       renderPr(p, { editing: false });
       notify('ok', 'PRコメントを削除しました');
     }).catch(function () { notify('error', '通信に失敗しました'); });

@@ -238,7 +238,7 @@ if (!function_exists('propertyEnsurePrCommentColumns')) {
         $alters = [
             // 物件提案時に担当者がお客様へ届ける紹介文（250〜350字程度）
             ['pr_comment', "ADD COLUMN pr_comment TEXT NULL DEFAULT NULL AFTER remarks"],
-            // manual=手入力 / ai=AI生成をそのまま保存 / ai_edited=AI生成を編集して保存
+            // manual=手入力 / ai=AI生成をそのまま保存 / ai_edited=AI生成を編集して保存 / ai_polished=AIでブラッシュアップした文章を保存
             ['pr_comment_source', "ADD COLUMN pr_comment_source VARCHAR(16) NULL DEFAULT NULL AFTER pr_comment"],
             ['pr_comment_updated_at', "ADD COLUMN pr_comment_updated_at TIMESTAMP NULL DEFAULT NULL AFTER pr_comment_source"],
         ];
@@ -860,6 +860,118 @@ if (!function_exists('propertyGeneratePrComment')) {
             return ['comment' => null, 'plan' => null, 'error' => 'PRコメントを生成できませんでした。時間をおいてお試しください。'];
         }
         return ['comment' => mb_substr($best, 0, propertyPrCommentMaxLength()), 'plan' => $plan, 'error' => null];
+    }
+}
+
+/* ──────────────────────────────────────────────────────────
+ * PRコメントのブラッシュアップ（担当者が書いた文章の推敲）
+ * 「AIで生成」がAIに文章を作らせるのに対し、こちらは担当者が書いた文章を
+ * そのまま活かして、誤字・変換ミス・言い回しだけを整える。
+ * 担当連絡チャットの「ブラッシュアップ」と同じ考え方・同じモデルを使う。
+ * ────────────────────────────────────────────────────────── */
+if (!function_exists('propertyPrCommentPolishModel')) {
+    /** ブラッシュアップに使うモデル（品質重視。担当連絡チャットの推敲と同じ）。環境変数で上書き可。 */
+    function propertyPrCommentPolishModel(): string
+    {
+        if (defined('OPENAI_MODEL_POLISH') && OPENAI_MODEL_POLISH !== '') return OPENAI_MODEL_POLISH;
+        return getenv('OPENAI_MODEL_POLISH') ?: 'gpt-5.5';
+    }
+}
+
+if (!function_exists('propertyPrCommentPolishNormalize')) {
+    /**
+     * 推敲結果から、AIが勝手に付けがちなコードフェンス・見出し・強調記号だけを取り除く。
+     * 担当者がもともと書いていた箇条書き（・）や改行はそのまま残す（生成時の整形とは別扱い）。
+     */
+    function propertyPrCommentPolishNormalize(string $text): string
+    {
+        $t = trim($text);
+        $t = preg_replace('/^```[a-zA-Z]*\n?|```$/u', '', $t);
+        $t = preg_replace('/^[ 　\t]*#+[ 　\t]*/mu', '', $t);
+        $t = preg_replace('/\*\*(.+?)\*\*/u', '$1', $t);
+        $t = preg_replace('/\n{3,}/u', "\n\n", $t);
+        return trim((string)$t);
+    }
+}
+
+if (!function_exists('propertyPrCommentPolishPrompt')) {
+    function propertyPrCommentPolishPrompt(): string
+    {
+        return "あなたは不動産売買仲介のベテラン営業担当者です。\n"
+            . "担当者が書いたPRコメントの下書きを、お客様にそのまま送れる文章に推敲してください。\n"
+            . "書き直すのではなく、担当者が伝えようとしている内容をそのまま活かして整えます。\n"
+            . "\n"
+            . "【必ず守るルール】\n"
+            . "・書かれている内容・事実・伝えたい意図は変えない。情報を足さない、削らない。\n"
+            . "・誤字脱字・変換ミス・助詞の誤り・重複した言い回し・ねじれた文を直す。\n"
+            . "・お客様へ送る営業文として、敬語・語尾・文のつながりを自然に整える。\n"
+            . "・固有名詞（会社名・マンション名・お客様のお名前）・数値・日付・金額・URLは書き換えない。"
+            . "明らかな変換ミスの場合のみ正しい表記に直す。\n"
+            . "・改行・段落の区切りは下書きのまま残す。箇条書きになっている部分は箇条書きのままにする。\n"
+            . "・文章量は下書きと大きく変えない（増減は2割程度まで）。\n"
+            . "・見出し・記号・マークダウン・絵文字は足さない。宛名・挨拶・署名も足さない。\n"
+            . "・推敲後のPRコメント本文だけを出力する。説明・注釈・前置きは書かない。";
+    }
+}
+
+if (!function_exists('propertyPolishPrComment')) {
+    /**
+     * 担当者が入力したPRコメントを推敲して返す。
+     * 返り値: ['comment' => 推敲後の本文 or null, 'error' => エラーメッセージ or null]
+     * $row は propertyVerifyAgentProperty() の物件行（登録情報は表記ゆれの確認用に渡すだけ）。
+     */
+    function propertyPolishPrComment(PDO $db, array $row, string $text): array
+    {
+        if (!function_exists('callOpenAIChat')) {
+            return ['comment' => null, 'error' => 'AI機能を利用できません'];
+        }
+        $draft = trim($text);
+        if ($draft === '') {
+            return ['comment' => null, 'error' => 'ブラッシュアップする文章を入力してください'];
+        }
+
+        $model = propertyPrCommentPolishModel();
+        $apiKey = chatOpenAIApiKeyForModel($model);
+        if ($apiKey === '' || $apiKey === 'YOUR_OPENAI_API_KEY_HERE') {
+            return ['comment' => null, 'error' => 'AIの設定が未完了のため実行できません'];
+        }
+
+        // 登録情報は「表記が合っているかの確認」だけに使わせる（これを根拠に加筆させない）。
+        $facts = propertyPrCommentFacts($row);
+        $user = "【担当者が書いたPRコメントの下書き】\n" . $draft;
+        if (!empty($facts)) {
+            $user .= "\n\n【この物件の登録情報（参考）】\n" . implode("\n", $facts)
+                . "\n※ 固有名詞や数値の表記を確認するためだけの参考情報です。ここにある情報を下書きに書き足さないでください。";
+        }
+
+        $res = callOpenAIChat(
+            [
+                ['role' => 'system', 'content' => propertyPrCommentPolishPrompt()],
+                ['role' => 'user', 'content' => $user],
+            ],
+            $apiKey,
+            $model,
+            [
+                'db' => $db,
+                'session_id' => $row['session_id'] ?? null,
+                'business_card_id' => isset($row['business_card_id']) ? (int)$row['business_card_id'] : null,
+                'purpose' => 'pr_comment_polish',
+                // 下書きは最大1000字。推敲後の本文が途中で切れないよう余裕を持たせる。
+                'max_tokens' => 1400,
+                'temperature' => 0.4,
+                'timeout' => 40,
+            ]
+        );
+        if (empty($res['reply'])) {
+            error_log('property pr-comment polish failed: ' . (string)($res['error'] ?? 'unknown'));
+            return ['comment' => null, 'error' => 'ブラッシュアップできませんでした。時間をおいてお試しください。'];
+        }
+
+        $polished = propertyPrCommentPolishNormalize((string)$res['reply']);
+        if ($polished === '') {
+            return ['comment' => null, 'error' => 'ブラッシュアップできませんでした。時間をおいてお試しください。'];
+        }
+        return ['comment' => mb_substr($polished, 0, propertyPrCommentMaxLength()), 'error' => null];
     }
 }
 

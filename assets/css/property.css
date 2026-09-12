@@ -333,6 +333,14 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-pr__plan-cat { display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 999px;
   background: #fff; border: 1px solid #cfdcf5; color: #2459bd; font-size: 10px; font-weight: 800; vertical-align: 1px; }
 
+/* ブラッシュアップ結果のプレビュー（採用するまで入力欄は書き換えない） */
+.prop-pr__polish { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #fff8ec; border: 1px solid #f2dfbe; }
+.prop-pr__polish-head { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; color: #a86a12; margin-bottom: 6px; }
+.prop-pr__polish-len { font-weight: 700; color: #b99257; }
+.prop-pr__polish-body { padding: 10px; border-radius: 8px; background: #fff; border: 1px solid #f0e3cd;
+  font-size: 13px; line-height: 1.8; color: #263043; white-space: pre-wrap; }
+.prop-pr__polish-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
 /* 顧客側の物件詳細に表示する読み取り専用ブロック */
 .prop-pr-view { margin: 12px 0; padding: 14px; border-radius: 12px; background: #eef4ff; border: 1px solid #d6e4ff; }
 .prop-pr-view__head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: #2459bd; margin-bottom: 8px; }
