@@ -3479,7 +3479,7 @@
         }).join('');
         var html = '<div class="prop-wrap" id="prop-cust">' +
             '<div class="prop-toolbar"><button type="button" class="prop-btn prop-btn--ghost" id="prop-cust-back">← 物件一覧</button></div>' +
-            PUI.detailHeaderHtml(p) +
+            PUI.detailHeaderHtml(p, propAuthOpts()) +
             PUI.prCommentBlockHtml(p) +
             '<div class="prop-section-title">あなたの検討ステータス</div>' +
             '<div class="prop-status-grid" id="prop-cust-status">' + statusChips + '</div>' +

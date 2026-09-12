@@ -129,6 +129,14 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 
 /* ===== 詳細ヘッダ（§9） ===== */
 .prop-detail__header { display: flex; flex-direction: column; gap: 6px; padding: 4px 2px 12px; border-bottom: 1px solid #eef1f6; }
+/* 物件名の右側の空きスペースにサムネイルを置く（PC・スマートフォン共通）。
+   写真が無い物件はこのクラスが付かないため、これまで通り全幅で表示される。 */
+.prop-detail__header--thumb { flex-direction: row; align-items: flex-start; gap: 12px; }
+.prop-detail__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.prop-detail__thumb {
+  width: 110px; height: 110px; flex: 0 0 110px; border-radius: 10px; object-fit: cover;
+  background: #eef1f6; border: 1px solid #e5e9f0; cursor: zoom-in;
+}
 .prop-detail__title { font-size: 18px; font-weight: 800; color: #14223a; }
 .prop-detail__price { font-size: 20px; font-weight: 800; color: #e8384f; }
 .prop-detail__sub { font-size: 13px; color: #5b6675; }
@@ -427,6 +435,8 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 @media (max-width: 560px) {
   .prop-form { grid-template-columns: 1fr; }
   .prop-card__thumb { width: 80px; height: 80px; flex-basis: 80px; }
+  /* スマートフォンでは物件名が狭くならないよう、詳細ヘッダのサムネイルを少し小さくする。 */
+  .prop-detail__thumb { width: 88px; height: 88px; flex-basis: 88px; }
 }
 
 /* ===== マップ・周辺情報（マップ情報表示依頼 2026.9.3） =====

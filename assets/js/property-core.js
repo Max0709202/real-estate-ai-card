@@ -340,20 +340,32 @@
     return url + sep + q.join('&');
   }
 
-  /* ===== 詳細ヘッダ（§9） ===== */
-  function detailHeaderHtml(p) {
+  /* ===== 詳細ヘッダ（§9） =====
+     物件名の右側の空いているところに、一覧と同じサムネイル（メイン画像）を置く。
+     PC・スマートフォンのどちらでも右寄せで表示し、押すと拡大できる（bindLightbox の data-full）。
+     写真が未登録の物件では何も置かず、これまで通り文字だけを表示する。
+     opts: 顧客側は addAuth 用の認証情報（sessionId / visitorId / viewToken）を渡す。 */
+  function detailHeaderHtml(p, opts) {
+    opts = opts || {};
     var name = esc(displayName(p));
     var sub = [];
     if (p.layout) sub.push(esc(p.layout));
     if (p.exclusive_area) sub.push(esc(p.exclusive_area));
     else if (p.land_area) sub.push('土地' + esc(p.land_area));
     var regDate = formatDate(p.created_at);
-    return '<div class="prop-detail__header">' +
-      '<div class="prop-detail__title">' + name + '</div>' +
-      (p.price_text ? '<div class="prop-detail__price">' + esc(p.price_text) + '</div>' : '') +
-      (sub.length ? '<div class="prop-detail__sub">' + sub.join('｜') + '</div>' : '') +
-      '<div class="prop-detail__badges">' + sourceHtml(p) + (statusBadgeHtml(p, true) || '') + '</div>' +
-      (regDate ? '<div class="prop-detail__date">登録日 ' + esc(regDate) + '</div>' : '') +
+    var thumbUrl = p.main_image_url ? esc(addAuth(p.main_image_url, opts)) : '';
+    var thumb = thumbUrl
+      ? '<img class="prop-detail__thumb" src="' + thumbUrl + '" alt="' + name + '" loading="lazy" data-full="' + thumbUrl + '">'
+      : '';
+    return '<div class="prop-detail__header' + (thumb ? ' prop-detail__header--thumb' : '') + '">' +
+      '<div class="prop-detail__main">' +
+        '<div class="prop-detail__title">' + name + '</div>' +
+        (p.price_text ? '<div class="prop-detail__price">' + esc(p.price_text) + '</div>' : '') +
+        (sub.length ? '<div class="prop-detail__sub">' + sub.join('｜') + '</div>' : '') +
+        '<div class="prop-detail__badges">' + sourceHtml(p) + (statusBadgeHtml(p, true) || '') + '</div>' +
+        (regDate ? '<div class="prop-detail__date">登録日 ' + esc(regDate) + '</div>' : '') +
+      '</div>' +
+      thumb +
     '</div>';
   }
 
