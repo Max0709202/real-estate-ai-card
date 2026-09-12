@@ -90,7 +90,7 @@ if (!function_exists('propertyEnsureTables')) {
           id INT AUTO_INCREMENT PRIMARY KEY,
           property_id INT NOT NULL,
           business_card_id INT NOT NULL,
-          category ENUM('flyer','photo') NOT NULL DEFAULT 'photo',
+          category ENUM('flyer','photo','document') NOT NULL DEFAULT 'photo',
           subcategory VARCHAR(32) NULL DEFAULT NULL,
           original_name VARCHAR(255) NULL DEFAULT NULL,
           stored_path VARCHAR(512) NOT NULL,
@@ -112,6 +112,7 @@ if (!function_exists('propertyEnsureTables')) {
           INDEX idx_property_images_expires (expires_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         propertyEnsureFlyerMaskColumns($db);
+        propertyEnsureDocumentCategory($db);
         propertyEnsureRetentionColumns($db);
         propertyEnsurePrCommentColumns($db);
         propertyEnsureGeoColumns($db);
@@ -145,6 +146,27 @@ if (!function_exists('propertyEnsureFlyerMaskColumns')) {
                 }
             } catch (Throwable $e) { /* 既に存在 / 権限不足は無視 */ }
         }
+    }
+}
+
+if (!function_exists('propertyEnsureDocumentCategory')) {
+    /**
+     * 既存の property_images の category に 'document'（追加資料）を冪等に足す。
+     *
+     * 物件に紐づく参考資料（管理規約・重要事項説明書・周辺情報など）を、
+     * 販売図面や写真とは別の「追加資料」タブで扱えるようにするためのもの。
+     */
+    function propertyEnsureDocumentCategory(PDO $db): void
+    {
+        try {
+            $stmt = $db->prepare("SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+                                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'property_images' AND COLUMN_NAME = 'category'");
+            $stmt->execute();
+            $type = (string)($stmt->fetchColumn() ?: '');
+            if ($type === '' || strpos($type, "'document'") !== false) return;
+            $db->exec("ALTER TABLE property_images
+                       MODIFY COLUMN category ENUM('flyer','photo','document') NOT NULL DEFAULT 'photo'");
+        } catch (Throwable $e) { /* 既に拡張済み / 権限不足は無視 */ }
     }
 }
 
@@ -1053,6 +1075,8 @@ if (!function_exists('propertySerialize')) {
         $images = propertyImagesFor($db, (int)$row['id']);
         $flyers = array_values(array_filter($images, fn($i) => $i['category'] === 'flyer'));
         $photos = array_values(array_filter($images, fn($i) => $i['category'] === 'photo'));
+        // 追加資料（物件に紐づく参考資料）。販売図面のようなマスク処理は行わず、そのままお渡しする。
+        $documents = array_values(array_filter($images, fn($i) => $i['category'] === 'document'));
 
         // 顧客向けには「担当が編集・確認を完了して公開した（customer_visible=1）」販売図面のみ公開する。
         // 編集未完了のものは絶対に出さない（売主仲介会社情報の漏えい防止）。配信は常にマスク済PDF。
@@ -1139,9 +1163,11 @@ if (!function_exists('propertySerialize')) {
         if ($withImages) {
             $out['flyers'] = $flyers;
             $out['photos'] = $photos;
+            $out['documents'] = $documents;
         } else {
             $out['flyer_count'] = count($flyers);
             $out['photo_count'] = count($photos);
+            $out['document_count'] = count($documents);
         }
 
         if ($forAgent) {
@@ -1821,17 +1847,56 @@ if (!function_exists('propertyMaskRegionsByPage')) {
 if (!function_exists('propertyClampRegion')) {
     /** 正規化矩形を 0..1 に丸め、極端に小さい矩形を除外。無効なら null。
      *  $t は種別 'band'（自社帯を合成）/ 'mask'（白塗り, 既定）。 */
-    function propertyClampRegion($x, $y, $w, $h, $t = null): ?array
+    function propertyClampRegion($x, $y, $w, $h, $t = null, $c = null): ?array
     {
         $x = max(0.0, min(1.0, (float)$x));
         $y = max(0.0, min(1.0, (float)$y));
         $w = max(0.0, min(1.0 - $x, (float)$w));
         $h = max(0.0, min(1.0 - $y, (float)$h));
         if ($w < 0.02 || $h < 0.01) return null;
-        return [
+        $out = [
             'x' => round($x, 4), 'y' => round($y, 4), 'w' => round($w, 4), 'h' => round($h, 4),
             't' => ($t === 'band' ? 'band' : 'mask'),
         ];
+        // 塗りつぶしの色（#RRGGBB）。スポイトで図面から拾った色を保持する。
+        // 指定が無い／書式が不正なときは持たせず、従来どおり白で塗る。
+        $color = propertyNormalizeMaskColor($c);
+        if ($color !== null && $out['t'] !== 'band') $out['c'] = $color;
+        return $out;
+    }
+}
+
+if (!function_exists('propertyNormalizeMaskColor')) {
+    /** マスクの塗り色を #RRGGBB に正規化する。指定なし・不正な値は null（＝白塗り）。 */
+    function propertyNormalizeMaskColor($value): ?string
+    {
+        $s = strtolower(trim((string)$value));
+        if ($s === '') return null;
+        if ($s[0] !== '#') $s = '#' . $s;
+        // #RGB の短縮形も受け取って #RRGGBB に展開する。
+        if (preg_match('/^#([0-9a-f]{3})$/', $s, $m)) {
+            $s = '#' . $m[1][0] . $m[1][0] . $m[1][1] . $m[1][1] . $m[1][2] . $m[1][2];
+        }
+        return preg_match('/^#[0-9a-f]{6}$/', $s) ? $s : null;
+    }
+}
+
+if (!function_exists('propertyMaskFillColor')) {
+    /**
+     * 範囲の塗り色を GD の色番号として返す。色指定が無ければ白。
+     * 同じ色を何度も allocate しないよう、画像リソースごとに覚えておく。
+     */
+    function propertyMaskFillColor($img, array $region, array &$cache)
+    {
+        $hex = propertyNormalizeMaskColor($region['c'] ?? null) ?? '#ffffff';
+        if (isset($cache[$hex])) return $cache[$hex];
+        $cache[$hex] = imagecolorallocate(
+            $img,
+            (int)hexdec(substr($hex, 1, 2)),
+            (int)hexdec(substr($hex, 3, 2)),
+            (int)hexdec(substr($hex, 5, 2))
+        );
+        return $cache[$hex];
     }
 }
 
@@ -1846,15 +1911,16 @@ if (!function_exists('propertyFlyerApplyMask')) {
         $img = @imagecreatefromjpeg($previewAbsPath);
         if (!$img) return null;
         $w = imagesx($img); $h = imagesy($img);
-        $fill = imagecolorallocate($img, 255, 255, 255); // 白べた（塗りつぶし感を抑える）
+        $colors = []; // 同じ色を何度も allocate しないための控え
         foreach ($regions as $r) {
-            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0);
+            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0, $r['t'] ?? null, $r['c'] ?? null);
             if (!$reg) continue;
             $x0 = (int)round($reg['x'] * $w);
             $y0 = (int)round($reg['y'] * $h);
             $x1 = (int)round(($reg['x'] + $reg['w']) * $w);
             $y1 = (int)round(($reg['y'] + $reg['h']) * $h);
-            imagefilledrectangle($img, $x0, $y0, $x1, $y1, $fill);
+            // 色の指定があればその色で、無ければ従来どおり白で塗る。
+            imagefilledrectangle($img, $x0, $y0, $x1, $y1, propertyMaskFillColor($img, $reg, $colors));
         }
         $relDir = 'property/' . $businessCardId . '/' . $propertyId;
         $absDir = rtrim(UPLOAD_DIR, '/') . '/' . $relDir;
@@ -1988,14 +2054,15 @@ if (!function_exists('propertyFlyerBandAbsPath')) {
 
 if (!function_exists('propertyApplyMaskToJpeg')) {
     /** JPEGに正規化矩形を適用して $outPath に保存（GD）。成功で true。
-     *  t='band' の矩形は自社帯画像を合成、それ以外は白べた。 */
+     *  t='band' の矩形は自社帯画像を合成、それ以外は塗りつぶし
+     *  （範囲に色 c の指定があればその色、無ければ白）。 */
     function propertyApplyMaskToJpeg(string $srcJpeg, array $regions, string $outPath, ?string $bandAbsPath = null): bool
     {
         if (!function_exists('imagecreatefromjpeg')) return false;
         $img = @imagecreatefromjpeg($srcJpeg);
         if (!$img) return false;
         $w = imagesx($img); $h = imagesy($img);
-        $fill = imagecolorallocate($img, 255, 255, 255); // 白べた（塗りつぶし感を抑える）
+        $colors = []; // 同じ色を何度も allocate しないための控え
 
         // 自社帯画像（あれば）を一度だけ読み込む。読み込めない場合は白マスクにフォールバック。
         $band = null;
@@ -2010,17 +2077,17 @@ if (!function_exists('propertyApplyMaskToJpeg')) {
         $masks = [];
         $bands = [];
         foreach ($regions as $r) {
-            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0, $r['t'] ?? null);
+            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0, $r['t'] ?? null, $r['c'] ?? null);
             if (!$reg) continue;
             if ($reg['t'] === 'band' && $band) $bands[] = $reg;
             else $masks[] = $reg; // mask、または帯未登録/読込失敗時のフォールバック
         }
-        // 1) 白マスクを先に描画
+        // 1) マスクを先に描画（色の指定があればその色、無ければ従来どおり白）
         foreach ($masks as $reg) {
             $x0 = (int)round($reg['x'] * $w); $y0 = (int)round($reg['y'] * $h);
             $rw = (int)round($reg['w'] * $w); $rh = (int)round($reg['h'] * $h);
             if ($rw < 1 || $rh < 1) continue;
-            imagefilledrectangle($img, $x0, $y0, $x0 + $rw, $y0 + $rh, $fill);
+            imagefilledrectangle($img, $x0, $y0, $x0 + $rw, $y0 + $rh, propertyMaskFillColor($img, $reg, $colors));
         }
         // 2) 自社帯を上に重ねて描画（矩形にフィット＝A4横帯を前提に引き伸ばす）
         foreach ($bands as $reg) {

@@ -5,7 +5,8 @@
  *
  * GET  ?image_id=            → { preview_url, width, height, regions, mask_status, masked_url }
  * POST { image_id, regions } → マスクを適用し顧客用マスク済PDFを生成。{ mask_status:'masked', ... }
- *   regions: [{x,y,w,h}]（正規化座標 0..1, 左上原点）。空配列なら下端帯を既定採用。
+ *   regions: [{x,y,w,h,t,c}]（正規化座標 0..1, 左上原点 / t=mask|band / c=#RRGGBB 塗り色）。
+ *   空配列なら下端帯を既定採用。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -86,7 +87,8 @@ try {
         $regions = [];
         foreach (($input['regions'] ?? []) as $r) {
             if (!is_array($r)) continue;
-            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0, $r['t'] ?? null);
+            // 塗り色（スポイトで拾った色）も保持する。指定が無ければ従来どおり白。
+            $reg = propertyClampRegion($r['x'] ?? 0, $r['y'] ?? 0, $r['w'] ?? 0, $r['h'] ?? 0, $r['t'] ?? null, $r['c'] ?? null);
             if ($reg) $regions[] = $reg;
         }
 

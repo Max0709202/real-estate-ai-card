@@ -446,7 +446,11 @@
         inner = '<a class="prop-thumb__pdf" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">PDF</a>';
       }
       var del = opts.removable ? '<button type="button" class="prop-thumb__del" data-del-img="' + im.id + '">×</button>' : '';
-      return '<div class="prop-thumb">' + inner + del + '</div>';
+      // 追加資料のように「何の資料か」が大事なものは、名前を下に添えて表示する。
+      var cap = opts.showCaption
+        ? '<span class="prop-thumb__cap">' + esc(im.subcategory || im.original_name || '資料') + '</span>'
+        : '';
+      return '<div class="prop-thumb">' + inner + del + cap + '</div>';
     }).join('') + '</div>';
   }
 

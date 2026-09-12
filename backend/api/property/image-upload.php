@@ -2,7 +2,8 @@
 /**
  * 物件選定: 物件画像のアップロード（§14 販売図面 / §15 写真・資料）。
  * 写真・資料は最大10枚、アップロード時に自動リサイズ。担当のみ。
- * multipart/form-data: property_id, category(flyer|photo), subcategory?, files[]（または file）
+ * multipart/form-data: property_id, category(flyer|photo|document), subcategory?, files[]（または file）
+ * 追加資料（document）は、物件に紐づく参考資料を担当者がそのまま登録・お渡しするためのもの。
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
@@ -19,7 +20,9 @@ startSessionIfNotStarted();
 $userId = requireAuth();
 
 $propertyId = isset($_POST['property_id']) ? (int)$_POST['property_id'] : 0;
-$category = ($_POST['category'] ?? 'photo') === 'flyer' ? 'flyer' : 'photo';
+// flyer=販売図面 / photo=写真・資料 / document=追加資料（物件に紐づく参考資料）
+$category = $_POST['category'] ?? 'photo';
+if (!in_array($category, ['flyer', 'photo', 'document'], true)) $category = 'photo';
 // 写真の名前（建物外観など）。担当者が自由に付けられる（未指定なら名前なし）。
 $subcategory = propertyNormalizePhotoLabel($_POST['subcategory'] ?? '');
 if ($propertyId <= 0) sendErrorResponse('property_id is required', 400);
@@ -46,13 +49,14 @@ try {
     $row = propertyVerifyAgentProperty($db, $propertyId, $userId);
     $cardId = (int)$row['business_card_id'];
 
-    // 写真・資料は最大10枚（§15）
-    if ($category === 'photo') {
-        $stmt = $db->prepare("SELECT COUNT(*) FROM property_images WHERE property_id = ? AND category = 'photo'");
-        $stmt->execute([$propertyId]);
+    // 写真・資料は最大10枚（§15）、追加資料も同じく10件までとする。
+    if ($category === 'photo' || $category === 'document') {
+        $label = $category === 'photo' ? '写真・資料' : '追加資料';
+        $stmt = $db->prepare("SELECT COUNT(*) FROM property_images WHERE property_id = ? AND category = ?");
+        $stmt->execute([$propertyId, $category]);
         $existing = (int)$stmt->fetchColumn();
         $remaining = max(0, 10 - $existing);
-        if ($remaining <= 0) sendErrorResponse('写真・資料は最大10枚までです', 400);
+        if ($remaining <= 0) sendErrorResponse($label . 'は最大10件までです', 400);
         if (count($files) > $remaining) $files = array_slice($files, 0, $remaining);
     }
 
@@ -65,8 +69,8 @@ try {
         if ($category === 'flyer') {
             propertyFlyerProcessUploaded($db, (int)$r['id'], $r['abs_path'], !empty($r['is_pdf']), $cardId, $propertyId);
         }
-        // 手動で追加した写真もAI抽出分と同じ保存期間（既定6か月）を適用する。
-        if ($category === 'photo') {
+        // 手動で追加した写真・追加資料もAI抽出分と同じ保存期間（既定6か月）を適用する。
+        if ($category === 'photo' || $category === 'document') {
             $db->prepare("UPDATE property_images SET expires_at = ? WHERE id = ?")
                ->execute([propertyRetentionExpiresAt(), (int)$r['id']]);
         }

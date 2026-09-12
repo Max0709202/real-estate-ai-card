@@ -3468,6 +3468,10 @@
         flyerOpts.emptyText = '販売図面はまだありません。';
         var photoOpts = propAuthOpts();
         photoOpts.emptyText = '写真・資料はまだありません。';
+        // 追加資料（担当者が登録した参考資料）。写真と同じ見せ方で、資料名を添えて開けるようにする。
+        var docOpts = propAuthOpts();
+        docOpts.emptyText = '追加資料はまだありません。';
+        docOpts.showCaption = true;
         var statusChips = Object.keys(PUI.STATUS).filter(function (k) { return PUI.STATUS[k].role === 'customer'; }).map(function (k) {
             var s = PUI.STATUS[k]; var on = p.status === k;
             return '<button type="button" class="prop-status-opt' + (on ? ' is-selected' : '') + '" data-cust-status="' + k + '" style="color:' + s.color + '">' +
@@ -3484,12 +3488,14 @@
                 '<button class="prop-tab" data-ctab="hazard">ハザード等情報</button>' +
                 '<button class="prop-tab" data-ctab="flyer">販売図面</button>' +
                 '<button class="prop-tab" data-ctab="photo">写真・資料</button>' +
+                '<button class="prop-tab" data-ctab="document">追加資料</button>' +
                 '<button class="prop-tab" data-ctab="map">マップ</button>' +
             '</div>' +
             '<div class="prop-tabpane is-active" data-cpane="basic">' + PUI.basicInfoHtml(p, false) + '</div>' +
             '<div class="prop-tabpane" data-cpane="hazard">' + PUI.hazardHtml(p.hazard, p.hazard_fetched_at) + '</div>' +
             '<div class="prop-tabpane" data-cpane="flyer">' + PUI.galleryHtml(p.flyers, flyerOpts) + '</div>' +
             '<div class="prop-tabpane" data-cpane="photo">' + PUI.galleryHtml(p.photos, photoOpts) + '</div>' +
+            '<div class="prop-tabpane" data-cpane="document">' + PUI.galleryHtml(p.documents, docOpts) + '</div>' +
             '<div class="prop-tabpane" data-cpane="map"></div>' +
             '<div class="prop-form-actions" style="margin-top:16px"><button type="button" class="prop-btn prop-btn--primary" id="prop-cust-viewing">' + PUI.icon('calendar') + '内見予約を依頼する</button></div>' +
         '</div>';

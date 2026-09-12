@@ -48,8 +48,12 @@
     P.innerHTML = '<div class="prop-toolbar"><h4>物件選定</h4>' + sortSelectHtml() +
       '<button type="button" class="prop-btn prop-btn--ghost" id="prop-folder-add">' + UI.icon('folder') + 'フォルダーを作成</button>' +
       '<button type="button" class="prop-btn prop-btn--primary" id="prop-add">' + UI.icon('plus') + '物件を追加</button></div>' +
-      '<div id="prop-list-body"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>';
+      '<div class="prop-list-drop" id="prop-list-drop">' +
+      '<div id="prop-list-body"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>' +
+      '<div class="prop-list-drop__hint">この枠に販売図面をドラッグ＆ドロップすると、まとめて登録できます（複数ファイル可）。</div>' +
+      '</div>';
     P.querySelector('#prop-add').addEventListener('click', openAddMethods);
+    bindListDrop(P.querySelector('#prop-list-drop'));
     P.querySelector('#prop-folder-add').addEventListener('click', function () { openFolderForm(null); });
     var sel = P.querySelector('#prop-sort');
     if (sel) sel.addEventListener('change', function () { SORT = sel.value; loadList(); });
@@ -263,13 +267,15 @@
   /* ===== 登録方法選択（§2） ===== */
   function openAddMethods() {
     var html = '<div class="prop-method-list">' +
-      method('upload', 'upload', '販売図面をアップロード', 'PDF・画像をアップロードしてAIが物件情報を自動読み取り') +
+      method('upload', 'upload', '販売図面をアップロード', '1件の物件として登録します（複数ページの図面もまとめて1件）') +
+      method('bulk', 'upload', '複数の物件をまとめて登録', '販売図面を複数選ぶと、1枚ずつ別の物件として一括登録します') +
       method('photo', 'camera', '写真を撮影して登録', 'その場で撮影してAIが物件情報を読み取り') +
       method('manual', 'manual', '手入力で登録', '販売図面がない場合など手入力で登録します') +
       method('url', 'url', '物件URLから登録', 'SUUMO・HOME\'S・アットホーム等のURLから自動取得') +
       '</div>';
     var m = UI.modal('提案物件追加', html);
     m.body.querySelector('[data-method="upload"]').addEventListener('click', function () { m.close(); pickFlyer(false); });
+    m.body.querySelector('[data-method="bulk"]').addEventListener('click', function () { m.close(); pickFlyersBulk(); });
     m.body.querySelector('[data-method="photo"]').addEventListener('click', function () { m.close(); pickFlyer(true); });
     m.body.querySelector('[data-method="manual"]').addEventListener('click', function () { m.close(); openEditForm(null, false); });
     m.body.querySelector('[data-method="url"]').addEventListener('click', function () { m.close(); openUrlForm(); });
@@ -302,6 +308,110 @@
       }).catch(function () { m.close(); notify('error', '通信に失敗しました'); });
     });
     inp.click();
+  }
+
+  /* ===== 複数物件の一括登録（改善要望 2-3） =====
+     販売図面を複数まとめて選ぶ／ドロップすると、1ファイル＝1物件として順番に登録する。
+     AI解析は1件ずつサーバーに投げる（同時に走らせると解析が詰まるため）。
+     途中で失敗したファイルがあっても止めず、最後にまとめて結果を知らせる。 */
+  var BULK_MAX = 20;               // 一度に登録できる販売図面の数
+
+  function pickFlyersBulk() {
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*,application/pdf'; inp.multiple = true;
+    inp.addEventListener('change', function () {
+      if (inp.files && inp.files.length) bulkAddFlyers(inp.files);
+    });
+    inp.click();
+  }
+
+  /* ファイル配列を1件ずつ登録する。進み具合を出しながら順番に処理する。 */
+  function bulkAddFlyers(fileList) {
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    if (files.length === 1) {
+      // 1件だけなら、これまでどおり内容を確認する画面を開く。
+      uploadSingleFlyer(files[0]);
+      return;
+    }
+    var over = false;
+    if (files.length > BULK_MAX) { files = files.slice(0, BULK_MAX); over = true; }
+
+    var total = files.length;
+    var m = UI.modal('複数の物件を登録中', '<div class="prop-empty"><span class="prop-spinner"></span> <span id="prop-bulk-progress">0 / ' + total + ' 件</span><br>販売図面を1件ずつAIが読み取っています。この画面は閉じないでください。</div>');
+    var okCount = 0;
+    var failed = [];
+
+    function step(i) {
+      if (i >= total) { finish(); return; }
+      var label = m.body.querySelector('#prop-bulk-progress');
+      if (label) label.textContent = (i + 1) + ' / ' + total + ' 件';
+      var fd = new FormData();
+      fd.append('session_id', SID);
+      fd.append('files[]', files[i]);
+      api('/analyze.php', { method: 'POST', body: fd }).then(function (res) {
+        if (res && res.success) okCount++;
+        else failed.push(files[i].name || ('' + (i + 1) + '件目'));
+        step(i + 1);
+      }).catch(function () {
+        failed.push(files[i].name || ('' + (i + 1) + '件目'));
+        step(i + 1);
+      });
+    }
+
+    function finish() {
+      m.close();
+      loadList();
+      if (okCount) {
+        notify('ok', okCount + '件の物件を登録しました。内容を確認して保存してください。');
+      }
+      if (failed.length) {
+        notify('error', failed.length + '件を登録できませんでした（' + failed.slice(0, 3).join('、') + (failed.length > 3 ? ' ほか' : '') + '）');
+      }
+      if (over) {
+        notify('error', '一度に登録できるのは' + BULK_MAX + '件までです。残りは改めてお試しください。');
+      }
+    }
+
+    step(0);
+  }
+
+  /* 1件だけ選ばれたとき（＝これまでと同じ流れ）。 */
+  function uploadSingleFlyer(file) {
+    var fd = new FormData();
+    fd.append('session_id', SID);
+    fd.append('files[]', file);
+    var m = UI.modal('AI読み取り中', '<div class="prop-empty"><span class="prop-spinner"></span> 販売図面を解析しています…<br>少々お待ちください。</div>');
+    api('/analyze.php', { method: 'POST', body: fd }).then(function (res) {
+      m.close();
+      if (!res.success) { notify('error', res.message || '解析に失敗しました'); return; }
+      if (res.data.ocr_error) notify('error', res.data.ocr_error);
+      openEditForm(res.data.property, true);
+    }).catch(function () { m.close(); notify('error', '通信に失敗しました'); });
+  }
+
+  /* 一覧に販売図面をドラッグ＆ドロップしたときも、まとめて登録する。 */
+  function bindListDrop(zone) {
+    if (!zone) return;
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      zone.addEventListener(ev, function (e) {
+        if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') < 0) return;
+        e.preventDefault(); e.stopPropagation();
+        zone.classList.add('is-over');
+      });
+    });
+    ['dragleave', 'dragend'].forEach(function (ev) {
+      zone.addEventListener(ev, function (e) {
+        if (e.target !== zone) return;
+        zone.classList.remove('is-over');
+      });
+    });
+    zone.addEventListener('drop', function (e) {
+      if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+      e.preventDefault(); e.stopPropagation();
+      zone.classList.remove('is-over');
+      bulkAddFlyers(e.dataTransfer.files);
+    });
   }
 
   /* ===== URL登録（§2④/§18） ===== */
@@ -514,12 +624,14 @@
         '<button class="prop-tab" data-tab="hazard">ハザード等情報</button>' +
         '<button class="prop-tab" data-tab="flyer">販売図面</button>' +
         '<button class="prop-tab" data-tab="photo">写真・資料</button>' +
+        '<button class="prop-tab" data-tab="document">追加資料</button>' +
         '<button class="prop-tab" data-tab="map">マップ</button>' +
       '</div>' +
       '<div class="prop-tabpane is-active" data-pane="basic">' + UI.basicInfoHtml(p, true) + '</div>' +
       '<div class="prop-tabpane" data-pane="hazard"></div>' +
       '<div class="prop-tabpane" data-pane="flyer"></div>' +
       '<div class="prop-tabpane" data-pane="photo"></div>' +
+      '<div class="prop-tabpane" data-pane="document"></div>' +
       '<div class="prop-tabpane" data-pane="map"></div>';
 
     // マップは詳細を開き直すたびに描き直す（前回の物件の地図が残らないようにする）。
@@ -584,6 +696,7 @@
         if (name === 'hazard') loadHazard(p);
         if (name === 'flyer') loadImages(p, 'flyer');
         if (name === 'photo') loadImages(p, 'photo');
+        if (name === 'document') loadImages(p, 'document');
         if (name === 'map') loadMap(p);
       });
     });
@@ -827,16 +940,28 @@
   var PHOTO_MAX = 10;              // 「写真・資料」の上限枚数（PHP image-upload.php と一致）
   var PHOTO_LABEL_MAX = 30;        // 写真の名前の最大文字数（PHP propertyPhotoLabelMaxLength と一致）
   var PHOTO_LABELS = ['建物外観', '間取り図', '室内写真', '設備写真', '地図', 'その他'];
+  var DOC_MAX = 10;                // 「追加資料」の上限件数（PHP image-upload.php と一致）
+  var DOC_LABELS = ['管理規約', '重要事項説明書', 'マンション概要', '長期修繕計画', '周辺情報', 'その他資料'];
   var PASTE_BOUND = null;          // 貼り付け（Ctrl+V / ⌘V）用のドキュメントリスナー
 
   function loadImages(p, category) {
     var pane = P.querySelector('[data-pane="' + category + '"]');
     if (category === 'photo') {
       pane.innerHTML = '<div class="prop-msg prop-msg--info" style="margin-top:8px">販売図面のアップロード時に、AIが建物外観・間取り図・室内・設備・地図を自動で抽出し登録します（最大' + PHOTO_MAX + '枚）。会社情報を含む画像は登録されません。建物外観の写真が無い場合は抽出されません。誤って抽出された写真は、各写真の削除ボタンで削除できます。</div>' +
-        '<div class="prop-msg prop-msg--info">お客様の物件一覧に表示するサムネイル写真は、<b>下の写真をクリック</b>すると変更できます。使える写真が無い場合は、下の枠から写真・資料を追加してください。写真の名前は鉛筆ボタンから変更できます。</div>' +
+        '<div class="prop-msg prop-msg--info">お客様の物件一覧に表示するサムネイル写真は、<b>下の写真をクリック</b>すると変更できます。使える写真が無い場合は、下の枠から写真・資料を追加してください。<b>写真の下のコメント（間取り図・建物外観など）は、その文字をクリックするといつでも変更できます。</b></div>' +
         photoUploaderHtml() +
         '<div id="prop-img-body"><div class="prop-empty"><span class="prop-spinner"></span></div></div>';
       bindPhotoUploader(pane, p);
+      refreshImages(p, category);
+      return;
+    }
+    if (category === 'document') {
+      // 追加資料: 物件に紐づく参考資料（管理規約・重要事項説明書・周辺情報など）。
+      // 販売図面のようなマスク処理は行わず、登録したものがそのままお客様にも表示される。
+      pane.innerHTML = '<div class="prop-msg prop-msg--info" style="margin-top:8px">この物件に関連する追加資料を登録できます（最大' + DOC_MAX + '件）。登録した資料は、お客様の物件詳細の「追加資料」にそのまま表示されます。<b>販売図面のような売主情報の自動マスクは行われません</b>ので、お客様にお渡ししてよい資料かをご確認のうえ登録してください。</div>' +
+        documentUploaderHtml() +
+        '<div id="prop-img-body"><div class="prop-empty"><span class="prop-spinner"></span></div></div>';
+      bindDocumentUploader(pane, p);
       refreshImages(p, category);
       return;
     }
@@ -869,6 +994,12 @@
       if (!res.success) return;
       var prop = res.data.property;
       if (category === 'flyer') { renderFlyerList(p, body, prop.flyers || []); return; }
+      if (category === 'document') {
+        var docs = prop.documents || [];
+        p.documents = docs;
+        renderDocumentList(p, body, docs);
+        return;
+      }
       // 写真・資料: 分類ラベル付き。写真をクリックすると一覧サムネイルに設定できる。
       //             誤抽出時は写真ごとに削除でき、名前は鉛筆ボタンから変更できる。
       var photos = prop.photos || [];
@@ -906,14 +1037,147 @@
           (isImg ? ' data-pick-thumb="' + im.id + '" title="クリックして一覧のサムネイルにする"' : '') + '>' +
           inner +
           '<button type="button" class="prop-thumb__del" data-del-img="' + im.id + '" aria-label="この写真を削除" title="この写真を削除">' + UI.icon('trash') + '</button>' +
-          '<span class="prop-photo-cap"><span class="prop-photo-cap__txt">' + UI.esc(im.subcategory || '名前なし') + '</span>' +
-          '<button type="button" class="prop-photo-cap__edit" data-rename-img="' + im.id + '" aria-label="名前を変更" title="名前を変更">' + UI.icon('edit') + '</button></span>' +
+          '<button type="button" class="prop-photo-cap" data-rename-img="' + im.id + '"' +
+          ' aria-label="この写真のコメントを変更" title="クリックしてコメントを変更">' +
+          '<span class="prop-photo-cap__txt">' + UI.esc(im.subcategory || 'コメントを入力') + '</span>' +
+          '<span class="prop-photo-cap__edit" aria-hidden="true">' + UI.icon('edit') + '</span></button>' +
           '</div>' + mark +
           '</div>';
       }).join('') + '</div>';
       bindDeletes(body, p, category);
       bindPhotoActions(body, p, photos, thumbId);
     });
+  }
+
+  /* ===== 追加資料（改善要望 2-5） =====
+     物件に紐づく参考資料を登録し、お客様の物件詳細にも「追加資料」として表示する。
+     写真・資料と違い一覧サムネイルには使わないため、資料名とファイルを並べるだけの簡素な表示にする。 */
+  function documentUploaderHtml() {
+    return '<div class="prop-photo-add" id="prop-doc-drop">' +
+      '<div class="prop-photo-add__row">' +
+        '<label class="prop-photo-add__label" for="prop-doc-name">資料名</label>' +
+        '<input type="text" id="prop-doc-name" class="prop-photo-add__name" list="prop-doc-names" maxlength="' + PHOTO_LABEL_MAX + '" placeholder="例）管理規約">' +
+        '<datalist id="prop-doc-names">' + DOC_LABELS.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist>' +
+        '<button type="button" class="prop-btn prop-btn--primary" id="prop-doc-pick">' + UI.icon('upload') + 'ファイルを選択</button>' +
+      '</div>' +
+      '<div class="prop-photo-add__hint" id="prop-doc-hint">この枠にドラッグ＆ドロップでも追加できます（PDF・画像、複数可）。</div>' +
+      '</div>';
+  }
+
+  /* 残り件数の表示と、上限に達したときの追加ボタンの無効化。 */
+  function updateDocumentUploaderState(count) {
+    var pane = P.querySelector('[data-pane="document"]');
+    if (!pane) return;
+    var hint = pane.querySelector('#prop-doc-hint');
+    var btn = pane.querySelector('#prop-doc-pick');
+    var rest = Math.max(0, DOC_MAX - (count | 0));
+    if (hint) hint.textContent = rest > 0
+      ? 'この枠にドラッグ＆ドロップでも追加できます（PDF・画像、複数可）。あと' + rest + '件登録できます。'
+      : '追加資料は最大' + DOC_MAX + '件までです。登録するには、いずれかを削除してください。';
+    if (btn) btn.disabled = rest <= 0;
+  }
+
+  function bindDocumentUploader(pane, p) {
+    var zone = pane.querySelector('#prop-doc-drop');
+    var pick = pane.querySelector('#prop-doc-pick');
+    if (!zone || !pick) return;
+
+    function send(files) {
+      var list = Array.prototype.slice.call(files || []);
+      if (!list.length) return;
+      var fd = new FormData();
+      fd.append('property_id', p.id);
+      fd.append('category', 'document');
+      var name = (pane.querySelector('#prop-doc-name') || {}).value || '';
+      if (name.trim()) fd.append('subcategory', name.trim());
+      list.forEach(function (f) { fd.append('files[]', f); });
+      var body = pane.querySelector('#prop-img-body');
+      if (body) body.innerHTML = '<div class="prop-empty"><span class="prop-spinner"></span> アップロード中...</div>';
+      api('/image-upload.php', { method: 'POST', body: fd }).then(function (res) {
+        if (!res.success) notify('error', res.message || 'アップロードに失敗しました');
+        else notify('ok', res.message || '保存しました');
+        refreshImages(p, 'document');
+      }).catch(function () { notify('error', '通信に失敗しました'); refreshImages(p, 'document'); });
+    }
+
+    pick.addEventListener('click', function () {
+      var inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*,application/pdf'; inp.multiple = true;
+      inp.addEventListener('change', function () { send(inp.files); });
+      inp.click();
+    });
+
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      zone.addEventListener(ev, function (e) {
+        if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') < 0) return;
+        e.preventDefault(); e.stopPropagation(); zone.classList.add('is-over');
+      });
+    });
+    zone.addEventListener('dragleave', function (e) { if (e.target === zone) zone.classList.remove('is-over'); });
+    zone.addEventListener('drop', function (e) {
+      if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+      e.preventDefault(); e.stopPropagation(); zone.classList.remove('is-over');
+      send(e.dataTransfer.files);
+    });
+  }
+
+  /* 追加資料の一覧。資料名は鉛筆ボタンから変更でき、削除もできる。 */
+  function renderDocumentList(p, body, docs) {
+    updateDocumentUploaderState(docs.length);
+    if (!docs.length) {
+      body.innerHTML = '<div class="prop-empty">追加資料はまだありません。上の枠から登録してください。</div>';
+      return;
+    }
+    body.innerHTML = '<div class="prop-doc-list">' + docs.map(function (im) {
+      var isImg = (im.mime_type || '').indexOf('image/') === 0;
+      var url = im.url;
+      return '<div class="prop-doc-item">' +
+        '<span class="prop-doc-item__icon">' + UI.icon(isImg ? 'upload' : 'manual') + '</span>' +
+        '<span class="prop-doc-item__body">' +
+          '<a class="prop-doc-item__name" href="' + UI.esc(url) + '" target="_blank" rel="noopener noreferrer">' +
+            UI.esc(im.subcategory || im.original_name || '資料') + '</a>' +
+          '<span class="prop-doc-item__sub">' + UI.esc(im.original_name || '') + '</span>' +
+        '</span>' +
+        '<button type="button" class="prop-doc-item__act" data-rename-doc="' + im.id + '" aria-label="資料名を変更" title="資料名を変更">' + UI.icon('edit') + '</button>' +
+        '<button type="button" class="prop-doc-item__act prop-doc-item__act--danger" data-del-img="' + im.id + '" aria-label="この資料を削除" title="この資料を削除">' + UI.icon('trash') + '</button>' +
+        '</div>';
+    }).join('') + '</div>';
+    bindDeletes(body, p, 'document');
+    body.querySelectorAll('[data-rename-doc]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = parseInt(b.getAttribute('data-rename-doc'), 10);
+        var doc = docs.filter(function (x) { return parseInt(x.id, 10) === id; })[0];
+        if (doc) openDocumentLabelForm(p, doc);
+      });
+    });
+  }
+
+  function openDocumentLabelForm(p, doc) {
+    var html = '<div class="prop-field full"><label>資料名</label>' +
+      '<input type="text" id="prop-doc-label" list="prop-doc-label-list" maxlength="' + PHOTO_LABEL_MAX + '"' +
+      ' placeholder="例）管理規約" value="' + esc(doc.subcategory || '') + '">' +
+      '<datalist id="prop-doc-label-list">' + DOC_LABELS.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist></div>' +
+      '<div class="prop-msg prop-msg--info">お客様の「追加資料」に、この名前で表示されます。</div>' +
+      '<div class="prop-form-actions"><button type="button" class="prop-btn prop-btn--primary" id="prop-doc-label-save">変更する</button></div>';
+    var m = UI.modal('資料名を変更', html);
+    var input = m.body.querySelector('#prop-doc-label');
+    var btn = m.body.querySelector('#prop-doc-label-save');
+    function submit() {
+      btn.disabled = true;
+      api('/image-label.php', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_id: doc.id, subcategory: input.value })
+      }).then(function (res) {
+        btn.disabled = false;
+        if (!res.success) { notify('error', res.message || '変更に失敗しました'); return; }
+        m.close();
+        notify('ok', res.message || '資料名を変更しました');
+        refreshImages(p, 'document');
+      }).catch(function () { btn.disabled = false; notify('error', '通信に失敗しました'); });
+    }
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    input.focus();
   }
 
   /* ===== 写真・資料の追加（ファイル選択 / ドラッグ＆ドロップ / 貼り付け） ===== */
@@ -1040,13 +1304,13 @@
   }
 
   function openPhotoLabelForm(p, image) {
-    var html = '<div class="prop-field full"><label>写真の名前</label>' +
+    var html = '<div class="prop-field full"><label>写真の下に表示するコメント</label>' +
       '<input type="text" id="prop-photo-label" list="prop-photo-label-list" maxlength="' + PHOTO_LABEL_MAX + '"' +
       ' placeholder="例）建物外観" value="' + esc(image.subcategory || '') + '">' +
       '<datalist id="prop-photo-label-list">' + PHOTO_LABELS.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist></div>' +
-      '<div class="prop-msg prop-msg--info">AIが自動で付けた名前は、ここで自由に変更できます。空欄にすると「名前なし」になります。</div>' +
+      '<div class="prop-msg prop-msg--info">AIが自動で付けたコメントは、ここで何度でも自由に変更できます。空欄にするとコメントなしになります。</div>' +
       '<div class="prop-form-actions"><button type="button" class="prop-btn prop-btn--primary" id="prop-photo-label-save">変更する</button></div>';
-    var m = UI.modal('写真の名前を変更', html);
+    var m = UI.modal('写真のコメントを変更', html);
     var input = m.body.querySelector('#prop-photo-label');
     var btn = m.body.querySelector('#prop-photo-label-save');
 
@@ -1059,7 +1323,7 @@
         btn.disabled = false;
         if (!res.success) { notify('error', res.message || '変更に失敗しました'); return; }
         m.close();
-        notify('ok', res.message || '名前を変更しました');
+        notify('ok', 'コメントを変更しました');
         refreshImages(p, 'photo');
       }).catch(function () { btn.disabled = false; notify('error', '通信に失敗しました'); });
     }
@@ -1071,7 +1335,7 @@
     body.querySelectorAll('[data-del-img]').forEach(function (b) {
       b.addEventListener('click', function (e) {
         e.stopPropagation();
-        if (!confirm('この画像を削除しますか？')) return;
+        if (!confirm(category === 'document' ? 'この資料を削除しますか？' : 'この画像を削除しますか？')) return;
         api('/image-delete.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_id: parseInt(b.getAttribute('data-del-img'), 10) }) })
           .then(function (r) { if (r.success) refreshImages(p, category); else notify('error', r.message || '削除に失敗'); });
       });
@@ -1115,7 +1379,8 @@
   }
 
   /* ===== マスク編集モーダル =====
-     フロー: マスク編集 → 編集画面（白抜き半透明）→ 顧客用プレビュー → 「この内容で確定」/「範囲を再編集」
+     フロー: マスク編集 → 編集画面（塗りつぶしを半透明で表示）→ 顧客用プレビュー → 「この内容で確定」/「範囲を再編集」
+     塗りつぶしの色は既定で白。スポイトで販売図面から色を拾って指定することもできる（改善要望 2-4）。
      「この内容で確定」を押すまで顧客には販売図面を表示しない（customer_visible=0）。 */
   var PROP_DEFAULT_BAND = { x: 0, y: 0.857, w: 1, h: 0.143 }; // A4横の下3cm相当
 
@@ -1157,6 +1422,47 @@
         if (asp && fw && fh) return (w * fw / asp) / fh;
         return w * PROP_DEFAULT_BAND.h; // 画像未読込時のフォールバック（従来比率）
       }
+      /* 色を #rrggbb に揃える。取れない値は null（＝白扱い）。 */
+      function normHex(v) {
+        var t = String(v == null ? '' : v).trim().toLowerCase();
+        if (!t) return null;
+        if (t.charAt(0) !== '#') t = '#' + t;
+        if (/^#[0-9a-f]{3}$/.test(t)) t = '#' + t[1] + t[1] + t[2] + t[2] + t[3] + t[3];
+        return /^#[0-9a-f]{6}$/.test(t) ? t : null;
+      }
+      function toHex(r, g, b) {
+        function p(n) { var h = (n & 255).toString(16); return h.length < 2 ? '0' + h : h; }
+        return '#' + p(r) + p(g) + p(b);
+      }
+
+      /* 画面上のクリック位置から、販売図面のその場所の色を取り出す。
+         表示は縮小されているため、画像本来の大きさに換算してから読み取る。 */
+      var sampleCanvas = null;
+      function samplePixelColor(clientX, clientY) {
+        var imgEl = m.body.querySelector('#prop-mask-img');
+        if (!imgEl || !baseImg.complete || !baseImg.naturalWidth) return null;
+        var rect = imgEl.getBoundingClientRect();
+        if (!rect.width || !rect.height) return null;
+        var rx = (clientX - rect.left) / rect.width;
+        var ry = (clientY - rect.top) / rect.height;
+        if (rx < 0 || rx > 1 || ry < 0 || ry > 1) return null;
+        try {
+          if (!sampleCanvas) {
+            sampleCanvas = document.createElement('canvas');
+            sampleCanvas.width = baseImg.naturalWidth;
+            sampleCanvas.height = baseImg.naturalHeight;
+            sampleCanvas.getContext('2d').drawImage(baseImg, 0, 0);
+          }
+          var px = Math.min(sampleCanvas.width - 1, Math.max(0, Math.round(rx * sampleCanvas.width)));
+          var py = Math.min(sampleCanvas.height - 1, Math.max(0, Math.round(ry * sampleCanvas.height)));
+          var d2 = sampleCanvas.getContext('2d').getImageData(px, py, 1, 1).data;
+          return toHex(d2[0], d2[1], d2[2]);
+        } catch (err) {
+          // 画像が別ドメインから来ている場合などは読み取れない。
+          return null;
+        }
+      }
+
       // 帯領域を縦横比に合わせて再フィット（高さを補正し、はみ出しを抑える）
       function fitBandRegion(r) {
         r.h = bandHeightForWidth(r.w);
@@ -1169,8 +1475,12 @@
       }
 
       var regions = (d.regions && d.regions.length) ? d.regions.map(function (r) {
-        return { x: +r.x || 0, y: +r.y || 0, w: +r.w || 0, h: +r.h || 0, t: (r.t === 'band' ? 'band' : 'mask') };
+        return { x: +r.x || 0, y: +r.y || 0, w: +r.w || 0, h: +r.h || 0,
+                 t: (r.t === 'band' ? 'band' : 'mask'), c: normHex(r.c) };
       }) : [];
+      // スポイトで拾った色。次に追加するマスクにも引き継ぐ（既定は白）。
+      var pickedColor = '#ffffff';
+      var eyedropperOn = false;
       // 既定領域: 自社帯が登録済みなら、下端に自社帯をデフォルト表示（幅80%・中央）。
       // 領域が空の場合は、社名周りを確実に隠す全幅の白マスクを土台として敷く。
       // 未登録なら従来どおり白マスク。帯が既にあれば重複追加しない。
@@ -1193,7 +1503,7 @@
         };
       }
 
-      /* --- 編集画面（ドラッグで範囲設定・白抜きは半透明で下地が少し見える） --- */
+      /* --- 編集画面（ドラッグで範囲設定・塗りつぶしは半透明で下地が少し見える） --- */
       function renderEdit() {
         teardownDrag();
         // 帯領域を縦横比に合わせて再フィット（再入時・画像読込後の整合）
@@ -1202,7 +1512,14 @@
           ? '図面下端には自社帯をデフォルト表示しています。'
           : '<b>自社帯は未登録です。</b>「自社帯登録」画面で帯を登録すると、白マスクの代わりに自社帯を表示できます。';
         m.body.innerHTML =
-          '<div class="prop-msg prop-msg--info">マスク（白塗り）と自社帯をドラッグで配置できます。売主仲介会社の情報などはマスクで隠し、必要に応じて自社帯を重ねてください。' + bandNote + 'なお、「この内容で確定」ボタンを押さない限り、顧客には販売図面は表示されません。</div>' +
+          '<div class="prop-msg prop-msg--info">マスク（塗りつぶし）と自社帯をドラッグで配置できます。売主仲介会社の情報などはマスクで隠し、必要に応じて自社帯を重ねてください。マスクの色は既定で白ですが、<b>スポイトで図面の色を取り込んで指定</b>することもできます。' + bandNote + 'なお、「この内容で確定」ボタンを押さない限り、顧客には販売図面は表示されません。</div>' +
+          '<div class="prop-mask-tools">' +
+            '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-eyedrop" title="図面の色をスポイトで取る">' + UI.icon('considering') + 'スポイト</button>' +
+            '<label class="prop-mask-color"><span>塗りつぶす色</span>' +
+            '<input type="color" id="prop-mask-color" value="#ffffff"></label>' +
+            '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-apply-color">選んだ色をマスクに適用</button>' +
+            '<span class="prop-mask-tools__hint" id="prop-mask-tools-hint">「スポイト」を押してから図面をクリックすると、その場所の色を取り込めます。</span>' +
+          '</div>' +
           '<div class="prop-mask-editor"><div class="prop-mask-canvas" id="prop-mask-canvas">' +
           '<img src="' + UI.esc(d.preview_url) + '" alt="" id="prop-mask-img" draggable="false"></div></div>' +
           '<div class="prop-form-actions">' +
@@ -1226,6 +1543,9 @@
             setRectStyle(el, r);
             if (isBand && bandUrl) {
               el.style.backgroundImage = 'url("' + bandUrl + '")';
+            } else if (!isBand) {
+              // 塗りつぶす色を編集画面でもそのまま見せる（下地が少し透ける半透明のまま）。
+              el.style.backgroundColor = r.c || '#ffffff';
             }
             el.innerHTML = '<button type="button" class="prop-mask-del" aria-label="削除">×</button>' +
               (isBand ? '<span class="prop-mask-tag">自社帯</span>' : '') +
@@ -1281,8 +1601,49 @@
           });
         }
         m.body.querySelector('#prop-mask-add').addEventListener('click', function () {
-          regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'mask' })); render();
+          regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'mask', c: pickedColor })); render();
         });
+
+        /* --- スポイト（改善要望 2-4） ---
+           「スポイト」を押すと図面のクリック待ちになり、押した場所の色を取り込む。
+           取り込んだ色は色見本に入り、「選んだ色をマスクに適用」で今あるマスクへ反映できる。
+           何も選ばずに新しいマスクを足したときも、その色で作られる。 */
+        var colorInput = m.body.querySelector('#prop-mask-color');
+        var dropBtn = m.body.querySelector('#prop-mask-eyedrop');
+        var applyBtn = m.body.querySelector('#prop-mask-apply-color');
+        var toolsHint = m.body.querySelector('#prop-mask-tools-hint');
+        if (colorInput) colorInput.value = pickedColor;
+
+        function setEyedropper(on) {
+          eyedropperOn = !!on;
+          if (dropBtn) dropBtn.classList.toggle('is-active', eyedropperOn);
+          if (canvas) canvas.classList.toggle('is-picking', eyedropperOn);
+          if (toolsHint) toolsHint.textContent = eyedropperOn
+            ? '図面の色を取りたい場所をクリックしてください。'
+            : '「スポイト」を押してから図面をクリックすると、その場所の色を取り込めます。';
+        }
+        if (dropBtn) dropBtn.addEventListener('click', function () { setEyedropper(!eyedropperOn); });
+        if (colorInput) colorInput.addEventListener('input', function () {
+          pickedColor = normHex(colorInput.value) || '#ffffff';
+        });
+        if (applyBtn) applyBtn.addEventListener('click', function () {
+          var changed = 0;
+          regions.forEach(function (r) { if (r.t !== 'band') { r.c = pickedColor; changed++; } });
+          render();
+          notify('ok', changed ? 'マスクの色を変更しました' : '色を変えるマスクがありません');
+        });
+
+        // 図面上のクリックで色を取り込む（マスクの移動と競合しないよう、スポイト中だけ拾う）。
+        canvas.addEventListener('click', function (e) {
+          if (!eyedropperOn) return;
+          e.preventDefault(); e.stopPropagation();
+          var hex = samplePixelColor(e.clientX, e.clientY);
+          setEyedropper(false);
+          if (!hex) { notify('error', '色を取得できませんでした'); return; }
+          pickedColor = hex;
+          if (colorInput) colorInput.value = hex;
+          notify('ok', '色を取り込みました（' + hex + '）。「選んだ色をマスクに適用」で反映できます。');
+        }, true);
         m.body.querySelector('#prop-mask-cancel').addEventListener('click', function () { m.close(); });
         m.body.querySelector('#prop-mask-preview').addEventListener('click', renderPreview);
         render();
@@ -1302,10 +1663,10 @@
         cv.width = nw; cv.height = nh;
         var ctx = cv.getContext('2d');
         ctx.drawImage(baseImg, 0, 0, nw, nh);
-        // 1) マスク（白べた）を先に描画
-        ctx.fillStyle = '#ffffff';
+        // 1) マスクを先に描画（範囲ごとの色。指定が無ければ従来どおり白）
         regions.forEach(function (r) {
           if (r.t === 'band') return;
+          ctx.fillStyle = r.c || '#ffffff';
           ctx.fillRect(r.x * nw, r.y * nh, r.w * nw, r.h * nh);
         });
         // 2) 自社帯を上に重ねて描画（帯画像が読み込めない場合は白べたでフォールバック）

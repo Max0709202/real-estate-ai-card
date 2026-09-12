@@ -206,11 +206,12 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-pdfviewer__close { background: none; border: none; color: #fff; font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
 .prop-pdfviewer__body { flex: 1 1 auto; overflow: auto; -webkit-overflow-scrolling: touch; display: flex; align-items: flex-start; justify-content: center; padding: 12px; }
 .prop-pdfviewer__body img { max-width: 100%; height: auto; border-radius: 4px; background: #fff; }
-.prop-photo-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; padding: 2px 4px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; z-index: 2; }
-.prop-photo-cap__txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prop-photo-cap__edit { background: none; border: none; color: #fff; padding: 0; cursor: pointer; display: flex; align-items: center; line-height: 1; flex: 0 0 auto; }
-.prop-photo-cap__edit svg { width: 12px; height: 12px; }
-.prop-photo-cap__edit:hover { color: #cfe0ff; }
+/* 写真の下のコメント。全体が押せて、そのまま書き換えられることが分かるようにする（改善要望 2-6） */
+.prop-photo-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.62); color: #fff; font-size: 11px; padding: 5px 6px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 5px; z-index: 2; width: 100%; border: none; cursor: pointer; font-family: inherit; }
+.prop-photo-cap:hover, .prop-photo-cap:focus-visible { background: rgba(45,108,223,.9); }
+.prop-photo-cap__txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; }
+.prop-photo-cap__edit { display: flex; align-items: center; line-height: 1; flex: 0 0 auto; }
+.prop-photo-cap__edit svg { width: 13px; height: 13px; }
 .prop-thumb__del { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; z-index: 2; }
 .prop-thumb__del:hover { background: #e8384f; }
 .prop-thumb__del svg { width: 14px; height: 14px; }
@@ -476,3 +477,37 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-map__iw-meta { color: #5b6675; font-size: 12px; }
 .prop-map__iw-link { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; color: #2d6cdf; text-decoration: none; }
 .prop-map__iw-link:hover { text-decoration: underline; }
+
+
+/* ===== 複数物件の一括登録（改善要望 2-3） ===== */
+/* 一覧そのものをドロップ先にする。枠は普段は目立たせず、ドラッグ中だけ強調する。 */
+.prop-list-drop { border: 1px dashed transparent; border-radius: 12px; transition: border-color .15s ease, background .15s ease; }
+.prop-list-drop.is-over { border-color: #2d6cdf; background: #eef4ff; }
+.prop-list-drop__hint { margin: 8px 2px 0; font-size: 12px; color: #6b7585; }
+
+/* ===== マスクの色指定・スポイト（改善要望 2-4） ===== */
+.prop-mask-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.prop-mask-tools__hint { flex: 1 1 100%; font-size: 12px; color: #6b7585; }
+.prop-mask-color { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #38465c; }
+.prop-mask-color input[type="color"] { width: 44px; height: 32px; padding: 0; border: 1px solid #d6dde8; border-radius: 8px; background: #fff; cursor: pointer; }
+.prop-btn.is-active { background: #2d6cdf; border-color: #2d6cdf; color: #fff; }
+/* スポイト中は、図面の上でクリック位置を狙っていることが分かるようにする。 */
+.prop-mask-canvas.is-picking { cursor: crosshair; }
+.prop-mask-canvas.is-picking .prop-mask-rect { pointer-events: none; }
+
+/* ===== 追加資料（改善要望 2-5） ===== */
+.prop-doc-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.prop-doc-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e2e6ef; border-radius: 10px; background: #fff; }
+.prop-doc-item__icon { flex: 0 0 auto; color: #2d6cdf; display: flex; align-items: center; }
+.prop-doc-item__icon svg { width: 18px; height: 18px; }
+.prop-doc-item__body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.prop-doc-item__name { font-size: 13px; font-weight: 700; color: #1f2d3d; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-doc-item__name:hover { color: #2d6cdf; text-decoration: underline; }
+.prop-doc-item__sub { font-size: 11px; color: #8a94a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-doc-item__act { flex: 0 0 auto; background: none; border: 1px solid #d6dde8; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; color: #4a5568; display: flex; align-items: center; justify-content: center; padding: 0; }
+.prop-doc-item__act svg { width: 14px; height: 14px; }
+.prop-doc-item__act:hover { border-color: #2d6cdf; color: #2d6cdf; }
+.prop-doc-item__act--danger:hover { border-color: #e8384f; color: #e8384f; }
+
+/* お客様側の追加資料。何の資料かが分かるよう名前を添える。 */
+.prop-thumb__cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.62); color: #fff; font-size: 10px; line-height: 1.3; padding: 3px 4px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; z-index: 2; }

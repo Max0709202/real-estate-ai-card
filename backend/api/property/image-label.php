@@ -1,7 +1,8 @@
 <?php
 /**
- * 物件選定: 「写真・資料」の名前（建物外観などの分類ラベル）の変更（担当のみ）。
- * AIが自動で付けた名前を、担当者が自由に付け直せるようにする。
+ * 物件選定: 「写真・資料」「追加資料」の名前の変更（担当のみ）。
+ * 写真はAIが自動で付けた名前を、追加資料は登録時に付けた資料名を、
+ * 担当者があとから自由に付け直せるようにする。
  * POST(JSON) { image_id, subcategory }   subcategory が空なら名前なし
  */
 require_once __DIR__ . '/../../config/config.php';
@@ -27,18 +28,24 @@ try {
     $db = (new Database())->getConnection();
     propertyEnsureTables($db);
 
-    // 所有検証（画像→物件→名刺→user）。名前を変更できるのは「写真・資料」のみ。
+    // 所有検証（画像→物件→名刺→user）。名前を変更できるのは
+    // 「写真・資料」と「追加資料」（どちらも担当者が自由に名前を付けられるもの）。
+    // 販売図面はマスク処理と結び付いているため、ここでは対象にしない。
     $stmt = $db->prepare("
-        SELECT pi.id FROM property_images pi
+        SELECT pi.category FROM property_images pi
         JOIN business_cards bc ON bc.id = pi.business_card_id
-        WHERE pi.id = ? AND bc.user_id = ? AND pi.category = 'photo' LIMIT 1
+        WHERE pi.id = ? AND bc.user_id = ? AND pi.category IN ('photo', 'document') LIMIT 1
     ");
     $stmt->execute([$imageId, $userId]);
-    if (!$stmt->fetchColumn()) sendErrorResponse('写真が見つかりません', 404);
+    $category = (string)($stmt->fetchColumn() ?: '');
+    if ($category === '') sendErrorResponse('対象が見つかりません', 404);
 
     $db->prepare("UPDATE property_images SET subcategory = ? WHERE id = ?")->execute([$label, $imageId]);
 
-    sendSuccessResponse(['image_id' => $imageId, 'subcategory' => $label], '名前を変更しました');
+    sendSuccessResponse(
+        ['image_id' => $imageId, 'subcategory' => $label],
+        $category === 'document' ? '資料名を変更しました' : '名前を変更しました'
+    );
 } catch (Exception $e) {
     error_log('property image-label error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
