@@ -25,7 +25,12 @@ $propertyId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $category = trim($_GET['category'] ?? '');
 $visitorId = trim($_GET['visitor_id'] ?? '');
 $viewToken = trim($_GET['view_token'] ?? '');
-if ($propertyId <= 0) sendErrorResponse('id is required', 400);
+// 現在地マップ（AIエージェントの「現在地情報をマップ表示」）。
+// 物件IDの代わりに端末のGPS座標を受け取り、その地点の周辺情報を返す。
+$sessionId = trim($_GET['session_id'] ?? '');
+$hasLatLng = isset($_GET['lat']) && isset($_GET['lng'])
+    && is_numeric($_GET['lat']) && is_numeric($_GET['lng']);
+if ($propertyId <= 0 && !$hasLatLng) sendErrorResponse('id is required', 400);
 
 $defs = propertyMapCategoryDefs();
 if (!isset($defs[$category])) sendErrorResponse('category is invalid', 400);
@@ -34,30 +39,52 @@ try {
     $db = (new Database())->getConnection();
     propertyEnsureTables($db);
 
-    $stmt = $db->prepare("SELECT * FROM properties WHERE id = ? LIMIT 1");
-    $stmt->execute([$propertyId]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$row) sendErrorResponse('物件が見つかりません', 404);
-
-    // 認可は物件詳細（get.php）と同じ。
-    if ($viewToken !== '') {
-        if (propertyViewTokenSession($db, $viewToken) !== (string)$row['session_id']) {
-            sendErrorResponse('アクセス権がありません', 403);
+    if ($propertyId <= 0) {
+        // ===== 現在地マップ =====
+        // 中心は端末のGPS座標。以降の周辺情報の取り方は物件詳細とまったく同じ。
+        $lat = (float)$_GET['lat'];
+        $lng = (float)$_GET['lng'];
+        // 日本国内のおおよその範囲だけを受け付ける（不正な座標で外部APIを呼ばない）。
+        if ($lat < 20.0 || $lat > 46.0 || $lng < 122.0 || $lng > 154.0) {
+            sendErrorResponse('現在地の位置を確認できませんでした', 400);
         }
-    } elseif ($visitorId !== '') {
-        propertyVerifyCustomerSession($db, (string)$row['session_id'], $visitorId);
+        // 認可は物件詳細と同じ枠組み。顧客はチャットセッション（または閲覧トークン）、担当はログイン。
+        if ($viewToken !== '') {
+            if (propertyViewTokenSession($db, $viewToken) === '') {
+                sendErrorResponse('アクセス権がありません', 403);
+            }
+        } elseif ($sessionId !== '') {
+            propertyVerifyCustomerSession($db, $sessionId, $visitorId);
+        } else {
+            startSessionIfNotStarted();
+            requireAuth();
+        }
     } else {
-        startSessionIfNotStarted();
-        $userId = requireAuth();
-        propertyVerifyAgentProperty($db, $propertyId, $userId);
+        $stmt = $db->prepare("SELECT * FROM properties WHERE id = ? LIMIT 1");
+        $stmt->execute([$propertyId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) sendErrorResponse('物件が見つかりません', 404);
+
+        // 認可は物件詳細（get.php）と同じ。
+        if ($viewToken !== '') {
+            if (propertyViewTokenSession($db, $viewToken) !== (string)$row['session_id']) {
+                sendErrorResponse('アクセス権がありません', 403);
+            }
+        } elseif ($visitorId !== '') {
+            propertyVerifyCustomerSession($db, (string)$row['session_id'], $visitorId);
+        } else {
+            startSessionIfNotStarted();
+            $userId = requireAuth();
+            propertyVerifyAgentProperty($db, $propertyId, $userId);
+        }
+
+        // 保存済みの座標だけを使う（マップ表示時に map.php が取得済み）。
+        $geo = propertyMapGeoOf($db, $row, true);
+        if (!$geo) sendErrorResponse('この物件の位置を特定できないため、周辺情報を表示できません', 400);
+
+        $lat = (float)$geo['lat'];
+        $lng = (float)$geo['lng'];
     }
-
-    // 保存済みの座標だけを使う（マップ表示時に map.php が取得済み）。
-    $geo = propertyMapGeoOf($db, $row, true);
-    if (!$geo) sendErrorResponse('この物件の位置を特定できないため、周辺情報を表示できません', 400);
-
-    $lat = (float)$geo['lat'];
-    $lng = (float)$geo['lng'];
     $def = $defs[$category];
     $results = [];
 
