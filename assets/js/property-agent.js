@@ -1500,6 +1500,15 @@
         function p(n) { var h = (n & 255).toString(16); return h.length < 2 ? '0' + h : h; }
         return '#' + p(r) + p(g) + p(b);
       }
+      /* 編集画面での塗りつぶしの見え方。下地（図面）が少し透けるよう、どの色も
+         不透明度90%で表示する（.prop-mask-rect の既定と同じ見え方）。
+         顧客用プレビューと実際の出力は、これまでどおり不透明で塗る。 */
+      var EDIT_FILL_ALPHA = 0.9;
+      function editorFill(hex) {
+        var h = normHex(hex) || '#ffffff';
+        return 'rgba(' + parseInt(h.substr(1, 2), 16) + ',' + parseInt(h.substr(3, 2), 16) + ',' +
+          parseInt(h.substr(5, 2), 16) + ',' + EDIT_FILL_ALPHA + ')';
+      }
 
       /* 画面上のクリック位置から、販売図面のその場所の色を取り出す。
          表示は縮小されているため、画像本来の大きさに換算してから読み取る。 */
@@ -1544,7 +1553,8 @@
         return { x: +r.x || 0, y: +r.y || 0, w: +r.w || 0, h: +r.h || 0,
                  t: (r.t === 'band' ? 'band' : 'mask'), c: normHex(r.c) };
       }) : [];
-      // スポイトで拾った色。次に追加するマスクにも引き継ぐ（既定は白）。
+      // 直近に指定した色（色見本の初期値に使う）。
+      // 新しく追加するマスクは、この色ではなく常に白で作る（マスクは白が基本のため）。
       var pickedColor = '#ffffff';
       var eyedropperOn = false;
       // 色を変える対象は「選択中の1枚」だけ（マスクごとに違う色を付けられるようにするため）。
@@ -1621,7 +1631,7 @@
               el.style.backgroundImage = 'url("' + bandUrl + '")';
             } else if (!isBand) {
               // 塗りつぶす色を編集画面でもそのまま見せる（下地が少し透ける半透明のまま）。
-              el.style.backgroundColor = r.c || '#ffffff';
+              el.style.backgroundColor = editorFill(r.c);
             }
             el.innerHTML = '<button type="button" class="prop-mask-del" aria-label="削除">×</button>' +
               '<span class="prop-mask-tag' + (isBand ? '' : ' prop-mask-tag--mask') + '">' +
@@ -1698,8 +1708,10 @@
           });
         }
         m.body.querySelector('#prop-mask-add').addEventListener('click', function () {
-          // 直前に使った色で作り、そのまま選択状態にする（続けて色を変えられるように）。
-          regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'mask', c: pickedColor }));
+          // 新しいマスクは、直前にスポイトで拾った色を引き継がず、常に白で作る。
+          // マスクはほとんどの場合が白で、図面の文字を消すときだけ色を拾って指定するため。
+          // 作った直後は選択状態にして、必要ならすぐ色を変えられるようにする。
+          regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'mask' }));
           render(); selectRegion(regions.length - 1);
         });
 
@@ -1743,9 +1755,9 @@
           var mask = selectedMask();
           if (!mask) return false;
           mask.c = hex;
-          pickedColor = hex; // 次に追加するマスクの初期色として引き継ぐ
+          pickedColor = hex; // 何も選んでいないときの色見本の表示に使う（新しいマスクは白のまま）
           var el = canvas.querySelector('.prop-mask-rect[data-i="' + selectedIndex + '"]');
-          if (el) el.style.backgroundColor = hex;
+          if (el) el.style.backgroundColor = editorFill(hex);
           if (colorInput) colorInput.value = hex;
           return true;
         }
