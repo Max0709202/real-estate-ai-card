@@ -105,6 +105,9 @@ if (!defined('PROPERTY_MAP_HAZARD_POLYGONS')) define('PROPERTY_MAP_HAZARD_POLYGO
 /** ハザードのポリゴン1つあたりの頂点上限。面の塗り分けなので粗くても支障がなく、
  *  頂点を減らした分だけ多くのエリアを途切れさせずに表示できる。 */
 if (!defined('PROPERTY_MAP_HAZARD_RING_POINTS')) define('PROPERTY_MAP_HAZARD_RING_POINTS', 150);
+/** 指定校（学区）の位置を学校名から探すときの検索範囲。学区は半径1kmを超えることがあるため、
+ *  周辺施設（半径1000m）より広く見る。 */
+if (!defined('PROPERTY_MAP_SCHOOL_SEARCH_RADIUS_M')) define('PROPERTY_MAP_SCHOOL_SEARCH_RADIUS_M', 4000);
 
 /* ──────────────────────────────────────────────────────────
  * 緯度・経度（§1 / §2）
@@ -381,16 +384,19 @@ if (!function_exists('propertyMapPlacesTextSearch')) {
      * （学習塾・清掃工場・下水処理場・刑務所・変電所 等）を実在の施設名で拾うために使う。
      * 円内に限定するので、返るのは実際にその範囲にあるとGoogleが持っている施設だけ（§8⑩ 推測表示の禁止）。
      */
-    function propertyMapPlacesTextSearch(PDO $db, float $lat, float $lng, string $query, int $max = PROPERTY_MAP_PLACES_PAGE): array
+    function propertyMapPlacesTextSearch(PDO $db, float $lat, float $lng, string $query, int $max = PROPERTY_MAP_PLACES_PAGE, int $radiusM = 0): array
     {
         $key = propertyMapPlacesKey();
         $query = trim($query);
         if ($key === '' || $query === '') return ['items' => [], 'ok' => false, 'truncated' => false];
 
         $max = max(1, min(PROPERTY_MAP_PLACES_PAGE, $max));
+        // 既定は周辺施設と同じ検索範囲（§6）。指定学区の学校だけは学区が1kmを超えることがあるため、
+        // 呼び出し側から広い範囲を指定できるようにしている。
+        $radiusM = $radiusM > 0 ? $radiusM : propertyMapRadius();
         // searchText の locationRestriction は矩形しか受け付けないため、半径から外接する矩形を作り、
-        // 取得後に半径 propertyMapRadius() 以内へ絞り込む（§6 検索範囲）。
-        $box = propertyMapBoundingBox($lat, $lng, propertyMapRadius());
+        // 取得後にその半径以内へ絞り込む。
+        $box = propertyMapBoundingBox($lat, $lng, $radiusM);
         $payload = [
             'textQuery'           => $query,
             'maxResultCount'      => $max,
@@ -423,13 +429,12 @@ if (!function_exists('propertyMapPlacesTextSearch')) {
         }
         $places = is_array($res['data']['places'] ?? null) ? $res['data']['places'] : [];
         $items = [];
-        $radius = propertyMapRadius();
         foreach ($places as $p) {
             if (!is_array($p)) continue;
             $n = propertyMapNormalizePlace($p);
             if (!$n) continue;
             // 矩形の四隅にはみ出した施設を落として、半径での検索範囲に揃える。
-            if (propertyMapDistanceM($lat, $lng, $n['lat'], $n['lng']) > $radius) continue;
+            if (propertyMapDistanceM($lat, $lng, $n['lat'], $n['lng']) > $radiusM) continue;
             $items[] = $n;
         }
         return ['items' => $items, 'ok' => true, 'truncated' => count($places) >= $max];
@@ -839,20 +844,38 @@ if (!function_exists('propertyMapSchoolDistrict')) {
             $entry['polygons'][] = ['ring' => $ring, 'note' => $entry['name']];
         }
 
-        // 学校の位置（地図に同色の●で出す）。所在地から求め、取れなければ表示しない。
+        // 学校の位置（地図に同色の●で出す）。
+        // ① データ内の所在地から求める。
         $address = propertyMapSchoolAddress($props);
         if ($address !== '') {
             $geo = propertyMapGeocodeAddress($db, $address);
-            if ($geo) {
-                $entry['point'] = [
-                    'name'    => $entry['name'] !== '' ? $entry['name'] : $def['label'],
-                    'lat'     => $geo['lat'],
-                    'lng'     => $geo['lng'],
-                    'map_url' => propertyMapGoogleUrl('', $geo['lat'], $geo['lng']),
-                ];
+            if ($geo) $entry['point'] = propertyMapSchoolPoint($entry['name'], $def['label'], $geo['lat'], $geo['lng'], '');
+        }
+        // ② 所在地の項目が無いデータでは、学校名で位置を探す。
+        //    学区は半径1kmを超えることがあるため、この検索だけ広い範囲を見る。
+        if ($entry['point'] === null && $entry['name'] !== '') {
+            $res = propertyMapPlacesTextSearch($db, $lat, $lng, $entry['name'], 3, PROPERTY_MAP_SCHOOL_SEARCH_RADIUS_M);
+            foreach ($res['items'] as $hit) {
+                // 名前が一致するものだけを採用する（別の学校を指さないため）。
+                if (strpos($hit['name'], $entry['name']) === false && strpos($entry['name'], $hit['name']) === false) continue;
+                $entry['point'] = propertyMapSchoolPoint($entry['name'], $def['label'], $hit['lat'], $hit['lng'], $hit['place_id']);
+                break;
             }
         }
         return $entry;
+    }
+}
+
+if (!function_exists('propertyMapSchoolPoint')) {
+    /** 指定校の●1つ分（学校名・位置・Googleマップへのリンク）。 */
+    function propertyMapSchoolPoint(string $name, string $label, float $lat, float $lng, string $placeId): array
+    {
+        return [
+            'name'    => $name !== '' ? $name : $label,
+            'lat'     => $lat,
+            'lng'     => $lng,
+            'map_url' => propertyMapGoogleUrl($placeId, $lat, $lng),
+        ];
     }
 }
 
@@ -888,13 +911,27 @@ if (!function_exists('propertyMapSchoolAddress')) {
      */
     function propertyMapSchoolAddress(array $props): string
     {
-        foreach (['A27_005', 'address', 'address_ja', '所在地'] as $k) {
+        // 住所らしい値か（学校名・コード・設置主体などを住所と取り違えないため）。
+        $looksLikeAddress = static function (string $s): bool {
+            if ($s === '' || strlen($s) > 300) return false;
+            if (strpos($s, '小学校') !== false || strpos($s, '中学校') !== false) return false;
+            if (!preg_match('/[0-9０-９]/u', $s)) return false;            // 丁目・番地の数字
+            if (preg_match('/^[0-9０-９\-－\s]+$/u', $s)) return false;     // コードだけの値
+            if (!preg_match('/(市|区|町|村|郡)/u', $s)) return false;       // 市区町村を含む
+            return true;
+        };
+        // ① 所在地と分かるキーを優先する。
+        foreach (['A27_005', 'A32_005', 'A28_005', 'address', 'address_ja', '所在地'] as $k) {
             if (!isset($props[$k]) || !is_scalar($props[$k])) continue;
             $s = trim((string)$props[$k]);
-            if ($s === '' || strlen($s) > 300) continue;
-            if (strpos($s, '小学校') !== false || strpos($s, '中学校') !== false) continue;
-            if (!preg_match('/[0-9０-９]/u', $s)) continue;
-            return $s;
+            if ($looksLikeAddress($s)) return $s;
+        }
+        // ② 通学区域データは小学校区と中学校区で項目名が異なる（中学校区には A27_005 が無い）。
+        //    キー名に頼らず、値そのものが住所の形をしているかで拾う。
+        foreach ($props as $v) {
+            if (!is_scalar($v)) continue;
+            $s = trim((string)$v);
+            if ($looksLikeAddress($s)) return $s;
         }
         return '';
     }
