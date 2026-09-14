@@ -1398,6 +1398,11 @@ if (!empty($card['profile_photo'])) {
                     <button type="button" id="chat-widget-close" class="chat-widget-icon-btn chat-widget-close" aria-label="閉じる" title="閉じる">&times;</button>
                 </div>
             </div>
+            <!-- AI担当の上部ボタン。機能タブ（条件整理・進捗管理…）では表示しない。 -->
+            <div class="chat-widget-geo-actions" id="chat-widget-geo-actions">
+                <button type="button" class="chat-widget-geo-btn" data-geo-map="1">現在地情報をマップ表示</button>
+                <button type="button" class="chat-widget-geo-btn" data-geo-info="1">現在地情報を取得する</button>
+            </div>
             <div id="chat-widget-messages" class="chat-widget-messages"></div>
             <div class="chat-widget-quick-actions" id="chat-widget-quick-actions"></div>
             <div id="chat-widget-feature-panel" class="chat-widget-feature-panel" hidden></div>
