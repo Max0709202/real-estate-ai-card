@@ -1341,9 +1341,11 @@
   function bindPhotoActions(body, p, photos, thumbId) {
     body.querySelectorAll('[data-pick-thumb]').forEach(function (tile) {
       tile.addEventListener('click', function (e) {
-        if (e.target.closest('button')) return;   // 拡大・削除・名前変更のボタンは除く
+        if (e.target.closest('button')) return;   // 拡大・削除・コメント変更のボタンは除く
         var id = parseInt(tile.getAttribute('data-pick-thumb'), 10);
         if (id === thumbId) return;               // すでにサムネイルに指定済み
+        // 誤って押したときにそのまま切り替わらないよう、変更の前に確認する。
+        if (!confirm('この写真を、お客様の物件一覧に表示するサムネイルにしますか？')) return;
         setThumbnail(p, id);
       });
     });
