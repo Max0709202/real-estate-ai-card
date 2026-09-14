@@ -2029,16 +2029,17 @@ function editSectionIcon(string $key): string
                     </div>
                     <?php elseif ($paymentMethod === 'bank_transfer' && isset($endDateForRenewal)): ?>
                     <?php
-                    // Calculate when renewal becomes available
-                    $renewalEligibleDate = clone $endDateForRenewal;
-                    $renewalEligibleDate->modify('-2 months');
-                    $now = new DateTime();
-                    if ($now < $renewalEligibleDate):
-                        $daysUntilRenewal = $now->diff($renewalEligibleDate)->days;
+                    // 利用期限日−本日の残日数を、時刻を含めず日付単位で正確に算出する
+                    $expiryDateOnly = clone $endDateForRenewal;
+                    $expiryDateOnly->setTime(0, 0, 0);
+                    $todayDateOnly = new DateTime();
+                    $todayDateOnly->setTime(0, 0, 0);
+                    if ($todayDateOnly < $expiryDateOnly):
+                        $daysUntilExpiry = (int)$todayDateOnly->diff($expiryDateOnly)->days;
                     ?>
                     <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #b3d9ff;">
                         <small style="display: block; color: #666;">
-                            更新手続き可能まで: あと約<?php echo $daysUntilRenewal; ?>日
+                            利用期限まで: あと<?php echo $daysUntilExpiry; ?>日
                         </small>
                     </div>
                     <?php endif; ?>
