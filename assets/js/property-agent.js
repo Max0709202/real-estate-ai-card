@@ -1547,6 +1547,8 @@
       // スポイトで拾った色。次に追加するマスクにも引き継ぐ（既定は白）。
       var pickedColor = '#ffffff';
       var eyedropperOn = false;
+      // 色を変える対象は「選択中の1枚」だけ（マスクごとに違う色を付けられるようにするため）。
+      var selectedIndex = -1;
       // 既定領域: 自社帯が登録済みなら、下端に自社帯をデフォルト表示（幅80%・中央）。
       // 領域が空の場合は、社名周りを確実に隠す全幅の白マスクを土台として敷く。
       // 未登録なら従来どおり白マスク。帯が既にあれば重複追加しない。
@@ -1578,13 +1580,14 @@
           ? '図面下端には自社帯をデフォルト表示しています。'
           : '<b>自社帯は未登録です。</b>「自社帯登録」画面で帯を登録すると、白マスクの代わりに自社帯を表示できます。';
         m.body.innerHTML =
-          '<div class="prop-msg prop-msg--info">マスク（塗りつぶし）と自社帯をドラッグで配置できます。売主仲介会社の情報などはマスクで隠し、必要に応じて自社帯を重ねてください。マスクの色は既定で白ですが、<b>スポイトで図面の色を取り込んで指定</b>することもできます。' + bandNote + 'なお、「この内容で確定」ボタンを押さない限り、顧客には販売図面は表示されません。</div>' +
+          '<div class="prop-msg prop-msg--info">マスク（塗りつぶし）と自社帯をドラッグで配置できます。売主仲介会社の情報などはマスクで隠し、必要に応じて自社帯を重ねてください。マスクの色は既定で白ですが、<b>マスクをクリックして選び、スポイトで図面の色を取り込む</b>と、<b>マスクごとに違う色</b>を付けられます。' + bandNote + 'なお、「この内容で確定」ボタンを押さない限り、顧客には販売図面は表示されません。</div>' +
           '<div class="prop-mask-tools">' +
-            '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-eyedrop" title="図面の色をスポイトで取る">' + UI.icon('considering') + 'スポイト</button>' +
-            '<label class="prop-mask-color"><span>塗りつぶす色</span>' +
+            '<span class="prop-mask-tools__target" id="prop-mask-target">選択中: なし</span>' +
+            '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-eyedrop" title="図面の色をスポイトで取る">' + UI.icon('eyedropper') + 'スポイト</button>' +
+            '<label class="prop-mask-color"><span>このマスクの色</span>' +
             '<input type="color" id="prop-mask-color" value="#ffffff"></label>' +
-            '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-apply-color">選んだ色をマスクに適用</button>' +
-            '<span class="prop-mask-tools__hint" id="prop-mask-tools-hint">「スポイト」を押してから図面をクリックすると、その場所の色を取り込めます。</span>' +
+            '<button type="button" class="prop-btn prop-btn--ghost" id="prop-mask-apply-all">すべてのマスクを同じ色にする</button>' +
+            '<span class="prop-mask-tools__hint" id="prop-mask-tools-hint">色を変えたいマスクをクリックして選んでください。</span>' +
           '</div>' +
           '<div class="prop-mask-editor"><div class="prop-mask-canvas" id="prop-mask-canvas">' +
           '<img src="' + UI.esc(d.preview_url) + '" alt="" id="prop-mask-img" draggable="false"></div></div>' +
@@ -1598,6 +1601,13 @@
         function setRectStyle(el, r) {
           el.style.left = (r.x * 100) + '%'; el.style.top = (r.y * 100) + '%';
           el.style.width = (r.w * 100) + '%'; el.style.height = (r.h * 100) + '%';
+        }
+        /* 何枚目のマスクかを数える（自社帯は数えない）。ツールバーの「選択中: マスク2」と
+           図面上の番号タグを一致させ、どのマスクの色を変えているかが分かるようにする。 */
+        function maskNo(i) {
+          var n = 0;
+          for (var k = 0; k <= i && k < regions.length; k++) if (regions[k].t !== 'band') n++;
+          return n;
         }
         function render() {
           canvas.querySelectorAll('.prop-mask-rect').forEach(function (n) { n.remove(); });
@@ -1614,20 +1624,41 @@
               el.style.backgroundColor = r.c || '#ffffff';
             }
             el.innerHTML = '<button type="button" class="prop-mask-del" aria-label="削除">×</button>' +
-              (isBand ? '<span class="prop-mask-tag">自社帯</span>' : '') +
+              '<span class="prop-mask-tag' + (isBand ? '' : ' prop-mask-tag--mask') + '">' +
+                (isBand ? '自社帯' : 'マスク' + maskNo(i)) + '</span>' +
               '<span class="prop-mask-handle"></span>';
             canvas.appendChild(el);
           });
+          markSelected();
+        }
+        /* 選択状態は枠線だけで表す。作り直すとドラッグ中の要素を失うので、
+           クラスの付け替えだけで済ませる。 */
+        function markSelected() {
+          canvas.querySelectorAll('.prop-mask-rect').forEach(function (el) {
+            el.classList.toggle('is-selected', +el.getAttribute('data-i') === selectedIndex);
+          });
+        }
+        function selectRegion(i) {
+          selectedIndex = (i >= 0 && i < regions.length) ? i : -1;
+          markSelected();
+          updateTools();
         }
         // 帯画像の遅延読込後などに、編集画面が表示中なら再描画する
         rerenderEditor = function () { if (canvas && canvas.isConnected) render(); };
         var drag = null;
         canvas.addEventListener('pointerdown', function (e) {
           var del = e.target.closest('.prop-mask-del');
-          if (del) { var di = +del.parentNode.getAttribute('data-i'); regions.splice(di, 1); render(); e.preventDefault(); return; }
+          if (del) {
+            var di = +del.parentNode.getAttribute('data-i');
+            regions.splice(di, 1);
+            // 消した分だけ選択位置がずれるので、選び直す（消したものを選んでいたら選択解除）。
+            if (selectedIndex === di) selectedIndex = -1; else if (selectedIndex > di) selectedIndex--;
+            render(); updateTools(); e.preventDefault(); return;
+          }
           var rectEl = e.target.closest('.prop-mask-rect');
           if (!rectEl) return;
           var i = +rectEl.getAttribute('data-i');
+          selectRegion(i); // クリックしたマスクを、色を変える対象にする
           var cb = canvas.getBoundingClientRect();
           drag = {
             el: rectEl, i: i, resize: e.target.classList.contains('prop-mask-handle'),
@@ -1663,56 +1694,107 @@
         var bandAddBtn = m.body.querySelector('#prop-band-add');
         if (bandAddBtn && bandUrl) {
           bandAddBtn.addEventListener('click', function () {
-            regions.push(makeSelfBand()); render();
+            regions.push(makeSelfBand()); render(); selectRegion(regions.length - 1);
           });
         }
         m.body.querySelector('#prop-mask-add').addEventListener('click', function () {
-          regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'mask', c: pickedColor })); render();
+          // 直前に使った色で作り、そのまま選択状態にする（続けて色を変えられるように）。
+          regions.push(Object.assign({}, PROP_DEFAULT_BAND, { t: 'mask', c: pickedColor }));
+          render(); selectRegion(regions.length - 1);
         });
 
-        /* --- スポイト（改善要望 2-4） ---
-           「スポイト」を押すと図面のクリック待ちになり、押した場所の色を取り込む。
-           取り込んだ色は色見本に入り、「選んだ色をマスクに適用」で今あるマスクへ反映できる。
-           何も選ばずに新しいマスクを足したときも、その色で作られる。 */
+        /* --- スポイト・マスクごとの色（改善要望 2-4 / マスク色の個別指定 2026.9.14） ---
+           色は「選択中のマスク1枚」だけに入る。図面上のマスクをクリックして選び、
+           色見本を変えるか、「スポイト」を押して図面の色を拾うと、そのマスクだけが変わる。
+           全部を同じ色にしたいときは「すべてのマスクを同じ色にする」を使う。
+           自社帯は帯画像を貼るため、色の指定対象にはしない。 */
         var colorInput = m.body.querySelector('#prop-mask-color');
         var dropBtn = m.body.querySelector('#prop-mask-eyedrop');
-        var applyBtn = m.body.querySelector('#prop-mask-apply-color');
+        var applyAllBtn = m.body.querySelector('#prop-mask-apply-all');
         var toolsHint = m.body.querySelector('#prop-mask-tools-hint');
-        if (colorInput) colorInput.value = pickedColor;
+        var targetLabel = m.body.querySelector('#prop-mask-target');
+
+        function selectedMask() {
+          var r = regions[selectedIndex];
+          return (r && r.t !== 'band') ? r : null;
+        }
+        /* ツールバーの表示を、いま選んでいるものに合わせる。 */
+        function updateTools() {
+          var r = regions[selectedIndex];
+          var mask = selectedMask();
+          if (targetLabel) {
+            targetLabel.textContent = mask ? ('選択中: マスク' + maskNo(selectedIndex))
+              : (r ? '選択中: 自社帯' : '選択中: なし');
+            targetLabel.classList.toggle('is-empty', !mask);
+          }
+          if (colorInput) {
+            colorInput.disabled = !mask;
+            colorInput.value = mask ? (mask.c || '#ffffff') : pickedColor;
+          }
+          if (dropBtn) dropBtn.disabled = !mask;
+          if (!toolsHint) return;
+          if (eyedropperOn) toolsHint.textContent = '図面の色を取りたい場所をクリックしてください。取り込んだ色は、選択中のマスクだけに反映されます。';
+          else if (mask) toolsHint.textContent = 'マスク' + maskNo(selectedIndex) + 'の色を変えられます。色見本を変えるか、「スポイト」を押して図面の色を取り込んでください。他のマスクの色は変わりません。';
+          else if (r) toolsHint.textContent = '自社帯には色を指定できません。色を変えたいマスクをクリックして選んでください。';
+          else toolsHint.textContent = '色を変えたいマスクをクリックして選んでください。';
+        }
+        /* 選択中のマスクにだけ色を入れる（作り直さずに見た目も更新する）。 */
+        function setSelectedColor(hex) {
+          var mask = selectedMask();
+          if (!mask) return false;
+          mask.c = hex;
+          pickedColor = hex; // 次に追加するマスクの初期色として引き継ぐ
+          var el = canvas.querySelector('.prop-mask-rect[data-i="' + selectedIndex + '"]');
+          if (el) el.style.backgroundColor = hex;
+          if (colorInput) colorInput.value = hex;
+          return true;
+        }
 
         function setEyedropper(on) {
-          eyedropperOn = !!on;
+          eyedropperOn = !!on && !!selectedMask();
           if (dropBtn) dropBtn.classList.toggle('is-active', eyedropperOn);
           if (canvas) canvas.classList.toggle('is-picking', eyedropperOn);
-          if (toolsHint) toolsHint.textContent = eyedropperOn
-            ? '図面の色を取りたい場所をクリックしてください。'
-            : '「スポイト」を押してから図面をクリックすると、その場所の色を取り込めます。';
+          updateTools();
         }
-        if (dropBtn) dropBtn.addEventListener('click', function () { setEyedropper(!eyedropperOn); });
-        if (colorInput) colorInput.addEventListener('input', function () {
-          pickedColor = normHex(colorInput.value) || '#ffffff';
+        if (dropBtn) dropBtn.addEventListener('click', function () {
+          if (!selectedMask()) { notify('error', '先に色を変えたいマスクをクリックして選んでください'); return; }
+          setEyedropper(!eyedropperOn);
         });
-        if (applyBtn) applyBtn.addEventListener('click', function () {
+        if (colorInput) colorInput.addEventListener('input', function () {
+          setSelectedColor(normHex(colorInput.value) || '#ffffff');
+        });
+        if (applyAllBtn) applyAllBtn.addEventListener('click', function () {
+          var hex = normHex(colorInput && colorInput.value) || pickedColor;
           var changed = 0;
-          regions.forEach(function (r) { if (r.t !== 'band') { r.c = pickedColor; changed++; } });
+          regions.forEach(function (r) { if (r.t !== 'band') { r.c = hex; changed++; } });
+          pickedColor = hex;
           render();
-          notify('ok', changed ? 'マスクの色を変更しました' : '色を変えるマスクがありません');
+          notify('ok', changed ? 'すべてのマスク（' + changed + '枚）を同じ色にしました' : '色を変えるマスクがありません');
         });
 
         // 図面上のクリックで色を取り込む（マスクの移動と競合しないよう、スポイト中だけ拾う）。
         canvas.addEventListener('click', function (e) {
           if (!eyedropperOn) return;
           e.preventDefault(); e.stopPropagation();
+          var no = maskNo(selectedIndex);
           var hex = samplePixelColor(e.clientX, e.clientY);
           setEyedropper(false);
           if (!hex) { notify('error', '色を取得できませんでした'); return; }
-          pickedColor = hex;
-          if (colorInput) colorInput.value = hex;
-          notify('ok', '色を取り込みました（' + hex + '）。「選んだ色をマスクに適用」で反映できます。');
+          if (!setSelectedColor(hex)) { notify('error', '色を入れるマスクが選ばれていません'); return; }
+          updateTools();
+          notify('ok', 'マスク' + no + 'の色を ' + hex + ' にしました');
         }, true);
         m.body.querySelector('#prop-mask-cancel').addEventListener('click', function () { m.close(); });
         m.body.querySelector('#prop-mask-preview').addEventListener('click', renderPreview);
         render();
+        // 開いた直後は、最初のマスクを選んでおく（すぐ色を変えられるように）。
+        if (!selectedMask()) {
+          var first = -1;
+          for (var fi = 0; fi < regions.length; fi++) { if (regions[fi].t !== 'band') { first = fi; break; } }
+          selectRegion(first);
+        } else {
+          selectRegion(selectedIndex);
+        }
       }
 
       /* --- 顧客用プレビュー（実際の白抜き結果を表示） --- */

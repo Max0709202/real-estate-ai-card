@@ -275,7 +275,12 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 /* 自社帯の領域: 帯画像を背景表示し、緑破線で白マスクと区別する */
 .prop-mask-rect--band { background: rgba(255,255,255,.95); background-size: 100% 100%; background-repeat: no-repeat; background-position: center; border-color: #1c9c5c; box-shadow: 0 0 0 1px rgba(28,156,92,.35) inset; }
 .prop-mask-rect--band .prop-mask-handle { background: #1c9c5c; }
+/* 色を変える対象として選ばれているマスク。枠を実線＋外側の光で分かるようにする。 */
+.prop-mask-rect.is-selected { border-style: solid; box-shadow: 0 0 0 3px rgba(45,108,223,.45); z-index: 2; }
+.prop-mask-rect--band.is-selected { box-shadow: 0 0 0 3px rgba(28,156,92,.45); }
 .prop-mask-tag { position: absolute; top: -10px; left: -2px; padding: 1px 6px; font-size: 11px; line-height: 1.5; color: #fff; background: #1c9c5c; border-radius: 4px; pointer-events: none; white-space: nowrap; }
+/* マスクの通し番号（ツールバーの「選択中: マスク2」と対応させる） */
+.prop-mask-tag--mask { background: #2d6cdf; }
 .prop-preview-canvas { max-width: 100%; height: auto; display: block; border: 1px solid #d6dde8; border-radius: 6px; margin: 0 auto; }
 .prop-mask-handle { position: absolute; right: -7px; bottom: -7px; width: 16px; height: 16px; background: #2d6cdf; border: 2px solid #fff; border-radius: 50%; cursor: se-resize; }
 .prop-mask-del { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; background: #e8384f; color: #fff; font-size: 13px; line-height: 1; cursor: pointer; }
@@ -512,11 +517,16 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-list-drop.is-over { border-color: #2d6cdf; background: #eef4ff; }
 .prop-list-drop__hint { margin: 8px 2px 0; font-size: 12px; color: #6b7585; }
 
-/* ===== マスクの色指定・スポイト（改善要望 2-4） ===== */
+/* ===== マスクの色指定・スポイト（改善要望 2-4 / マスク色の個別指定 2026.9.14） ===== */
 .prop-mask-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
 .prop-mask-tools__hint { flex: 1 1 100%; font-size: 12px; color: #6b7585; }
+/* いま色を変えられるマスクの名前。選ばれていないときはグレーにする。 */
+.prop-mask-tools__target { padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  color: #2d6cdf; background: #e9f0fd; border: 1px solid #cfe0fb; white-space: nowrap; }
+.prop-mask-tools__target.is-empty { color: #6b7585; background: #eef1f6; border-color: #e0e5ee; }
 .prop-mask-color { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #38465c; }
 .prop-mask-color input[type="color"] { width: 44px; height: 32px; padding: 0; border: 1px solid #d6dde8; border-radius: 8px; background: #fff; cursor: pointer; }
+.prop-mask-color input[type="color"]:disabled { cursor: not-allowed; opacity: .45; }
 .prop-btn.is-active { background: #2d6cdf; border-color: #2d6cdf; color: #fff; }
 /* スポイト中は、図面の上でクリック位置を狙っていることが分かるようにする。 */
 .prop-mask-canvas.is-picking { cursor: crosshair; }
