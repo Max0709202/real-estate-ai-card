@@ -61,7 +61,7 @@ try {
         if (!orgCanViewTeam($parent['org_role'] ?? 'staff')) {
             sendErrorResponse('上長にはマネージャーまたは管理者のみ指定できます', 400);
         }
-        // 自分自身・自分の配下を上長にすると階層が循環する。
+        // 自分自身・自分のメンバーを上長にすると階層が循環する。
         if (!orgIsAssignableParent($db, $targetUserId, $newParentId)) {
             sendErrorResponse('その相手は上長に指定できません（階層が循環します）', 400);
         }
