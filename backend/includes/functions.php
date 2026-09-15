@@ -1966,9 +1966,9 @@ HTML;
                             <h3 style="margin:0 0 10px 0; font-size:16px;">QRコードについて</h3>
                             <p style="margin:0; line-height:1.8;">QRコードは名刺ページに表示されています。QRコードをスキャンすると、名刺URLに直接アクセスできます。</p>
                         </div>
-                        <p style="margin:0 0 16px 0; line-height:1.8;">名刺の内容確認・編集はマイページから行えます。</p>
+                        <p style="margin:0 0 16px 0; line-height:1.8;">名刺の内容確認・編集は顧客管理から行えます。</p>
                         <div style="text-align:center; margin:28px 0;">
-                            <a href="{$editUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block; background:#0066cc; color:#ffffff; text-decoration:none; font-weight:bold; padding:12px 24px; border-radius:6px;">マイページを開く</a>
+                            <a href="{$editUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block; background:#0066cc; color:#ffffff; text-decoration:none; font-weight:bold; padding:12px 24px; border-radius:6px;">顧客管理を開く</a>
                         </div>
 {$paymentHtml}
                         <p style="margin:0; color:#666; font-size:13px;">発行日時: {$issuedDateHtml}</p>
@@ -2020,7 +2020,7 @@ HTML;
         "- 名刺の内容を確認・編集できます\n" .
         "- QRコードを名刺に印刷して配布できます\n" .
         "- SNSやメールで簡単に共有できます\n\n" .
-        "マイページ: " . BASE_URL . "/edit.php\n\n" .
+        "顧客管理: " . BASE_URL . "/edit.php\n\n" .
         ($paymentAmount ? "【お支払い情報】\nお支払い金額: ¥" . number_format($paymentAmount) . ($paymentTypeText ? "\nお支払い方法: {$paymentTypeText}" : "") . "\n発行日時: {$issuedDate}\n\n" : "") .
         "発行日時: {$issuedDate}\n";
 

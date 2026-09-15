@@ -129,6 +129,14 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 
 /* ===== 詳細ヘッダ（§9） ===== */
 .prop-detail__header { display: flex; flex-direction: column; gap: 6px; padding: 4px 2px 12px; border-bottom: 1px solid #eef1f6; }
+/* 物件名の右側の空きスペースにサムネイルを置く（PC・スマートフォン共通）。
+   写真が無い物件はこのクラスが付かないため、これまで通り全幅で表示される。 */
+.prop-detail__header--thumb { flex-direction: row; align-items: flex-start; gap: 12px; }
+.prop-detail__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.prop-detail__thumb {
+  width: 110px; height: 110px; flex: 0 0 110px; border-radius: 10px; object-fit: cover;
+  background: #eef1f6; border: 1px solid #e5e9f0; cursor: zoom-in;
+}
 .prop-detail__title { font-size: 18px; font-weight: 800; color: #14223a; }
 .prop-detail__price { font-size: 20px; font-weight: 800; color: #e8384f; }
 .prop-detail__sub { font-size: 13px; color: #5b6675; }
@@ -136,8 +144,11 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-detail__date { font-size: 12px; color: #8a8f98; margin-top: 6px; }
 
 /* ===== タブ（§10） =====
-   「基本情報／ハザード等情報／販売図面／写真・資料／マップ」を、どれを見ているかが
-   ひと目で分かるセグメント型にする。横に入り切らない場合はスクロールできる（スマホ）。 */
+   「基本情報／マップ／ハザード／販売図面／写真・資料／追加資料」を、どれを見ているかが
+   ひと目で分かるセグメント型にする。
+   PC・タブレットは1段の横並び。スマートフォンは横スクロールすると右端のタブ（マップなど）に
+   気づいてもらえないため、3列×2段のグリッドにして全部のタブを一度に見せる
+   （タブ表示改善依頼 2026.9.12）。 */
 .prop-tabs { display: flex; gap: 4px; margin: 14px 0 12px; padding: 4px;
   background: #f2f5fa; border: 1px solid #e6ebf3; border-radius: 12px;
   overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
@@ -150,6 +161,12 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-tab:focus-visible { outline: 2px solid #bcd4ff; outline-offset: 1px; }
 .prop-tabpane { display: none; }
 .prop-tabpane.is-active { display: block; }
+/* スマートフォン：3列×2段。iPhone SE（幅320px）でもはみ出さず、横スクロールも起きない。 */
+@media (max-width: 640px) {
+  .prop-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; overflow-x: visible; }
+  .prop-tab { flex: none; min-width: 0; padding: 10px 4px; font-size: 12px; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; }
+}
 
 /* ===== 基本情報テーブル（§11） ===== */
 .prop-info { width: 100%; border-collapse: collapse; }
@@ -186,7 +203,7 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-hazard-row__icon { flex: 0 0 22px; color: #e0a020; }
 .prop-hazard-row__icon svg { width: 20px; height: 20px; }
 .prop-hazard-row__label { flex: 1 1 auto; font-size: 13px; color: #38465c; }
-.prop-hazard-row__val { font-size: 13px; font-weight: 700; color: #14223a; text-align: right; }
+.prop-hazard-row__val { font-size: 13px; font-weight: 700; color: #14223a; text-align: left; }
 .prop-hazard-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #8a93a2; margin-bottom: 8px; }
 
 /* ===== 画像ギャラリー（§14 / §15） ===== */
@@ -206,11 +223,12 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-pdfviewer__close { background: none; border: none; color: #fff; font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
 .prop-pdfviewer__body { flex: 1 1 auto; overflow: auto; -webkit-overflow-scrolling: touch; display: flex; align-items: flex-start; justify-content: center; padding: 12px; }
 .prop-pdfviewer__body img { max-width: 100%; height: auto; border-radius: 4px; background: #fff; }
-.prop-photo-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; padding: 2px 4px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; z-index: 2; }
-.prop-photo-cap__txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prop-photo-cap__edit { background: none; border: none; color: #fff; padding: 0; cursor: pointer; display: flex; align-items: center; line-height: 1; flex: 0 0 auto; }
-.prop-photo-cap__edit svg { width: 12px; height: 12px; }
-.prop-photo-cap__edit:hover { color: #cfe0ff; }
+/* 写真の下のコメント。全体が押せて、そのまま書き換えられることが分かるようにする（改善要望 2-6） */
+.prop-photo-cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.62); color: #fff; font-size: 11px; padding: 5px 6px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 5px; z-index: 2; width: 100%; border: none; cursor: pointer; font-family: inherit; }
+.prop-photo-cap:hover, .prop-photo-cap:focus-visible { background: rgba(45,108,223,.9); }
+.prop-photo-cap__txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; }
+.prop-photo-cap__edit { display: flex; align-items: center; line-height: 1; flex: 0 0 auto; }
+.prop-photo-cap__edit svg { width: 13px; height: 13px; }
 .prop-thumb__del { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; z-index: 2; }
 .prop-thumb__del:hover { background: #e8384f; }
 .prop-thumb__del svg { width: 14px; height: 14px; }
@@ -257,7 +275,12 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 /* 自社帯の領域: 帯画像を背景表示し、緑破線で白マスクと区別する */
 .prop-mask-rect--band { background: rgba(255,255,255,.95); background-size: 100% 100%; background-repeat: no-repeat; background-position: center; border-color: #1c9c5c; box-shadow: 0 0 0 1px rgba(28,156,92,.35) inset; }
 .prop-mask-rect--band .prop-mask-handle { background: #1c9c5c; }
+/* 色を変える対象として選ばれているマスク。枠を実線＋外側の光で分かるようにする。 */
+.prop-mask-rect.is-selected { border-style: solid; box-shadow: 0 0 0 3px rgba(45,108,223,.45); z-index: 2; }
+.prop-mask-rect--band.is-selected { box-shadow: 0 0 0 3px rgba(28,156,92,.45); }
 .prop-mask-tag { position: absolute; top: -10px; left: -2px; padding: 1px 6px; font-size: 11px; line-height: 1.5; color: #fff; background: #1c9c5c; border-radius: 4px; pointer-events: none; white-space: nowrap; }
+/* マスクの通し番号（ツールバーの「選択中: マスク2」と対応させる） */
+.prop-mask-tag--mask { background: #2d6cdf; }
 .prop-preview-canvas { max-width: 100%; height: auto; display: block; border: 1px solid #d6dde8; border-radius: 6px; margin: 0 auto; }
 .prop-mask-handle { position: absolute; right: -7px; bottom: -7px; width: 16px; height: 16px; background: #2d6cdf; border: 2px solid #fff; border-radius: 50%; cursor: se-resize; }
 .prop-mask-del { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; background: #e8384f; color: #fff; font-size: 13px; line-height: 1; cursor: pointer; }
@@ -331,6 +354,14 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-pr__plan-list li { font-size: 12px; color: #38465c; line-height: 1.7; }
 .prop-pr__plan-cat { display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 999px;
   background: #fff; border: 1px solid #cfdcf5; color: #2459bd; font-size: 10px; font-weight: 800; vertical-align: 1px; }
+
+/* ブラッシュアップ結果のプレビュー（採用するまで入力欄は書き換えない） */
+.prop-pr__polish { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #fff8ec; border: 1px solid #f2dfbe; }
+.prop-pr__polish-head { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; color: #a86a12; margin-bottom: 6px; }
+.prop-pr__polish-len { font-weight: 700; color: #b99257; }
+.prop-pr__polish-body { padding: 10px; border-radius: 8px; background: #fff; border: 1px solid #f0e3cd;
+  font-size: 13px; line-height: 1.8; color: #263043; white-space: pre-wrap; }
+.prop-pr__polish-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 
 /* 顧客側の物件詳細に表示する読み取り専用ブロック */
 .prop-pr-view { margin: 12px 0; padding: 14px; border-radius: 12px; background: #eef4ff; border: 1px solid #d6e4ff; }
@@ -409,6 +440,8 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 @media (max-width: 560px) {
   .prop-form { grid-template-columns: 1fr; }
   .prop-card__thumb { width: 80px; height: 80px; flex-basis: 80px; }
+  /* スマートフォンでは物件名が狭くならないよう、詳細ヘッダのサムネイルを少し小さくする。 */
+  .prop-detail__thumb { width: 88px; height: 88px; flex-basis: 88px; }
 }
 
 /* ===== マップ・周辺情報（マップ情報表示依頼 2026.9.3） =====
@@ -476,3 +509,42 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-map__iw-meta { color: #5b6675; font-size: 12px; }
 .prop-map__iw-link { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; color: #2d6cdf; text-decoration: none; }
 .prop-map__iw-link:hover { text-decoration: underline; }
+
+
+/* ===== 複数物件の一括登録（改善要望 2-3） ===== */
+/* 一覧そのものをドロップ先にする。枠は普段は目立たせず、ドラッグ中だけ強調する。 */
+.prop-list-drop { border: 1px dashed transparent; border-radius: 12px; transition: border-color .15s ease, background .15s ease; }
+.prop-list-drop.is-over { border-color: #2d6cdf; background: #eef4ff; }
+.prop-list-drop__hint { margin: 8px 2px 0; font-size: 12px; color: #6b7585; }
+
+/* ===== マスクの色指定・スポイト（改善要望 2-4 / マスク色の個別指定 2026.9.14） ===== */
+.prop-mask-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.prop-mask-tools__hint { flex: 1 1 100%; font-size: 12px; color: #6b7585; }
+/* いま色を変えられるマスクの名前。選ばれていないときはグレーにする。 */
+.prop-mask-tools__target { padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  color: #2d6cdf; background: #e9f0fd; border: 1px solid #cfe0fb; white-space: nowrap; }
+.prop-mask-tools__target.is-empty { color: #6b7585; background: #eef1f6; border-color: #e0e5ee; }
+.prop-mask-color { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #38465c; }
+.prop-mask-color input[type="color"] { width: 44px; height: 32px; padding: 0; border: 1px solid #d6dde8; border-radius: 8px; background: #fff; cursor: pointer; }
+.prop-mask-color input[type="color"]:disabled { cursor: not-allowed; opacity: .45; }
+.prop-btn.is-active { background: #2d6cdf; border-color: #2d6cdf; color: #fff; }
+/* スポイト中は、図面の上でクリック位置を狙っていることが分かるようにする。 */
+.prop-mask-canvas.is-picking { cursor: crosshair; }
+.prop-mask-canvas.is-picking .prop-mask-rect { pointer-events: none; }
+
+/* ===== 追加資料（改善要望 2-5） ===== */
+.prop-doc-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.prop-doc-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e2e6ef; border-radius: 10px; background: #fff; }
+.prop-doc-item__icon { flex: 0 0 auto; color: #2d6cdf; display: flex; align-items: center; }
+.prop-doc-item__icon svg { width: 18px; height: 18px; }
+.prop-doc-item__body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.prop-doc-item__name { font-size: 13px; font-weight: 700; color: #1f2d3d; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-doc-item__name:hover { color: #2d6cdf; text-decoration: underline; }
+.prop-doc-item__sub { font-size: 11px; color: #8a94a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-doc-item__act { flex: 0 0 auto; background: none; border: 1px solid #d6dde8; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; color: #4a5568; display: flex; align-items: center; justify-content: center; padding: 0; }
+.prop-doc-item__act svg { width: 14px; height: 14px; }
+.prop-doc-item__act:hover { border-color: #2d6cdf; color: #2d6cdf; }
+.prop-doc-item__act--danger:hover { border-color: #e8384f; color: #e8384f; }
+
+/* お客様側の追加資料。何の資料かが分かるよう名前を添える。 */
+.prop-thumb__cap { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.62); color: #fff; font-size: 10px; line-height: 1.3; padding: 3px 4px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; z-index: 2; }

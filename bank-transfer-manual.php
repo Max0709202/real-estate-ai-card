@@ -263,7 +263,7 @@ if ($paymentId) {
                     </div>
                     
                     <div class="action-buttons">
-                        <a href="edit.php" class="btn btn-primary">マイページへ</a>
+                        <a href="edit.php" class="btn btn-primary">顧客管理へ</a>
                     </div>
                 </div>
             </div>

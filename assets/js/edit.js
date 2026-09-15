@@ -1412,12 +1412,28 @@ async function saveCommunicationMethods() {
 // Setup communication checkboxes to show/hide details
 function setupCommunicationCheckboxes() {
     document.querySelectorAll('.communication-checkbox input[type="checkbox"]').forEach(checkbox => {
+        if (checkbox.dataset.commBound === 'true') return;
+        checkbox.dataset.commBound = 'true';
         checkbox.addEventListener('change', function() {
             const item = this.closest('.communication-item');
             const details = item ? item.querySelector('.comm-details') : null;
             if (details) {
                 details.style.display = this.checked ? 'block' : 'none';
             }
+        });
+    });
+
+    // 入力欄に文字が入っているのにチェックが外れていると、保存時にその項目ごと
+    // 捨てられてしまう（保存したつもりでも名刺に出ない）。入力を始めた時点で
+    // チェックを入れ、入力した内容が必ず保存対象に入るようにする。
+    document.querySelectorAll('.comm-details input').forEach(input => {
+        if (input.dataset.commBound === 'true') return;
+        input.dataset.commBound = 'true';
+        input.addEventListener('input', function() {
+            if (!this.value.trim()) return;
+            const item = this.closest('.communication-item');
+            const checkbox = item ? item.querySelector('.communication-checkbox input[type="checkbox"]') : null;
+            if (checkbox && !checkbox.checked) checkbox.checked = true;
         });
     });
 }

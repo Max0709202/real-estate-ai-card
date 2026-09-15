@@ -505,13 +505,13 @@ try {
 }
 
 // 利用者（決済済みで名刺が稼働中のユーザー）かどうか。
-// 利用者は「チャット履歴・顧客一覧」を最初に表示する。未利用者・ゲストは従来どおりヘッダー・挨拶から開始。
+// 利用者は「顧客一覧・対応履歴」を最初に表示する。未利用者・ゲストは従来どおりヘッダー・挨拶から開始。
 $isUtilizingUser = !$isGuestAccess
     && !empty($userId)
     && in_array($paymentStatus, ['CR', 'BANK_PAID', 'ST'], true);
 
 // 組織階層（統括→店長→営業）での閲覧権限。
-// 統括（全閲覧）・マネージャー（店長）にだけ「組織・配下顧客」を表示する。
+// 統括（全閲覧）・マネージャー（店長）にだけ「組織・メンバー顧客」を表示する。
 // 担当者（営業）と未設定のユーザーは従来どおり自分の顧客だけを見る。
 // さらに、階層分けは法人プランの機能なので、運営が ON にした会社（免許番号）に限る。
 // OFF の会社ではメニューもページ本体も出力しない（APIも同じ条件で拒否する）。
@@ -569,8 +569,8 @@ function editSectionIcon(string $key): string
         'comm'     => 'messages-square',      // コミュニケーション
         'template' => 'layout-template',      // テンプレート選択
         'payment'  => 'credit-card',          // 決済
-        'chat'     => 'message-square-text',  // チャット履歴
-        'org'      => 'network',              // 組織・配下顧客
+        'chat'     => 'message-square-text',  // 顧客一覧
+        'org'      => 'network',              // 組織・メンバー顧客
         'ai'       => 'brain-circuit',        // AI育成
         'band'     => 'panel-bottom',         // 自社帯登録
     ];
@@ -874,8 +874,8 @@ function editSectionIcon(string $key): string
     <div class="edit-container">
         <header class="edit-header">
             <div class="edit-header-content">
-                <h1>マイページ（デジタル名刺作成・編集）</h1>
-                <p class="edit-header-lead">名刺の内容・チャット履歴・AI育成をこのページでまとめて管理できます。</p>
+                <h1>顧客管理</h1>
+                <p class="edit-header-lead">名刺の内容・顧客一覧・AI育成をこのページでまとめて管理できます。</p>
             </div>
             <button type="button" id="direct-input-btn" class="btn-direct-input">
                 <span class="direct-input-text">
@@ -887,50 +887,58 @@ function editSectionIcon(string $key): string
         <div class="edit-content">
             <div class="edit-sidebar">
                 <nav class="edit-nav">
-                    <div class="edit-nav-group">
-                        <span class="edit-nav-group-title">名刺を作る</span>
+                    <!-- 日々いちばん使うメニューを先頭に置く（改善要望 1-5）。
+                         名刺の7ステップは「名刺編集」の折りたたみにまとめ、必要なときだけ開く（改善要望 1-4）。 -->
+                    <a href="#chat-history" class="nav-item<?php echo $isUtilizingUser ? ' active' : ''; ?>" data-step="chat" data-section="chat-history-section">
+                        <span class="step-label">顧客一覧</span>
+                    </a>
+                    <div class="edit-nav-group edit-nav-group--collapsible">
+                        <button type="button" class="edit-nav-group-toggle" id="edit-nav-card-toggle"
+                                aria-expanded="<?php echo $isUtilizingUser ? 'false' : 'true'; ?>" aria-controls="edit-nav-card-steps">
+                            <span class="edit-nav-group-title">名刺編集</span>
+                            <span class="edit-nav-group-caret" aria-hidden="true"></span>
+                        </button>
                         <div class="edit-nav-progress" role="presentation">
                             <span class="edit-nav-progress-bar" id="edit-nav-progress-bar"></span>
                         </div>
                         <span class="edit-nav-progress-label" id="edit-nav-progress-label">全7ステップ</span>
                     </div>
-                    <a href="#header-greeting" class="nav-item<?php echo $isUtilizingUser ? '' : ' active'; ?>" data-step="1" data-section="header-greeting-section">
-                        <span class="step-number">1/7</span>
-                        <span class="step-label">ヘッダー・挨拶</span>
-                    </a>
-                    <a href="#company-profile" class="nav-item" data-step="2" data-section="company-profile-section">
-                        <span class="step-number">2/7</span>
-                        <span class="step-label">会社プロフィール</span>
-                    </a>
-                    <a href="#personal-info" class="nav-item" data-step="3" data-section="personal-info-section">
-                        <span class="step-number">3/7</span>
-                        <span class="step-label">個人情報</span>
-                    </a>
-                    <a href="#tech-tools" class="nav-item" data-step="4" data-section="tech-tools-section">
-                        <span class="step-number">4/7</span>
-                        <span class="step-label">テックツール</span>
-                    </a>
-                    <a href="#communication" class="nav-item" data-step="5" data-section="communication-section">
-                        <span class="step-number">5/7</span>
-                        <span class="step-label">コミュニケーション</span>
-                    </a>
-                    <a href="#template" class="nav-item" data-step="6" data-section="template-section">
-                        <span class="step-number">6/7</span>
-                        <span class="step-label">テンプレート選択</span>
-                    </a>
-                    <a href="#payment" class="nav-item" data-step="7" data-section="payment-section">
-                        <span class="step-number">7/7</span>
-                        <span class="step-label">決済</span>
-                    </a>
+                    <div class="edit-nav-steps" id="edit-nav-card-steps"<?php echo $isUtilizingUser ? ' data-collapsed="1"' : ''; ?>>
+                        <a href="#header-greeting" class="nav-item<?php echo $isUtilizingUser ? '' : ' active'; ?>" data-step="1" data-section="header-greeting-section">
+                            <span class="step-number">1/7</span>
+                            <span class="step-label">ヘッダー・挨拶</span>
+                        </a>
+                        <a href="#company-profile" class="nav-item" data-step="2" data-section="company-profile-section">
+                            <span class="step-number">2/7</span>
+                            <span class="step-label">会社プロフィール</span>
+                        </a>
+                        <a href="#personal-info" class="nav-item" data-step="3" data-section="personal-info-section">
+                            <span class="step-number">3/7</span>
+                            <span class="step-label">個人情報</span>
+                        </a>
+                        <a href="#tech-tools" class="nav-item" data-step="4" data-section="tech-tools-section">
+                            <span class="step-number">4/7</span>
+                            <span class="step-label">テックツール</span>
+                        </a>
+                        <a href="#communication" class="nav-item" data-step="5" data-section="communication-section">
+                            <span class="step-number">5/7</span>
+                            <span class="step-label">コミュニケーション</span>
+                        </a>
+                        <a href="#template" class="nav-item" data-step="6" data-section="template-section">
+                            <span class="step-number">6/7</span>
+                            <span class="step-label">テンプレート選択</span>
+                        </a>
+                        <a href="#payment" class="nav-item" data-step="7" data-section="payment-section">
+                            <span class="step-number">7/7</span>
+                            <span class="step-label">決済</span>
+                        </a>
+                    </div>
                     <div class="edit-nav-group edit-nav-group--secondary">
                         <span class="edit-nav-group-title">運用メニュー</span>
                     </div>
-                    <a href="#chat-history" class="nav-item<?php echo $isUtilizingUser ? ' active' : ''; ?>" data-step="chat" data-section="chat-history-section">
-                        <span class="step-label">チャット履歴</span>
-                    </a>
                     <?php if ($canViewTeam): ?>
                     <a href="#org-team" class="nav-item" data-step="org" data-section="org-team-section">
-                        <span class="step-label">組織・配下顧客</span>
+                        <span class="step-label">組織・メンバー顧客</span>
                     </a>
                     <?php endif; ?>
                     <a href="#agent-training" class="nav-item" data-step="agent" data-section="agent-training-section">
@@ -1331,7 +1339,7 @@ function editSectionIcon(string $key): string
                                         </div>
                                         <span>LINE</span>
                                     </label>
-                                    <div class="comm-details">
+                                    <div class="comm-details" style="display: none;">
                                         <input type="text" name="comm_line_id" class="form-control" placeholder="QRコードのリンクを入力">
                                     </div>
                                     <div class="comm-help-button-wrapper">
@@ -1352,7 +1360,7 @@ function editSectionIcon(string $key): string
                                         </div>
                                         <span>Messenger</span>
                                     </label>
-                                    <div class="comm-details">
+                                    <div class="comm-details" style="display: none;">
                                         <input type="text" name="comm_messenger_id" class="form-control" placeholder="プロフィールURLを入力">
                                     </div>
                                     <div class="comm-help-button-wrapper">
@@ -1373,7 +1381,7 @@ function editSectionIcon(string $key): string
                                         </div>
                                         <span>Chatwork</span>
                                     </label>
-                                    <div class="comm-details">
+                                    <div class="comm-details" style="display: none;">
                                         <input type="text" name="comm_chatwork_id" class="form-control" placeholder="チャットワークIDを入力">
                                     </div>
                                     <div class="comm-help-button-wrapper">
@@ -1667,8 +1675,8 @@ function editSectionIcon(string $key): string
                     <div class="section-hero section-hero--chat">
                         <?php echo editSectionIcon('chat'); ?>
                         <div class="section-hero-text">
-                            <h2>チャット履歴・顧客一覧</h2>
-                            <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。セッションをクリックすると詳細を確認できます。削除した履歴は「ゴミ箱」から復元できます。</p>
+                            <h2>顧客一覧・対応履歴</h2>
+                            <p class="step-description">名刺のチャットでやり取りしたお客様の一覧です。お客様をクリックすると対応履歴の詳細を確認できます。削除した対応履歴は「ゴミ箱」から復元できます。</p>
                         </div>
                     </div>
                     <!-- 顧客ページの事前作成（お客様のSMS認証を待たずに専用ページを用意して案内する導線）。
@@ -1752,18 +1760,18 @@ function editSectionIcon(string $key): string
                         <div id="chat-history-detail-content"></div>
                         <div class="chat-history-detail-actions">
                             <button type="button" class="btn-secondary" id="chat-history-detail-back">一覧に戻る</button>
-                            <button type="button" class="btn-danger" id="chat-history-detail-delete">この履歴をゴミ箱へ</button>
+                            <button type="button" class="btn-danger" id="chat-history-detail-delete">この対応履歴をゴミ箱へ</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- 組織・配下顧客（マネージャー／管理者のみ。閲覧専用） -->
+                <!-- 組織・メンバー顧客（マネージャー／管理者のみ。閲覧専用） -->
                 <?php if ($canViewTeam): ?>
                 <div id="org-team-section" class="edit-section" style="display: none;">
                     <div class="section-hero section-hero--org">
                         <?php echo editSectionIcon('org'); ?>
                         <div class="section-hero-text">
-                            <h2>組織・配下顧客</h2>
+                            <h2>組織・メンバー顧客</h2>
                             <p class="step-description">
                                 あなた（<?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>）が閲覧できる自社メンバーと、その方が対応しているお客様の一覧です。<br>
                                 統括（全閲覧）は<strong>自社の全員</strong>を、マネージャー（店長）は<strong>自分の配下</strong>を閲覧できます。<br>
@@ -1811,7 +1819,7 @@ function editSectionIcon(string $key): string
                         </div>
                         <p class="section-note">
                             店長を選ぶと「店舗全体（店長＋その配下の営業）」の顧客をまとめて確認できます。CSV出力も同じ範囲です。<br>
-                            <strong>顧客名</strong>を押すと、担当者のマイページに表示されている顧客詳細を<strong>閲覧のみ</strong>で確認できます。
+                            <strong>顧客名</strong>を押すと、担当者の顧客管理に表示されている顧客詳細を<strong>閲覧のみ</strong>で確認できます。
                         </p>
                         <div id="org-customer-list" class="org-team-list">
                             <p class="chat-history-loading">読み込み中...</p>
@@ -1820,7 +1828,7 @@ function editSectionIcon(string $key): string
                     </div>
 
                     <!-- 配下顧客の詳細（閲覧のみ）。
-                         担当者のマイページ「顧客詳細」と同じ内容を表示するが、
+                         担当者の顧客管理「顧客詳細」と同じ内容を表示するが、
                          編集・削除・チャットの代理返信の導線は一切置かない。 -->
                     <div id="org-customer-detail" class="org-team-block" style="display: none;">
                         <div class="org-team-toolbar">
@@ -1830,7 +1838,7 @@ function editSectionIcon(string $key): string
                             </div>
                         </div>
                         <p class="section-note">
-                            担当者のマイページに表示されている内容です。<strong>閲覧のみ</strong>で、編集・削除やチャットの代理返信はできません。
+                            担当者の顧客管理に表示されている内容です。<strong>閲覧のみ</strong>で、編集・削除やチャットの代理返信はできません。
                         </p>
                         <div id="org-customer-detail-content" class="chat-history-detail org-customer-detail-content"></div>
                     </div>
@@ -2021,16 +2029,17 @@ function editSectionIcon(string $key): string
                     </div>
                     <?php elseif ($paymentMethod === 'bank_transfer' && isset($endDateForRenewal)): ?>
                     <?php
-                    // Calculate when renewal becomes available
-                    $renewalEligibleDate = clone $endDateForRenewal;
-                    $renewalEligibleDate->modify('-2 months');
-                    $now = new DateTime();
-                    if ($now < $renewalEligibleDate):
-                        $daysUntilRenewal = $now->diff($renewalEligibleDate)->days;
+                    // 利用期限日−本日の残日数を、時刻を含めず日付単位で正確に算出する
+                    $expiryDateOnly = clone $endDateForRenewal;
+                    $expiryDateOnly->setTime(0, 0, 0);
+                    $todayDateOnly = new DateTime();
+                    $todayDateOnly->setTime(0, 0, 0);
+                    if ($todayDateOnly < $expiryDateOnly):
+                        $daysUntilExpiry = (int)$todayDateOnly->diff($expiryDateOnly)->days;
                     ?>
                     <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #b3d9ff;">
                         <small style="display: block; color: #666;">
-                            更新手続き可能まで: あと約<?php echo $daysUntilRenewal; ?>日
+                            利用期限まで: あと<?php echo $daysUntilExpiry; ?>日
                         </small>
                     </div>
                     <?php endif; ?>
@@ -2578,8 +2587,8 @@ function editSectionIcon(string $key): string
     const endDateDisplay = endDateText !== '未設定' ? endDateText : '（未設定）';
 
     const confirmMessage =
-      '・停止されても、マイページで作って頂いたAI名刺はアカウントに残っています。\n\n' +
-      '・マイページからお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
+      '・停止されても、顧客管理で作って頂いたAI名刺はアカウントに残っています。\n\n' +
+      '・顧客管理からお支払い手続きを行っていただければ、再びご利用いただけます。\n\n' +
       '・不動産DXツールをご利用いただいているお客様からの反響は配信されなくなります。\n\n' +
       '・期間終了時（' + endDateDisplay + '）に不動産AI名刺がご利用いただけなくなります。\n\n' +
       '利用を停止しますか？（次回のご請求はございません。）';
@@ -4223,6 +4232,111 @@ function editSectionIcon(string $key): string
                     });
             }
 
+            // 顧客情報（顧客名・電話・メール）の表示と、その場で直せる入力欄。
+            // 表示モードと編集モードを同じ枠の中で差し替える。
+            function renderCustomerContact(contact) {
+                contact = contact || {};
+                var name = String(contact.customer_name || '').trim();
+                var phone = String(contact.phone || '').trim();
+                var email = String(contact.email || '').trim();
+                // escapeHtml は引用符を変換しないため、href / value に入れる値だけ追加で退避する。
+                var emailHtml = email
+                    ? '<a href="mailto:' + escapeHtml(email).replace(/"/g, '&quot;') + '">' + escapeHtml(email) + '</a>'
+                    : '未入力';
+                var attr = function(v) { return escapeHtml(v).replace(/"/g, '&quot;'); };
+
+                var html = '<div class="chat-contact-block" id="customer-contact-block">';
+                html += '<div class="chat-contact-head"><h4>顧客情報</h4>';
+                html += '<button type="button" class="btn-secondary chat-contact-edit-btn" id="customer-contact-edit">修正</button></div>';
+
+                html += '<div class="chat-contact-data" id="customer-contact-view">';
+                html += '<p><strong>顧客名:</strong> ' + escapeHtml(name || '未入力') + '</p>';
+                html += '<p><strong>電話:</strong> ' + escapeHtml(phone || '未入力') + '</p>';
+                html += '<p><strong>メール:</strong> ' + emailHtml + '</p>';
+                html += '</div>';
+
+                html += '<div class="chat-contact-form" id="customer-contact-form" hidden>';
+                html += '<div class="form-group"><label for="customer-contact-name">顧客名</label>';
+                html += '<input type="text" id="customer-contact-name" class="form-control" maxlength="255" placeholder="例：山田 太郎" value="' + attr(name) + '"></div>';
+                html += '<div class="form-group"><label for="customer-contact-phone">電話番号</label>';
+                html += '<input type="tel" id="customer-contact-phone" class="form-control" maxlength="50" placeholder="例：09012345678" value="' + attr(phone) + '"></div>';
+                html += '<div class="form-group"><label for="customer-contact-email">メールアドレス</label>';
+                html += '<input type="email" id="customer-contact-email" class="form-control" maxlength="255" placeholder="例：yamada@example.com" value="' + attr(email) + '"></div>';
+                html += '<p class="chat-contact-status" id="customer-contact-status" aria-live="polite"></p>';
+                html += '<div class="chat-contact-form-actions">';
+                html += '<button type="button" class="btn-secondary" id="customer-contact-cancel">キャンセル</button>';
+                html += '<button type="button" class="btn-primary" id="customer-contact-save">保存する</button>';
+                html += '</div></div>';
+                html += '</div>';
+                return html;
+            }
+
+            // 顧客情報の「修正」まわりの操作を有効にする（詳細を描画し直すたびに呼ぶ）。
+            function initCustomerContactEdit(sessionId) {
+                var block = document.getElementById('customer-contact-block');
+                if (!block) return;
+                var viewEl = document.getElementById('customer-contact-view');
+                var formEl = document.getElementById('customer-contact-form');
+                var editBtn = document.getElementById('customer-contact-edit');
+                var cancelBtn = document.getElementById('customer-contact-cancel');
+                var saveBtn = document.getElementById('customer-contact-save');
+                var statusEl = document.getElementById('customer-contact-status');
+                var nameEl = document.getElementById('customer-contact-name');
+                var phoneEl = document.getElementById('customer-contact-phone');
+                var emailEl = document.getElementById('customer-contact-email');
+                if (!viewEl || !formEl || !editBtn || !cancelBtn || !saveBtn) return;
+
+                function setMode(editing) {
+                    viewEl.hidden = !!editing;
+                    formEl.hidden = !editing;
+                    editBtn.hidden = !!editing;
+                    if (statusEl) statusEl.textContent = '';
+                }
+
+                editBtn.addEventListener('click', function() {
+                    setMode(true);
+                    if (nameEl) nameEl.focus();
+                });
+
+                cancelBtn.addEventListener('click', function() {
+                    // 入力途中の値は破棄し、保存済みの内容へ戻す。
+                    setMode(false);
+                });
+
+                saveBtn.addEventListener('click', function() {
+                    var payload = {
+                        session_id: sessionId,
+                        customer_name: nameEl ? nameEl.value.trim() : '',
+                        phone: phoneEl ? phoneEl.value.trim() : '',
+                        email: emailEl ? emailEl.value.trim() : ''
+                    };
+                    saveBtn.disabled = true;
+                    if (statusEl) statusEl.textContent = '保存しています...';
+                    fetch(apiBase + '/customer/contact-save.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(payload)
+                    })
+                        .then(function(r) { return r.json().catch(function() { return { success: false }; }); })
+                        .then(function(res) {
+                            saveBtn.disabled = false;
+                            if (!res.success || !res.data) {
+                                if (statusEl) statusEl.textContent = res.message || '保存できませんでした。入力内容をご確認ください。';
+                                return;
+                            }
+                            // 保存後の値で表示を作り直し、顧客一覧の表示名も揃える。
+                            block.outerHTML = renderCustomerContact(res.data);
+                            initCustomerContactEdit(sessionId);
+                            loadSessions();
+                        })
+                        .catch(function() {
+                            saveBtn.disabled = false;
+                            if (statusEl) statusEl.textContent = '保存できませんでした。通信状況をご確認ください。';
+                        });
+                });
+            }
+
             function showDetail(sessionId) {
                 if (!sessionId) return;
                 // 右スワイプ（戻る操作）で顧客一覧に戻れるよう、詳細を開いたことを履歴に残す。
@@ -4255,18 +4369,10 @@ function editSectionIcon(string $key): string
                         // 住宅ローン入力・選択ボタン履歴はヒアリング系の補足情報として最後に続ける。
 
                         // ① 顧客情報（顧客名・電話・メールの3項目のみ。メールはクリックでメーラーが開く）
-                        if (d.contact) {
-                            var contactEmail = String(d.contact.email || '').trim();
-                            // escapeHtml は引用符を変換しないため、href に入れる値だけ追加で退避する。
-                            var contactEmailHtml = contactEmail
-                                ? '<a href="mailto:' + escapeHtml(contactEmail).replace(/"/g, '&quot;') + '">' + escapeHtml(contactEmail) + '</a>'
-                                : '未入力';
-                            html += '<h4>顧客情報</h4><div class="chat-contact-data">';
-                            html += '<p><strong>顧客名:</strong> ' + escapeHtml(d.contact.customer_name || '未入力') + '</p>';
-                            html += '<p><strong>電話:</strong> ' + escapeHtml(d.contact.phone || '未入力') + '</p>';
-                            html += '<p><strong>メール:</strong> ' + contactEmailHtml + '</p>';
-                            html += '</div>';
-                        }
+                        // 「修正」で同じ場所に入力欄が開き、その場で直せる（改善要望 1-3）。
+                        // 連絡先がまだ無いお客様（事前作成した顧客ページなど）でも入力できるよう、
+                        // d.contact が無い場合も枠ごと表示する。
+                        html += renderCustomerContact(d.contact);
 
                         // ② 担当連絡（チャット）
                         html += '<h4>担当連絡（チャット）</h4>';
@@ -4322,6 +4428,7 @@ function editSectionIcon(string $key): string
                         }
 
                         detailContent.innerHTML = html;
+                        initCustomerContactEdit(sessionId);
                         initAgentChat(sessionId);
                         loadAiChatSummary(sessionId);
                         if (window.PropertyAgent) { try { window.PropertyAgent.init(sessionId); } catch (e) { console.error(e); } }
@@ -4604,7 +4711,7 @@ function editSectionIcon(string $key): string
 
             function deleteSession(sessionId) {
                 if (!sessionId) return;
-                if (!confirm('このチャット履歴をゴミ箱に移動します。\n\n'
+                if (!confirm('この対応履歴をゴミ箱に移動します。\n\n'
                     + '・お客様側のチャット画面や、これまでのやり取りには影響しません。\n'
                     + '・' + trashRetentionDays + '日以内なら「ゴミ箱」から元に戻せます。\n\n'
                     + 'よろしいですか？')) return;
@@ -4629,7 +4736,7 @@ function editSectionIcon(string $key): string
             function deleteSelectedSessions() {
                 var selectedIds = getSelectedSessionIds();
                 if (!selectedIds.length) return;
-                if (!confirm(selectedIds.length + '件のチャット履歴をゴミ箱に移動します。\n\n'
+                if (!confirm(selectedIds.length + '件の対応履歴をゴミ箱に移動します。\n\n'
                     + '・お客様側のチャット画面や、これまでのやり取りには影響しません。\n'
                     + '・' + trashRetentionDays + '日以内なら「ゴミ箱」から元に戻せます。\n\n'
                     + 'よろしいですか？')) return;
@@ -4797,7 +4904,7 @@ function editSectionIcon(string $key): string
                             alert(res.message || '復元に失敗しました');
                             return;
                         }
-                        alert('チャット履歴を復元しました。一覧からご確認ください。');
+                        alert('対応履歴を復元しました。顧客一覧からご確認ください。');
                         closeTrash();
                     })
                     .catch(function() {
@@ -4807,7 +4914,7 @@ function editSectionIcon(string $key): string
 
             function purgeSession(sessionId) {
                 if (!sessionId) return;
-                if (!confirm('このチャット履歴を完全に削除します。\n\n'
+                if (!confirm('この対応履歴を完全に削除します。\n\n'
                     + '・メッセージ・ヒアリング内容・添付ファイルがすべて消えます。\n'
                     + '・一度実行すると元に戻せません。\n\n'
                     + 'よろしいですか？')) return;
@@ -5029,7 +5136,7 @@ function editSectionIcon(string $key): string
                 });
             }
 
-            // チャット履歴メニューの未読件数バッジ（全セッション横断）
+            // 顧客一覧メニューの未読件数バッジ（全セッション横断）
             function updateNavUnreadBadge() {
                 if (!navChat) return;
                 fetch(apiBase + '/agent/poll.php', { credentials: 'include' })
@@ -5417,7 +5524,7 @@ function editSectionIcon(string $key): string
     </script>
 <?php if ($canViewTeam): ?>
     <script>
-        // 組織・配下顧客（マネージャー／管理者のみ）。
+        // 組織・メンバー顧客（マネージャー／管理者のみ）。
         // 顧客データは閲覧専用。書き込むのは「自組織の階層（誰が誰の配下か・権限）」だけで、
         // 対象はいずれも自社かつ自分の配下に限られる（サーバー側でも同じ条件を検証）。
         (function() {
@@ -5707,7 +5814,7 @@ function editSectionIcon(string $key): string
             function detailAttachmentHtml(att) {
                 if (!att) return '';
                 // 添付は認証付きプロキシ経由。担当が別ホストで作った絶対URLでもCookieが送られるよう
-                // 現在のオリジンへ揃える（チャット履歴側と同じ扱い）。
+                // 現在のオリジンへ揃える（顧客一覧側と同じ扱い）。
                 var url = String(att.url || '');
                 var idx = url.indexOf('/backend/api/');
                 if (idx >= 0) url = window.location.origin + url.slice(idx);
@@ -5964,7 +6071,7 @@ function editSectionIcon(string $key): string
                     + UI.prCommentBlockHtml(property)
                     + '<div class="prop-tabs">'
                     + '<button class="prop-tab is-active" data-tab="basic">基本情報</button>'
-                    + '<button class="prop-tab" data-tab="hazard">ハザード等情報</button>'
+                    + '<button class="prop-tab" data-tab="hazard">ハザード</button>'
                     + '<button class="prop-tab" data-tab="flyer">販売図面</button>'
                     + '<button class="prop-tab" data-tab="photo">写真・資料</button>'
                     + '</div>'
@@ -6246,6 +6353,45 @@ function editSectionIcon(string $key): string
     </script>
 <?php endif; ?>
     <script>
+    // 「名刺編集」の折りたたみ（改善要望 1-4）。
+    // 名刺の7ステップは名刺を作るときにしか使わないため、既定では畳んでおき、
+    // 見出しを押したときだけ開く。日々使う「顧客一覧」を上に置いた並びと合わせている。
+    (function () {
+        var toggle = document.getElementById('edit-nav-card-toggle');
+        var steps = document.getElementById('edit-nav-card-steps');
+        if (!toggle || !steps) return;
+
+        function setExpanded(expanded) {
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            if (expanded) {
+                steps.removeAttribute('data-collapsed');
+            } else {
+                steps.setAttribute('data-collapsed', '1');
+            }
+        }
+
+        toggle.addEventListener('click', function () {
+            setExpanded(toggle.getAttribute('aria-expanded') !== 'true');
+        });
+
+        // 名刺のステップを開いている間は必ず展開しておく。
+        // 畳んだままだと、いまどのステップを編集しているのかが分からなくなるため
+        // （保存後に次のステップへ自動で進む導線もここで拾える）。
+        function expandWhenStepActive() {
+            if (steps.querySelector('.nav-item.active')) setExpanded(true);
+        }
+
+        // 監視するのは class の変化だけ。data-collapsed を除いてあるので、
+        // setExpanded による属性変更でこの監視が再び走ることはない。
+        new MutationObserver(expandWhenStepActive).observe(steps, {
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class']
+        });
+        expandWhenStepActive();
+    })();
+    </script>
+    <script>
     // サイドバーの進捗バーを、現在開いているステップに合わせて更新する。
     // 表示中セクションの切り替えは edit.js が nav-item の active クラスで管理しているため、
     // その変化を監視するだけで済むようにしている。
@@ -6269,7 +6415,7 @@ function editSectionIcon(string $key): string
             });
 
             if (current < 0) {
-                // 運用メニュー（チャット履歴など）を開いている間は進捗を強調しない
+                // 運用メニュー（顧客一覧など）を開いている間は進捗を強調しない
                 bar.style.width = '0%';
                 label.textContent = '全' + steps.length + 'ステップ';
                 return;

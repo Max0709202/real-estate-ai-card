@@ -48,7 +48,7 @@ try {
 
     // 入力方法（担当画面の表示用）。想定外の値は手入力として扱う。
     $source = (string)($input['source'] ?? 'manual');
-    if (!in_array($source, ['manual', 'ai', 'ai_edited'], true)) $source = 'manual';
+    if (!in_array($source, ['manual', 'ai', 'ai_edited', 'ai_polished'], true)) $source = 'manual';
 
     $now = date('Y-m-d H:i:s');
     $db->prepare("UPDATE properties SET pr_comment = ?, pr_comment_source = ?, pr_comment_updated_at = ? WHERE id = ?")

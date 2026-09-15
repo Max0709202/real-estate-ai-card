@@ -29,45 +29,88 @@ const PROPERTY_MAP_GEOCODE_BUDGET = 15;
 $propertyId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $visitorId = trim($_GET['visitor_id'] ?? '');
 $viewToken = trim($_GET['view_token'] ?? '');
-if ($propertyId <= 0) sendErrorResponse('id is required', 400);
+// 現在地マップ（AIエージェントの「現在地情報をマップ表示」）。
+// 物件IDの代わりに端末のGPS座標を受け取り、その地点を中心に同じ地図を表示する。
+$sessionId = trim($_GET['session_id'] ?? '');
+$hasLatLng = isset($_GET['lat']) && isset($_GET['lng'])
+    && is_numeric($_GET['lat']) && is_numeric($_GET['lng']);
+if ($propertyId <= 0 && !$hasLatLng) sendErrorResponse('id is required', 400);
 
 try {
     $db = (new Database())->getConnection();
     propertyEnsureTables($db);
 
-    $stmt = $db->prepare("SELECT * FROM properties WHERE id = ? LIMIT 1");
-    $stmt->execute([$propertyId]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$row) sendErrorResponse('物件が見つかりません', 404);
+    // 地図の中心となる地点（物件 or 現在地）と、「検討中」物件を探すセッションを決める。
+    $current = null;          // 赤い目立つピン（中心の地点）
+    $ownerSessionId = '';     // 検討中物件を取り出すチャットセッション
+    $failMessage = 'この物件の所在地から地図の位置を特定できませんでした。所在地をご確認ください。';
 
-    // 認可は物件詳細（get.php）と同じ。顧客は自分のセッションの物件、担当は自分の名刺の物件。
-    if ($viewToken !== '') {
-        if (propertyViewTokenSession($db, $viewToken) !== (string)$row['session_id']) {
-            sendErrorResponse('アクセス権がありません', 403);
+    if ($propertyId <= 0) {
+        // ===== 現在地マップ =====
+        // 中心は端末のGPS座標。表示内容（周辺情報ボタン・検討中物件）は物件詳細と同じ。
+        $lat = (float)$_GET['lat'];
+        $lng = (float)$_GET['lng'];
+        // 日本国内のおおよその範囲だけを受け付ける（不正な座標で外部APIを呼ばない）。
+        if ($lat < 20.0 || $lat > 46.0 || $lng < 122.0 || $lng > 154.0) {
+            sendErrorResponse('現在地の位置を確認できませんでした', 400);
         }
-    } elseif ($visitorId !== '') {
-        propertyVerifyCustomerSession($db, (string)$row['session_id'], $visitorId);
+        // 認可は物件詳細と同じ枠組み。顧客はチャットセッション（または閲覧トークン）、担当はログイン。
+        if ($viewToken !== '') {
+            $ownerSessionId = propertyViewTokenSession($db, $viewToken);
+            if ($ownerSessionId === '') sendErrorResponse('アクセス権がありません', 403);
+        } elseif ($sessionId !== '') {
+            propertyVerifyCustomerSession($db, $sessionId, $visitorId);
+            $ownerSessionId = $sessionId;
+        } else {
+            startSessionIfNotStarted();
+            requireAuth();
+        }
+        $current = [
+            'id'         => 0,
+            'name'       => '現在地',
+            'price'      => '',
+            'layout'     => '',
+            'area'       => '',
+            'lat'        => $lat,
+            'lng'        => $lng,
+            'is_current' => 1,
+        ];
     } else {
-        startSessionIfNotStarted();
-        $userId = requireAuth();
-        propertyVerifyAgentProperty($db, $propertyId, $userId);
-    }
+        $stmt = $db->prepare("SELECT * FROM properties WHERE id = ? LIMIT 1");
+        $stmt->execute([$propertyId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) sendErrorResponse('物件が見つかりません', 404);
 
-    // 現在見ている物件（赤い目立つピン）。緯度・経度が取れない場合は地図を出せない。
-    $geo = propertyMapGeoOf($db, $row, true);
-    $current = $geo ? propertyMapPin($row, $geo, true) : null;
+        // 認可は物件詳細（get.php）と同じ。顧客は自分のセッションの物件、担当は自分の名刺の物件。
+        if ($viewToken !== '') {
+            if (propertyViewTokenSession($db, $viewToken) !== (string)$row['session_id']) {
+                sendErrorResponse('アクセス権がありません', 403);
+            }
+        } elseif ($visitorId !== '') {
+            propertyVerifyCustomerSession($db, (string)$row['session_id'], $visitorId);
+        } else {
+            startSessionIfNotStarted();
+            $userId = requireAuth();
+            propertyVerifyAgentProperty($db, $propertyId, $userId);
+        }
+
+        // 現在見ている物件（赤い目立つピン）。緯度・経度が取れない場合は地図を出せない。
+        $geo = propertyMapGeoOf($db, $row, true);
+        $current = $geo ? propertyMapPin($row, $geo, true) : null;
+        $ownerSessionId = (string)$row['session_id'];
+    }
 
     // §3「検討中」の物件をすべて同じ地図に表示する。
     // ステータス未設定は一覧の並び順と同じく「検討中」として扱う（見送り・契約等は出さない）。
     $considering = [];
-    if ($current) {
+    if ($current && $ownerSessionId !== '') {
         $stmt = $db->prepare(
             "SELECT * FROM properties
              WHERE session_id = ? AND id <> ?
                AND COALESCE(NULLIF(status, ''), 'considering') = 'considering'
              ORDER BY created_at DESC, id DESC"
         );
-        $stmt->execute([(string)$row['session_id'], $propertyId]);
+        $stmt->execute([$ownerSessionId, $propertyId]);
         $budget = PROPERTY_MAP_GEOCODE_BUDGET;
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $other) {
             $hasStored = ($other['lat'] ?? null) !== null && ($other['lng'] ?? null) !== null;
@@ -97,7 +140,7 @@ try {
         'considering'  => $considering,
         'categories'   => $categories,
         // 緯度・経度が取れず地図を出せないときの案内（住所未登録・ジオコーディング失敗）。
-        'message'      => $current ? '' : 'この物件の所在地から地図の位置を特定できませんでした。所在地をご確認ください。',
+        'message'      => $current ? '' : $failMessage,
     ], 'OK');
 } catch (Exception $e) {
     error_log('property map error: ' . $e->getMessage());

@@ -525,7 +525,7 @@ if ($paymentInfo) {
                     </div>
                     
                     <div class="action-buttons">
-                        <a href="edit.php<?php echo ($userType === 'existing') ? htmlspecialchars(existing_user_nav_suffix(false)) : ''; ?>" class="btn btn-primary">マイページへ</a>
+                        <a href="edit.php<?php echo ($userType === 'existing') ? htmlspecialchars(existing_user_nav_suffix(false)) : ''; ?>" class="btn btn-primary">顧客管理へ</a>
                     </div>
                 </div>
             </div>
@@ -549,7 +549,7 @@ if ($paymentInfo) {
                     </div>
                     <div class="action-buttons">
                         <a href="<?php echo $_SERVER['REQUEST_URI']; ?>" class="btn btn-primary">更新する</a>
-                        <a href="edit.php<?php echo ($userType === 'existing') ? htmlspecialchars(existing_user_nav_suffix(false)) : ''; ?>" class="btn btn-primary">マイページへ戻る</a>
+                        <a href="edit.php<?php echo ($userType === 'existing') ? htmlspecialchars(existing_user_nav_suffix(false)) : ''; ?>" class="btn btn-primary">顧客管理へ戻る</a>
                     </div>
                 </div>
             </div>

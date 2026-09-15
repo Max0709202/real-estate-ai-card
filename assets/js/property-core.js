@@ -123,6 +123,8 @@
     heartFilled: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21l8.8-8.3a5 5 0 0 0 0-7.1z"/></svg>',
     chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+    /* スポイト（マスクの色を図面から取り込む）。虫眼鏡と間違えないよう、先の細いスポイト形にする。 */
+    eyedropper: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 2.5a3 3 0 0 1 4 4l-2.4 2.4 1 1a1.5 1.5 0 0 1 0 2.1 1.5 1.5 0 0 1-2.1 0l-6.5-6.5a1.5 1.5 0 0 1 0-2.1 1.5 1.5 0 0 1 2.1 0l1 1z"/><path d="M14 8.5 5.6 16.9a2 2 0 0 0-.5.9L4.2 21l3.2-.9a2 2 0 0 0 .9-.5l8.4-8.4"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>',
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
     refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg>',
@@ -340,20 +342,32 @@
     return url + sep + q.join('&');
   }
 
-  /* ===== 詳細ヘッダ（§9） ===== */
-  function detailHeaderHtml(p) {
+  /* ===== 詳細ヘッダ（§9） =====
+     物件名の右側の空いているところに、一覧と同じサムネイル（メイン画像）を置く。
+     PC・スマートフォンのどちらでも右寄せで表示し、押すと拡大できる（bindLightbox の data-full）。
+     写真が未登録の物件では何も置かず、これまで通り文字だけを表示する。
+     opts: 顧客側は addAuth 用の認証情報（sessionId / visitorId / viewToken）を渡す。 */
+  function detailHeaderHtml(p, opts) {
+    opts = opts || {};
     var name = esc(displayName(p));
     var sub = [];
     if (p.layout) sub.push(esc(p.layout));
     if (p.exclusive_area) sub.push(esc(p.exclusive_area));
     else if (p.land_area) sub.push('土地' + esc(p.land_area));
     var regDate = formatDate(p.created_at);
-    return '<div class="prop-detail__header">' +
-      '<div class="prop-detail__title">' + name + '</div>' +
-      (p.price_text ? '<div class="prop-detail__price">' + esc(p.price_text) + '</div>' : '') +
-      (sub.length ? '<div class="prop-detail__sub">' + sub.join('｜') + '</div>' : '') +
-      '<div class="prop-detail__badges">' + sourceHtml(p) + (statusBadgeHtml(p, true) || '') + '</div>' +
-      (regDate ? '<div class="prop-detail__date">登録日 ' + esc(regDate) + '</div>' : '') +
+    var thumbUrl = p.main_image_url ? esc(addAuth(p.main_image_url, opts)) : '';
+    var thumb = thumbUrl
+      ? '<img class="prop-detail__thumb" src="' + thumbUrl + '" alt="' + name + '" loading="lazy" data-full="' + thumbUrl + '">'
+      : '';
+    return '<div class="prop-detail__header' + (thumb ? ' prop-detail__header--thumb' : '') + '">' +
+      '<div class="prop-detail__main">' +
+        '<div class="prop-detail__title">' + name + '</div>' +
+        (p.price_text ? '<div class="prop-detail__price">' + esc(p.price_text) + '</div>' : '') +
+        (sub.length ? '<div class="prop-detail__sub">' + sub.join('｜') + '</div>' : '') +
+        '<div class="prop-detail__badges">' + sourceHtml(p) + (statusBadgeHtml(p, true) || '') + '</div>' +
+        (regDate ? '<div class="prop-detail__date">登録日 ' + esc(regDate) + '</div>' : '') +
+      '</div>' +
+      thumb +
     '</div>';
   }
 
@@ -446,7 +460,11 @@
         inner = '<a class="prop-thumb__pdf" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">PDF</a>';
       }
       var del = opts.removable ? '<button type="button" class="prop-thumb__del" data-del-img="' + im.id + '">×</button>' : '';
-      return '<div class="prop-thumb">' + inner + del + '</div>';
+      // 追加資料のように「何の資料か」が大事なものは、名前を下に添えて表示する。
+      var cap = opts.showCaption
+        ? '<span class="prop-thumb__cap">' + esc(im.subcategory || im.original_name || '資料') + '</span>'
+        : '';
+      return '<div class="prop-thumb">' + inner + del + cap + '</div>';
     }).join('') + '</div>';
   }
 

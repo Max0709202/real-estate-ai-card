@@ -126,7 +126,9 @@
 
   /* ===== 本体 ===== */
   /* opts:
-   *   propertyId     物件ID
+   *   propertyId     物件ID（物件詳細のマップ）
+   *   lat / lng      現在地の緯度・経度（AIエージェントの「現在地情報をマップ表示」）。
+   *                  propertyId の代わりに渡すと、その地点を中心に同じマップを表示する。
    *   apiBase        物件APIのベースURL（.../backend/api/property）
    *   authQS         認証用クエリ（顧客: session_id&visitor_id / 閲覧トークン / 担当: 空文字）
    *   credentials    fetch の credentials（担当は 'include'）
@@ -138,6 +140,12 @@
     var authQS = opts.authQS || '';
     var credentials = opts.credentials || 'same-origin';
     var propertyId = opts.propertyId;
+    // 現在地モード: 物件IDではなく緯度・経度を中心にする。表示内容は物件詳細とまったく同じ。
+    var locationMode = !propertyId && isFinite(opts.lat) && isFinite(opts.lng);
+    // 中心の地点を指定するクエリ（物件ID or 緯度経度）。マップ本体・周辺情報で共通に使う。
+    var centerQS = locationMode
+      ? 'lat=' + encodeURIComponent(opts.lat) + '&lng=' + encodeURIComponent(opts.lng)
+      : 'id=' + encodeURIComponent(propertyId);
 
     // 取得済みの周辺情報（同じ画面内では再取得しない・§10）
     var CACHE = {};
@@ -173,7 +181,7 @@
       show: function () { fail('ただいま地図をご利用いただけません。恐れ入りますが、時間をおいて再度お試しください。'); }
     });
 
-    api('/map.php?id=' + encodeURIComponent(propertyId))
+    api('/map.php?' + centerQS)
       .then(function (res) {
         if (!res || !res.success || !res.data) { fail((res && res.message) || 'マップ情報を取得できませんでした。'); return; }
         bootstrap = res.data;
@@ -257,9 +265,11 @@
           ' style="--cat-color:' + esc(CAT_COLOR[c.key] || '#2d6cdf') + '"' +
           ' aria-pressed="false">' + esc(c.label) + '</button>';
       }).join('');
-      // 地図を動かして物件を見失っても、いつでも元の位置へ戻せるようにする。
+      // 地図を動かして中心を見失っても、いつでも元の位置へ戻せるようにする。
+      var homeLabel = locationMode ? '現在地に戻る' : '物件の位置に戻る';
+      var homeTitle = locationMode ? '地図を現在地に戻します' : '地図をこの物件の位置に戻します';
       html += '<button type="button" class="prop-map__home" data-map-home="1"' +
-        ' title="地図をこの物件の位置に戻します">' + HOME_ICON_SVG + '物件の位置に戻る</button>';
+        ' title="' + esc(homeTitle) + '">' + HOME_ICON_SVG + esc(homeLabel) + '</button>';
       // 検討中物件がある場合だけ「全体表示」を出す。初期表示は必ず現在の物件が中心（§1）。
       if ((bootstrap.considering || []).length) {
         html += '<button type="button" class="prop-map__fit" data-map-fit="1">検討中物件も含めて表示</button>';
@@ -312,7 +322,7 @@
       if (CACHE[key] && CACHE[key].sufficient) { showCategory(key); return; }
 
       btn.classList.add('is-loading');
-      api('/map-facilities.php?id=' + encodeURIComponent(propertyId) + '&category=' + encodeURIComponent(key))
+      api('/map-facilities.php?' + centerQS + '&category=' + encodeURIComponent(key))
         .then(function (res) {
           btn.classList.remove('is-loading');
           if (!res || !res.success || !res.data) {
@@ -439,8 +449,10 @@
       if (!p.is_current) {
         link = '<a class="prop-map__iw-link" href="#" data-map-open="' + esc(p.id) + '">物件詳細を見る</a>';
       }
+      // 現在地モードでは吹き出しの見出しがすでに「現在地」なので、タグは付けない。
+      var tag = (p.is_current && !locationMode) ? '<span class="prop-map__iw-tag">この物件</span>' : '';
       return '<div class="prop-map__iw">' +
-        '<div class="prop-map__iw-title">' + esc(p.name) + (p.is_current ? '<span class="prop-map__iw-tag">この物件</span>' : '') + '</div>' +
+        '<div class="prop-map__iw-title">' + esc(p.name) + tag + '</div>' +
         rows + link + '</div>';
     }
 

@@ -358,7 +358,7 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
                             内訳：税抜￥<?php echo number_format($monthlyExTaxYen); ?>＋消費税（10％）￥<?php echo number_format($monthlyTaxYen); ?>
                         </p>
                         <p class="summary-note-monthly">
-                            月額費用は、ご登録いただいた決済手段より、ご利用期間中は毎月自動的に利用料金が決済されます。契約が有効である限り、手続きは自動で更新されます。自動更新の停止やキャンセルはマイページからお手続きできます。
+                            月額費用は、ご登録いただいた決済手段より、ご利用期間中は毎月自動的に利用料金が決済されます。契約が有効である限り、手続きは自動で更新されます。自動更新の停止やキャンセルは顧客管理からお手続きできます。
                         </p>
                     </div>
                     <?php elseif ($paymentTypeForSummary === 'existing_user'): ?>
@@ -377,7 +377,7 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
                             <span class="summary-value">無料</span>
                         </div>
                         <p class="summary-note-monthly">
-                            セルフィンプロを導入期間は月額費用は発生いたしません。自動更新の停止やキャンセルはマイページからお手続きできます。
+                            セルフィンプロを導入期間は月額費用は発生いたしません。自動更新の停止やキャンセルは顧客管理からお手続きできます。
                         </p>
                     </div>
                     <?php elseif ($paymentTypeForSummary === 'renewal'): ?>
@@ -399,7 +399,7 @@ $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
                             内訳：税抜￥<?php echo number_format($monthlyExTaxYen); ?>＋消費税（10％）￥<?php echo number_format($monthlyTaxYen); ?>
                         </p>
                         <p class="summary-note-monthly">
-                            月額費用は、ご登録いただいた決済手段より、ご利用期間中は毎月自動的に利用料金が決済されます。契約が有効である限り、手続きは自動で更新されます。自動更新の停止やキャンセルはマイページからお手続きできます。
+                            月額費用は、ご登録いただいた決済手段より、ご利用期間中は毎月自動的に利用料金が決済されます。契約が有効である限り、手続きは自動で更新されます。自動更新の停止やキャンセルは顧客管理からお手続きできます。
                         </p>
                     </div>
                     <?php endif; ?>

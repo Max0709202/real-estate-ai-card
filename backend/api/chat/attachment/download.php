@@ -41,7 +41,7 @@ try {
         $authorized = true;
     }
 
-    // 上長（統括（全閲覧）・マネージャー（店長））が「組織・配下顧客」から閲覧している場合。
+    // 上長（統括（全閲覧）・マネージャー（店長））が「組織・メンバー顧客」から閲覧している場合。
     // 自分の閲覧範囲に入っている担当者の添付だけを、読み取り専用で通す。
     if (!$authorized && !empty($_SESSION['user_id'])) {
         require_once __DIR__ . '/../../../includes/org-hierarchy-helper.php';

@@ -27,7 +27,17 @@ $sessionDirs = [
 ];
 
 $dryRun = in_array('--dry-run', $argv, true);
-$maxAgeSeconds = 86400;
+
+// 削除して良いのは「ログイン状態としてもう無効になったもの」だけ。
+// 無操作タイムアウト（SESSION_IDLE_LIFETIME）より短い間隔で消すと、
+// まだ有効なはずのログインがこの掃除で切れてしまうため、必ず設定値に合わせる。
+// 少し余裕（1日）を足してから消す。
+$configFile = dirname(__DIR__) . '/config/config.php';
+if (is_file($configFile)) {
+    require_once $configFile;
+}
+$idleLifetime = defined('SESSION_IDLE_LIFETIME') ? (int) SESSION_IDLE_LIFETIME : 86400;
+$maxAgeSeconds = max(86400, $idleLifetime + 86400);
 $cutoff = time() - $maxAgeSeconds;
 $logFile = $backendRoot . '/logs/session-cleanup.log';
 
@@ -98,7 +108,8 @@ function cleanupSessionDirectory($dir, $cutoff, $dryRun) {
     return $result;
 }
 
-cleanupSessionLog('Starting session cleanup' . ($dryRun ? ' (dry-run)' : ''));
+cleanupSessionLog('Starting session cleanup' . ($dryRun ? ' (dry-run)' : '')
+    . ': max_age=' . $maxAgeSeconds . 's (' . round($maxAgeSeconds / 86400, 1) . ' days)');
 
 $totals = [
     'scanned' => 0,

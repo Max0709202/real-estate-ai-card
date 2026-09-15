@@ -13,8 +13,11 @@
     'use strict';
 
     var STORAGE_KEY = 'app_font_scale';
+    var POSITION_KEY = 'app_font_scale_pos';
     var SCALES = ['normal', 'large', 'xlarge'];
     var LABELS = { normal: '標準', large: '大', xlarge: '特大' };
+    // これ以下の動きは「押した」と見なす。指が少しぶれてもボタンが反応するようにする。
+    var DRAG_THRESHOLD = 4;
 
     function readStored() {
         try {
@@ -39,6 +42,119 @@
     // 描画前に適用する（ちらつき防止）。
     var current = readStored();
     apply(current);
+
+    /* --- つまんで移動できるようにする（改善要望 1-8） ---------------------
+     * 切替UIは画面左下に固定しているが、ページによってはその位置に読みたい情報が
+     * 重なってしまう。掴んで好きな場所へ動かせるようにし、動かした位置は次回も使う。
+     * マウスとタッチの両方を同じ処理で扱えるよう Pointer Events を使う。
+     */
+
+    function readStoredPosition() {
+        try {
+            var raw = window.localStorage.getItem(POSITION_KEY);
+            if (!raw) return null;
+            var pos = JSON.parse(raw);
+            if (!pos || typeof pos.left !== 'number' || typeof pos.top !== 'number') return null;
+            if (!isFinite(pos.left) || !isFinite(pos.top)) return null;
+            return pos;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function storePosition(pos) {
+        try {
+            window.localStorage.setItem(POSITION_KEY, JSON.stringify(pos));
+        } catch (e) { /* 保存できなくても移動自体はできる */ }
+    }
+
+    // 画面の外へ出て掴めなくならないよう、必ず表示領域内に収める。
+    // 画面の回転や表示サイズの変更で範囲が変わったときも、この関数で引き戻す。
+    function clampPosition(el, left, top) {
+        var maxLeft = Math.max(0, window.innerWidth - el.offsetWidth);
+        var maxTop = Math.max(0, window.innerHeight - el.offsetHeight);
+        return {
+            left: Math.min(Math.max(0, left), maxLeft),
+            top: Math.min(Math.max(0, top), maxTop)
+        };
+    }
+
+    // CSS 側の left/bottom 指定より内側の指定（インラインスタイル）で位置を決める。
+    function applyPosition(el, pos) {
+        var clamped = clampPosition(el, pos.left, pos.top);
+        el.style.left = clamped.left + 'px';
+        el.style.top = clamped.top + 'px';
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+        return clamped;
+    }
+
+    function makeDraggable(el) {
+        // Pointer Events が無い環境では、これまでどおり左下固定のまま使えるようにする。
+        if (!window.PointerEvent) return;
+
+        var dragging = false;
+        var moved = false;
+        var startX = 0;
+        var startY = 0;
+        var originLeft = 0;
+        var originTop = 0;
+
+        el.addEventListener('pointerdown', function (e) {
+            // 右クリックや副ボタンでは動かさない。
+            if (e.button !== 0 && e.pointerType === 'mouse') return;
+            var rect = el.getBoundingClientRect();
+            dragging = true;
+            moved = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            originLeft = rect.left;
+            originTop = rect.top;
+            el.classList.add('is-dragging');
+            try { el.setPointerCapture(e.pointerId); } catch (err) {}
+        });
+
+        el.addEventListener('pointermove', function (e) {
+            if (!dragging) return;
+            var dx = e.clientX - startX;
+            var dy = e.clientY - startY;
+            if (!moved && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+            moved = true;
+            // 指やマウスで運んでいる間は選択やスクロールを起こさない。
+            e.preventDefault();
+            applyPosition(el, { left: originLeft + dx, top: originTop + dy });
+        });
+
+        function endDrag(e) {
+            if (!dragging) return;
+            dragging = false;
+            el.classList.remove('is-dragging');
+            try { el.releasePointerCapture(e.pointerId); } catch (err) {}
+            if (!moved) return;
+            var rect = el.getBoundingClientRect();
+            storePosition(applyPosition(el, { left: rect.left, top: rect.top }));
+        }
+
+        el.addEventListener('pointerup', endDrag);
+        el.addEventListener('pointercancel', endDrag);
+
+        // 運んだ直後の click は、ボタンを押したのではなく移動の終わりなので取り消す。
+        el.addEventListener('click', function (e) {
+            if (!moved) return;
+            moved = false;
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+
+        // 画面サイズが変わっても掴める位置に留める（保存済みの位置も入れ直す）。
+        window.addEventListener('resize', function () {
+            if (!el.style.left) return;
+            storePosition(applyPosition(el, {
+                left: parseFloat(el.style.left) || 0,
+                top: parseFloat(el.style.top) || 0
+            }));
+        });
+    }
 
     function buildSwitch() {
         if (document.querySelector('.font-scale-switch')) return;
@@ -84,6 +200,11 @@
 
         wrap.appendChild(buttons);
         document.body.appendChild(wrap);
+
+        // 前回つまんで動かした位置があれば、そこへ戻す（body へ追加したあとに測る）。
+        var stored = readStoredPosition();
+        if (stored) applyPosition(wrap, stored);
+        makeDraggable(wrap);
     }
 
     if (document.readyState === 'loading') {

@@ -296,7 +296,7 @@ if ($paymentId) {
                 <?php if ($paymentInfo && $paymentInfo['url_slug']): ?>
                 <a href="card.php?slug=<?php echo htmlspecialchars($paymentInfo['url_slug']); ?>" class="btn btn-primary" target="_blank">名刺を見る</a>
                 <?php endif; ?>
-                <a href="edit.php" class="btn btn-secondary">マイページへ</a>
+                <a href="edit.php" class="btn btn-secondary">顧客管理へ</a>
             </div>
         </div>
     </div>

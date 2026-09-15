@@ -58,8 +58,11 @@
     var roleEl = document.getElementById('chat-widget-role');
     var toggleAvatarEl = document.getElementById('chat-widget-toggle-avatar');
     var toggleLabelEl = document.getElementById('chat-widget-toggle-label');
+    // 起動ボタン上段の「●●様専用」。お客様が分かるまでは出さない。
+    var toggleOwnerEl = document.getElementById('chat-widget-toggle-owner');
     var quickActions = document.getElementById('chat-widget-quick-actions');
     var featurePanel = document.getElementById('chat-widget-feature-panel');
+    var geoActions = document.getElementById('chat-widget-geo-actions');
     var tabBar = document.querySelector('.chat-widget-tabbar');
     var defaultPromptText = "不動産のことなら、何でもお気軽にご相談ください。";
     var entryNoticeText = "こんにちは。\nAI{agent}です。\n\n\安心してご相談いただけるよう、最初にSMS認証をお願いしています。\n\nSMS認証を行うことで、ご相談内容や登録情報を安全に保存し、担当エージェントが物件提案・進捗管理・ご相談対応のために利用すること、およびスマートフォンの変更や別の端末からでも会話を引き継げることに同意いただいたものとします。個人情報は適切に管理いたします。\n\nそれでは、電話番号を入力し、SMSで届いた認証コードをご入力ください。";
@@ -83,6 +86,8 @@
             return (v === 'contact' || v === 'property') ? v : null;
         } catch (e) { return null; }
     })();
+    // 該当タブを実際に開いたか。まだこの端末がSMS認証を終えていない（＝どのお客様か
+    // 確定していない）間は開かずに保留し、認証で本人のご相談へ合流したあとに開く。
     var deepLinkHandled = false;
     var sessionId = null;
     var sessionGeo = null; // 同一セッションで再利用するGPS座標 {lat, lon}
@@ -338,7 +343,19 @@
                 roleEl.classList.remove('is-personalized');
             }
         }
-        if (toggleLabelEl) toggleLabelEl.textContent = agentName + ' AIエージェント';
+        // 起動ボタンは「●●様専用 / AI住まいコンシェルジュ」の2段組み（改善要望 1-9）。
+        // 担当者名は写真とパネル側のヘッダーで分かるため、ボタンでは名称を大きく見せる。
+        if (toggleOwnerEl) {
+            if (headerCustomerName) {
+                var toggleHonorific = /(様|さん)$/.test(headerCustomerName) ? headerCustomerName : headerCustomerName + '様';
+                toggleOwnerEl.textContent = toggleHonorific + '専用';
+                toggleOwnerEl.hidden = false;
+            } else {
+                toggleOwnerEl.textContent = '';
+                toggleOwnerEl.hidden = true;
+            }
+        }
+        if (toggleLabelEl) toggleLabelEl.textContent = 'AI住まいコンシェルジュ';
         if (toggleAvatarEl) {
             if (agentPhoto && toggleAvatarEl.tagName === 'IMG') {
                 toggleAvatarEl.src = agentPhoto;
@@ -631,6 +648,26 @@
         reloadNoticeShown = true;
     }
 
+    /**
+     * メール通知のリンクから来たものの、この端末がまだSMS認証を終えていないため、
+     * 該当タブ（担当連絡／物件選定）の表示を保留している状態かどうか。
+     */
+    function deepLinkTabPending() {
+        if (!deepLinkTab || deepLinkHandled) return false;
+        // 物件提案メールのリンクは閲覧トークン（pv=）を持ち、SMS認証前でも提案物件を
+        // 表示できる。こちらは従来どおりすぐに開く（保留しない）。
+        if (deepLinkTab === 'property' && propertyViewToken) return false;
+        return !(startupData && startupData.device_auth_valid);
+    }
+
+    /** メール通知のリンクから来られた方へ、SMS認証のあとに開くタブをお伝えする文面。 */
+    function deepLinkPendingNoticeText() {
+        if (deepLinkTab === 'property') {
+            return "担当者から物件のご提案が届いています。\n\n内容は、SMS認証のあと「物件選定」に表示いたします。";
+        }
+        return "担当者からのメッセージが届いています。\n\n内容は、SMS認証のあと「担当連絡」に表示いたします。";
+    }
+
     function showFirstTimeEntry(data) {
         entryAwaitingChoice = true;
         greetingShown = true;
@@ -643,6 +680,12 @@
         // その後の登録の流れ（SMS認証→お名前→メールアドレス）は通常と同じ。
         var entryText = (startupData && startupData.invite_welcome) ? startupData.invite_welcome : entryNoticeText;
         appendBotMessage(personalize(entryText, startupData));
+        // メール通知のリンク（&open=contact|property）から来られた場合、SMS認証が済んだあとに
+        // 該当タブを開いてご案内することをお伝えする（お知らせが無いまま認証だけを求めると、
+        // メールの「内容を確認する」を押したのに何も出ていないように見えるため）。
+        if (deepLinkTabPending()) {
+            appendBotMessage(deepLinkPendingNoticeText());
+        }
         showSmsAuth('upfront');
     }
 
@@ -1020,6 +1063,9 @@
                     // 登録済みの電話番号: 別端末・機種変更でも前回の相談を引き継いで再開する。
                     registrationFlow = false;
                     continueSavedConsultation(startupData, true);
+                    // メール通知のリンクから来られた場合は、ここで該当タブを開く
+                    // （本人のご相談へ合流できたので、担当からのメッセージを表示できる）。
+                    openDeepLinkTabIfReady(true);
                 } else {
                     // 新規登録: 続けてお名前→メールアドレスを登録してもらう。
                     showNameForm();
@@ -1032,9 +1078,11 @@
                 appendBotMessage('ご登録ありがとうございました。\n\n次回以降は、\n・スマートフォン\n・タブレット\n・パソコン\nなど別のデバイスから接続した場合でも、SMS認証を行うことで、これまでのご相談内容を引き継いでご利用いただけます。');
                 setInputEnabled(true);
                 inputEl.focus();
+                openDeepLinkTabIfReady(true);
             } else if (data.data.matched) {
                 if (reason === 'other') appendBotMessage(personalize(registeredPhoneNoticeText, startupData));
                 continueSavedConsultation(startupData, reason !== 'other');
+                openDeepLinkTabIfReady(true);
             } else {
                 appendBotMessage('この電話番号で登録された前回のご相談は見つかりませんでした。初めてのご相談としてご案内します。');
                 beginFirstConsultation(startupData);
@@ -1151,6 +1199,9 @@
                 inviteReady = true;
                 updateInviteButtonVisibility();
                 beginFirstConsultation(startupData);
+                // 担当が事前に作成した顧客ページへメール通知のリンクから来られた場合、
+                // 登録が終わったこの時点で該当タブを開き、担当からのメッセージを表示する。
+                openDeepLinkTabIfReady(true);
             }).catch(function (error) {
                 submit.disabled = false;
                 status.textContent = (error && error.message) || 'メールアドレスの形式をご確認ください。';
@@ -1295,13 +1346,8 @@
                     updateInviteButtonVisibility();
                     maybeRequestNotificationPermission();
                     // メール通知リンク（&open=contact|property）から開いた場合、該当タブを自動表示。
-                    if (deepLinkTab && !deepLinkHandled) {
-                        deepLinkHandled = true;
-                        try {
-                            renderFeatureTab(deepLinkTab);
-                            pushChatView({ chatView: 'tab', chatTab: deepLinkTab });
-                        } catch (e) {}
-                    }
+                    // ただし本人確認前（SMS認証がまだの端末）は開かず保留する。
+                    openDeepLinkTabIfReady(false);
                     // 更新ボタンでの再読み込み直後は、押す前に開いていたタブへ戻す。
                     // これをしないと、担当連絡や物件選定を見ていても必ずAI担当に戻ってしまう。
                     if (reopenTabAfterReload && !reopenTabHandled) {
@@ -2103,7 +2149,7 @@
             ? contactMessages.map(contactMsgHtml).join('')
             : '<div class="chat-contact-empty">担当者へのご連絡はこちらから送信できます。担当者からの返信もこの画面に表示されます。</div>';
         var html = '';
-        html += '<div class="chat-feature-toolbar"><button type="button" class="chat-feature-back" data-feature-back="1">← AI担当</button></div>';
+        html += featureToolbarHtml();
         html += '<div class="chat-contact-view">';
         html += '<div class="chat-contact-head"><strong>担当連絡</strong><span>' + escapeHtml(agentName || '担当者') + '（担当者）と直接やり取りできます</span></div>';
         html += '<div class="chat-contact-messages" id="chat-contact-messages">' + listHtml + '</div>';
@@ -2542,8 +2588,8 @@
         return '現在地を取得できませんでした。位置情報を許可するか、住所をご入力ください。';
     }
 
-    // 現在地に関する質問の共通エントリ。
-    // 「現在地」と聞かれるたびに、必ずその場で最新のGPS座標を取り直す。
+    // GPS測位の共通処理。Promise で {lat, lon, accuracy} を返す。
+    // 「現在地」と聞かれるたび・現在地マップを開くたびに、必ずその場で最新の座標を取り直す。
     //
     // 単発の getCurrentPosition は、特に iOS Safari やスタンドアロンPWAで、GPSチップが
     // 新しい測位を終える前に「OSが保持している前回の位置」を即座に返すことがあり、
@@ -2552,6 +2598,87 @@
     // 十分な精度（GOOD_ACCURACY以下）が得られたら即採用、最長 MAX_WAIT_MS まで待って
     // その時点の最良読み取りを採用する。粗すぎる（MAX_ACCURACY超）場合はWi‑Fi/IP由来の
     // 概略位置とみなし、正確な位置情報を有効化して取り直すよう促す。
+    //
+    // 失敗時は { message } で reject する。案内文の出し方（チャットの吹き出し／マップ内の
+    // 案内）は呼び出し側で決める。
+    function acquireGeoFix() {
+        return new Promise(function (resolve, reject) {
+            if (!navigator.geolocation) {
+                reject({ message: 'お使いのブラウザが位置情報（GPS）に対応していないため、現在地を取得できませんでした。住所を直接ご入力ください。' });
+                return;
+            }
+
+            var GOOD_ACCURACY = 100;   // これ以下（m）なら十分正確とみなし即採用
+            var MAX_ACCURACY = 3000;   // これ超（m）はGPSでなくWi‑Fi/IP由来の概略位置とみなし不採用
+            var MAX_WAIT_MS = 12000;   // 最良読み取りを待つ最長時間
+
+            var watchId = null;
+            var timer = null;
+            var settled = false;
+            var best = null; // { lat, lon, accuracy }
+
+            function cleanup() {
+                if (watchId !== null && navigator.geolocation.clearWatch) {
+                    try { navigator.geolocation.clearWatch(watchId); } catch (e) {}
+                }
+                watchId = null;
+                if (timer) { clearTimeout(timer); timer = null; }
+            }
+
+            function useFix(fix) {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                // 採用したGPSの緯度・経度・精度をログ出力（現在地ずれの原因切り分け用）。
+                if (window.console && console.log) console.log('[chat-widget] geolocation fix (used):', { latitude: fix.lat, longitude: fix.lon, accuracy: fix.accuracy });
+                // 常に最新の測位結果で上書きし、そのGPS座標（緯度経度）をそのまま照会に使う。
+                sessionGeo = { lat: fix.lat, lon: fix.lon, accuracy: fix.accuracy };
+                resolve(sessionGeo);
+            }
+
+            function fail(err) {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                if (window.console && console.warn) console.warn('[chat-widget] geolocation failed:', { code: err && err.code, message: err && err.message, bestAccuracy: best && best.accuracy, secureContext: window.isSecureContext });
+                // 概略位置しか得られなかった場合は、その旨を明示して取り直しを促す（誤った住所を出さない）。
+                if (best && typeof best.accuracy === 'number' && best.accuracy > MAX_ACCURACY) {
+                    reject({ message: '現在地を十分な精度で取得できませんでした（推定誤差 約' + Math.round(best.accuracy) + 'm）。\n\nWi‑Fiや通信環境から推定したおおよその位置のため、実際の現在地とずれている可能性があります。お手数ですが、端末の「正確な位置情報（高精度／Precise Location）」をオンにし、ブラウザに位置情報を「許可」したうえで、もう一度お試しください。\n\n（iPhone：設定 > プライバシーとセキュリティ > 位置情報サービス をオン、対象ブラウザで「正確な位置情報」をオン。Android：位置情報を「高精度」に設定）\n\nお急ぎの場合は、住所を直接ご入力いただくこともできます。' });
+                    return;
+                }
+                reject({ message: geolocationErrorMessage(err) });
+            }
+
+            watchId = navigator.geolocation.watchPosition(
+                function (pos) {
+                    var acc = (typeof pos.coords.accuracy === 'number') ? pos.coords.accuracy : 999999;
+                    var reading = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: acc };
+                    // 各読み取りをログ出力（座標が更新されているか＝キャッシュ固定でないかの確認用）。
+                    if (window.console && console.log) console.log('[chat-widget] geolocation reading:', reading);
+                    if (!best || acc < best.accuracy) best = reading;
+                    // 十分な精度が得られたら即採用（それ以上待たない）。
+                    if (acc <= GOOD_ACCURACY) useFix(reading);
+                },
+                function (err) {
+                    // 許可拒否など致命的なエラーは即失敗。取得不可・タイムアウトは待機満了時に判定する。
+                    if (err && err.code === 1) fail(err);
+                },
+                // maximumAge:0 でブラウザ／OSのキャッシュ座標を使わせず、継続測位で新しい読み取りを得る。
+                { enableHighAccuracy: true, maximumAge: 0, timeout: MAX_WAIT_MS }
+            );
+
+            timer = setTimeout(function () {
+                // 最長待機に到達。実用的な精度（MAX_ACCURACY以下）の読み取りがあれば採用、なければ失敗扱い。
+                if (best && typeof best.accuracy === 'number' && best.accuracy <= MAX_ACCURACY) {
+                    useFix(best);
+                } else {
+                    fail({ code: 3 }); // TIMEOUT 相当
+                }
+            }, MAX_WAIT_MS);
+        });
+    }
+
+    // 現在地に関する質問の共通エントリ。GPSを取り直してから、その質問をサーバーへ送る。
     // @param {string} originalText 利用者が実際に入力した質問文。GPS取得後にそのまま
     //   サーバーへ送るため引き回す（定型文へ置き換えない。理由は runCurrentLocationQuery）。
     function startCurrentLocationFlow(originalText) {
@@ -2565,75 +2692,15 @@
         }
         var waiting = appendBotMessage('現在地を取得しています', true);
 
-        var GOOD_ACCURACY = 100;   // これ以下（m）なら十分正確とみなし即採用
-        var MAX_ACCURACY = 3000;   // これ超（m）はGPSでなくWi‑Fi/IP由来の概略位置とみなし不採用
-        var MAX_WAIT_MS = 12000;   // 最良読み取りを待つ最長時間
-
-        var watchId = null;
-        var timer = null;
-        var settled = false;
-        var best = null; // { lat, lon, accuracy }
-
-        function cleanup() {
-            if (watchId !== null && navigator.geolocation.clearWatch) {
-                try { navigator.geolocation.clearWatch(watchId); } catch (e) {}
-            }
-            watchId = null;
-            if (timer) { clearTimeout(timer); timer = null; }
-        }
-
-        function useFix(fix) {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            if (waiting) waiting.remove();
-            // 採用したGPSの緯度・経度・精度をログ出力（現在地ずれの原因切り分け用）。
-            if (window.console && console.log) console.log('[chat-widget] geolocation fix (used):', { latitude: fix.lat, longitude: fix.lon, accuracy: fix.accuracy });
-            // 常に最新の測位結果で上書きし、そのGPS座標（緯度経度）をそのまま照会に使う。
-            sessionGeo = { lat: fix.lat, lon: fix.lon, accuracy: fix.accuracy };
-            runCurrentLocationQuery(sessionGeo, originalText);
-        }
-
-        function fail(err) {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            if (waiting) waiting.remove();
-            if (window.console && console.warn) console.warn('[chat-widget] geolocation failed:', { code: err && err.code, message: err && err.message, bestAccuracy: best && best.accuracy, secureContext: window.isSecureContext });
-            // 概略位置しか得られなかった場合は、その旨を明示して取り直しを促す（誤った住所を出さない）。
-            if (best && typeof best.accuracy === 'number' && best.accuracy > MAX_ACCURACY) {
-                appendBotMessage('現在地を十分な精度で取得できませんでした（推定誤差 約' + Math.round(best.accuracy) + 'm）。\n\nWi‑Fiや通信環境から推定したおおよその位置のため、実際の現在地とずれている可能性があります。お手数ですが、端末の「正確な位置情報（高精度／Precise Location）」をオンにし、ブラウザに位置情報を「許可」したうえで、もう一度お試しください。\n\n（iPhone：設定 > プライバシーとセキュリティ > 位置情報サービス をオン、対象ブラウザで「正確な位置情報」をオン。Android：位置情報を「高精度」に設定）\n\nお急ぎの場合は、住所を直接ご入力いただくこともできます。');
-                return;
-            }
-            appendBotMessage(geolocationErrorMessage(err));
-        }
-
-        watchId = navigator.geolocation.watchPosition(
-            function (pos) {
-                var acc = (typeof pos.coords.accuracy === 'number') ? pos.coords.accuracy : 999999;
-                var reading = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: acc };
-                // 各読み取りをログ出力（座標が更新されているか＝キャッシュ固定でないかの確認用）。
-                if (window.console && console.log) console.log('[chat-widget] geolocation reading:', reading);
-                if (!best || acc < best.accuracy) best = reading;
-                // 十分な精度が得られたら即採用（それ以上待たない）。
-                if (acc <= GOOD_ACCURACY) useFix(reading);
-            },
-            function (err) {
-                // 許可拒否など致命的なエラーは即失敗。取得不可・タイムアウトは待機満了時に判定する。
-                if (err && err.code === 1) fail(err);
-            },
-            // maximumAge:0 でブラウザ／OSのキャッシュ座標を使わせず、継続測位で新しい読み取りを得る。
-            { enableHighAccuracy: true, maximumAge: 0, timeout: MAX_WAIT_MS }
-        );
-
-        timer = setTimeout(function () {
-            // 最長待機に到達。実用的な精度（MAX_ACCURACY以下）の読み取りがあれば採用、なければ失敗扱い。
-            if (best && typeof best.accuracy === 'number' && best.accuracy <= MAX_ACCURACY) {
-                useFix(best);
-            } else {
-                fail({ code: 3 }); // TIMEOUT 相当
-            }
-        }, MAX_WAIT_MS);
+        acquireGeoFix()
+            .then(function (geo) {
+                if (waiting) waiting.remove();
+                runCurrentLocationQuery(geo, originalText);
+            })
+            .catch(function (err) {
+                if (waiting) waiting.remove();
+                appendBotMessage((err && err.message) || '現在地を取得できませんでした。位置情報を許可するか、住所をご入力ください。');
+            });
     }
 
     // 取得済み座標を使って、利用者が実際に入力した質問をそのままサーバーへ送る。
@@ -2908,6 +2975,8 @@
             if (view === 'property' && state.chatPropertyId) {
                 enterFeatureView('property');
                 propOpenDetail(state.chatPropertyId);
+            } else if (view === 'geomap') {
+                openCurrentLocationMap({ restoring: true, tab: state.chatTab });
             } else if (view === 'tab') {
                 if (!showChatTabView(state.chatTab)) exitFeatureView();
             } else {
@@ -3039,11 +3108,19 @@
         }
     }
 
+    /* 機能タブ・担当連絡の上部ツールバー。
+       ここは以前「← AI担当」の戻るボタンだったが、ご要望により現在地マップの入口にしている。
+       AI担当へは画面下部のタブ（AI担当）から戻る。 */
+    function featureToolbarHtml() {
+        return '<div class="chat-feature-toolbar">' +
+            '<button type="button" class="chat-feature-geo" data-geo-map="1">現在地情報をマップ表示</button>' +
+            '</div>';
+    }
+
     function renderFeaturePanel(html) {
         if (!featurePanel) return;
         featurePanel.hidden = false;
-        var label = featureTabLabel(activeChatTab);
-        featurePanel.innerHTML = '<div class="chat-feature-toolbar"><button type="button" class="chat-feature-back" data-feature-back="1">← AI担当</button></div><div class="chat-feature-body">' + html + '</div>';
+        featurePanel.innerHTML = featureToolbarHtml() + '<div class="chat-feature-body">' + html + '</div>';
     }
 
     function renderConditionsTab() {
@@ -3413,6 +3490,82 @@
         });
     }
 
+    /* ===== 現在地マップ（上部の「現在地情報をマップ表示」ボタン） =====
+       物件詳細の「マップ」タブとまったく同じ画面（PropertyMap）を、物件の代わりに
+       いま端末がいる場所を中心にして表示する。周辺情報の切り替えボタン・凡例・注意書き・
+       検討中物件のピンも物件詳細と同じ。 */
+    var geoMapReturnTab = 'ai';   // マップを開く前に見ていたタブ（「← 戻る」の戻り先）
+
+    /* マップ画面の枠（上部のツールバー＋本体）。本体の中身はこの後で差し替える。 */
+    function renderGeoMapShell() {
+        if (!featurePanel) return null;
+        panel.classList.add('is-feature-view');
+        featurePanel.hidden = false;
+        featurePanel.innerHTML =
+            '<div class="chat-feature-toolbar"><button type="button" class="chat-feature-back" data-geo-back="1">← 戻る</button></div>' +
+            '<div class="chat-feature-body"><div id="chat-geo-map"></div></div>';
+        return featurePanel.querySelector('#chat-geo-map');
+    }
+
+    /* マップ画面が表示されたままか（測位・通信を待つ間に別の画面へ移っていないか）。 */
+    function geoMapBox() {
+        return featurePanel ? featurePanel.querySelector('#chat-geo-map') : null;
+    }
+
+    /* 地図の代わりに案内文を出す（測位中・取得失敗）。 */
+    function setGeoMapNotice(text) {
+        var box = geoMapBox();
+        if (!box) return;
+        var el = document.createElement('div');
+        el.className = 'prop-empty';
+        el.textContent = text;
+        box.innerHTML = '';
+        box.appendChild(el);
+    }
+
+    function mountGeoMap(geo) {
+        var box = geoMapBox();
+        if (!box) return;   // 測位を待つ間に別の画面へ移っていた
+        if (!window.PropertyMap) { setGeoMapNotice('マップを表示できません。'); return; }
+        window.PropertyMap.mount(box, {
+            lat: geo.lat,
+            lng: geo.lon,
+            apiBase: siteBase + '/backend/api/property',
+            authQS: propAuthQS(),
+            // 検討中物件の吹き出しから、その物件の詳細へ移動する（物件詳細のマップと同じ）。
+            onOpenProperty: function (id) { enterFeatureView('property'); propOpenDetail(id); }
+        });
+    }
+
+    /* @param {object} options restoring:true のときは、戻る／進む操作による復帰
+       （履歴を積み直さず、直前に測位した座標をそのまま使う）。 */
+    function openCurrentLocationMap(options) {
+        options = options || {};
+        if (!featurePanel) return;
+        if (!sessionId) {
+            appendBotMessage('チャットの接続が完了してから、もう一度お試しください。');
+            if (!sessionStarting) startSession();
+            return;
+        }
+        geoMapReturnTab = options.restoring ? (options.tab || 'ai') : (activeChatTab || 'ai');
+        if (!renderGeoMapShell()) return;
+        setGeoMapNotice('現在地を取得しています…');
+        if (!options.restoring) pushChatView({ chatView: 'geomap', chatTab: geoMapReturnTab });
+        // 戻る／進むでの復帰は測位をやり直さず、直前の座標をそのまま使う。
+        if (options.restoring && sessionGeo) { mountGeoMap(sessionGeo); return; }
+        acquireGeoFix()
+            .then(function (geo) { mountGeoMap(geo); })
+            .catch(function (err) {
+                setGeoMapNotice((err && err.message) || '現在地を取得できませんでした。位置情報を許可してから、もう一度お試しください。');
+            });
+    }
+
+    /* 「← 戻る」。履歴に戻り先が無いときは、開く前に見ていたタブを描き直す。 */
+    function closeCurrentLocationMap() {
+        if (geoMapReturnTab && geoMapReturnTab !== 'ai' && showChatTabView(geoMapReturnTab)) return;
+        exitFeatureView();
+    }
+
     function propRenderDetail(p) {
         // マップは物件詳細を開き直すたびに描き直す（前の物件の地図が残らないようにする）。
         propMapPropertyId = null;
@@ -3423,6 +3576,10 @@
         flyerOpts.emptyText = '販売図面はまだありません。';
         var photoOpts = propAuthOpts();
         photoOpts.emptyText = '写真・資料はまだありません。';
+        // 追加資料（担当者が登録した参考資料）。写真と同じ見せ方で、資料名を添えて開けるようにする。
+        var docOpts = propAuthOpts();
+        docOpts.emptyText = '追加資料はまだありません。';
+        docOpts.showCaption = true;
         var statusChips = Object.keys(PUI.STATUS).filter(function (k) { return PUI.STATUS[k].role === 'customer'; }).map(function (k) {
             var s = PUI.STATUS[k]; var on = p.status === k;
             return '<button type="button" class="prop-status-opt' + (on ? ' is-selected' : '') + '" data-cust-status="' + k + '" style="color:' + s.color + '">' +
@@ -3430,22 +3587,26 @@
         }).join('');
         var html = '<div class="prop-wrap" id="prop-cust">' +
             '<div class="prop-toolbar"><button type="button" class="prop-btn prop-btn--ghost" id="prop-cust-back">← 物件一覧</button></div>' +
-            PUI.detailHeaderHtml(p) +
+            PUI.detailHeaderHtml(p, propAuthOpts()) +
             PUI.prCommentBlockHtml(p) +
             '<div class="prop-section-title">あなたの検討ステータス</div>' +
             '<div class="prop-status-grid" id="prop-cust-status">' + statusChips + '</div>' +
+            // タブは横スクロールせずに全部見えるようにする（スマートフォンは2段組み。property.css §10）。
+            // 並びは「基本情報→マップ→ハザード→販売図面→写真・資料→追加資料」。
             '<div class="prop-tabs">' +
                 '<button class="prop-tab is-active" data-ctab="basic">基本情報</button>' +
-                '<button class="prop-tab" data-ctab="hazard">ハザード等情報</button>' +
+                '<button class="prop-tab" data-ctab="map">マップ</button>' +
+                '<button class="prop-tab" data-ctab="hazard">ハザード</button>' +
                 '<button class="prop-tab" data-ctab="flyer">販売図面</button>' +
                 '<button class="prop-tab" data-ctab="photo">写真・資料</button>' +
-                '<button class="prop-tab" data-ctab="map">マップ</button>' +
+                '<button class="prop-tab" data-ctab="document">追加資料</button>' +
             '</div>' +
             '<div class="prop-tabpane is-active" data-cpane="basic">' + PUI.basicInfoHtml(p, false) + '</div>' +
+            '<div class="prop-tabpane" data-cpane="map"></div>' +
             '<div class="prop-tabpane" data-cpane="hazard">' + PUI.hazardHtml(p.hazard, p.hazard_fetched_at) + '</div>' +
             '<div class="prop-tabpane" data-cpane="flyer">' + PUI.galleryHtml(p.flyers, flyerOpts) + '</div>' +
             '<div class="prop-tabpane" data-cpane="photo">' + PUI.galleryHtml(p.photos, photoOpts) + '</div>' +
-            '<div class="prop-tabpane" data-cpane="map"></div>' +
+            '<div class="prop-tabpane" data-cpane="document">' + PUI.galleryHtml(p.documents, docOpts) + '</div>' +
             '<div class="prop-form-actions" style="margin-top:16px"><button type="button" class="prop-btn prop-btn--primary" id="prop-cust-viewing">' + PUI.icon('calendar') + '内見予約を依頼する</button></div>' +
         '</div>';
         renderFeaturePanel(html);
@@ -3556,6 +3717,26 @@
         });
         html += '</div>';
         renderFeaturePanel(html);
+    }
+
+    /**
+     * メール通知のリンク（card.php?...&open=contact|property）から開かれたときに、
+     * 該当タブ（担当連絡／物件選定）を自動表示する。
+     *
+     * この端末がまだSMS認証を済ませていない場合は開かない。認証前は「どのお客様か」が
+     * 確定せず、担当からのメッセージや提案物件を持たない空のセッションが割り当たるため、
+     * そのまま開くと中身が無いタブだけが表示され、入口のSMS認証も隠れてしまう
+     * （PCなど、初めて使う端末でメールのボタンから開いたときに起きていた）。
+     * その場合は保留し、SMS認証で本人のご相談へ合流したあとに force = true で開く。
+     */
+    function openDeepLinkTabIfReady(force) {
+        if (!deepLinkTab || deepLinkHandled) return;
+        if (!force && deepLinkTabPending()) return;
+        deepLinkHandled = true;
+        try {
+            renderFeatureTab(deepLinkTab);
+            pushChatView({ chatView: 'tab', chatTab: deepLinkTab });
+        } catch (e) {}
     }
 
     function renderFeatureTab(tab) {
@@ -4118,6 +4299,21 @@
         sendMessage(inputEl.value.trim());
     });
 
+    // AI担当の上部ボタン（現在地マップ／現在地の土地情報）。
+    if (geoActions) {
+        geoActions.addEventListener('click', function (e) {
+            if (e.target.closest('[data-geo-map]')) {
+                openCurrentLocationMap();
+                return;
+            }
+            if (e.target.closest('[data-geo-info]')) {
+                // 「現在地の土地情報を教えて」と入力したときとまったく同じ動きにする
+                // （GPSを取り直して、用途地域・ハザード等のレポートを回答として表示する）。
+                sendMessage('現在地の土地情報を教えて');
+            }
+        });
+    }
+
     if (tabBar) {
         tabBar.addEventListener('click', function (e) {
             try {
@@ -4255,10 +4451,14 @@
             });
         });
         featurePanel.addEventListener('click', function (e) {
-            var backBtn = e.target.closest('[data-feature-back]');
-            if (backBtn) {
-                // AI担当は一番手前の画面。履歴もそこまで戻し、戻る／進むと食い違わないようにする。
-                if (!goToChatBase()) exitFeatureView();
+            // 上部ツールバーの「現在地情報をマップ表示」
+            if (e.target.closest('[data-geo-map]')) {
+                openCurrentLocationMap();
+                return;
+            }
+            // 現在地マップの「← 戻る」。右スワイプ（戻る）と同じ結果になるようにそろえる。
+            if (e.target.closest('[data-geo-back]')) {
+                if (!goBackChatView()) closeCurrentLocationMap();
                 return;
             }
             var saveBtn = e.target.closest('[data-save-feature]');
