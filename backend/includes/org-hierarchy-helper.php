@@ -12,7 +12,7 @@
  *   ・同一会社の判定は「宅建業免許番号（都道府県＋登録番号）」で行う。
  *     会社名は表記ゆれ（株式会社の有無・全角半角・支店名の付記）が避けられないため使わない。
  *   ・統括（全閲覧）は同じ免許番号のメンバー全員を、
- *     マネージャー（店長）は parent_user_id を辿った自分の配下だけを閲覧できる。
+ *     マネージャー（店長）は parent_user_id を辿った自分のメンバーだけを閲覧できる。
  *   ・一覧・候補に出るのは「入金済み（CR / 振込済 / ST送金）かつ OPEN」の方だけ。
  *   ・そもそも階層分けを使えるのは、運営が ON にした会社（法人プラン）だけ。
  *     OFF の会社にはメニューもAPIも出さない。判定は orgHierarchyEnabledForUser() で、
@@ -797,7 +797,7 @@ function orgHierarchyEnabledForUser(PDO $db, int $userId): bool
     // 店長の名刺に宅建業者番号がまだ入っていないと、自分の免許番号キーを作れず
     // 会社の ON / OFF を判定できずにメニューごと消えてしまう。
     // 店長は統括が指名した方なので、指名した上長（統括）の会社で判定し直す。
-    // 店長が閲覧できる範囲は parent_user_id を辿った自分の配下だけで、
+    // 店長が閲覧できる範囲は parent_user_id を辿った自分のメンバーだけで、
     // 免許番号は使わないため、これで他社の情報が見えるようになることはない。
     if ($isManager && !empty($viewer['parent_user_id'])) {
         $parentKey = orgLicenseForUser($db, (int)$viewer['parent_user_id'])['key'];
@@ -1005,7 +1005,7 @@ function orgFetchLicenseMembers(PDO $db, int $actorId, array $license, int $limi
  * 閲覧できるメンバーの集合を返す（orgDescendants() と同じ形）。
  *
  *   統括（全閲覧）… 同じ免許番号のメンバー全員。上長として登録していなくても見える。
- *   マネージャー（店長）… parent_user_id を辿った自分の配下だけ。
+ *   マネージャー（店長）… parent_user_id を辿った自分のメンバーだけ。
  *
  * どちらも「入金済み かつ OPEN」の方に限る。
  *

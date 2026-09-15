@@ -1774,7 +1774,7 @@ function editSectionIcon(string $key): string
                             <h2>組織・メンバー顧客</h2>
                             <p class="step-description">
                                 あなた（<?php echo htmlspecialchars(orgRoleLabel($orgRole), ENT_QUOTES, 'UTF-8'); ?>）が閲覧できる自社メンバーと、その方が対応しているお客様の一覧です。<br>
-                                統括（全閲覧）は<strong>自社の全員</strong>を、マネージャー（店長）は<strong>自分の配下</strong>を閲覧できます。<br>
+                                統括（全閲覧）は<strong>自社の全員</strong>を、マネージャー（店長）は<strong>自分のメンバー</strong>を閲覧できます。<br>
                                 自社かどうかは<strong>宅建業免許番号（都道府県＋登録番号）</strong>が一致するかで判定します。会社名の表記ゆれには影響されません。<br>
                                 一覧に出るのは<strong>入金済み（CR／振込済／ST送金）かつ OPEN</strong> の方のみで、他社の情報は表示されません。<br>
                                 お客様の情報は閲覧のみで、編集・削除やチャットの代理返信はできません。
@@ -1787,7 +1787,7 @@ function editSectionIcon(string $key): string
                     <div id="org-team-summary" class="org-team-summary"></div>
 
                     <div class="org-team-block">
-                        <h3>配下メンバーの登録</h3>
+                        <h3>メンバーの登録</h3>
                         <p class="section-note">
                             自社（会社プロフィールの<strong>宅建業者番号</strong>が一致する方）で、入金済みかつOPENの方を配下として登録できます。<br>
                             すでに他の店長の配下にいる方も選べます（選ぶとその店舗から異動します）。他社の方は候補に表示されません。
@@ -1809,7 +1809,7 @@ function editSectionIcon(string $key): string
 
                     <div class="org-team-block">
                         <div class="org-team-toolbar">
-                            <h3>配下の顧客一覧</h3>
+                            <h3>メンバーの顧客一覧</h3>
                             <div class="org-team-toolbar-actions">
                                 <select id="org-customer-filter" class="form-control org-team-filter">
                                     <option value="">配下の担当者すべて</option>
@@ -5526,7 +5526,7 @@ function editSectionIcon(string $key): string
     <script>
         // 組織・メンバー顧客（マネージャー／管理者のみ）。
         // 顧客データは閲覧専用。書き込むのは「自組織の階層（誰が誰の配下か・権限）」だけで、
-        // 対象はいずれも自社かつ自分の配下に限られる（サーバー側でも同じ条件を検証）。
+        // 対象はいずれも自社かつ自分のメンバーに限られる（サーバー側でも同じ条件を検証）。
         (function() {
             var memberListEl = document.getElementById('org-member-list');
             var customerListEl = document.getElementById('org-customer-list');
@@ -5616,7 +5616,7 @@ function editSectionIcon(string $key): string
                 if (!members.length) {
                     memberListEl.innerHTML = isAdmin
                         ? '<p>該当する自社メンバーがいません。宅建業者番号が一致し、入金済みかつOPENの方が対象です。</p>'
-                        : '<p>まだ配下の方が登録されていません。上の「配下メンバーの登録」から追加してください。</p>';
+                        : '<p>まだ配下の方が登録されていません。上の「メンバーの登録」から追加してください。</p>';
                     return;
                 }
                 var html = '<ul class="org-team-items">';
