@@ -272,12 +272,14 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 /* 編集用の領域インジケータ。白抜きを透明度10%程度（不透明度90%）で表示し、下地が少し見えるようにする。
    実際の顧客用出力は白べた（不透明）。青破線枠で領域を視認しやすくする。 */
 .prop-mask-rect { position: absolute; background: rgba(255,255,255,.9); border: 2px dashed #2d6cdf; cursor: move; box-sizing: border-box; box-shadow: 0 0 0 1px rgba(45,108,223,.35) inset; }
-/* 自社帯の領域: 帯画像を背景表示し、緑破線で白マスクと区別する */
-.prop-mask-rect--band { background: rgba(255,255,255,.95); background-size: 100% 100%; background-repeat: no-repeat; background-position: center; border-color: #1c9c5c; box-shadow: 0 0 0 1px rgba(28,156,92,.35) inset; }
+/* 自社帯の領域: 帯画像を背景表示し、緑破線で白マスクと区別する。
+   顧客用の出力（マスクを塗ってから自社帯を重ねる）と同じ重なり順に見えるよう、
+   自社帯は常にマスクより上に表示する（選択中のマスクより上になるよう z-index を上げる）。 */
+.prop-mask-rect--band { background: rgba(255,255,255,.95); background-size: 100% 100%; background-repeat: no-repeat; background-position: center; border-color: #1c9c5c; box-shadow: 0 0 0 1px rgba(28,156,92,.35) inset; z-index: 3; }
 .prop-mask-rect--band .prop-mask-handle { background: #1c9c5c; }
 /* 色を変える対象として選ばれているマスク。枠を実線＋外側の光で分かるようにする。 */
 .prop-mask-rect.is-selected { border-style: solid; box-shadow: 0 0 0 3px rgba(45,108,223,.45); z-index: 2; }
-.prop-mask-rect--band.is-selected { box-shadow: 0 0 0 3px rgba(28,156,92,.45); }
+.prop-mask-rect--band.is-selected { box-shadow: 0 0 0 3px rgba(28,156,92,.45); z-index: 4; }
 .prop-mask-tag { position: absolute; top: -10px; left: -2px; padding: 1px 6px; font-size: 11px; line-height: 1.5; color: #fff; background: #1c9c5c; border-radius: 4px; pointer-events: none; white-space: nowrap; }
 /* マスクの通し番号（ツールバーの「選択中: マスク2」と対応させる） */
 .prop-mask-tag--mask { background: #2d6cdf; }
