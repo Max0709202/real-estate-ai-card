@@ -1005,7 +1005,7 @@
      誤抽出された写真は、各写真の削除ボタンで個別に削除できる。 */
   var PHOTO_MAX = 10;              // 「写真・資料」の上限枚数（PHP image-upload.php と一致）
   var PHOTO_LABEL_MAX = 30;        // 写真の名前の最大文字数（PHP propertyPhotoLabelMaxLength と一致）
-  var PHOTO_LABELS = ['建物外観', '間取り図', '室内写真', '設備写真', '地図', 'その他'];
+  var PHOTO_LABELS = ['建物外観', '間取り図', '室内写真', '眺望', '共用部', '地図', '周辺写真', 'その他'];
   var DOC_MAX = 10;                // 「追加資料」の上限件数（PHP image-upload.php と一致）
   var DOC_LABELS = ['管理規約', '重要事項説明書', 'マンション概要', '長期修繕計画', '周辺情報', 'その他資料'];
   var PASTE_BOUND = null;          // 貼り付け（Ctrl+V / ⌘V）用のドキュメントリスナー
@@ -1251,12 +1251,90 @@
     return '<div class="prop-photo-add" id="prop-photo-drop">' +
       '<div class="prop-photo-add__row">' +
         '<label class="prop-photo-add__label" for="prop-photo-name">写真の名前</label>' +
-        '<input type="text" id="prop-photo-name" class="prop-photo-add__name" list="prop-photo-names" maxlength="' + PHOTO_LABEL_MAX + '" value="建物外観" placeholder="例）建物外観">' +
-        '<datalist id="prop-photo-names">' + PHOTO_LABELS.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist>' +
+        photoLabelComboHtml('prop-photo-name', 'prop-photo-add__name', '', '一覧から選択、または自由に入力') +
         '<button type="button" class="prop-btn prop-btn--primary" id="prop-photo-pick">' + UI.icon('upload') + 'ファイルを選択</button>' +
       '</div>' +
-      '<div class="prop-photo-add__hint" id="prop-photo-hint">この枠にドラッグ＆ドロップ、またはコピーした画像の貼り付け（Ctrl+V / ⌘V）でも追加できます。</div>' +
+      '<div class="prop-photo-add__zone" id="prop-photo-zone" role="button" tabindex="0">' +
+        '<span class="prop-photo-add__zone-icon">' + UI.icon('upload') + '</span>' +
+        '<div class="prop-photo-add__zone-title">ここに写真・PDFをドラッグ＆ドロップ</div>' +
+        '<div class="prop-photo-add__hint" id="prop-photo-hint">クリックしてファイルを選ぶことも、コピーした画像を貼り付け（Ctrl+V / ⌘V）て追加することもできます。</div>' +
+      '</div>' +
       '</div>';
+  }
+
+  /* 写真の名前の入力欄（▼で候補一覧を表示・自由入力も可）。
+     datalist は入力済みの文字で候補が絞り込まれ、全候補を選べないため自前の一覧を使う。 */
+  function photoLabelComboHtml(id, cls, value, placeholder) {
+    return '<div class="prop-combo' + (cls ? ' ' + cls : '') + '">' +
+      '<input type="text" id="' + id + '" class="prop-combo__input" maxlength="' + PHOTO_LABEL_MAX + '" autocomplete="off"' +
+        ' value="' + esc(value) + '" placeholder="' + esc(placeholder) + '">' +
+      '<button type="button" class="prop-combo__toggle" tabindex="-1" aria-label="候補から選ぶ">▼</button>' +
+      '</div>';
+  }
+
+  function bindPhotoLabelCombo(input) {
+    if (!input) return;
+    var toggle = input.parentNode.querySelector('.prop-combo__toggle');
+    var list = null;
+
+    function close() {
+      if (list && list.parentNode) list.parentNode.removeChild(list);
+      list = null;
+      document.removeEventListener('mousedown', onOutside, true);
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    }
+    function onOutside(e) {
+      if (list && list.contains(e.target)) return;
+      if (e.target === input || e.target === toggle) return;
+      close();
+    }
+    // 入力欄の位置に合わせる（スクロールやスマートフォンのキーボード表示で位置が変わっても追従）。
+    function place() {
+      if (!list) return;
+      if (!document.body.contains(input)) { close(); return; }
+      var r = input.parentNode.getBoundingClientRect();
+      var h = list.offsetHeight;
+      list.style.left = r.left + 'px';
+      list.style.width = r.width + 'px';
+      // 画面下に収まらなければ入力欄の上に表示する。
+      list.style.top = (r.bottom + 4 + h > window.innerHeight && r.top - 4 - h > 0 ? r.top - 4 - h : r.bottom + 4) + 'px';
+    }
+    function open() {
+      if (list || !document.body.contains(input)) return;
+      list = document.createElement('ul');
+      list.className = 'prop-combo__list';
+      list.innerHTML = PHOTO_LABELS.map(function (n) {
+        return '<li><button type="button" data-combo-value="' + esc(n) + '">' + esc(n) + '</button></li>';
+      }).join('');
+      document.body.appendChild(list);
+      place();
+      list.addEventListener('mousedown', function (e) { e.preventDefault(); });   // 入力欄のフォーカスを保つ
+      list.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-combo-value]');
+        if (!b) return;
+        input.value = b.getAttribute('data-combo-value');
+        close();
+        input.focus();
+      });
+      document.addEventListener('mousedown', onOutside, true);
+      window.addEventListener('scroll', place, true);
+      window.addEventListener('resize', place);
+    }
+
+    toggle.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (list) { close(); return; }
+      input.focus();
+      open();
+    });
+    input.addEventListener('click', open);
+    input.addEventListener('blur', close);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); open(); }
+      else if (e.key === 'Escape' || e.key === 'Enter' || e.key === 'Tab') close();
+    });
   }
 
   /* 残り枚数の表示と、上限に達したときの追加ボタンの無効化。 */
@@ -1269,9 +1347,11 @@
     if (hint) {
       hint.textContent = full
         ? '写真・資料は最大' + PHOTO_MAX + '枚です。追加するには、不要な写真を削除してください。'
-        : 'この枠にドラッグ＆ドロップ、またはコピーした画像の貼り付け（Ctrl+V / ⌘V）でも追加できます。（あと' + (PHOTO_MAX - count) + '枚）';
+        : 'クリックしてファイルを選ぶことも、コピーした画像を貼り付け（Ctrl+V / ⌘V）て追加することもできます。（あと' + (PHOTO_MAX - count) + '枚）';
     }
     if (btn) btn.disabled = full;
+    var dz = pane.querySelector('#prop-photo-drop');
+    if (dz) dz.classList.toggle('is-full', full);
   }
 
   function bindPhotoUploader(pane, p) {
@@ -1279,13 +1359,22 @@
     var nameInput = pane.querySelector('#prop-photo-name');
     if (!dz) return;
     function label() { return nameInput ? nameInput.value.trim() : ''; }
+    bindPhotoLabelCombo(nameInput);
 
-    pane.querySelector('#prop-photo-pick').addEventListener('click', function () {
+    var pickBtn = pane.querySelector('#prop-photo-pick');
+    function pick() {
+      if (pickBtn.disabled) return;   // 上限枚数に達しているときは開かない
       var inp = document.createElement('input');
       inp.type = 'file'; inp.accept = 'image/*,application/pdf'; inp.multiple = true;
       inp.addEventListener('change', function () { if (inp.files.length) uploadPhotos(p, inp.files, label()); });
       inp.click();
-    });
+    }
+    pickBtn.addEventListener('click', pick);
+    var zone = pane.querySelector('#prop-photo-zone');
+    if (zone) {
+      zone.addEventListener('click', pick);
+      zone.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    }
 
     ['dragenter', 'dragover'].forEach(function (ev) {
       dz.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); dz.classList.add('is-over'); });
@@ -1372,15 +1461,14 @@
   }
 
   function openPhotoLabelForm(p, image) {
-    var html = '<div class="prop-field full"><label>写真の下に表示するコメント</label>' +
-      '<input type="text" id="prop-photo-label" list="prop-photo-label-list" maxlength="' + PHOTO_LABEL_MAX + '"' +
-      ' placeholder="例）建物外観" value="' + esc(image.subcategory || '') + '">' +
-      '<datalist id="prop-photo-label-list">' + PHOTO_LABELS.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join('') + '</datalist></div>' +
+    var html = '<div class="prop-field full"><label for="prop-photo-label">写真の下に表示するコメント</label>' +
+      photoLabelComboHtml('prop-photo-label', '', image.subcategory || '', '一覧から選択、または自由に入力') + '</div>' +
       '<div class="prop-msg prop-msg--info">AIが自動で付けたコメントは、ここで何度でも自由に変更できます。空欄にするとコメントなしになります。</div>' +
       '<div class="prop-form-actions"><button type="button" class="prop-btn prop-btn--primary" id="prop-photo-label-save">変更する</button></div>';
     var m = UI.modal('写真のコメントを変更', html);
     var input = m.body.querySelector('#prop-photo-label');
     var btn = m.body.querySelector('#prop-photo-label-save');
+    bindPhotoLabelCombo(input);
 
     function submit() {
       btn.disabled = true;
