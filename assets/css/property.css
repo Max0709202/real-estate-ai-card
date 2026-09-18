@@ -519,6 +519,8 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-map__notes { display: flex; flex-direction: column; gap: 6px; }
 .prop-map__note { font-size: 12px; line-height: 1.6; color: #6b7585; background: #f7f9fc; border-left: 3px solid #d6dde8; border-radius: 6px; padding: 8px 10px; }
 .prop-map__note--flash { color: #8a5a12; background: #fff7e8; border-left-color: #f0b04a; }
+/* 地図の上に重ねて出す一時的なお知らせ（該当データが無いときなど） */
+.prop-map__flash { max-width: 88%; margin-top: 10px; padding: 8px 12px; border-radius: 999px; font-size: 12px; line-height: 1.5; font-weight: 700; color: #8a5a12; background: rgba(255, 247, 232, .97); border: 1px solid #f0b04a; box-shadow: 0 2px 8px rgba(20, 34, 58, .18); }
 
 /* ピンの吹き出し（施設名と「Googleマップで見る」だけ） */
 .prop-map__iw { min-width: 150px; max-width: 240px; font-size: 13px; line-height: 1.6; color: #1f2933; }

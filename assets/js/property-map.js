@@ -341,6 +341,7 @@
               items: r.items || [],
               layers: r.layers || [],
               notice: r.notice || '',
+              emptyMessage: r.empty_message || '',
               sufficient: !!r.sufficient
             };
           });
@@ -418,9 +419,9 @@
       renderNotes();
       // 該当が1件も無いときは、押しても何も起きないように見えないよう一言出す。
       if (!objs.length) {
-        notify(data.render === 'polygon'
+        notify(data.emptyMessage || (data.render === 'polygon'
           ? 'この周辺で該当するエリアは見つかりませんでした。'
-          : 'この周辺で該当する施設は見つかりませんでした。');
+          : 'この周辺で該当する施設は見つかりませんでした。'));
       }
     }
 
@@ -514,7 +515,22 @@
       box.hidden = !notes.length;
     }
 
+    /* 「該当が見つかりませんでした」などの一時的なお知らせ。
+       地図の下に出すと画面に入らず気づけないため、地図の上に重ねて表示する。 */
     function notify(message) {
+      if (map && maps) {
+        var flash = document.createElement('div');
+        flash.className = 'prop-map__flash';
+        flash.textContent = message;
+        map.controls[maps.ControlPosition.TOP_CENTER].push(flash);
+        setTimeout(function () {
+          var list = map.controls[maps.ControlPosition.TOP_CENTER];
+          for (var i = 0; i < list.getLength(); i++) {
+            if (list.getAt(i) === flash) { list.removeAt(i); break; }
+          }
+        }, 5000);
+        return;
+      }
       var box = root.querySelector('.prop-map__notes');
       if (!box) return;
       var el = document.createElement('div');
