@@ -98,13 +98,19 @@ if (!defined('PROPERTY_MAP_PLACES_PAGE')) define('PROPERTY_MAP_PLACES_PAGE', 20)
 /** Places / 不動産情報ライブラリのサーバー側キャッシュ保持時間（秒）。 */
 if (!defined('PROPERTY_MAP_PLACES_TTL')) define('PROPERTY_MAP_PLACES_TTL', 2592000);   // 30日
 if (!defined('PROPERTY_MAP_REINFO_TTL')) define('PROPERTY_MAP_REINFO_TTL', 2592000);   // 30日
-/** ハザードのタイル1枚あたりの取り込み上限（方角ごとに同じ量を取り、偏りを防ぐ）。 */
-if (!defined('PROPERTY_MAP_HAZARD_TILE_FEATURES')) define('PROPERTY_MAP_HAZARD_TILE_FEATURES', 400);
+/** ハザードでタイル1枚あたりに残すエリアの数（物件に近いものから残す）。
+ *  以前は「データの並び順で先頭から」切っていたため、タイルの中のどのあたりが残るかが
+ *  データまかせになり、タイル1枚分だけが四角く塗られて見える原因になっていた。 */
+if (!defined('PROPERTY_MAP_HAZARD_TILE_FEATURES')) define('PROPERTY_MAP_HAZARD_TILE_FEATURES', 500);
 /** ハザード1種類あたりの描画上限（物件に近いエリアから残す）。 */
-if (!defined('PROPERTY_MAP_HAZARD_POLYGONS')) define('PROPERTY_MAP_HAZARD_POLYGONS', 500);
+if (!defined('PROPERTY_MAP_HAZARD_POLYGONS')) define('PROPERTY_MAP_HAZARD_POLYGONS', 1500);
+/** ハザード1種類あたりの頂点の総数の上限（通信量の上限）。物件に近いエリアから
+ *  この総数に収まるまで残すので、塗られる範囲は物件を中心とした「まる」になり、
+ *  タイル（地図の升目）の形がそのまま見えることがない。 */
+if (!defined('PROPERTY_MAP_HAZARD_POINTS_BUDGET')) define('PROPERTY_MAP_HAZARD_POINTS_BUDGET', 20000);
 /** ハザードのポリゴン1つあたりの頂点上限。面の塗り分けなので粗くても支障がなく、
  *  頂点を減らした分だけ多くのエリアを途切れさせずに表示できる。 */
-if (!defined('PROPERTY_MAP_HAZARD_RING_POINTS')) define('PROPERTY_MAP_HAZARD_RING_POINTS', 150);
+if (!defined('PROPERTY_MAP_HAZARD_RING_POINTS')) define('PROPERTY_MAP_HAZARD_RING_POINTS', 120);
 /** 指定校（学区）の位置を学校名から探すときの検索範囲。学区は半径1kmを超えることがあるため、
  *  周辺施設（半径1000m）より広く見る。 */
 if (!defined('PROPERTY_MAP_SCHOOL_SEARCH_RADIUS_M')) define('PROPERTY_MAP_SCHOOL_SEARCH_RADIUS_M', 4000);
@@ -637,9 +643,11 @@ if (!function_exists('propertyMapReinfoTiles')) {
     /**
      * 不動産情報ライブラリのGISタイル（XYZ）から GeoJSON feature を集める。
      * $ring=true で中心タイルの3x3を取得し、地図に表示される範囲をひととおり覆う。
+     * $onTile を渡すとタイル1枚ぶんの feature をその都度渡し、呼び出し側で必要な分だけ
+     * 残してもらう（返り値の features は空になる）。
      * 返り値: ['features' => [...], 'ok' => bool]
      */
-    function propertyMapReinfoTiles(PDO $db, string $code, float $lat, float $lng, int $z, bool $ring, array $extraQuery = [], int $perTileLimit = 0): array
+    function propertyMapReinfoTiles(PDO $db, string $code, float $lat, float $lng, int $z, bool $ring, array $extraQuery = [], int $perTileLimit = 0, ?callable $onTile = null): array
     {
         if (!defined('REINFOLIB_API_KEY') || REINFOLIB_API_KEY === '') return ['features' => [], 'ok' => false];
         $center = chatGeoLatLonToTile($lat, $lng, $z);
@@ -664,6 +672,9 @@ if (!function_exists('propertyMapReinfoTiles')) {
             // 件数はタイル単位で切る。全体の合計で打ち切ると、先に取得した方角のタイルだけが
             // 残り、物件の片側にしかデータが無いように見えてしまうため（＝中心に見えない）。
             if ($perTileLimit > 0 && count($f) > $perTileLimit) $f = array_slice($f, 0, $perTileLimit);
+            // $onTile を渡した場合は、タイル1枚ぶんを渡した時点で捨てる（9枚ぶんの生データを
+            // 同時に抱え込まないようにするため。ハザードのように面が非常に多いデータで使う）。
+            if ($onTile !== null) { $onTile($f); continue; }
             $features = array_merge($features, $f);
         }
         return ['features' => $features, 'ok' => $ok];
@@ -677,11 +688,14 @@ if (!function_exists('propertyMapHazardDefs')) {
      */
     function propertyMapHazardDefs(): array
     {
+        // ズームレベルは14（不動産情報ライブラリが受け付ける最小の広さ）。
+        // タイル1枚が縦横おおよそ2km になり、15（約1km）より継ぎ目が半分になるうえ、
+        // 同じ回数の取得で4倍の広さをカバーできる。
         return [
-            'flood'    => ['code' => 'XKT026', 'label' => '洪水浸水想定区域', 'color' => '#2d6cdf', 'z' => 15],
-            'landslide' => ['code' => 'XKT029', 'label' => '土砂災害警戒区域', 'color' => '#d9622b', 'z' => 15],
-            'hightide' => ['code' => 'XKT027', 'label' => '高潮浸水想定区域', 'color' => '#0f9b8e', 'z' => 15],
-            'tsunami'  => ['code' => 'XKT028', 'label' => '津波浸水想定',     'color' => '#7b4bd1', 'z' => 15],
+            'flood'    => ['code' => 'XKT026', 'label' => '洪水浸水想定区域', 'color' => '#2d6cdf', 'z' => 14],
+            'landslide' => ['code' => 'XKT029', 'label' => '土砂災害警戒区域', 'color' => '#d9622b', 'z' => 14],
+            'hightide' => ['code' => 'XKT027', 'label' => '高潮浸水想定区域', 'color' => '#0f9b8e', 'z' => 14],
+            'tsunami'  => ['code' => 'XKT028', 'label' => '津波浸水想定',     'color' => '#7b4bd1', 'z' => 14],
         ];
     }
 }
@@ -695,31 +709,51 @@ if (!function_exists('propertyMapHazardLayers')) {
     {
         $layers = [];
         foreach (propertyMapHazardDefs() as $key => $def) {
-            $res = propertyMapReinfoTiles($db, $def['code'], $lat, $lng, (int)$def['z'], true, [], PROPERTY_MAP_HAZARD_TILE_FEATURES);
-            // 表示件数を絞るときは「物件に近いエリアから」残す。取得した順（タイル順）で
-            // 切ると物件の片側だけが残ってしまうため、必ず距離で並べ替えてから上限を適用する。
+            // タイル1枚ごとに「物件に近いエリアから」候補を残す。
+            // 取得した順（データの並び順）で切ると、タイルの中のどのあたりが残るかが
+            // データまかせになり、1枚ぶんだけが四角く塗られて見える原因になる。
             $cands = [];
             $seen = [];
-            foreach ($res['features'] as $f) {
-                if (!is_array($f)) continue;
-                $rings = propertyMapGeometryRings($f['geometry'] ?? null, PROPERTY_MAP_HAZARD_RING_POINTS);
-                if (empty($rings)) continue;
-                $note = propertyMapHazardNote($f['properties'] ?? []);
-                foreach ($rings as $ring) {
-                    // 隣り合うタイルに同じエリアが重複して含まれることがある。重ねて描くと
-                    // その部分だけ濃くなり、境目が四角い線のように見えるため1つにまとめる。
-                    $sig = md5(json_encode($ring));
-                    if (isset($seen[$sig])) continue;
-                    $seen[$sig] = true;
-                    $cands[] = [
-                        'd'    => propertyMapRingDistanceM($lat, $lng, $ring),
-                        'poly' => ['ring' => $ring, 'note' => $note],
-                    ];
-                }
-            }
+            propertyMapReinfoTiles($db, $def['code'], $lat, $lng, (int)$def['z'], true, [], 0,
+                function (array $features) use (&$cands, &$seen, $lat, $lng) {
+                    $tile = [];
+                    foreach ($features as $f) {
+                        if (!is_array($f)) continue;
+                        $rings = propertyMapGeometryRings($f['geometry'] ?? null, PROPERTY_MAP_HAZARD_RING_POINTS);
+                        if (empty($rings)) continue;
+                        $note = propertyMapHazardNote($f['properties'] ?? []);
+                        foreach ($rings as $ring) {
+                            // 隣り合うタイルに同じエリアが重複して含まれることがある。重ねて描くと
+                            // その部分だけ濃くなり、境目が四角い線のように見えるため1つにまとめる。
+                            $sig = md5(json_encode($ring));
+                            if (isset($seen[$sig])) continue;
+                            $seen[$sig] = true;
+                            // 物件が中にあるエリアは必ず先頭（距離0）に置く。広いエリアほど
+                            // 外周の頂点は物件から遠く、「頂点までの近さ」だけで並べると
+                            // 肝心の「その物件が入っているエリア」から先に落ちてしまう。
+                            $inside = propertyMapPointInRing($lat, $lng, $ring);
+                            $tile[] = [
+                                'd'      => $inside ? 0.0 : propertyMapRingDistanceM($lat, $lng, $ring),
+                                'points' => count($ring),
+                                'poly'   => ['ring' => $ring, 'note' => $note],
+                            ];
+                        }
+                    }
+                    usort($tile, static function ($a, $b) { return $a['d'] <=> $b['d']; });
+                    foreach (array_slice($tile, 0, PROPERTY_MAP_HAZARD_TILE_FEATURES) as $c) $cands[] = $c;
+                });
+            // 物件に近い順に、通信量の上限（頂点の総数）に収まるところまで残す。
+            // 件数だけで切ると、細かく分かれたデータでは中心のタイル1枚分で上限に達し、
+            // そのタイルだけが四角く塗られて見えてしまう。
             usort($cands, static function ($a, $b) { return $a['d'] <=> $b['d']; });
             $polygons = [];
-            foreach (array_slice($cands, 0, PROPERTY_MAP_HAZARD_POLYGONS) as $c) $polygons[] = $c['poly'];
+            $points = 0;
+            foreach ($cands as $c) {
+                if (count($polygons) >= PROPERTY_MAP_HAZARD_POLYGONS) break;
+                if ($polygons && $points + $c['points'] > PROPERTY_MAP_HAZARD_POINTS_BUDGET) break;
+                $polygons[] = $c['poly'];
+                $points += $c['points'];
+            }
 
             $layers[] = [
                 'key'      => $key,
@@ -772,10 +806,19 @@ if (!function_exists('propertyMapGeometryRings')) {
             // 頂点が多すぎるポリゴンは間引く（形は保ったまま描画を軽くする）。
             $step = max(1, (int)ceil(count($ring) / $maxPoints));
             $i = 0;
+            $last = null;
             foreach ($ring as $pt) {
-                if (($i++ % $step) !== 0) continue;
                 if (!isset($pt[0], $pt[1])) continue;
-                $out[] = ['lat' => (float)$pt[1], 'lng' => (float)$pt[0]];
+                $last = ['lat' => (float)$pt[1], 'lng' => (float)$pt[0]];
+                if (($i++ % $step) !== 0) continue;
+                $out[] = $last;
+            }
+            // 最後の頂点は間引かずに必ず残す。データは地図の升目（タイル）で切り分けて
+            // 配信されるため、ここを落とすと隣の面との境目に細い隙間ができ、
+            // その隙間が直線（升目の跡）として見えてしまう。
+            if ($last !== null && $step > 1) {
+                $tail = end($out);
+                if (!$tail || $tail['lat'] !== $last['lat'] || $tail['lng'] !== $last['lng']) $out[] = $last;
             }
             return count($out) >= 3 ? $out : [];
         };
@@ -826,43 +869,127 @@ if (!function_exists('propertyMapSchoolDistrict')) {
             'color'    => $def ? $def['color'] : '#1f9d57',
             'name'     => '',
             'point'    => null,
+            // 学区は升目（タイル）ごとに切り分けられたデータを繋ぎ合わせて表示する。
+            // 輪郭線を描くと繋ぎ目が直線として見えてしまうため、塗りつぶしだけにする。
+            'stroke'   => false,
             'polygons' => [],
         ];
         if (!$def) return $entry;
 
-        $res = propertyMapReinfoTiles($db, $def['code'], $lat, $lng, 14, false);
+        // 学区データは地図の升目（タイル）で切り分けて配信されるため、1枚だけ取ると
+        // 学区が升目の縁でぶつ切りになる（学校が学区の外に見える原因）。
+        // 周囲9枚を取り、同じ学校の区域をすべて集めて1つの学区として表示する。
+        $res = propertyMapReinfoTiles($db, $def['code'], $lat, $lng, 14, true);
         $matched = null;
         foreach ($res['features'] as $f) {
             if (!is_array($f)) continue;
             if (chatGeoPointInFeature($lng, $lat, $f['geometry'] ?? null)) { $matched = $f; break; }
         }
+        // 物件が升目の境目のすぐ近くにあると、切り分けの誤差で「どの区域にも入らない」
+        // 判定になることがある。そのときだけ、ごく近く（25m以内）の区域を採用する。
+        if (!$matched) $matched = propertyMapSchoolDistrictNearest($res['features'], $lat, $lng, 25.0);
         if (!$matched) return $entry;
 
         $props = is_array($matched['properties'] ?? null) ? $matched['properties'] : [];
         $entry['name'] = propertyMapSchoolName($props, $def['hint']);
-        foreach (propertyMapGeometryRings($matched['geometry'] ?? null) as $ring) {
-            $entry['polygons'][] = ['ring' => $ring, 'note' => $entry['name']];
+
+        // 同じ学校の区域（＝属性がまったく同じもの）を全タイルから集める。
+        $wanted = propertyMapSchoolDistrictKey($props);
+        $seen = [];
+        foreach ($res['features'] as $f) {
+            if (!is_array($f)) continue;
+            $p = is_array($f['properties'] ?? null) ? $f['properties'] : [];
+            if (propertyMapSchoolDistrictKey($p) !== $wanted) continue;
+            foreach (propertyMapGeometryRings($f['geometry'] ?? null) as $ring) {
+                $sig = md5(json_encode($ring));
+                if (isset($seen[$sig])) continue;
+                $seen[$sig] = true;
+                $entry['polygons'][] = ['ring' => $ring, 'note' => $entry['name']];
+            }
         }
 
         // 学校の位置（地図に同色の●で出す）。
+        // 候補を集めてから、学区の中に入るものを優先して選ぶ（学区の中にある学校を
+        // 学区の外に置かないため）。
+        $candidates = [];
         // ① データ内の所在地から求める。
         $address = propertyMapSchoolAddress($props);
         if ($address !== '') {
             $geo = propertyMapGeocodeAddress($db, $address);
-            if ($geo) $entry['point'] = propertyMapSchoolPoint($entry['name'], $def['label'], $geo['lat'], $geo['lng'], '');
+            if ($geo) $candidates[] = ['lat' => $geo['lat'], 'lng' => $geo['lng'], 'place_id' => ''];
         }
-        // ② 所在地の項目が無いデータでは、学校名で位置を探す。
+        // ② 学校名でも位置を探す。所在地のジオコーディングは番地の表記ゆれで
+        //    ずれることがあるため、名前で見つかった位置も候補に入れる。
         //    学区は半径1kmを超えることがあるため、この検索だけ広い範囲を見る。
-        if ($entry['point'] === null && $entry['name'] !== '') {
-            $res = propertyMapPlacesTextSearch($db, $lat, $lng, $entry['name'], 3, PROPERTY_MAP_SCHOOL_SEARCH_RADIUS_M);
-            foreach ($res['items'] as $hit) {
+        if ($entry['name'] !== '') {
+            $hits = propertyMapPlacesTextSearch($db, $lat, $lng, $entry['name'], 3, PROPERTY_MAP_SCHOOL_SEARCH_RADIUS_M);
+            foreach ($hits['items'] as $hit) {
                 // 名前が一致するものだけを採用する（別の学校を指さないため）。
                 if (strpos($hit['name'], $entry['name']) === false && strpos($entry['name'], $hit['name']) === false) continue;
-                $entry['point'] = propertyMapSchoolPoint($entry['name'], $def['label'], $hit['lat'], $hit['lng'], $hit['place_id']);
-                break;
+                $candidates[] = ['lat' => $hit['lat'], 'lng' => $hit['lng'], 'place_id' => $hit['place_id']];
             }
         }
+        foreach ($candidates as $c) {
+            if (!propertyMapPointInPolygons((float)$c['lat'], (float)$c['lng'], $entry['polygons'])) continue;
+            $entry['point'] = propertyMapSchoolPoint($entry['name'], $def['label'], (float)$c['lat'], (float)$c['lng'], (string)$c['place_id']);
+            break;
+        }
+        // 学区の中に入る候補が無い場合は、最初の候補（所在地）をそのまま使う。
+        if ($entry['point'] === null && !empty($candidates)) {
+            $c = $candidates[0];
+            $entry['point'] = propertyMapSchoolPoint($entry['name'], $def['label'], (float)$c['lat'], (float)$c['lng'], (string)$c['place_id']);
+        }
         return $entry;
+    }
+}
+
+if (!function_exists('propertyMapSchoolDistrictKey')) {
+    /**
+     * 学区データの1件を「どの学校の区域か」で見分けるための鍵。
+     * 升目（タイル）で切り分けられた同じ区域は属性がまったく同じなので、
+     * 属性をそのまま鍵にすれば、別の学校の区域と混ざらずに繋ぎ合わせられる。
+     */
+    function propertyMapSchoolDistrictKey(array $props): string
+    {
+        $flat = [];
+        foreach ($props as $k => $v) {
+            if (!is_scalar($v) && $v !== null) continue;
+            $flat[(string)$k] = (string)$v;
+        }
+        ksort($flat);
+        return md5(json_encode($flat, JSON_UNESCAPED_UNICODE));
+    }
+}
+
+if (!function_exists('propertyMapSchoolDistrictNearest')) {
+    /**
+     * どの区域にも入らなかったときに、ごく近く（$maxM メートル以内）の区域を探す。
+     * 物件が学区の境目に建っている場合の取りこぼしを防ぐためだけに使う。
+     */
+    function propertyMapSchoolDistrictNearest(array $features, float $lat, float $lng, float $maxM): ?array
+    {
+        $best = null;
+        $bestD = $maxM;
+        foreach ($features as $f) {
+            if (!is_array($f)) continue;
+            foreach (propertyMapGeometryRings($f['geometry'] ?? null) as $ring) {
+                $d = propertyMapRingDistanceM($lat, $lng, $ring);
+                if ($d < $bestD) { $bestD = $d; $best = $f; }
+            }
+        }
+        return $best;
+    }
+}
+
+if (!function_exists('propertyMapPointInPolygons')) {
+    /** 地点が、表示用ポリゴン（['ring'=>[...]] の配列）のどれかの内側にあるか。 */
+    function propertyMapPointInPolygons(float $lat, float $lng, array $polygons): bool
+    {
+        foreach ($polygons as $poly) {
+            if (!isset($poly['ring']) || !is_array($poly['ring'])) continue;
+            if (propertyMapPointInRing($lat, $lng, $poly['ring'])) return true;
+        }
+        return false;
     }
 }
 
@@ -1010,6 +1137,28 @@ if (!function_exists('propertyMapFeatureName')) {
             }
         }
         return '';
+    }
+}
+
+if (!function_exists('propertyMapPointInRing')) {
+    /**
+     * 地点がポリゴン（外周の点列 ['lat'=>..,'lng'=>..]）の内側にあるか。
+     * 表示するエリアの優先順位づけにだけ使う内部処理。
+     */
+    function propertyMapPointInRing(float $lat, float $lng, array $ring): bool
+    {
+        $inside = false;
+        $n = count($ring);
+        for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+            if (!isset($ring[$i]['lat'], $ring[$i]['lng'], $ring[$j]['lat'], $ring[$j]['lng'])) continue;
+            $yi = (float)$ring[$i]['lat']; $xi = (float)$ring[$i]['lng'];
+            $yj = (float)$ring[$j]['lat']; $xj = (float)$ring[$j]['lng'];
+            $denom = ($yj - $yi) ?: 1e-12;
+            if ((($yi > $lat) !== ($yj > $lat)) && ($lng < ($xj - $xi) * ($lat - $yi) / $denom + $xi)) {
+                $inside = !$inside;
+            }
+        }
+        return $inside;
     }
 }
 
