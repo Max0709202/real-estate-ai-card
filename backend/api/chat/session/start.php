@@ -16,6 +16,7 @@ require_once __DIR__ . '/../../../includes/agent-messaging-helper.php';
 require_once __DIR__ . '/../../../includes/customer-invitation-helper.php';
 require_once __DIR__ . '/../../../includes/session-participant-helper.php';
 require_once __DIR__ . '/../../../includes/property-view-helper.php'; // propertyViewTokenSession()（物件提案メールの閲覧トークン）
+require_once __DIR__ . '/../../../includes/demo-seed-helper.php'; // demoSeedApply()（体験版名刺の見本データ複製）
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Access-Control-Allow-Origin: *');
@@ -195,8 +196,10 @@ try {
         }
         if ($sessionId !== '') {
             $isResumed = true;
-            $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?");
-            $stmt->execute([$sessionId]);
+            // 商談の途中で体験セッションが期限切れ削除されないよう、開くたびに有効期限を延ばす。
+            // （担当が提案した物件・担当連絡も、この期限まで同じ画面に残る）
+            $stmt = $db->prepare("UPDATE chat_sessions SET last_seen_at = CURRENT_TIMESTAMP, expires_at = ? WHERE id = ?");
+            $stmt->execute([date('Y-m-d H:i:s', time() + chatDemoSessionTtlSeconds()), $sessionId]);
         }
     }
 
@@ -237,6 +240,14 @@ try {
             $expiresAt = date('Y-m-d H:i:s', time() + chatDemoSessionTtlSeconds());
             $stmt = $db->prepare("INSERT INTO chat_sessions (id, business_card_id, visitor_identifier, is_demo, expires_at) VALUES (?, ?, ?, 1, ?)");
             $stmt->execute([$sessionId, $card['id'], $visitorId !== '' ? $visitorId : null, $expiresAt]);
+            // 事前に用意した見本（事前作成顧客「見本」）の物件提案・担当連絡を複製し、
+            // 体験版でも実際の運用に近い画面をご覧いただけるようにする。
+            // 見本が未作成の場合は何もしない。複製に失敗してもチャットの開始は止めない。
+            try {
+                demoSeedApply($db, $sessionId, (int)$card['id']);
+            } catch (Throwable $e) {
+                error_log('demo seed error: ' . $e->getMessage());
+            }
         } else {
             $stmt = $db->prepare("INSERT INTO chat_sessions (id, business_card_id, visitor_identifier) VALUES (?, ?, ?)");
             $stmt->execute([$sessionId, $card['id'], $visitorId !== '' ? $visitorId : null]);

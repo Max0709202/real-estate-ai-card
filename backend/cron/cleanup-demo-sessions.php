@@ -9,6 +9,11 @@
  * chat_sessions への FK が ON DELETE CASCADE のため、親行の削除で一緒に消える。
  * 添付の実ファイルは cleanup-chat-attachments.php が別途回収する。
  *
+ * 物件（properties / property_images / property_folders）は chat_sessions への FK が無いため、
+ * ここで session_id を手掛かりに併せて削除する。体験セッションの物件は見本（デモ名刺の
+ * 事前作成顧客「見本」）からの複製で、画像の実ファイルを見本と共用している。そのため
+ * 実ファイルは「他の物件行から参照されなくなったものだけ」削除する。
+ *
  * 日次のcron登録例（毎日 3:50）:
  *   50 3 * * * /usr/bin/php /home/xs013436/ai-fcard.com/public_html/backend/cron/cleanup-demo-sessions.php
  *
@@ -25,6 +30,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/chat-helpers.php';
+require_once __DIR__ . '/../includes/property-helper.php';
 
 date_default_timezone_set('Asia/Tokyo');
 set_time_limit(300);
@@ -43,6 +49,52 @@ function demoCleanupLog($message) {
     $line = '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL;
     @file_put_contents($logFile, $line, FILE_APPEND);
     echo $line;
+}
+
+/**
+ * 体験セッションに紐づく物件を削除する。
+ * 画像の実ファイルは見本と共用しているため、削除後にどの物件行からも参照されなくなった
+ * ファイルだけを消す（見本側の販売図面・写真を巻き込まないようにする）。
+ *
+ * @return array [削除した物件行数, 削除したファイル数]
+ */
+function demoCleanupProperties(PDO $db, array $sessionIds) {
+    if (!$sessionIds) return [0, 0];
+    $placeholders = implode(',', array_fill(0, count($sessionIds), '?'));
+
+    $stmt = $db->prepare("SELECT id FROM properties WHERE session_id IN ({$placeholders})");
+    $stmt->execute($sessionIds);
+    $propertyIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    $paths = [];
+    if ($propertyIds) {
+        $ph = implode(',', array_fill(0, count($propertyIds), '?'));
+        $stmt = $db->prepare("SELECT stored_path, thumb_path, preview_path, masked_path, masked_thumb_path
+                              FROM property_images WHERE property_id IN ({$ph})");
+        $stmt->execute($propertyIds);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $img) {
+            foreach ($img as $rel) {
+                $rel = trim((string)$rel);
+                if ($rel !== '') $paths[$rel] = true;
+            }
+        }
+        $db->prepare("DELETE FROM property_images WHERE property_id IN ({$ph})")->execute($propertyIds);
+        $db->prepare("DELETE FROM properties WHERE id IN ({$ph})")->execute($propertyIds);
+    }
+    $db->prepare("DELETE FROM property_folders WHERE session_id IN ({$placeholders})")->execute($sessionIds);
+
+    // 参照が残っていないファイルだけを削除する。
+    $filesDeleted = 0;
+    $check = $db->prepare("SELECT COUNT(*) FROM property_images
+                           WHERE stored_path = ? OR thumb_path = ? OR preview_path = ?
+                              OR masked_path = ? OR masked_thumb_path = ?");
+    foreach (array_keys($paths) as $rel) {
+        $check->execute([$rel, $rel, $rel, $rel, $rel]);
+        if ((int)$check->fetchColumn() > 0) continue;
+        $abs = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($rel, '/');
+        if (is_file($abs) && @unlink($abs)) $filesDeleted++;
+    }
+    return [count($propertyIds), $filesDeleted];
 }
 
 try {
@@ -65,6 +117,13 @@ try {
     if ($dryRun) {
         demoCleanupLog('Would delete ' . count($ids) . ' expired demo session(s).');
         exit(0);
+    }
+
+    // 物件は chat_sessions への FK が無いため、セッションより先に片付ける。
+    propertyEnsureTables($db);
+    list($propRows, $filesDeleted) = demoCleanupProperties($db, $ids);
+    if ($propRows > 0 || $filesDeleted > 0) {
+        demoCleanupLog('Deleted ' . $propRows . ' demo property row(s), ' . $filesDeleted . ' file(s).');
     }
 
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
