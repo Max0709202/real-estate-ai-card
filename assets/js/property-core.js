@@ -471,6 +471,7 @@
   /* 画像の拡大ビューア。＋/−（およびタップ）でズーム、スクロールで移動。PC・スマホ対応。 */
   function lightbox(url) {
     var scale = 1;
+    var fitWidth = 0;   // 画面に収めた（等倍の）ときの表示幅
     var ov = document.createElement('div');
     ov.className = 'prop-lightbox';
     ov.innerHTML =
@@ -482,7 +483,14 @@
       '<div class="prop-lightbox__body"><img src="' + esc(url) + '" alt=""></div>';
     var img = ov.querySelector('img');
     var body = ov.querySelector('.prop-lightbox__body');
-    function apply() { img.style.width = (scale * 100) + '%'; }
+    // 等倍＝画像全体が画面内に収まる大きさ（縦長の間取り図なども縮小せずに全体が見える）。
+    // 拡大時は、その大きさを基準に倍率をかける。
+    function apply() {
+      if (scale === 1) { fitWidth = 0; img.style.width = ''; img.style.maxWidth = ''; img.style.maxHeight = ''; return; }
+      if (!fitWidth) fitWidth = img.getBoundingClientRect().width;
+      img.style.maxWidth = 'none'; img.style.maxHeight = 'none';
+      img.style.width = Math.round(fitWidth * scale) + 'px';
+    }
     function close() { if (ov.parentNode) ov.parentNode.removeChild(ov); }
     ov.querySelector('.prop-lightbox__close').addEventListener('click', close);
     ov.querySelector('[data-lb="in"]').addEventListener('click', function (e) { e.stopPropagation(); scale = Math.min(6, scale + 0.5); apply(); });
