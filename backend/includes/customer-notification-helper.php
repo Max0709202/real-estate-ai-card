@@ -79,6 +79,27 @@ function customerNotifyEnsureTable(PDO $db): void
 }
 
 /**
+ * 体験版（デモ）名刺のセッションかどうか。
+ *
+ * デモではダミーのメールアドレス（demo@example.com）を登録しているため、
+ * 物件提案・担当連絡のお知らせメールを送っても必ず宛先不明で返ってくる。
+ * 体験中の画面表示には影響しないので、メール送信だけを止める。
+ */
+function customerNotifyIsDemoSession(PDO $db, string $sessionId): bool
+{
+    $sessionId = trim($sessionId);
+    if ($sessionId === '') return false;
+    try {
+        $stmt = $db->prepare("SELECT is_demo FROM chat_sessions WHERE id = ? LIMIT 1");
+        $stmt->execute([$sessionId]);
+        return !empty($stmt->fetchColumn());
+    } catch (Throwable $e) {
+        // is_demo 列が無い環境（移行前）は通常のセッションとして扱う。
+        return false;
+    }
+}
+
+/**
  * セッションから顧客のメール・担当名・カードslugを解決する。
  * @return array|null ['business_card_id','recipient_email','agent_name','card_slug'] または null（メール無し等）
  */
@@ -94,6 +115,10 @@ function customerNotifyResolveRecipient(PDO $db, string $sessionId): ?array
     $stmt->execute([$sessionId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
+        return null;
+    }
+    // 体験版（デモ）名刺はダミーのメールアドレスのため、お知らせメールを送らない。
+    if (customerNotifyIsDemoSession($db, $sessionId)) {
         return null;
     }
     $cardId = (int)$row['business_card_id'];
@@ -378,6 +403,10 @@ function customerNotifyDispatch(PDO $db, string $sessionId, string $feature): bo
 
     $sessionId = trim($sessionId);
     if ($sessionId === '' || !in_array($feature, customerNotifyFeatures(), true)) {
+        return false;
+    }
+    // 体験版（デモ）名刺はダミーのメールアドレスのため、送信待ちジョブも積まない。
+    if (customerNotifyIsDemoSession($db, $sessionId)) {
         return false;
     }
     // 送信待ちジョブは毎回積む（即時送信が失敗したときに cron が再送できるようにするため）。

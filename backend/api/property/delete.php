@@ -27,7 +27,14 @@ try {
 
     $row = propertyVerifyAgentProperty($db, $propertyId, $userId);
 
-    // 画像ファイルを物理削除
+    // 画像ファイルを物理削除。
+    // ただし体験版（デモ）名刺では、見本の物件を体験者ごとのセッションへ複製しており、
+    // 複製した物件行は見本と同じ実ファイルを参照している。他の物件からも参照されている
+    // ファイルを消すと見本側の販売図面・写真まで失われるため、参照が残っている間は消さない。
+    $sharedCheck = $db->prepare("SELECT COUNT(*) FROM property_images
+                                 WHERE property_id <> ?
+                                   AND (stored_path = ? OR thumb_path = ? OR preview_path = ?
+                                        OR masked_path = ? OR masked_thumb_path = ?)");
     foreach (propertyImagesFor($db, $propertyId) as $img) {
         $stmt = $db->prepare("SELECT stored_path, thumb_path FROM property_images WHERE id = ?");
         $stmt->execute([(int)$img['id']]);
@@ -35,7 +42,10 @@ try {
         if ($f) {
             foreach (['stored_path', 'thumb_path'] as $k) {
                 if (!empty($f[$k])) {
-                    $abs = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($f[$k], '/');
+                    $rel = (string)$f[$k];
+                    $sharedCheck->execute([$propertyId, $rel, $rel, $rel, $rel, $rel]);
+                    if ((int)$sharedCheck->fetchColumn() > 0) continue;
+                    $abs = rtrim(UPLOAD_DIR, '/') . '/' . ltrim($rel, '/');
                     if (is_file($abs)) @unlink($abs);
                 }
             }
