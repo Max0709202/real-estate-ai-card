@@ -108,6 +108,19 @@ a.prop-source--orange:hover { background: #ffe3c7; }
 .prop-empty { text-align: center; color: #7a8492; padding: 28px 10px; font-size: 13px; }
 
 /* ===== 登録方法選択（§2） ===== */
+/* 追加画面の先頭に置くドラッグ＆ドロップの受け皿（販売図面の登録要望 2026.9.18） */
+.prop-add-drop { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+  padding: 20px 14px; margin-bottom: 14px; border: 2px dashed #9db8e6; border-radius: 12px;
+  background: #f3f7ff; cursor: pointer; transition: background .15s, border-color .15s; }
+.prop-add-drop:hover, .prop-add-drop:focus-visible { border-color: #2d6cdf; background: #e8f0ff; outline: none; }
+.prop-add-drop.is-over { border-color: #2d6cdf; background: #dce8ff; }
+.prop-add-drop__icon { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px;
+  border-radius: 50%; background: #dce8ff; color: #2d6cdf; }
+.prop-add-drop__icon svg { width: 22px; height: 22px; }
+.prop-add-drop__title { font-size: 15px; font-weight: 800; color: #2d6cdf; }
+.prop-add-drop__hint { font-size: 12px; line-height: 1.6; color: #6b7585; }
+.prop-add-or { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 12px; font-weight: 700; color: #8b94a3; }
+.prop-add-or::before, .prop-add-or::after { content: ''; flex: 1 1 auto; height: 1px; background: #e5e9f0; }
 .prop-method-list { display: flex; flex-direction: column; gap: 12px; }
 .prop-method {
   display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;

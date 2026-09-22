@@ -1,8 +1,9 @@
 <?php
 /**
  * Loan simulator: maximum borrowable amount.
- * Mode 1 (from income): annual_income, rate_year, term_years, dbr_ratio.
+ * Mode 1 (from income): annual_income, rate_year, term_years, dbr_ratio, down_payment (optional).
  * Mode 2 (from monthly): desired_monthly_payment, rate_year, term_years.
+ * down_payment is subtracted from the calculated borrowable amount (from income mode).
  * card_slug optional; when omitted, plan check is skipped (standalone simulator).
  */
 require_once __DIR__ . '/../../config/config.php';
@@ -36,6 +37,7 @@ $desiredMonthly = isset($input['desired_monthly_payment']) ? (float) $input['des
 $rateYear = isset($input['rate_year']) ? (float) $input['rate_year'] : 2.5;
 $termYears = isset($input['term_years']) ? (int) $input['term_years'] : 35;
 $dbrRatio = isset($input['dbr_ratio']) ? (float) $input['dbr_ratio'] : 0.35;
+$downPayment = isset($input['down_payment']) ? (float) $input['down_payment'] : 0;
 
 if ($dbrRatio <= 0 || $dbrRatio > 1) {
     $dbrRatio = 0.35;
@@ -45,6 +47,9 @@ if ($rateYear < 0 || $rateYear > 15 || $termYears < 1 || $termYears > 50) {
 }
 if ($annualIncome < 0 || $annualIncome > 999990000 || $desiredMonthly < 0 || $desiredMonthly > 10000000) {
     sendErrorResponse('年収または希望月額返済を正しく指定してください。', 400);
+}
+if ($downPayment < 0 || $downPayment > 999990000) {
+    sendErrorResponse('頭金を正しく指定してください。', 400);
 }
 
 $card = null;
@@ -108,10 +113,22 @@ if ($desiredMonthly > 0 && $termYears > 0) {
             "annual_income" => $annualIncome,
         ]);
     }
+    // 頭金は借入可能額から差し引き、その金額で月々の返済額も試算し直す。
+    $netBorrowable = max(0, $maxBorrowable - $downPayment);
+    if ($netBorrowable <= 0) {
+        $netMonthlyPayment = 0;
+    } elseif ($rateMonth <= 0) {
+        $netMonthlyPayment = $netBorrowable / $termMonths;
+    } else {
+        $netMonthlyPayment = $netBorrowable * $rateMonth * pow(1 + $rateMonth, $termMonths) / (pow(1 + $rateMonth, $termMonths) - 1);
+    }
     sendSuccessResponse([
         'max_borrowable' => round($maxBorrowable),
         'annual_income' => $annualIncome,
         'max_monthly_payment' => round($maxMonthlyRepayment),
+        'down_payment' => round($downPayment),
+        'net_borrowable' => round($netBorrowable),
+        'net_monthly_payment' => round($netMonthlyPayment),
         'rate_year' => $rateYear,
         'term_years' => $termYears,
         'dbr_ratio' => round($dbrRatio, 4),

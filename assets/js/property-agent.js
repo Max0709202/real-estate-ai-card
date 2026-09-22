@@ -266,7 +266,13 @@
 
   /* ===== 登録方法選択（§2） ===== */
   function openAddMethods() {
-    var html = '<div class="prop-method-list">' +
+    var html = '<div class="prop-add-drop" id="prop-add-drop" tabindex="0" role="button">' +
+      '<span class="prop-add-drop__icon">' + UI.icon('upload') + '</span>' +
+      '<span class="prop-add-drop__title">ここに販売図面をドラッグ＆ドロップ</span>' +
+      '<span class="prop-add-drop__hint">クリックしてファイルを選ぶこともできます（PDF・画像／複数可）<br>複数選ぶと1枚ずつ別の物件として登録します。</span>' +
+      '</div>' +
+      '<div class="prop-add-or">または、登録方法を選ぶ</div>' +
+      '<div class="prop-method-list">' +
       method('upload', 'upload', '販売図面をアップロード', '1件の物件として登録します（複数ページの図面もまとめて1件）') +
       method('bulk', 'upload', '複数の物件をまとめて登録', '販売図面を複数選ぶと、1枚ずつ別の物件として一括登録します') +
       method('photo', 'camera', '写真を撮影して登録', 'その場で撮影してAIが物件情報を読み取り') +
@@ -274,6 +280,13 @@
       method('url', 'url', '物件URLから登録', 'SUUMO・HOME\'S・アットホーム等のURLから自動取得') +
       '</div>';
     var m = UI.modal('提案物件追加', html);
+    // 図面をこの画面に直接ドラッグ＆ドロップして登録できるようにする。
+    var dropZone = m.body.querySelector('#prop-add-drop');
+    bindListDrop(dropZone, function (files) { m.close(); bulkAddFlyers(files); });
+    dropZone.addEventListener('click', function () { m.close(); pickFlyersBulk(); });
+    dropZone.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); m.close(); pickFlyersBulk(); }
+    });
     m.body.querySelector('[data-method="upload"]').addEventListener('click', function () { m.close(); pickFlyer(false); });
     m.body.querySelector('[data-method="bulk"]').addEventListener('click', function () { m.close(); pickFlyersBulk(); });
     m.body.querySelector('[data-method="photo"]').addEventListener('click', function () { m.close(); pickFlyer(true); });
@@ -390,9 +403,11 @@
     }).catch(function () { m.close(); notify('error', '通信に失敗しました'); });
   }
 
-  /* 一覧に販売図面をドラッグ＆ドロップしたときも、まとめて登録する。 */
-  function bindListDrop(zone) {
+  /* 販売図面のドラッグ＆ドロップ先を用意する（一覧・追加画面で共通）。
+     onFiles を渡さない場合は、これまでどおりまとめて登録する。 */
+  function bindListDrop(zone, onFiles) {
     if (!zone) return;
+    var handleFiles = onFiles || bulkAddFlyers;
     ['dragenter', 'dragover'].forEach(function (ev) {
       zone.addEventListener(ev, function (e) {
         if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') < 0) return;
@@ -410,7 +425,7 @@
       if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
       e.preventDefault(); e.stopPropagation();
       zone.classList.remove('is-over');
-      bulkAddFlyers(e.dataTransfer.files);
+      handleFiles(e.dataTransfer.files);
     });
   }
 
