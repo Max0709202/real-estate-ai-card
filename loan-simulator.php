@@ -122,6 +122,11 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
                     <input type="number" id="borrow-income-amount" min="100" max="99999" step="50" value="500" placeholder="500">
                 </div>
                 <div class="loan-sim-field">
+                    <label>頭金（万円）任意</label>
+                    <input type="number" id="borrow-income-down-payment" min="0" max="99999" step="100" value="0" placeholder="0">
+                    <span class="hint">ご用意できる自己資金です。借入可能額から差し引いて試算します。</span>
+                </div>
+                <div class="loan-sim-field">
                     <label>返済負担率（%）</label>
                     <input type="number" id="borrow-dbr" min="20" max="50" value="35" placeholder="35">
                     <span class="hint">目安として35%が一般的です。</span>
@@ -436,6 +441,7 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
         // 借入可能額（年収から）
         document.getElementById('submit-borrow-income').addEventListener('click', function() {
             var incomeMan = readNumber('borrow-income-amount');
+            var downPaymentMan = readNumber('borrow-income-down-payment');
             var dbrPercent = readNumber('borrow-dbr');
             var rate = readNumber('borrow-income-rate');
             var term = parseInt(document.getElementById('borrow-income-term').value, 10);
@@ -443,29 +449,38 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
             var errEl = document.getElementById('error-borrow-income');
             hideFeedback(resultEl, errEl);
 
-            if (!Number.isFinite(incomeMan) || !Number.isFinite(dbrPercent) || !Number.isFinite(rate) || !Number.isFinite(term)) {
+            if (!Number.isFinite(incomeMan) || !Number.isFinite(downPaymentMan) || !Number.isFinite(dbrPercent) || !Number.isFinite(rate) || !Number.isFinite(term)) {
                 showError(errEl, 'すべての入力項目を正しく入力してください。');
                 return;
             }
-            if (incomeMan <= 0 || dbrPercent <= 0 || dbrPercent > 100 || rate < 0 || rate > 15 || term < 1 || term > 50) {
-                showError(errEl, '年収・返済負担率・金利・返済期間の範囲をご確認ください。');
+            if (incomeMan <= 0 || downPaymentMan < 0 || dbrPercent <= 0 || dbrPercent > 100 || rate < 0 || rate > 15 || term < 1 || term > 50) {
+                showError(errEl, '年収・頭金・返済負担率・金利・返済期間の範囲をご確認ください。');
                 return;
             }
 
-            var body = Object.assign({}, payload, { annual_income: incomeMan * 10000, dbr_ratio: dbrPercent / 100, rate_year: rate, term_years: term });
+            var body = Object.assign({}, payload, { annual_income: incomeMan * 10000, down_payment: downPaymentMan * 10000, dbr_ratio: dbrPercent / 100, rate_year: rate, term_years: term });
             postJson('/calc-borrowable.php', body, this).then(function(data) {
                 if (data.success && data.data) {
                     var d = data.data;
-                    resultEl.innerHTML = '<h4>結果</h4>' +
-                        '<div class="loan-sim-result-line highlight">借入可能額: 約' + formatYen(d.max_borrowable) + '</div>' +
-                        '<div class="loan-sim-result-line">想定月額返済: 約' + formatYen(d.max_monthly_payment) + '</div>' +
-                        '<div class="loan-sim-result-line">年収: ' + formatYen(d.annual_income) + '</div>' +
+                    var hasDownPayment = Number(d.down_payment) > 0;
+                    // 頭金を入れたときは、差し引いた後の金額を結果として表示する。
+                    var borrowable = hasDownPayment ? d.net_borrowable : d.max_borrowable;
+                    var monthly = hasDownPayment ? d.net_monthly_payment : d.max_monthly_payment;
+                    var html = '<h4>結果</h4>' +
+                        '<div class="loan-sim-result-line highlight">借入可能額: 約' + formatYen(borrowable) + '</div>' +
+                        '<div class="loan-sim-result-line">想定月額返済: 約' + formatYen(monthly) + '</div>';
+                    if (hasDownPayment) {
+                        html += '<div class="loan-sim-result-line">年収からの借入可能額: 約' + formatYen(d.max_borrowable) + '</div>' +
+                            '<div class="loan-sim-result-line">頭金: ' + formatYen(d.down_payment) + '</div>';
+                    }
+                    html += '<div class="loan-sim-result-line">年収: ' + formatYen(d.annual_income) + '</div>' +
                         '<div class="loan-sim-result-line">返済期間: ' + d.term_years + '年</div>';
+                    resultEl.innerHTML = html;
                     resultEl.removeAttribute('hidden');
                     saveLastSimulation({
-                        desired_loan_amount: d.max_borrowable,
-                        down_payment: null,
-                        monthly_payment: d.max_monthly_payment,
+                        desired_loan_amount: borrowable,
+                        down_payment: hasDownPayment ? d.down_payment : null,
+                        monthly_payment: monthly,
                         annual_income: d.annual_income
                     });
                 } else {
