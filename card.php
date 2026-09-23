@@ -353,6 +353,7 @@ if (!empty($card['profile_photo'])) {
     <?php if ($chatbotEnabled): ?>
     <link rel="stylesheet" href="assets/css/chat-widget.css?v=<?php echo filemtime(__DIR__ . '/assets/css/chat-widget.css'); ?>">
     <link rel="stylesheet" href="assets/css/property.css?v=<?php echo filemtime(__DIR__ . '/assets/css/property.css'); ?>">
+    <link rel="stylesheet" href="assets/css/viewing-calendar.css?v=<?php echo filemtime(__DIR__ . '/assets/css/viewing-calendar.css'); ?>">
     <?php endif; ?>
     <?php if (!$chatOnly): ?>
     <script src="assets/js/pwa-a2hs.js?v=<?php echo filemtime(__DIR__ . '/assets/js/pwa-a2hs.js'); ?>" defer></script>
@@ -1442,6 +1443,7 @@ if (!empty($card['profile_photo'])) {
     <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
     <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>" defer></script>
     <script src="assets/js/property-map.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-map.js'); ?>" defer></script>
+    <script src="assets/js/viewing-calendar.js?v=<?php echo filemtime(__DIR__ . '/assets/js/viewing-calendar.js'); ?>" defer></script>
     <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>
     <?php $vapidPublicKey = getenv('VAPID_PUBLIC_KEY') ?: ''; if ($vapidPublicKey !== ''): ?>
     <!-- ホーム画面アイコンのアプリバッジ（Web Push / PWA） -->

@@ -18,6 +18,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/notification-helper.php';
 require_once __DIR__ . '/../../includes/customer-notification-helper.php';
 require_once __DIR__ . '/../../includes/property-reminder-helper.php';
+require_once __DIR__ . '/../../includes/viewing-reminder-helper.php';
 
 // 1回の実行で送る上限（SMTP負荷・取りこぼし防止のバランス）。
 $maxPerRun = (int)(getenv('NOTIFY_MAX_PER_RUN') ?: 50);
@@ -34,6 +35,10 @@ try {
     // 送信予定は12時間単位のため、この5分毎のcronに相乗りすれば専用cronは要らない。
     $remind = propertyReminderFlushDue($db, $maxPerRun);
     echo "Property view reminder: {$remind['sent']} sent, {$remind['failed']} failed, {$remind['stopped']} stopped\n";
+    // 内見リマインド（内見前日18:00 / 当日08:00・日本時間）。
+    // 送信時刻は固定のため、この5分毎のcronに相乗りさせる（専用cronは不要）。
+    $viewing = viewingReminderFlushDue($db, $maxPerRun);
+    echo "Viewing reminder: {$viewing['sent']} sent, {$viewing['cancelled']} cancelled, {$viewing['failed']} failed\n";
     exit(0);
 } catch (Exception $e) {
     error_log('Notification Queue Processor Error: ' . $e->getMessage());

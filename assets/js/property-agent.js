@@ -637,6 +637,7 @@
       // 顧客画面（chat-widget.js）と同じ並び・同じ呼び方にそろえる。
       '<div class="prop-tabs">' +
         '<button class="prop-tab is-active" data-tab="basic">基本情報</button>' +
+        '<button class="prop-tab" data-tab="viewing">内見日程</button>' +
         '<button class="prop-tab" data-tab="map">マップ</button>' +
         '<button class="prop-tab" data-tab="hazard">ハザード</button>' +
         '<button class="prop-tab" data-tab="flyer">販売図面</button>' +
@@ -644,6 +645,7 @@
         '<button class="prop-tab" data-tab="document">追加資料</button>' +
       '</div>' +
       '<div class="prop-tabpane is-active" data-pane="basic">' + UI.basicInfoHtml(p, true) + '</div>' +
+      '<div class="prop-tabpane" data-pane="viewing"></div>' +
       '<div class="prop-tabpane" data-pane="map"></div>' +
       '<div class="prop-tabpane" data-pane="hazard"></div>' +
       '<div class="prop-tabpane" data-pane="flyer"></div>' +
@@ -710,6 +712,8 @@
         t.classList.add('is-active');
         var name = t.getAttribute('data-tab');
         d.querySelector('[data-pane="' + name + '"]').classList.add('is-active');
+        // 内見日程（買主の希望日時 → 売主（仲介）会社への打診 → 確定連絡）
+        if (name === 'viewing' && w.PropertyViewingAgent) w.PropertyViewingAgent.render(d.querySelector('[data-pane="viewing"]'), p);
         if (name === 'hazard') loadHazard(p);
         if (name === 'flyer') loadImages(p, 'flyer');
         if (name === 'photo') loadImages(p, 'photo');
