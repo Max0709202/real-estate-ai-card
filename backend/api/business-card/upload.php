@@ -127,7 +127,8 @@ try {
     $file = $_FILES['file'];
 
     // 許可されたファイルタイプ
-    $allowedTypes = ['logo', 'photo', 'flyer_band', 'free'];
+    // name_card = エージェントの名刺画像（内見打診メールM03のリンク先で売主仲介会社に提示する）
+    $allowedTypes = ['logo', 'photo', 'flyer_band', 'name_card', 'free'];
     if (!in_array($fileType, $allowedTypes)) {
         $fileType = 'photo';
     }
@@ -144,7 +145,20 @@ try {
         $database = new Database();
         $db = $database->getConnection();
 
-        $fieldMap = ['logo' => 'company_logo', 'flyer_band' => 'flyer_band', 'photo' => 'profile_photo'];
+        $fieldMap = ['logo' => 'company_logo', 'flyer_band' => 'flyer_band', 'photo' => 'profile_photo', 'name_card' => 'name_card_image'];
+        // name_card_image は後から追加したカラムのため、無い環境では冪等に足す。
+        if ($fileType === 'name_card') {
+            try {
+                $chk = $db->prepare("SELECT COUNT(*) FROM information_schema.columns
+                                     WHERE table_schema = DATABASE() AND table_name = 'business_cards' AND column_name = 'name_card_image'");
+                $chk->execute();
+                if ((int)$chk->fetchColumn() === 0) {
+                    $db->exec("ALTER TABLE business_cards ADD COLUMN name_card_image VARCHAR(500) NULL DEFAULT NULL AFTER flyer_band");
+                }
+            } catch (Throwable $e) {
+                error_log('ensure name_card_image column error: ' . $e->getMessage());
+            }
+        }
         $fieldName = isset($fieldMap[$fileType]) ? $fieldMap[$fileType] : 'profile_photo';
 
         // Ensure we have a business card record

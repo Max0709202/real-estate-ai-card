@@ -602,6 +602,11 @@ function populateEditForms(data) {
         window.renderFlyerBandPreview(data.flyer_band || '');
     }
 
+    // 名刺（内見打診メールのリンク先で売主（仲介）会社に提示する）preview
+    if (typeof window.renderNameCardPreview === 'function') {
+        window.renderNameCardPreview(data.name_card_image || '');
+    }
+
     // Step 6: Template selection (card header background)
     try {
         const defaultBg = 'assets/images/card-header (1).jpg';
@@ -3574,6 +3579,130 @@ document.addEventListener('change', function(e) {
             }
         } catch (err) {
             console.error('flyer_band delete error:', err);
+            if (typeof showWarning === 'function') showWarning('通信に失敗しました');
+        }
+    });
+})();
+
+/* ===== 名刺登録 =====
+   内見の打診メール（M03）を受け取った売主（仲介）会社が回答URLを開いたときに、
+   エージェントのプロフィールと一緒に表示する名刺画像。
+   自社帯と同じく、選択したらそのまま即アップロードする（クロップはしない）。
+   保存先カラム business_cards.name_card_image は upload.php 側で更新される。 */
+(function () {
+    function toDisplayUrl(path) {
+        if (!path) return '';
+        let p = String(path);
+        if (p.startsWith('http')) return p;
+        if (window.BASE_URL && p.startsWith(window.BASE_URL)) {
+            p = p.replace(window.BASE_URL + '/', '').replace(window.BASE_URL, '');
+        }
+        if (window.BASE_URL) return window.BASE_URL + '/' + p.replace(/^\/+/, '');
+        return (p.startsWith('../') ? p : '../' + p);
+    }
+
+    // data.name_card_image からプレビューと削除ボタン表示を復元
+    window.renderNameCardPreview = function (path) {
+        const area = document.querySelector('[data-upload-id="name_card"]');
+        if (!area) return;
+        const preview = area.querySelector('.upload-preview');
+        const delBtn = document.getElementById('name-card-delete-btn');
+        if (path) {
+            if (preview) {
+                preview.innerHTML = '<img src="' + toDisplayUrl(path) + '" alt="名刺" style="max-width: 100%; max-height: 160px; border-radius: 8px; object-fit: contain;" onerror="this.style.display=\'none\';">';
+            }
+            area.dataset.existingImage = path;
+            if (delBtn) delBtn.style.display = '';
+        } else {
+            if (preview) preview.innerHTML = '';
+            delete area.dataset.existingImage;
+            if (delBtn) delBtn.style.display = 'none';
+        }
+    };
+
+    function uploadUrl() {
+        if (typeof window.getUploadUrl === 'function') return window.getUploadUrl();
+        if (window.BASE_URL) return window.BASE_URL + '/backend/api/business-card/upload.php';
+        return window.location.origin + '/backend/api/business-card/upload.php';
+    }
+
+    async function upload(file) {
+        if (!file) return;
+        if (!file.type || !file.type.startsWith('image/')) {
+            if (typeof showWarning === 'function') showWarning('画像ファイルを選択してください');
+            else alert('画像ファイルを選択してください');
+            return;
+        }
+        const area = document.querySelector('[data-upload-id="name_card"]');
+        const preview = area ? area.querySelector('.upload-preview') : null;
+        if (preview) preview.innerHTML = '<small>アップロード中...</small>';
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('file_type', 'name_card');
+            const res = await fetch(uploadUrl(), { method: 'POST', body: fd, credentials: 'include' });
+            const json = await res.json();
+            if (json && json.success && json.data && json.data.file_path) {
+                window.renderNameCardPreview(json.data.file_path);
+                if (typeof showSuccess === 'function') showSuccess('名刺を登録しました');
+            } else {
+                if (preview) preview.innerHTML = '';
+                if (typeof showWarning === 'function') showWarning((json && json.message) || 'アップロードに失敗しました');
+            }
+        } catch (err) {
+            console.error('name_card upload error:', err);
+            if (preview) preview.innerHTML = '';
+            if (typeof showWarning === 'function') showWarning('通信に失敗しました');
+        }
+    }
+
+    // ファイル指定
+    document.addEventListener('change', function (e) {
+        if (e.target.id !== 'name_card') return;
+        const file = e.target.files && e.target.files[0];
+        upload(file).finally(function () { e.target.value = ''; });
+    });
+
+    // ドラッグ＆ドロップ
+    document.addEventListener('dragover', function (e) {
+        const area = e.target.closest ? e.target.closest('[data-upload-id="name_card"]') : null;
+        if (!area) return;
+        e.preventDefault();
+        area.classList.add('is-dragover');
+    });
+    document.addEventListener('dragleave', function (e) {
+        const area = e.target.closest ? e.target.closest('[data-upload-id="name_card"]') : null;
+        if (area) area.classList.remove('is-dragover');
+    });
+    document.addEventListener('drop', function (e) {
+        const area = e.target.closest ? e.target.closest('[data-upload-id="name_card"]') : null;
+        if (!area) return;
+        e.preventDefault();
+        area.classList.remove('is-dragover');
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        upload(file);
+    });
+
+    // 削除 → name_card_image を空文字でクリア
+    document.addEventListener('click', async function (e) {
+        if (e.target.id !== 'name-card-delete-btn') return;
+        if (!confirm('登録した名刺を削除しますか？')) return;
+        try {
+            const res = await fetch('backend/api/business-card/update.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name_card_image: '' }),
+                credentials: 'include'
+            });
+            const json = await res.json();
+            if (json && json.success) {
+                window.renderNameCardPreview('');
+                if (typeof showSuccess === 'function') showSuccess('名刺を削除しました');
+            } else {
+                if (typeof showWarning === 'function') showWarning((json && json.message) || '削除に失敗しました');
+            }
+        } catch (err) {
+            console.error('name_card delete error:', err);
             if (typeof showWarning === 'function') showWarning('通信に失敗しました');
         }
     });

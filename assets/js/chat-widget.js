@@ -86,6 +86,17 @@
             return (v === 'contact' || v === 'property') ? v : null;
         } catch (e) { return null; }
     })();
+    // 内見メール（M02/M06/M12/M13 など）のリンク（card.php?...&property=<id>&viewing=detail|input）。
+    // 物件タブを開いたあと、そのまま該当物件の内見画面まで進める。
+    var deepLinkProperty = (function () {
+        try {
+            var q = new URLSearchParams(window.location.search);
+            var id = parseInt(q.get('property') || '', 10);
+            var view = q.get('viewing') || '';
+            if (!id || id <= 0) return null;
+            return { id: id, view: (view === 'input' || view === 'detail') ? view : '' };
+        } catch (e) { return null; }
+    })();
     // 該当タブを実際に開いたか。まだこの端末がSMS認証を終えていない（＝どのお客様か
     // 確定していない）間は開かずに保留し、認証で本人のご相談へ合流したあとに開く。
     var deepLinkHandled = false;
@@ -3652,14 +3663,235 @@
         box.querySelector('#prop-cust-viewing').addEventListener('click', function () {
             // 内見予約の依頼は、これまで通りSMS認証が必要。
             if (viewOnly) { propRequireAuth(); return; }
-            var note = prompt('内見のご希望（日程・時間帯など）があればご記入ください（任意）', '');
-            if (note === null) return;
-            propApi('/viewing-request.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: p.id, session_id: sessionId, visitor_id: visitorId, note: note }) })
-                .then(function (res) {
-                    if (!res.success) { alert(res.message || '依頼に失敗しました'); return; }
-                    alert('内見予約を依頼しました。担当連絡をご確認ください。');
-                    if (typeof renderFeatureTab === 'function') { setActiveChatTab('contact'); renderFeatureTab('contact'); }
-                });
+            propViewingOpen(p);
+        });
+    }
+
+    /* ===== 内見日程調整（買主側・§4/§7/§8）===== */
+
+    /**
+     * 内見日程の画面を開く。案件の状態に応じて、希望日時の入力／確定内容の確認を出し分ける。
+     * @param {Object} p    物件
+     * @param {string} view 'auto'（既定）｜'input'（希望日時の入力）｜'detail'（確定内容）
+     */
+    function propViewingOpen(p, view) {
+        pushChatView({ chatView: 'property', chatPropertyId: p.id });
+        renderFeaturePanel('<div class="prop-wrap"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>');
+        propApi('/viewing-get.php?property_id=' + encodeURIComponent(p.id) + '&' + propAuthQS())
+            .then(function (res) {
+                if (!res.success) { alert(res.message || '取得に失敗しました'); propOpenDetail(p.id); return; }
+                propViewingRender(p, res.data, view || 'auto');
+            })
+            .catch(function () { alert('通信に失敗しました'); propOpenDetail(p.id); });
+    }
+
+    function propViewingRender(p, data, view) {
+        var v = data.viewing;
+        // 確定済み（買主へ連絡済み）なら確定内容を、それ以外は希望日時の入力を表示する。
+        var showDetail = (view === 'detail') ||
+            (view === 'auto' && v && (v.status === 'buyer_notified' || v.status === 'cancelled' || v.status === 'unavailable'));
+        if (showDetail) propViewingRenderDetail(p, data);
+        else propViewingRenderInput(p, data);
+    }
+
+    /** 希望日時の入力（初回・再入力・日時変更で共通）。 */
+    function propViewingRenderInput(p, data) {
+        var v = data.viewing;
+        var rules = data.rules;
+        var isChange = !!(v && v.confirmed_text);
+        var head = isChange ? '内見日時の変更を依頼する' : '内見のご希望日時を選ぶ';
+
+        var html = '<div class="prop-wrap vw-panel" id="prop-viewing">' +
+            '<div class="prop-toolbar"><button type="button" class="prop-btn prop-btn--ghost" id="vw-back">← 物件詳細</button></div>' +
+            '<div class="prop-section-title">' + PUI.esc(head) + '</div>' +
+            '<div class="vw-box"><div class="vw-box__title">対象物件</div><div>' + PUI.esc(data.property.label) + '</div></div>';
+
+        if (isChange) {
+            html += '<div class="vw-box vw-box--warn">変更前の日時：' + PUI.esc(v.confirmed_text) +
+                '<div class="vw-hint">新しい候補日時を送信された時点で、変更前のご予約は解除されます。</div></div>';
+        }
+        if (v && v.status === 'buyer_reinput') {
+            html += '<div class="vw-box vw-box--warn">ご希望いただいた日時では調整が難しい状況です。恐れ入りますが、別の候補日時をお選びください。</div>';
+        }
+        if (v && v.unavailable_reason === 'no_slot') {
+            html += '<div class="vw-box vw-box--warn">売主側より「候補日時では内見不可」のご回答がありました。別の候補日時をお選びください。</div>';
+        }
+        if (!data.calendar.connected) {
+            html += '<div class="vw-hint" style="margin-bottom:8px">担当者のカレンダーは未連携のため、既存のご予定は表示されません。</div>';
+        }
+
+        html += '<p class="vw-panel__guide">ご希望の日時を' + rules.min_slots + 'つ以上お選びください。内見時間は1枠1時間です。' +
+            'ドラッグ（スマートフォンはタップ）で選べます。もう一度押すと解除できます。</p>' +
+            '<div class="vcal-picked" id="vw-picked"></div>' +
+            '<div id="vw-cal"></div>' +
+            '<div class="vw-actions">' +
+            '<button type="button" class="prop-btn prop-btn--primary" id="vw-submit">この日時で内見を依頼する</button>' +
+            '</div></div>';
+
+        renderFeaturePanel(html);
+        var box = featurePanel.querySelector('#prop-viewing');
+        box.querySelector('#vw-back').addEventListener('click', function () { propOpenDetail(p.id); });
+
+        var picked = box.querySelector('#vw-picked');
+        var submit = box.querySelector('#vw-submit');
+        var cal = null;
+        if (window.ViewingCalendar) {
+            cal = window.ViewingCalendar.render(box.querySelector('#vw-cal'), {
+                mode: 'buyer',
+                rules: rules,
+                slots: isChange ? [] : data.slots,   // 変更時は前回の候補を引き継がず選び直す
+                blocked: data.blocked,
+                onChange: function (list) {
+                    picked.innerHTML = '<div class="vcal-picked__title">選択中の日時（' + list.length + '／' + rules.min_slots + '枠以上）</div>' +
+                        (list.length
+                            ? '<div class="vcal-picked__list">' + list.map(function (x) {
+                                return '<span class="vcal-picked__item">' + PUI.esc(window.ViewingCalendar.formatRange(x, rules.slot)) + '</span>';
+                              }).join('') + '</div>'
+                            : '<div class="vcal-picked__empty">カレンダーからご希望の日時をお選びください。</div>');
+                    // 3枠以上選択した場合のみ送信できる。
+                    submit.disabled = (list.length < rules.min_slots);
+                }
+            });
+        }
+
+        submit.addEventListener('click', function () {
+            if (submit.disabled) return;
+            var list = cal ? cal.getSelected() : [];
+            if (list.length < rules.min_slots) { alert('ご希望の日時を' + rules.min_slots + 'つ以上お選びください。'); return; }
+            // 送信ボタンの連打による重複依頼を防ぐ。
+            submit.disabled = true;
+            submit.textContent = '送信中...';
+            propApi('/viewing-slots.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ property_id: p.id, session_id: sessionId, visitor_id: visitorId, slots: list })
+            }).then(function (res) {
+                submit.textContent = 'この日時で内見を依頼する';
+                if (!res.success) {
+                    alert(res.message || '送信に失敗しました');
+                    // 担当者の予定が変わっていた場合は、最新の選択不可を反映して選び直していただく。
+                    if (res.errors && res.errors.blocked) propViewingOpen(p, 'input');
+                    else submit.disabled = false;
+                    return;
+                }
+                alert('内見依頼を送信しました。担当者からの連絡をお待ちください。');
+                propViewingRenderDetail(p, res.data);
+            }).catch(function () {
+                submit.disabled = false;
+                submit.textContent = 'この日時で内見を依頼する';
+                alert('通信に失敗しました');
+            });
+        });
+    }
+
+    /** 確定内容・調整状況の確認。買主には売主側の鍵情報や他案件の情報は表示しない。 */
+    function propViewingRenderDetail(p, data) {
+        var v = data.viewing;
+        var html = '<div class="prop-wrap vw-panel" id="prop-viewing">' +
+            '<div class="prop-toolbar"><button type="button" class="prop-btn prop-btn--ghost" id="vw-back">← 物件詳細</button></div>' +
+            '<div class="prop-section-title">内見のご予定</div>' +
+            '<div class="vw-box"><div class="vw-box__title">対象物件</div><div>' + PUI.esc(data.property.label) + '</div></div>';
+
+        if (!v) {
+            html += '<div class="vw-box">内見のご依頼はまだありません。</div>' +
+                '<div class="vw-actions"><button type="button" class="prop-btn prop-btn--primary" id="vw-new">内見予約を依頼する</button></div>';
+        } else if (v.status === 'cancelled') {
+            html += '<div class="vw-box vw-box--warn">内見のキャンセルを受け付けました。売主側への連絡は担当者が行います。' +
+                (v.prev_text ? '<div class="vw-hint">キャンセルした日時：' + PUI.esc(v.prev_text) + '</div>' : '') + '</div>' +
+                '<div class="vw-actions"><button type="button" class="prop-btn prop-btn--primary" id="vw-new">別の日時で内見を依頼する</button></div>';
+        } else if (v.status === 'unavailable') {
+            html += '<div class="vw-box vw-box--warn">申し訳ございません。お申し込み・ご成約により、この物件は内見いただけない状況です。' +
+                '詳しくは担当者よりご連絡いたします。</div>';
+        } else if (v.status === 'buyer_notified') {
+            html += '<div class="vw-box vw-box--accent"><div class="vw-box__title">確定した内見日時</div>' +
+                '<div>' + PUI.esc(v.confirmed_text) + '</div>' +
+                (v.prev_text ? '<div class="vw-hint">変更前：' + PUI.esc(v.prev_text) + '</div>' : '') + '</div>' +
+                '<div class="vw-box"><div class="vw-box__title">当日の待ち合わせ場所と時間</div>' +
+                '<div class="vw-pre">' + PUI.esc(v.meeting_note || '担当者よりご案内いたします。') + '</div></div>' +
+                // 変更・キャンセルのご連絡は、これまで通りSMS認証を行ってから利用いただく。
+                (propViewOnly()
+                    ? '<div class="vw-hint">日時の変更・キャンセルのご連絡には、ご本人確認（SMS認証）が必要です。</div>'
+                    : '<div class="vw-actions">' +
+                      '<button type="button" class="prop-btn prop-btn--ghost" id="vw-change">内見日時の変更依頼</button>' +
+                      '<button type="button" class="prop-btn prop-btn--danger" id="vw-cancel">内見キャンセル</button>' +
+                      '</div>' +
+                      '<div class="vw-hint">変更・キャンセルは、できるだけお早めにお知らせください。</div>');
+        } else {
+            // 調整中（担当者確認待ち／売主側回答待ち／確定・連絡待ち）。
+            var waiting = v.is_rescheduling ? '日時変更の調整中です。' : '担当者が日程を調整しています。';
+            html += '<div class="vw-box">' + PUI.esc(waiting) + '確定しましたら、担当者よりご連絡いたします。' +
+                '<div class="vw-hint">現在の状況：' + PUI.esc(v.status_label) + '</div></div>';
+            if (data.slots && data.slots.length) {
+                html += '<div class="vw-box"><div class="vw-box__title">ご希望いただいた日時</div><div class="vcal-picked__list">' +
+                    data.slots.map(function (s) { return '<span class="vcal-picked__item">' + PUI.esc(s.text) + '</span>'; }).join('') +
+                    '</div></div>';
+            }
+            html += '<div class="vw-actions"><button type="button" class="prop-btn prop-btn--ghost" id="vw-change">希望日時を選び直す</button></div>';
+        }
+        html += '</div>';
+
+        renderFeaturePanel(html);
+        var box = featurePanel.querySelector('#prop-viewing');
+        box.querySelector('#vw-back').addEventListener('click', function () { propOpenDetail(p.id); });
+
+        var newBtn = box.querySelector('#vw-new');
+        if (newBtn) newBtn.addEventListener('click', function () { propViewingOpen(p, 'input'); });
+        var changeBtn = box.querySelector('#vw-change');
+        if (changeBtn) changeBtn.addEventListener('click', function () { propViewingOpen(p, 'input'); });
+        var cancelBtn = box.querySelector('#vw-cancel');
+        if (cancelBtn) cancelBtn.addEventListener('click', function () { propViewingCancel(p, data); });
+    }
+
+    /** キャンセル理由の入力。理由は必須。「その他」は自由記入も必須。 */
+    function propViewingCancel(p, data) {
+        var v = data.viewing;
+        var REASONS = [
+            ['no_interest', '内見予定の物件に興味がなくなった'],
+            ['other_agency', '他社で購入を決めた'],
+            ['stop_buying', '物件購入をやめた'],
+            ['other', 'その他']
+        ];
+        var html = '<div class="vw-panel">' +
+            '<div class="vw-box"><div class="vw-box__title">キャンセルする内見</div>' +
+            '<div>' + PUI.esc(data.property.label) + '</div>' +
+            '<div class="vw-hint">' + PUI.esc(v.confirmed_text || '') + '</div></div>' +
+            '<div class="vw-field"><label>キャンセル理由（必須）</label>' +
+            REASONS.map(function (r) {
+                return '<label class="prop-status-opt" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">' +
+                    '<input type="radio" name="vw-reason" value="' + r[0] + '"><span>' + PUI.esc(r[1]) + '</span></label>';
+            }).join('') + '</div>' +
+            '<div class="vw-field" id="vw-reason-other" hidden><label>理由をご記入ください（必須）</label>' +
+            '<textarea id="vw-reason-text" rows="3"></textarea></div>' +
+            '</div>';
+
+        var m = PUI.modal('内見のキャンセル', html);
+        var otherBox = m.body.querySelector('#vw-reason-other');
+        m.body.querySelectorAll('input[name="vw-reason"]').forEach(function (el) {
+            el.addEventListener('change', function () { otherBox.hidden = (el.value !== 'other'); });
+        });
+
+        var actions = document.createElement('div');
+        actions.className = 'prop-form-actions';
+        actions.innerHTML = '<button type="button" class="prop-btn prop-btn--ghost" id="vw-c-close">やめる</button>' +
+            '<button type="button" class="prop-btn prop-btn--danger" id="vw-c-do">この内見をキャンセルする</button>';
+        m.body.appendChild(actions);
+        m.body.querySelector('#vw-c-close').addEventListener('click', m.close);
+        m.body.querySelector('#vw-c-do').addEventListener('click', function () {
+            var sel = m.body.querySelector('input[name="vw-reason"]:checked');
+            if (!sel) { alert('キャンセル理由をお選びください。'); return; }
+            var text = (m.body.querySelector('#vw-reason-text') || {}).value || '';
+            if (sel.value === 'other' && !text.trim()) { alert('「その他」を選ばれた場合は、理由をご記入ください。'); return; }
+            var btn = m.body.querySelector('#vw-c-do');
+            btn.disabled = true;
+            propApi('/viewing-cancel.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ property_id: p.id, session_id: sessionId, visitor_id: visitorId, reason: sel.value, reason_text: text })
+            }).then(function (res) {
+                btn.disabled = false;
+                if (!res.success) { alert(res.message || 'キャンセルできませんでした'); return; }
+                m.close();
+                alert('内見のキャンセルを受け付けました。売主側への連絡は担当者が行います。');
+                propViewingRenderDetail(p, res.data);
+            }).catch(function () { btn.disabled = false; alert('通信に失敗しました'); });
         });
     }
 
@@ -3736,6 +3968,16 @@
         try {
             renderFeatureTab(deepLinkTab);
             pushChatView({ chatView: 'tab', chatTab: deepLinkTab });
+            // 内見メールのリンクは、該当物件の内見画面（確定内容 or 希望日時の入力）まで開く。
+            if (deepLinkTab === 'property' && deepLinkProperty) {
+                var target = deepLinkProperty;
+                deepLinkProperty = null;
+                propApi('/get.php?id=' + target.id + '&' + propAuthQS()).then(function (res) {
+                    if (!res || !res.success) return;
+                    if (target.view) propViewingOpen(res.data.property, target.view);
+                    else propRenderDetail(res.data.property);
+                }).catch(function () {});
+            }
         } catch (e) {}
     }
 

@@ -603,6 +603,7 @@ function editSectionIcon(string $key): string
     <link rel="stylesheet" href="assets/css/modal.css">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/property.css?v=<?php echo filemtime(__DIR__ . '/assets/css/property.css'); ?>">
+    <link rel="stylesheet" href="assets/css/viewing-calendar.css?v=<?php echo filemtime(__DIR__ . '/assets/css/viewing-calendar.css'); ?>">
 
     <!-- Cropper.js CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
@@ -946,6 +947,9 @@ function editSectionIcon(string $key): string
                     </a>
                     <a href="#flyer-band" class="nav-item" data-step="flyer-band" data-section="flyer-band-section">
                         <span class="step-label">自社帯登録</span>
+                    </a>
+                    <a href="#name-card" class="nav-item" data-step="name-card" data-section="name-card-section">
+                        <span class="step-label">名刺登録</span>
                     </a>
                 </nav>
             </div>
@@ -1956,6 +1960,30 @@ function editSectionIcon(string $key): string
                         </div>
                     </div>
                 </div>
+
+                <!-- 名刺登録（内見打診メールM03のリンク先で、売主（仲介）会社に提示する名刺画像） -->
+                <div id="name-card-section" class="edit-section" style="display: none;">
+                    <div class="section-hero section-hero--band">
+                        <?php echo editSectionIcon('band'); ?>
+                        <div class="section-hero-text">
+                            <h2>名刺登録</h2>
+                            <p class="step-description">内見の打診メールを受け取った売主（仲介）会社が回答URLを開いたときに、あなたのプロフィールと一緒に表示される名刺画像を登録します。ファイルを選ぶか、枠内にドラッグ＆ドロップしてください。</p>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>名刺画像</h3>
+                        <div class="upload-area upload-area--band" data-upload-id="name_card">
+                            <input type="file" id="name_card" accept="image/*" style="display: none;">
+                            <button type="button" class="btn-upload" onclick="document.getElementById('name_card').click()">名刺登録</button>
+                            <div class="upload-preview"></div>
+                            <small>名刺の画像を選択するか、ここにドラッグ&amp;ドロップしてください（自動でリサイズされます）<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                        </div>
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <button type="button" class="btn-delete" id="name-card-delete-btn" style="display: none;">名刺を削除</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="edit-sidebar-actions">
@@ -2088,6 +2116,8 @@ function editSectionIcon(string $key): string
     <script src="assets/js/mobile-menu.js"></script>
     <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>"></script>
     <script src="assets/js/property-map.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-map.js'); ?>"></script>
+    <script src="assets/js/viewing-calendar.js?v=<?php echo filemtime(__DIR__ . '/assets/js/viewing-calendar.js'); ?>"></script>
+    <script src="assets/js/property-viewing-agent.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-viewing-agent.js'); ?>"></script>
     <script src="assets/js/property-agent.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-agent.js'); ?>"></script>
     <script>
         // Direct Input button handler and mobile touch support
