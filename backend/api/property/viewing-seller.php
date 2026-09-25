@@ -96,10 +96,11 @@ try {
         viewingLogEvent($db, (int)$case['id'], 'replied', [
             'actor' => 'seller', 'detail' => $isContracted ? '成約・申込済み' : '候補日時では内見不可',
         ]);
-        sendSuccessResponse($payload($fresh), 'ご回答ありがとうございました。担当者へお伝えいたします。');
+        // sendSuccessResponse() は exit するため、送信処理はレスポンスより先に登録しておく。
         viewingApiAfterResponse(function () use ($db, $fresh, $isContracted) {
             viewingMailSend($db, $fresh, $isContracted ? 'N01' : 'N02');
         });
+        sendSuccessResponse($payload($fresh), 'ご回答ありがとうございました。担当者へお伝えいたします。');
         exit;
     }
 
@@ -160,14 +161,15 @@ try {
         'actor' => 'seller', 'detail' => '承諾：' . viewingFormatRange($slot['start_at'], $slot['end_at']),
     ]);
 
-    sendSuccessResponse($payload($fresh), 'ご回答ありがとうございました。内見日時が確定しました。');
-
     // この時点では買主への確定メール（M06）は送らない（仕様 §2・§6）。
+    // sendSuccessResponse() は exit するため、送信処理はレスポンスより先に登録しておく。
     $changed = (int)$fresh['is_rescheduling'] === 1;
     viewingApiAfterResponse(function () use ($db, $fresh, $changed) {
         viewingMailSend($db, $fresh, 'M04', ['changed' => $changed]);
         viewingMailSend($db, $fresh, 'M05', ['changed' => $changed]);
     });
+
+    sendSuccessResponse($payload($fresh), 'ご回答ありがとうございました。内見日時が確定しました。');
 } catch (Exception $e) {
     error_log('viewing-seller error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);

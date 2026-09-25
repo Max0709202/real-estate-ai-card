@@ -78,17 +78,18 @@ try {
         'actor' => 'buyer', 'detail' => $reasons[$reason] . ($reasonText !== '' ? '：' . $reasonText : ''),
     ]);
 
-    sendSuccessResponse(
-        viewingApiCasePayload($db, $fresh, $property, 'buyer'),
-        '内見のキャンセルを受け付けました。売主側への連絡は担当者が行います。'
-    );
-
+    // sendSuccessResponse() は exit するため、送信処理はレスポンスより先に登録しておく。
     $sessionId = (string)$property['session_id'];
     viewingApiAfterResponse(function () use ($db, $fresh, $target, $sessionId) {
         viewingMailSend($db, $fresh, 'M09', ['target' => $target]);
         viewingMailSend($db, $fresh, 'M10', ['target' => $target]);
         if (function_exists('notifyEnqueue')) notifyEnqueue($db, $sessionId, 'property');
     });
+
+    sendSuccessResponse(
+        viewingApiCasePayload($db, $fresh, $property, 'buyer'),
+        '内見のキャンセルを受け付けました。売主側への連絡は担当者が行います。'
+    );
 } catch (Exception $e) {
     error_log('viewing-cancel error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
