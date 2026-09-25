@@ -82,8 +82,9 @@ try {
         $db->prepare("UPDATE property_viewings SET status = 'buyer_reinput' WHERE id = ?")->execute([(int)$case['id']]);
         $fresh = viewingLoad($db, (int)$case['id']);
         viewingLogEvent($db, (int)$case['id'], 'agent_reinput', ['actor' => 'agent']);
-        sendSuccessResponse(viewingApiCasePayload($db, $fresh, $property, 'agent'), '買主へ別の日時のご依頼を送信しました。');
+        // sendSuccessResponse() は exit するため、送信処理はレスポンスより先に登録しておく。
         viewingApiAfterResponse(function () use ($db, $fresh) { viewingMailSend($db, $fresh, 'M02'); });
+        sendSuccessResponse(viewingApiCasePayload($db, $fresh, $property, 'agent'), '買主へ別の日時のご依頼を送信しました。');
         exit;
     }
 
@@ -125,13 +126,14 @@ try {
         'actor' => 'agent', 'recipient' => $sellerEmail, 'detail' => count($valid) . '枠を打診',
     ]);
 
+    // sendSuccessResponse() は exit するため、送信処理はレスポンスより先に登録しておく。
+    viewingApiAfterResponse(function () use ($db, $fresh, $isReschedule) {
+        viewingMailSend($db, $fresh, $isReschedule ? 'M08' : 'M03');
+    });
     sendSuccessResponse(
         viewingApiCasePayload($db, $fresh, $property, 'agent'),
         '売主（仲介）会社へ内見を打診しました。'
     );
-    viewingApiAfterResponse(function () use ($db, $fresh, $isReschedule) {
-        viewingMailSend($db, $fresh, $isReschedule ? 'M08' : 'M03');
-    });
 } catch (Exception $e) {
     error_log('viewing-propose error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);

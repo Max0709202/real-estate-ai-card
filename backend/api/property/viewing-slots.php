@@ -91,11 +91,8 @@ try {
     ]);
 
     $fresh = viewingLoad($db, (int)$case['id']);
-    sendSuccessResponse(
-        viewingApiCasePayload($db, $fresh, $property, 'buyer'),
-        '内見依頼を送信しました。担当者からの連絡をお待ちください。'
-    );
 
+    // sendSuccessResponse() は exit するため、送信処理はレスポンスより先に登録しておく。
     viewingApiAfterResponse(function () use ($db, $fresh, $isReschedule, $prevStart, $prevEnd, $sessionId) {
         viewingMailSend($db, $fresh, $isReschedule ? 'M07' : 'M01', [
             'prev' => viewingFormatRange($prevStart, $prevEnd),
@@ -103,6 +100,11 @@ try {
         // 既存の担当連絡通知（顧客操作のお知らせ）にも積む。
         if (function_exists('notifyEnqueue')) notifyEnqueue($db, $sessionId, 'property');
     });
+
+    sendSuccessResponse(
+        viewingApiCasePayload($db, $fresh, $property, 'buyer'),
+        '内見依頼を送信しました。担当者からの連絡をお待ちください。'
+    );
 } catch (Exception $e) {
     error_log('viewing-slots error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);
