@@ -44,7 +44,7 @@
       }).join('') + '</select>';
   }
 
-  function renderList() {
+  function renderList(onLoaded) {
     P.innerHTML = '<div class="prop-toolbar"><h4>物件選定</h4>' + sortSelectHtml() +
       '<button type="button" class="prop-btn prop-btn--ghost" id="prop-folder-add">' + UI.icon('folder') + 'フォルダーを作成</button>' +
       '<button type="button" class="prop-btn prop-btn--primary" id="prop-add">' + UI.icon('plus') + '物件を追加</button></div>' +
@@ -57,11 +57,11 @@
     P.querySelector('#prop-folder-add').addEventListener('click', function () { openFolderForm(null); });
     var sel = P.querySelector('#prop-sort');
     if (sel) sel.addEventListener('change', function () { SORT = sel.value; loadList(); });
-    loadList();
+    loadList(onLoaded);
   }
 
-  /* 一覧の読み込み（並び替えはサーバー側で行う）。 */
-  function loadList() {
+  /* 一覧の読み込み（並び替えはサーバー側で行う）。onLoaded は読み込み完了後に1回だけ呼ぶ。 */
+  function loadList(onLoaded) {
     var body = P.querySelector('#prop-list-body');
     if (!body) return;
     body.innerHTML = '<div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div>';
@@ -70,6 +70,7 @@
       ITEMS = res.data.properties || [];
       FOLDERS = res.data.folders || [];
       renderListBody();
+      if (typeof onLoaded === 'function') onLoaded();
     });
   }
 
@@ -605,11 +606,17 @@
   }
 
   /* ===== 詳細（§9-§15, §19） ===== */
-  function openDetail(id) {
+  /* tab を指定すると、詳細を開いた直後にそのタブを表示して画面内へスクロールする（メールのリンクから開く場合）。 */
+  function openDetail(id, tab) {
     P.innerHTML = '<div id="prop-detail" class="prop-wrap"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>';
     api('/get.php?id=' + id).then(function (res) {
       if (!res.success) { P.querySelector('#prop-detail').innerHTML = '<div class="prop-empty">取得に失敗しました。</div>'; return; }
       renderDetail(res.data.property);
+      if (!tab) return;
+      var t = P.querySelector('.prop-tab[data-tab="' + tab + '"]');
+      if (!t) return;
+      t.click();
+      t.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -1962,14 +1969,24 @@
     });
   }
 
+  // メールのリンクから開いたときに、顧客詳細の表示後に開く物件（1回だけ使う）。
+  var PENDING_OPEN = null;
+
   function init(sessionId) {
     if (!UI) { return; }
     SID = sessionId;
     P = document.getElementById('property-panel');
     if (!P) return;
     P.classList.add('prop-wrap');
-    renderList();
+    var pending = (PENDING_OPEN && PENDING_OPEN.sessionId === sessionId) ? PENDING_OPEN : null;
+    PENDING_OPEN = null;
+    renderList(pending ? function () { openDetail(pending.propertyId, pending.tab); } : null);
   }
 
-  w.PropertyAgent = { init: init };
+  /** 次に sessionId の顧客詳細を開いたとき、該当物件の詳細（tab 指定時はそのタブ）を自動で開く。 */
+  function openOnInit(sessionId, propertyId, tab) {
+    PENDING_OPEN = { sessionId: sessionId, propertyId: propertyId, tab: tab || '' };
+  }
+
+  w.PropertyAgent = { init: init, openOnInit: openOnInit };
 })(window);

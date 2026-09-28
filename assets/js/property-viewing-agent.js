@@ -92,6 +92,7 @@
       .then(function (res) {
         if (!res.success) { pane.innerHTML = '<div class="prop-msg prop-msg--error">' + esc(res.message || '読み込みに失敗しました') + '</div>'; return; }
         draw(pane, p, res.data);
+        drawSettings(pane, p, res.data);
       })
       .catch(function () { pane.innerHTML = '<div class="prop-msg prop-msg--error">通信に失敗しました</div>'; });
   }
@@ -168,7 +169,7 @@
         '<div class="vw-hint">買主向けの自由入力です。鍵情報はここへ自動転記されません。</div></div>' +
         '<div class="vw-actions"><button type="button" class="prop-btn prop-btn--primary" data-vw="confirm">' +
         (v.status === 'buyer_notified' ? '確定案内を再送する' : '買主へ内見確定の案内を送信する') + '</button></div>' +
-        (v.buyer_notified_at ? '<div class="vw-hint">送信済み：' + esc(v.buyer_notified_at) + '（前日18時・当日8時のリマインドを予約しています）</div>' : '') +
+        (v.buyer_notified_at ? '<div class="vw-hint">送信済み：' + esc(v.buyer_notified_at) + '</div>' + reminderHtml(v) : '') +
         '</div>';
       html += eventsHtml(v.events) + '</div>';
       pane.innerHTML = html;
@@ -203,6 +204,55 @@
     if (attrs) attrs.value = v.buyer_attributes || '';
 
     bind(pane, p, data);
+  }
+
+  /** リマインドの実際の予約状況。送信時刻を過ぎていた回は予約されないため、その旨も表示する。 */
+  function reminderHtml(v) {
+    var kinds = { prev_day: '前日18時', same_day: '当日8時' };
+    var statusLabel = { scheduled: '予約済み', sent: '送信済み', failed: '送信失敗', cancelled: '取消' };
+    var byKind = {};
+    (v.reminders || []).forEach(function (r) {
+      // 宛先（買主・担当者）ごとに行があるため、回ごとに1つにまとめる。
+      if (!byKind[r.kind] || r.status === 'failed') byKind[r.kind] = r.status;
+    });
+    var parts = Object.keys(kinds).map(function (k) {
+      return kinds[k] + '：' + (byKind[k] ? (statusLabel[byKind[k]] || byKind[k]) : '送信なし（確定案内の送信時点で送信時刻を過ぎていたため）');
+    });
+    return '<div class="vw-hint">リマインド　' + parts.map(esc).join('／') + '</div>';
+  }
+
+  /** 定休日の設定。担当者単位の設定で、すべての物件・お客様の内見カレンダーに反映される。 */
+  function drawSettings(pane, p, data) {
+    var panel = pane.querySelector('.vw-panel');
+    if (!panel || !data.settings) return;
+    var closed = data.settings.closed_weekdays || [];
+    var names = ['日', '月', '火', '水', '木', '金', '土'];
+    var box = document.createElement('div');
+    box.className = 'vw-box';
+    box.innerHTML = '<div class="vw-box__title">定休日の設定</div>' +
+      '<div class="vw-weekdays">' + names.map(function (n, i) {
+        return '<label><input type="checkbox" data-closed-day="' + i + '"' + (closed.indexOf(i) !== -1 ? ' checked' : '') + '>' + n + '</label>';
+      }).join('') + '</div>' +
+      '<div class="vw-hint">チェックした曜日は、すべての物件・お客様の内見カレンダーで選択できなくなります。</div>' +
+      '<div class="vw-actions"><button type="button" class="prop-btn prop-btn--ghost" data-vw="save-closed">定休日を保存</button></div>';
+    panel.appendChild(box);
+
+    var btn = box.querySelector('[data-vw="save-closed"]');
+    btn.addEventListener('click', function () {
+      var days = [];
+      box.querySelectorAll('[data-closed-day]').forEach(function (el) {
+        if (el.checked) days.push(parseInt(el.getAttribute('data-closed-day'), 10));
+      });
+      btn.disabled = true;
+      api('/viewing-settings.php', { property_id: p.id, closed_weekdays: days })
+        .then(function (res) {
+          btn.disabled = false;
+          if (!res.success) { notify('error', res.message || '保存に失敗しました'); return; }
+          notify('ok', res.message || '定休日を保存しました。');
+          render(pane, p);
+        })
+        .catch(function () { btn.disabled = false; notify('error', '通信に失敗しました'); });
+    });
   }
 
   function cancelLabel(v) {
@@ -295,6 +345,8 @@
       confirmBtn.addEventListener('click', function () {
         var note = (pane.querySelector('[data-vw="meeting"]') || {}).value || '';
         if (!note.trim()) { notify('error', '当日の待ち合わせ場所と時間をご入力ください。'); return; }
+        // 誤送信を防ぐため、送信・再送の前に必ず確認する。
+        if (!w.confirm(v.status === 'buyer_notified' ? '確定案内を再送しますか？' : '買主へ内見確定の案内を送信しますか？')) return;
         confirmBtn.disabled = true;
         api('/viewing-confirm.php', { property_id: p.id, meeting_note: note })
           .then(function (res) {

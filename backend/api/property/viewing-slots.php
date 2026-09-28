@@ -35,16 +35,14 @@ try {
         sendErrorResponse('ご希望の日時を' . VIEWING_MIN_SLOTS . 'つ以上お選びください。内見時間は1枠1時間です。', 400);
     }
 
-    // 選択から送信までに担当者の予定が変わっていないか、送信時にもう一度確認する。
+    // 選択から送信までに担当者の予定（確定済みの内見・定休日を含む）が変わっていないか、送信時にもう一度確認する。
     $cardId = (int)$property['business_card_id'];
-    if (viewingCalendarIsConnected($db, $cardId)) {
-        $from = viewingNow()->setTime(0, 0);
-        $blocked = viewingCalendarBlockedFor($db, $cardId, $from, $from->modify('+' . VIEWING_DAYS_AHEAD . ' days'));
-        $conflict = array_values(array_filter($slots, fn($s) => in_array($s['start'], $blocked, true)));
-        if ($conflict) {
-            $texts = array_map(fn($s) => viewingFormatRange($s['start'], $s['end']), $conflict);
-            sendErrorResponse('ご選択後に担当者の予定が変わりました。恐れ入りますが、' . implode('／', $texts) . ' 以外の日時をお選び直しください。', 409, ['blocked' => $blocked]);
-        }
+    $existing = viewingFindByPropertySession($db, $propertyId, $sessionId);
+    $blocked = viewingApiBlocked($db, $cardId, $existing ? (int)$existing['id'] : 0);
+    $conflict = array_values(array_filter($slots, fn($s) => in_array($s['start'], $blocked, true)));
+    if ($conflict) {
+        $texts = array_map(fn($s) => viewingFormatRange($s['start'], $s['end']), $conflict);
+        sendErrorResponse('ご選択後に担当者の予定が変わりました。恐れ入りますが、' . implode('／', $texts) . ' 以外の日時をお選び直しください。', 409, ['blocked' => $blocked]);
     }
 
     $case = viewingEnsureCase($db, $propertyId, $sessionId, $cardId);

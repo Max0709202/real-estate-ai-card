@@ -3,7 +3,7 @@
  * 内見日程調整の自動メール（M01〜M13／仕様 §9）。
  * -------------------------------------------------------------
  * 波括弧の項目はここで差し込む。URLは必ず該当物件詳細・対象者の画面へ遷移させる。
- * 共通署名は「担当会社名・担当者名・メールアドレス・電話番号・不動産AI名刺URL」。
+ * 共通署名は「担当会社名・会社住所・担当者名・メールアドレス・電話番号・不動産AI名刺URL」。
  *
  * ★2026/9/20 追加ご依頼
  *   物件を特定するための「物件名」は、すべてのメールで金額を併記する。
@@ -62,7 +62,7 @@ if (!function_exists('viewingAgentContact')) {
      */
     function viewingAgentContact(PDO $db, int $businessCardId): array
     {
-        $out = ['company' => '', 'name' => '', 'email' => '', 'phone' => '', 'card_url' => '', 'name_card_url' => ''];
+        $out = ['company' => '', 'address' => '', 'name' => '', 'email' => '', 'phone' => '', 'card_url' => '', 'name_card_url' => ''];
         if ($businessCardId <= 0) return $out;
         try {
             // name_card_image は後から追加したカラムのため、無い環境でも動くようにして取得する。
@@ -75,7 +75,7 @@ if (!function_exists('viewingAgentContact')) {
             } catch (Throwable $e) {
                 $hasNameCard = false;
             }
-            $stmt = $db->prepare("SELECT bc.company_name, bc.name, bc.mobile_phone, bc.company_phone, bc.url_slug, u.email"
+            $stmt = $db->prepare("SELECT bc.company_name, bc.company_address, bc.name, bc.mobile_phone, bc.company_phone, bc.url_slug, u.email"
                                   . ($hasNameCard ? ', bc.name_card_image' : '') . "
                                   FROM business_cards bc JOIN users u ON u.id = bc.user_id
                                   WHERE bc.id = ? LIMIT 1");
@@ -83,6 +83,7 @@ if (!function_exists('viewingAgentContact')) {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row) {
                 $out['company'] = trim((string)($row['company_name'] ?? ''));
+                $out['address'] = trim((string)($row['company_address'] ?? ''));
                 $out['name']    = trim((string)($row['name'] ?? ''));
                 $out['email']   = trim((string)($row['email'] ?? ''));
                 $out['phone']   = trim((string)($row['mobile_phone'] ?? '')) ?: trim((string)($row['company_phone'] ?? ''));
@@ -103,12 +104,14 @@ if (!function_exists('viewingAgentContact')) {
 }
 
 if (!function_exists('viewingMailSignature')) {
-    /** 共通署名（担当会社名・担当者名・メールアドレス・電話番号・不動産AI名刺URL）。 */
+    /** 共通署名（担当会社名・会社住所・担当者名・メールアドレス・電話番号・不動産AI名刺URL）。 */
     function viewingMailSignature(array $agent): array
     {
         $lines = ['──────────────'];
-        $head = trim($agent['company'] . '　' . $agent['name']);
-        if ($head !== '') $lines[] = $head;
+        // 会社名・住所（名刺に登録した会社住所）・担当者名をそれぞれ1行ずつ表示する。
+        if ($agent['company'] !== '') $lines[] = $agent['company'];
+        if (($agent['address'] ?? '') !== '') $lines[] = $agent['address'];
+        if ($agent['name'] !== '')    $lines[] = $agent['name'];
         if ($agent['phone'] !== '')    $lines[] = 'TEL：' . $agent['phone'];
         if ($agent['email'] !== '')    $lines[] = 'Mail：' . $agent['email'];
         if ($agent['card_url'] !== '') $lines[] = '不動産AI名刺：' . $agent['card_url'];
@@ -241,7 +244,8 @@ if (!function_exists('viewingMailBuild')) {
                         "当社のお客様が、貴社お取り扱いの{$label}の内見を希望されております。",
                         '購入予定者と私の日程調整は済ませております。',
                         '',
-                        '下記URLから、候補日時のうち最も早く内見できる日時をお選びいただけませんでしょうか？',
+                        'お手数をおかけしますが、下記URLにある候補日時のうち、最も早く内見可能な日時を売主様とご調整いただいたうえ、ご指定いただけませんでしょうか？',
+                        '',
                         'また、鍵の受け渡し方法についてもご入力いただけますと幸いです。',
                         '',
                         '内見日時のご回答：' . $ctx['url_seller'],

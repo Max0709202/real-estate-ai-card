@@ -3691,7 +3691,18 @@
         var showDetail = (view === 'detail') ||
             (view === 'auto' && v && (v.status === 'buyer_notified' || v.status === 'cancelled' || v.status === 'unavailable'));
         if (showDetail) propViewingRenderDetail(p, data);
+        // 内見メールのリンクから、まだSMS認証していない端末で開いた場合（閲覧トークンのみ）は、
+        // 希望日時を選んでも送信できないため、入力画面を出す前にSMS認証へ進んでもらう。
+        else if (propViewOnly()) propViewingRequireAuth(p);
         else propViewingRenderInput(p, data);
+    }
+
+    /** SMS認証へ案内し、認証が済んだらこの物件の希望日時の入力画面を開き直す。 */
+    function propViewingRequireAuth(p) {
+        deepLinkTab = 'property';
+        deepLinkProperty = { id: p.id, view: 'input' };
+        deepLinkHandled = false;
+        propRequireAuth();
     }
 
     /** 希望日時の入力（初回・再入力・日時変更で共通）。 */
@@ -3716,10 +3727,6 @@
         if (v && v.unavailable_reason === 'no_slot') {
             html += '<div class="vw-box vw-box--warn">売主側より「候補日時では内見不可」のご回答がありました。別の候補日時をお選びください。</div>';
         }
-        if (!data.calendar.connected) {
-            html += '<div class="vw-hint" style="margin-bottom:8px">担当者のカレンダーは未連携のため、既存のご予定は表示されません。</div>';
-        }
-
         html += '<p class="vw-panel__guide">ご希望の日時を' + rules.min_slots + 'つ以上お選びください。内見時間は1枠1時間です。' +
             'ドラッグ（スマートフォンはタップ）で選べます。もう一度押すと解除できます。</p>' +
             '<div class="vcal-picked" id="vw-picked"></div>' +

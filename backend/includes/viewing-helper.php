@@ -664,6 +664,130 @@ if (!function_exists('viewingIsOpen')) {
 }
 
 /* ──────────────────────────────────────────────────────────
+ * 選択不可の日時（定休日・確定済みの内見）
+ * 担当エージェント単位で判定し、すべての物件・お客様のカレンダーに共通で反映する。
+ * 買主には「選択不可」の時間帯だけを返し、他案件の内容は渡さない。
+ * ────────────────────────────────────────────────────────── */
+
+if (!function_exists('viewingAgentSettingsEnsureTable')) {
+    /** 担当エージェントごとの内見設定（定休日）。 */
+    function viewingAgentSettingsEnsureTable(PDO $db): void
+    {
+        static $done = false;
+        if ($done) return;
+        $db->exec("CREATE TABLE IF NOT EXISTS viewing_agent_settings (
+          business_card_id INT NOT NULL PRIMARY KEY,
+          closed_weekdays VARCHAR(32) NOT NULL DEFAULT '',
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $done = true;
+    }
+}
+
+if (!function_exists('viewingAgentClosedWeekdays')) {
+    /** 定休日の曜日（0=日〜6=土）。未設定なら空配列。 */
+    function viewingAgentClosedWeekdays(PDO $db, int $businessCardId): array
+    {
+        if ($businessCardId <= 0) return [];
+        try {
+            viewingAgentSettingsEnsureTable($db);
+            $stmt = $db->prepare("SELECT closed_weekdays FROM viewing_agent_settings WHERE business_card_id = ? LIMIT 1");
+            $stmt->execute([$businessCardId]);
+            return viewingNormalizeWeekdays(explode(',', (string)($stmt->fetchColumn() ?: '')));
+        } catch (Throwable $e) {
+            error_log('viewingAgentClosedWeekdays error: ' . $e->getMessage());
+            return [];
+        }
+    }
+}
+
+if (!function_exists('viewingNormalizeWeekdays')) {
+    /** 曜日の配列を 0〜6 の整数に揃え、重複を除いて昇順にする。 */
+    function viewingNormalizeWeekdays(array $raw): array
+    {
+        $out = [];
+        foreach ($raw as $v) {
+            if (!is_numeric($v)) continue;
+            $n = (int)$v;
+            if ($n >= 0 && $n <= 6) $out[$n] = $n;
+        }
+        ksort($out);
+        return array_values($out);
+    }
+}
+
+if (!function_exists('viewingAgentSaveClosedWeekdays')) {
+    /** 定休日の曜日を保存する。 */
+    function viewingAgentSaveClosedWeekdays(PDO $db, int $businessCardId, array $weekdays): array
+    {
+        viewingAgentSettingsEnsureTable($db);
+        $weekdays = viewingNormalizeWeekdays($weekdays);
+        $db->prepare("INSERT INTO viewing_agent_settings (business_card_id, closed_weekdays) VALUES (?, ?)
+                      ON DUPLICATE KEY UPDATE closed_weekdays = VALUES(closed_weekdays)")
+           ->execute([$businessCardId, implode(',', $weekdays)]);
+        return $weekdays;
+    }
+}
+
+if (!function_exists('viewingClosedDayBlockedStarts')) {
+    /** 定休日にあたる日の全枠の開始時刻。 */
+    function viewingClosedDayBlockedStarts(array $weekdays, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        if (!$weekdays) return [];
+        $out = [];
+        $starts = viewingSlotStartCandidates();
+        for ($d = $from->setTime(0, 0); $d <= $to; $d = $d->modify('+1 day')) {
+            if (!in_array((int)$d->format('w'), $weekdays, true)) continue;
+            foreach ($starts as $hhmm) $out[] = $d->format('Y-m-d') . ' ' . $hhmm . ':00';
+        }
+        return $out;
+    }
+}
+
+if (!function_exists('viewingConfirmedBlockedStarts')) {
+    /**
+     * 同じ担当エージェントの確定済みの内見と時間が重なる枠の開始時刻。
+     * 確定前（調整中）の候補は対象にしない（複数物件の内見依頼は重ねて入力できる）。
+     * $excludeViewingId には表示中の案件を渡し、自分自身の確定枠は除く。
+     */
+    function viewingConfirmedBlockedStarts(PDO $db, int $businessCardId, int $excludeViewingId, DateTimeImmutable $from, DateTimeImmutable $to): array
+    {
+        if ($businessCardId <= 0) return [];
+        try {
+            $stmt = $db->prepare("SELECT confirmed_start_at, confirmed_end_at FROM property_viewings
+                                  WHERE business_card_id = ? AND id <> ?
+                                    AND status IN ('confirmed', 'buyer_notified')
+                                    AND confirmed_start_at IS NOT NULL AND confirmed_end_at IS NOT NULL
+                                    AND confirmed_end_at > ? AND confirmed_start_at < ?");
+            $stmt->execute([
+                $businessCardId, $excludeViewingId,
+                $from->setTime(0, 0)->format('Y-m-d H:i:s'), $to->setTime(23, 59, 59)->format('Y-m-d H:i:s'),
+            ]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            error_log('viewingConfirmedBlockedStarts error: ' . $e->getMessage());
+            return [];
+        }
+
+        $out = [];
+        $starts = viewingSlotStartCandidates();
+        foreach ($rows as $r) {
+            $busyStart = new DateTimeImmutable((string)$r['confirmed_start_at'], viewingTz());
+            $busyEnd = new DateTimeImmutable((string)$r['confirmed_end_at'], viewingTz());
+            for ($d = $busyStart->setTime(0, 0); $d < $busyEnd; $d = $d->modify('+1 day')) {
+                foreach ($starts as $hhmm) {
+                    $s = new DateTimeImmutable($d->format('Y-m-d') . ' ' . $hhmm . ':00', viewingTz());
+                    $e = $s->modify('+' . VIEWING_SLOT_MINUTES . ' minutes');
+                    if ($s < $busyEnd && $e > $busyStart) $out[] = $s->format('Y-m-d H:i:s');
+                }
+            }
+        }
+        return $out;
+    }
+}
+
+/* ──────────────────────────────────────────────────────────
  * 鍵の受け渡しに添える写真・資料
  * 売主仲介会社が回答画面から添付し、担当エージェントが確認する。
  * 買主には公開しない（買主画面に鍵情報・添付資料は表示しない）。
