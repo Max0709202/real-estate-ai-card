@@ -375,6 +375,9 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                     <a href="org-hierarchy.php" class="admin-dropdown-item">
                         <span>組織階層設定</span>
                     </a>
+                    <a href="infobox-settings.php" class="admin-dropdown-item">
+                        <span>情報BOX設定</span>
+                    </a>
                     <a href="email-logs.php" class="admin-dropdown-item">
                         <span>メール送信ログ</span>
                     </a>
