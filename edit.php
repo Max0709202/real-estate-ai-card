@@ -5212,12 +5212,20 @@ function editSectionIcon(string $key): string
                     var focus = params.get('focus') || '';
                     if (!session) return;
                     if (['contact', 'property', 'schedule'].indexOf(focus) === -1) focus = 'contact';
+                    // 内見のメール（?property=<id>&viewing=1）からは、該当物件の「内見日程」タブまで直接開く。
+                    var propertyId = parseInt(params.get('property') || '', 10);
+                    var openViewing = focus === 'property' && propertyId > 0 && params.get('viewing') === '1';
+                    if (openViewing && window.PropertyAgent && window.PropertyAgent.openOnInit) {
+                        window.PropertyAgent.openOnInit(session, propertyId, 'viewing');
+                    }
                     if (navChat) navChat.click();
                     setTimeout(function() {
                         showDetail(session);
                         if (focus === 'schedule') {
                             fetch(apiBase + '/crm/get.php?id=' + encodeURIComponent(session), { credentials: 'include' }).catch(function() {});
                         }
+                        // 内見日程タブは物件の詳細を開いたときにスクロールするため、見出しへのスクロールはしない。
+                        if (openViewing) return;
                         setTimeout(function() {
                             var label = focus === 'property' ? '物件選定' : (focus === 'schedule' ? '日程' : '担当連絡');
                             var heads = detailContent ? detailContent.querySelectorAll('h4') : [];

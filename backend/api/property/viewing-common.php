@@ -13,6 +13,7 @@ require_once __DIR__ . '/../../includes/property-email-helper.php';
 require_once __DIR__ . '/../../includes/viewing-helper.php';
 require_once __DIR__ . '/../../includes/viewing-email-helper.php';
 require_once __DIR__ . '/../../includes/viewing-calendar-helper.php';
+require_once __DIR__ . '/../../includes/viewing-reminder-helper.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 if (!function_exists('viewingApiInput')) {
@@ -80,6 +81,31 @@ if (!function_exists('viewingApiRules')) {
     }
 }
 
+if (!function_exists('viewingApiBlocked')) {
+    /**
+     * 選択不可の開始時刻（当日〜予約可能期間）。
+     *  ・Googleカレンダーの既存予定と前後1時間（連携している場合のみ）
+     *  ・同じ担当者の確定済みの内見と重なる枠（$excludeViewingId の案件自身は除く）
+     *  ・定休日
+     */
+    function viewingApiBlocked(PDO $db, int $cardId, int $excludeViewingId = 0): array
+    {
+        $from = viewingNow()->setTime(0, 0);
+        $to = $from->modify('+' . VIEWING_DAYS_AHEAD . ' days');
+        $blocked = viewingCalendarIsConnected($db, $cardId)
+            ? viewingCalendarBlockedFor($db, $cardId, $from, $to)
+            : [];
+        $blocked = array_merge(
+            $blocked,
+            viewingConfirmedBlockedStarts($db, $cardId, $excludeViewingId, $from, $to),
+            viewingClosedDayBlockedStarts(viewingAgentClosedWeekdays($db, $cardId), $from, $to)
+        );
+        $blocked = array_values(array_unique($blocked));
+        sort($blocked);
+        return $blocked;
+    }
+}
+
 if (!function_exists('viewingApiCasePayload')) {
     /**
      * 画面へ返す案件の内容。role により出し分ける。
@@ -105,14 +131,12 @@ if (!function_exists('viewingApiCasePayload')) {
             'calendar' => ['connected' => false],
         ];
 
-        // 選択不可（担当者の既存予定と前後1時間）。未連携なら空＝カレンダーは表示し候補は選べる。
+        // 選択不可（担当者の既存予定と前後1時間・確定済みの内見・定休日）。
         $cardId = (int)$property['business_card_id'];
         $out['calendar']['connected'] = viewingCalendarIsConnected($db, $cardId);
-        if ($out['calendar']['connected']) {
-            $from = viewingNow()->setTime(0, 0);
-            $to = $from->modify('+' . VIEWING_DAYS_AHEAD . ' days');
-            $out['blocked'] = viewingCalendarBlockedFor($db, $cardId, $from, $to);
-        }
+        $out['blocked'] = viewingApiBlocked($db, $cardId, $case ? (int)$case['id'] : 0);
+        // 定休日の設定はエージェントの画面でのみ扱う。
+        if ($isAgent) $out['settings'] = ['closed_weekdays' => viewingAgentClosedWeekdays($db, $cardId)];
 
         if (!$case) return $out;
 
@@ -142,6 +166,11 @@ if (!function_exists('viewingApiCasePayload')) {
             $v['buyer_attributes'] = (string)($case['buyer_attributes'] ?? '');
             $v['seller_cancel_notified_at'] = $case['seller_cancel_notified_at'];
             $v['events'] = viewingEventSummary($db, (int)$case['id']);
+            // 現在の確定日時に対するリマインドの予約状況（画面に実際の予約内容を表示するため）。
+            $v['reminders'] = array_values(array_filter(
+                viewingReminderList($db, (int)$case['id']),
+                fn($r) => (string)$r['target_start_at'] === (string)$case['confirmed_start_at']
+            ));
             $v['seller'] = [
                 'company'          => (string)($property['seller_company'] ?? ''),
                 'person'           => (string)($property['seller_person'] ?? ''),

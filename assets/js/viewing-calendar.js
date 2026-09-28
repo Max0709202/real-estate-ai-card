@@ -75,7 +75,7 @@
    *   mode        'buyer' | 'agent' | 'readonly'
    *   rules       { hour_start, hour_end, step, slot, days_ahead, min_slots, starts, today, limit_date }
    *   slots       [{ id, start_at, end_at, state }]  サーバーに保存済みの候補
-   *   blocked     ["Y-m-d H:i:s", ...]               担当者の予定と重なり選択不可の開始時刻
+   *   blocked     ["Y-m-d H:i:s", ...]               選択不可の開始時刻（担当者の予定・確定済みの内見・定休日）
    *   selected    ["Y-m-d H:i:s", ...]               初期選択（買主モード）
    *   onChange    function(selectedArray)            選択が変わったとき
    * @return {{ getSelected: function, refresh: function }}
@@ -112,9 +112,8 @@
     var today = parseDate(rules.today) || new Date();
     today.setHours(0, 0, 0, 0);
     var limit = parseDate(rules.limit_date) || new Date(today.getTime() + 30 * 86400000);
-    // 週の先頭（日曜）から表示する。
+    // 本日から7日間を1ページとして表示する（曜日に関係なく本日が先頭）。
     var weekStart = new Date(today.getTime());
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
 
     var root = document.createElement('div');
     root.className = 'vcal';

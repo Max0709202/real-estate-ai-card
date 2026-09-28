@@ -149,3 +149,6 @@
 }
 .vw-hint { font-size: 12px; color: #5b6470; margin-top: 4px; }
 .vw-fail { font-size: 12px; color: #a01526; }
+/* 定休日の設定（エージェントの内見日程タブ） */
+.vw-weekdays { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; }
+.vw-weekdays label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
