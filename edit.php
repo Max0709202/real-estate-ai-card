@@ -528,6 +528,18 @@ if (!$isGuestAccess && !empty($userId) && isset($db)) {
     }
 }
 
+// 情報BOX（取引ごとの書類共有・関係者連絡・取引台帳）。
+// 階層機能と同じく、運営が管理画面で ON にした会社（免許番号）だけにメニューを表示する。
+require_once __DIR__ . '/backend/includes/infobox-helper.php';
+$canUseInfobox = false;
+if (!$isGuestAccess && !empty($userId) && isset($db)) {
+    try {
+        $canUseInfobox = iboxEnabledForUser($db, (int)$userId);
+    } catch (Exception $e) {
+        error_log('edit.php infobox flag error: ' . $e->getMessage());
+    }
+}
+
 // Default greeting messages
 $defaultGreetings = [
     [
@@ -573,6 +585,7 @@ function editSectionIcon(string $key): string
         'org'      => 'network',              // 組織・メンバー顧客
         'ai'       => 'brain-circuit',        // AI育成
         'band'     => 'panel-bottom',         // 自社帯登録
+        'infobox'  => 'folder-lock',          // 情報BOX
     ];
 
     // 同じアイコンを複数回出す場合にファイル読み込みを繰り返さない
@@ -940,6 +953,11 @@ function editSectionIcon(string $key): string
                     <?php if ($canViewTeam): ?>
                     <a href="#org-team" class="nav-item" data-step="org" data-section="org-team-section">
                         <span class="step-label">組織・メンバー顧客</span>
+                    </a>
+                    <?php endif; ?>
+                    <?php if ($canUseInfobox): ?>
+                    <a href="#infobox" class="nav-item" data-step="infobox" data-section="infobox-section">
+                        <span class="step-label">情報BOX</span>
                     </a>
                     <?php endif; ?>
                     <a href="#agent-training" class="nav-item" data-step="agent" data-section="agent-training-section">
@@ -1850,6 +1868,27 @@ function editSectionIcon(string $key): string
                 <?php endif; ?>
 
                 <!-- Agent training -->
+                <?php if ($canUseInfobox): ?>
+                <!-- 情報BOX（運営が ON にした会社のみ） -->
+                <div id="infobox-section" class="edit-section" style="display: none;">
+                    <div class="section-hero section-hero--comm">
+                        <?php echo editSectionIcon('infobox'); ?>
+                        <div class="section-hero-text">
+                            <h2>情報BOX</h2>
+                            <p class="step-description">
+                                お取引ごとに、必要な書類・書類を用意する担当者・閲覧できる人がひと目で分かる共有スペースです。<br>
+                                買主・売主・相手仲介会社・司法書士・土地家屋調査士をご招待し、書類の共有、原本の受渡し管理、チャットでの連絡ができます。<br>
+                                書類は、アップロードした本人が指定した相手だけが閲覧・印刷できます（名刺所有者や管理者も、指定がなければ閲覧できません）。<br>
+                                売買契約書と重要事項説明書を登録すると、<strong>取引台帳</strong>を自動で作成できます。
+                            </p>
+                        </div>
+                    </div>
+                    <div class="section-note" style="margin-top: 1rem;">
+                        <a href="infobox.php" class="btn-primary" style="display: inline-block; text-decoration: none; padding: 0.75rem 1.5rem;">情報BOXを開く</a>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <div id="agent-training-section" class="edit-section" style="display: none;">
                     <div class="section-hero section-hero--ai">
                         <?php echo editSectionIcon('ai'); ?>
