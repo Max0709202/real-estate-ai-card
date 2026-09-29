@@ -112,7 +112,8 @@ define('PRICING_NEW_USER_MONTHLY', 2700); // 税別（税込2,970円）
 define('PRICING_LEGACY_USER_MONTHLY', 500); // 税別（税込550円）
 define('PRICING_MONTHLY_CHANGE_DATE', '2026-09-29 05:00:00'); // 日本時間
 define('PRICING_EXISTING_USER_INITIAL', 20000); // 税別
-define('PRICING_RENEWAL_BANK_ANNUAL', 5000); // 税別（銀行振込・年間更新）
+define('PRICING_RENEWAL_BANK_ANNUAL', 27000); // 税別（銀行振込・年額、税込29,700円）
+define('PRICING_LEGACY_BANK_ANNUAL', 5000); // 税別（税込5,500円）料金改定日より前のアカウント
 define('TAX_RATE', 0.1); // 10%
 
 // QRコード設定

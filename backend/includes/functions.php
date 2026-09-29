@@ -235,45 +235,59 @@ function pricing_amount_inc_tax_yen($amountExTax) {
 }
 
 /**
- * アカウント作成日時から適用する月額料金（税別）を返す。
- * 料金改定日より前に作成されたアカウントは旧月額（PRICING_LEGACY_USER_MONTHLY）を据え置く。
+ * 料金改定日（PRICING_MONTHLY_CHANGE_DATE）より前に作成されたアカウントか。
+ * 該当するアカウントは旧料金（月額・お振込み年額）を据え置く。
  *
- * @param string|null $userCreatedAt users.created_at
+ * @param PDO $db
+ * @param int $userId
  */
-function pricing_monthly_ex_tax_for_created_at($userCreatedAt) {
-    $newAmount = (int) PRICING_NEW_USER_MONTHLY;
-    if (!defined('PRICING_MONTHLY_CHANGE_DATE') || !defined('PRICING_LEGACY_USER_MONTHLY') || empty($userCreatedAt)) {
-        return $newAmount;
+function pricing_user_is_legacy_account($db, $userId) {
+    if (!defined('PRICING_MONTHLY_CHANGE_DATE')) {
+        return false;
     }
-    $createdTs = strtotime((string) $userCreatedAt);
     $changeTs = strtotime(PRICING_MONTHLY_CHANGE_DATE);
-    if ($createdTs === false || $changeTs === false) {
-        return $newAmount;
+    $stmt = $db->prepare("SELECT created_at, NOW() AS db_now FROM users WHERE id = ?");
+    $stmt->execute([(int) $userId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($changeTs === false || !$row || empty($row['created_at'])) {
+        return false;
     }
-    return $createdTs < $changeTs ? (int) PRICING_LEGACY_USER_MONTHLY : $newAmount;
+    $createdTs = strtotime((string) $row['created_at']);
+    if ($createdTs === false) {
+        return false;
+    }
+    // DBのタイムゾーンがPHP（日本時間）と異なる場合に備え、時差を補正してから比較する
+    $dbNowTs = strtotime((string) $row['db_now']);
+    if ($dbNowTs !== false) {
+        $createdTs += (int) (round((time() - $dbNowTs) / 900) * 900); // 15分単位に丸める
+    }
+    return $createdTs < $changeTs;
 }
 
 /**
- * ユーザーIDから適用する月額料金（税別）を返す。
+ * ユーザーに適用する月額料金（税別）。
  *
  * @param PDO $db
  * @param int $userId
  */
 function pricing_monthly_ex_tax_for_user($db, $userId) {
-    $stmt = $db->prepare("SELECT created_at, NOW() AS db_now FROM users WHERE id = ?");
-    $stmt->execute([(int) $userId]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$row || empty($row['created_at'])) {
-        return pricing_monthly_ex_tax_for_created_at(null);
+    if (defined('PRICING_LEGACY_USER_MONTHLY') && pricing_user_is_legacy_account($db, $userId)) {
+        return (int) PRICING_LEGACY_USER_MONTHLY;
     }
-    // DBのタイムゾーンがPHP（日本時間）と異なる場合に備え、時差を補正してから比較する
-    $createdTs = strtotime((string) $row['created_at']);
-    $dbNowTs = strtotime((string) $row['db_now']);
-    if ($createdTs !== false && $dbNowTs !== false) {
-        $offset = (int) (round((time() - $dbNowTs) / 900) * 900); // 15分単位に丸める
-        return pricing_monthly_ex_tax_for_created_at(date('Y-m-d H:i:s', $createdTs + $offset));
+    return (int) PRICING_NEW_USER_MONTHLY;
+}
+
+/**
+ * ユーザーに適用するお振込み年額（税別）。
+ *
+ * @param PDO $db
+ * @param int $userId
+ */
+function pricing_bank_annual_ex_tax_for_user($db, $userId) {
+    if (defined('PRICING_LEGACY_BANK_ANNUAL') && pricing_user_is_legacy_account($db, $userId)) {
+        return (int) PRICING_LEGACY_BANK_ANNUAL;
     }
-    return pricing_monthly_ex_tax_for_created_at($row['created_at']);
+    return (int) PRICING_RENEWAL_BANK_ANNUAL;
 }
 
 /**
@@ -550,7 +564,7 @@ function applyBankRenewalSubscriptionExtensionIfNeeded($db, array $payment, $new
         return;
     }
 
-    $renewalAmount = defined('PRICING_RENEWAL_BANK_ANNUAL') ? (float) PRICING_RENEWAL_BANK_ANNUAL : 5000.0;
+    $renewalAmount = (float) pricing_bank_annual_ex_tax_for_user($db, (int) $payment['user_id']);
     $stmt = $db->prepare("
         UPDATE subscriptions
         SET status = 'active',

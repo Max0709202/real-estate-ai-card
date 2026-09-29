@@ -124,6 +124,7 @@ try {
     $monthlyAmount = 0;
     // 料金改定日より前に作成されたアカウントは旧月額を据え置く（税別）
     $userMonthlyExTax = pricing_monthly_ex_tax_for_user($db, $userId);
+    $userBankAnnualExTax = pricing_bank_annual_ex_tax_for_user($db, $userId);
 
     // 更新手続き（初期費用なし・銀行は年額のみ／カードは初回月額のみ）
     if ($wantsRenewal) {
@@ -139,7 +140,7 @@ try {
         }
         $paymentType = 'renewal';
         if ($paymentMethod === 'bank_transfer') {
-            $amount = (int) (defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000);
+            $amount = $userBankAnnualExTax;
             $monthlyAmount = 0;
         } elseif ($paymentMethod === 'credit_card') {
             $amount = $userMonthlyExTax;
@@ -181,7 +182,7 @@ try {
 
     // 新規ユーザー・銀行振込の初回：初期費用（税別）＋年額（税別）を1回の振込で請求
     if ($paymentType === 'new_user' && $paymentMethod === 'bank_transfer' && !$wantsRenewal) {
-        $annualExTax = (int) (defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000);
+        $annualExTax = $userBankAnnualExTax;
         $amount = (int) PRICING_NEW_USER_INITIAL + $annualExTax;
         $taxAmount = $amount * TAX_RATE;
         $totalAmount = $amount + $taxAmount;

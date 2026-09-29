@@ -74,6 +74,7 @@ $isEraMember = false;
 $isMonthlyBillingUser = false;
 $subscriptionNextBillingDisplay = "―";
 $userMonthlyExTax = (int) PRICING_NEW_USER_MONTHLY; // 料金改定日より前のアカウントは旧月額
+$userBankAnnualExTax = (int) PRICING_RENEWAL_BANK_ANNUAL; // 料金改定日より前のアカウントは旧年額
 
 // Determine user type: from session (logged-in user), URL parameter, or guest access
 if ($isGuestAccess) {
@@ -127,6 +128,7 @@ try {
     $isEraMember = ((int)($userRowForCard['is_era_member'] ?? 0)) === 1;
     $isMonthlyBillingUser = user_has_monthly_billing($userType, $isEraMember);
     $userMonthlyExTax = pricing_monthly_ex_tax_for_user($db, $userId);
+    $userBankAnnualExTax = pricing_bank_annual_ex_tax_for_user($db, $userId);
     $subscriptionNextBillingDisplay = subscription_next_billing_display($subscriptionInfo ?: null, $userType, $isEraMember);
 
     // Calculate end date (period end date)
@@ -1663,13 +1665,13 @@ function editSectionIcon(string $key): string
                             <?php if (($canRenew ?? false) && (($paymentMethod ?? '') === 'bank_transfer')): ?>
                                 <div class="payment-method-detail payment-method-bank">
                                     <p>更新時の初期費用: ¥0（税込）</p>
-                                    <p>年間費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000)); ?>（税込）</p>
+                                    <p>年間費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen($userBankAnnualExTax)); ?>（税込）</p>
                                     <p>お振込みの場合は、1年間の一括払いのみとなります。2か月分お得になります。</p>
                                 </div>
                             <?php elseif ($userType === 'new' || $isCanceledAccount): ?>
                                 <div class="payment-method-detail payment-method-bank">
                                     <p>初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_INITIAL)); ?>（税込）</p>
-                                    <p>年間費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000)); ?>（税込）</p>
+                                    <p>年間費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen($userBankAnnualExTax)); ?>（税込）</p>
                                     <p>お振込みの場合は、1年間の一括払いのみとなります。2か月分お得になります。</p>
                                 </div>
                                 <?php if ($isCanceledAccount): ?>
