@@ -157,6 +157,10 @@
     justify-content: center;
     transition: background 0.18s ease, transform 0.18s ease;
 }
+/* display:inline-flex が UA の [hidden]{display:none} に勝ってしまうため、明示的に隠す。 */
+.chat-widget-icon-btn[hidden] {
+    display: none;
+}
 .chat-widget-icon-btn:hover {
     background: rgba(255, 255, 255, 0.28);
     transform: translateY(-1px);
