@@ -167,6 +167,9 @@
     display: block;
     fill: currentColor;
 }
+.chat-widget-icon-btn[hidden] {
+    display: none;
+}
 .chat-widget-agent-name {
     display: block;
     font-weight: 600;
