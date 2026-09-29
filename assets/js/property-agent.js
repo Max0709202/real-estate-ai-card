@@ -1616,14 +1616,15 @@
         function p(n) { var h = (n & 255).toString(16); return h.length < 2 ? '0' + h : h; }
         return '#' + p(r) + p(g) + p(b);
       }
-      /* 編集画面での塗りつぶしの見え方。下地（図面）が少し透けるよう、どの色も
-         不透明度90%で表示する（.prop-mask-rect の既定と同じ見え方）。
+      /* 編集画面での塗りつぶしの見え方。1か所目のマスク（既定の土台マスク）だけは、
+         自社帯を重ねる位置を合わせやすいよう下地（図面）が少し透ける不透明度90%で表示する。
+         2か所目以降のマスクは隠すだけの用途のため、透けない不透明で表示する。
          顧客用プレビューと実際の出力は、これまでどおり不透明で塗る。 */
       var EDIT_FILL_ALPHA = 0.9;
-      function editorFill(hex) {
+      function editorFill(hex, translucent) {
         var h = normHex(hex) || '#ffffff';
         return 'rgba(' + parseInt(h.substr(1, 2), 16) + ',' + parseInt(h.substr(3, 2), 16) + ',' +
-          parseInt(h.substr(5, 2), 16) + ',' + EDIT_FILL_ALPHA + ')';
+          parseInt(h.substr(5, 2), 16) + ',' + (translucent ? EDIT_FILL_ALPHA : 1) + ')';
       }
 
       /* 画面上のクリック位置から、販売図面のその場所の色を取り出す。
@@ -1746,8 +1747,8 @@
             if (isBand && bandUrl) {
               el.style.backgroundImage = 'url("' + bandUrl + '")';
             } else if (!isBand) {
-              // 塗りつぶす色を編集画面でもそのまま見せる（下地が少し透ける半透明のまま）。
-              el.style.backgroundColor = editorFill(r.c);
+              // 塗りつぶす色を編集画面でもそのまま見せる（1か所目だけ下地が少し透ける）。
+              el.style.backgroundColor = editorFill(r.c, maskNo(i) === 1);
             }
             el.innerHTML = '<button type="button" class="prop-mask-del" aria-label="削除">×</button>' +
               '<span class="prop-mask-tag' + (isBand ? '' : ' prop-mask-tag--mask') + '">' +
@@ -1873,7 +1874,7 @@
           mask.c = hex;
           pickedColor = hex; // 何も選んでいないときの色見本の表示に使う（新しいマスクは白のまま）
           var el = canvas.querySelector('.prop-mask-rect[data-i="' + selectedIndex + '"]');
-          if (el) el.style.backgroundColor = editorFill(hex);
+          if (el) el.style.backgroundColor = editorFill(hex, maskNo(selectedIndex) === 1);
           if (colorInput) colorInput.value = hex;
           return true;
         }
