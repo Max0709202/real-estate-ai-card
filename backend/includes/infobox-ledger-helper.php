@@ -27,6 +27,7 @@ function iboxLedgerFields(): array
         'staff' => ['担当', '台帳管理', true, 'text'],
         'office_name' => ['事務所', '台帳管理', true, 'text'],
         'fiscal_year' => ['事業年度', '台帳管理', true, 'text'],
+        'ledger_no' => ['台帳番号', '台帳管理', true, 'text'],
         'contract_no' => ['契約NO', '台帳管理', false, 'text'],
         'property_no' => ['物件NO', '台帳管理', false, 'text'],
         'contract_date' => ['契約成立日', '取引', true, 'date'],
@@ -96,6 +97,7 @@ function iboxLedgerFields(): array
         'fee_buyer_tax' => ['買主から 消費税（円）', '報酬受領', false, 'money'],
         'fee_buyer_total' => ['買主から 仲介手数料（税込・円）', '報酬受領', false, 'money'],
         'fee_buyer_date' => ['買主から 受領日', '報酬受領', false, 'date'],
+        'fee_total' => ['自社報酬額 合計（税込・円）', '報酬受領', false, 'money'],
 
         'broker_seller_name' => ['売主側仲介 商号・名称', '仲介者', false, 'text'],
         'broker_seller_address' => ['売主側仲介 住所', '仲介者', false, 'text'],
@@ -121,7 +123,39 @@ function iboxLedgerSanitize(array $input): array
         if (mb_strlen($value) > $max) $value = mb_substr($value, 0, $max);
         $out[$key] = $value;
     }
+    // 自社報酬額の合計（買主側＋売主側の仲介手数料・税込）。金額が入っていれば常に計算し直す。
+    $sum = null;
+    foreach (['fee_seller_total', 'fee_buyer_total'] as $key) {
+        $half = mb_convert_kana($out[$key], 'n', 'UTF-8');
+        if (preg_match('/^[\d,\s円]+$/u', $half) && preg_replace('/\D/', '', $half) !== '') $sum = (int)$sum + (int)preg_replace('/\D/', '', $half);
+    }
+    if ($sum !== null) $out['fee_total'] = (string)$sum;
     return $out;
+}
+
+/**
+ * 台帳番号の初期値（事業年度ごとの通し番号。例：2026-003）。
+ * 既にこの BOX の台帳があればその番号を引き継ぐ。
+ */
+function iboxLedgerNextNumber(PDO $db, array $box, string $fiscalYear): string
+{
+    $stmt = $db->prepare('SELECT ledger_no FROM ibox_ledgers WHERE box_id = ? ORDER BY version DESC LIMIT 1');
+    $stmt->execute([(int)$box['id']]);
+    $existing = (string)$stmt->fetchColumn();
+    if ($existing !== '') return $existing;
+    $year = (int)$fiscalYear > 0 ? (int)$fiscalYear : (int)date('Y');
+    $stmt = $db->prepare('SELECT COUNT(DISTINCT box_id) FROM ibox_ledgers WHERE owner_user_id = ? AND fiscal_year = ?');
+    $stmt->execute([(int)$box['owner_user_id'], $year]);
+    return sprintf('%d-%03d', $year, (int)$stmt->fetchColumn() + 1);
+}
+
+/** その事業年度（・事務所）の台帳が閉鎖済みか。閉鎖済みなら閉鎖情報を返す。 */
+function iboxLedgerClosure(PDO $db, int $ownerUserId, int $fiscalYear, string $officeName): ?array
+{
+    if ($fiscalYear <= 0) return null;
+    $stmt = $db->prepare("SELECT * FROM ibox_ledger_closures WHERE owner_user_id = ? AND fiscal_year = ? AND (office_name = '' OR office_name = ?) LIMIT 1");
+    $stmt->execute([$ownerUserId, $fiscalYear, trim($officeName)]);
+    return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 
 /**
@@ -261,7 +295,7 @@ function iboxLedgerExtractionPrompt(): string
 {
     $keys = [];
     foreach (iboxLedgerFields() as $key => $def) {
-        if (in_array($key, ['issue_date', 'staff', 'office_name', 'fiscal_year', 'contract_no', 'property_no'], true)) continue;
+        if (in_array($key, ['issue_date', 'staff', 'office_name', 'fiscal_year', 'ledger_no', 'contract_no', 'property_no'], true)) continue;
         if (strpos($key, 'fee_') === 0) continue;
         $keys[] = '"' . $key . '"(' . $def[0] . ')';
     }
@@ -623,6 +657,7 @@ function iboxLedgerAutoFill(PDO $db, array $box, array $owner): array
         if (trim((string)($data[$key] ?? '')) === '' && trim($value) !== '') $data[$key] = $value;
     }
     if (empty($data['fiscal_year']) && !empty($data['contract_date'])) $data['fiscal_year'] = substr($data['contract_date'], 0, 4);
+    if (empty($data['ledger_no'])) $data['ledger_no'] = iboxLedgerNextNumber($db, $box, (string)($data['fiscal_year'] ?? ''));
     // 区分所有建物は、土地の所在を建物の所在地から補う（敷地の所在は建物と同一のため）
     if (empty($data['land_location']) && !empty($data['bld_location']) && $box['property_type'] === 'mansion') {
         $data['land_location'] = $data['bld_location'];

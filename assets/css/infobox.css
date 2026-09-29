@@ -169,6 +169,11 @@ body.ib-body {
 .ib-modal .ib-page-lead { margin-bottom: 14px; }
 .ib-viewer-frame { width: 100%; height: 70vh; border: 1px solid var(--ib-border); border-radius: 8px; background: #f7f7f7; }
 .ib-viewer-img { max-width: 100%; display: block; margin: 0 auto; border: 1px solid var(--ib-border); }
+.ib-pdf-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; }
+.ib-pdf-toolbar span[data-pageinfo], .ib-pdf-toolbar span[data-zoom] { min-width: 56px; text-align: center; }
+.ib-pdf-sep { width: 12px; }
+.ib-pdf-area { height: 70vh; overflow: auto; background: #e9eef3; border: 1px solid var(--ib-border); border-radius: 8px; padding: 12px; }
+.ib-pdf-area canvas { display: block; margin: 0 auto; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
 
 /* チャット */
 .ib-chat-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -209,4 +214,9 @@ body.ib-body {
 @media print {
   .ib-header, .ib-tabs, .ib-actions, .ib-toast { display: none !important; }
   body.ib-body { background: #fff; }
+  /* モーダルだけを印刷（原本管理票） */
+  body.ib-print-modal > *:not(.is-printing) { display: none !important; }
+  body.ib-print-modal .ib-modal-back.is-printing { position: static; background: none; padding: 0; overflow: visible; }
+  body.ib-print-modal .ib-modal { box-shadow: none; max-width: none; padding: 0; }
+  body.ib-print-modal .is-printing .ib-card { display: none; }
 }

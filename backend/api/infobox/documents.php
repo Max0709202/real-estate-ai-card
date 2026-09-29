@@ -3,7 +3,7 @@
  * 書類の登録・差替え・共有先・名称変更・削除（仕様 第2・3章、画面10〜12・19）。
  *
  * POST multipart {action:'upload', box_id, folder_id, shares:[id...], op_key}
- * POST multipart {action:'replace', box_id, document_id, op_key}
+ * POST multipart {action:'replace', box_id, document_id, op_key}   … op_key が同じ再送は同じ差替えとして扱う
  * POST {action:'shares', box_id, document_id, participant_ids:[]}
  * POST {action:'rename', box_id, document_id, name}
  * POST {action:'delete', box_id, document_id}
@@ -109,6 +109,13 @@ try {
     $doc = iboxRequireMyDocument($db, $box, $me, (int)($input['document_id'] ?? 0));
 
     if ($action === 'replace') {
+        $opKey = iboxApiOpKey($input['op_key'] ?? '');
+        if ($opKey !== null) {
+            // 同じ差替え操作の再送（連打・通信の再試行）は、版を重ねずに結果だけ返す
+            $stmt = $db->prepare('SELECT version FROM ibox_document_versions WHERE document_id = ? AND op_key = ? LIMIT 1');
+            $stmt->execute([(int)$doc['id'], $opKey]);
+            if (($done = $stmt->fetchColumn()) !== false) sendSuccessResponse(['version' => (int)$done], '第' . (int)$done . '版に差し替えました');
+        }
         $file = $_FILES['file'] ?? null;
         $valid = iboxValidateUpload($file);
         // 検証・保存に失敗したら旧版をそのまま維持する
@@ -119,8 +126,8 @@ try {
         $newVersion = (int)$doc['current_version'] + 1;
         try {
             $db->beginTransaction();
-            $db->prepare('INSERT INTO ibox_document_versions (document_id, version, stored_name, preview_name, original_name, ext, mime_type, byte_size, sha256, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                ->execute([(int)$doc['id'], $newVersion, $stored['stored_name'], $stored['preview_name'], $valid['name'], $valid['ext'], $valid['mime'], $valid['size'], $stored['sha256'], (int)$me['id'], iboxNow()]);
+            $db->prepare('INSERT INTO ibox_document_versions (document_id, version, stored_name, preview_name, original_name, ext, mime_type, byte_size, sha256, op_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                ->execute([(int)$doc['id'], $newVersion, $stored['stored_name'], $stored['preview_name'], $valid['name'], $valid['ext'], $valid['mime'], $valid['size'], $stored['sha256'], $opKey, (int)$me['id'], iboxNow()]);
             // 登録者・書類名・共有先は引き継ぎ、版番号だけを更新する（旧版は通常の配信URLから参照できない）
             $stmt = $db->prepare("UPDATE ibox_documents SET current_version = ?, updated_at = ? WHERE id = ? AND current_version = ? AND status = 'active'");
             $stmt->execute([$newVersion, iboxNow(), (int)$doc['id'], (int)$doc['current_version']]);

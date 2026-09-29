@@ -2,7 +2,7 @@
 /**
  * 情報BOX 画面（仕様 画面1〜21）。
  *
- *   infobox.php            … 名刺所有者の情報BOX一覧・新規作成・取引台帳の一覧
+ *   infobox.php            … 名刺所有者の情報BOX一覧・新規作成・取引台帳の一覧、アカウントに紐づいた参加中のBOX
  *   infobox.php?box=<ID>   … 取引の情報BOX（取引概要／取引関係者／書類フォルダー／チャット）
  *
  * 表示内容はすべて API（backend/api/infobox/）から、閲覧者が見られる範囲だけを取得して描画する。
@@ -39,7 +39,7 @@ try {
             header('Location: login.php');
             exit;
         }
-        if (!iboxEnabledForUser($db, $userId)) {
+        if (!iboxEnabledForUser($db, $userId) && !iboxJoinedBoxes($db, $userId)) {
             $error = '情報BOXは現在ご利用いただけません。ご利用をご希望の場合は運営までお問い合わせください。';
         } else {
             $card = iboxOwnerCard($db, $userId);

@@ -207,7 +207,7 @@ function iboxRenderLedgerPdf(array $d, array $meta = []): string
 
     $L = 40.0;
     $W = IboxPdf::PAGE_W - $L * 2;
-    $rowH = 15.0;
+    $rowH = 14.4;
     $labelFill = '#EDF1F5';
     $border = '#B8C4D0';
 
@@ -272,6 +272,7 @@ function iboxRenderLedgerPdf(array $d, array $meta = []): string
     $pdf->text($L + $W * 0.62, 64, '担当：' . $v('staff'), 8.5, 'left', '#334155');
     $metaLine = '事務所：' . ($v('office_name') !== '' ? $v('office_name') : '―')
         . '　事業年度：' . ($v('fiscal_year') !== '' ? $v('fiscal_year') . '年度' : '―')
+        . '　台帳番号：' . ($v('ledger_no') !== '' ? $v('ledger_no') : '―')
         . '　取引ID：' . ($meta['transaction_code'] ?? '―')
         . '　第' . (int)($meta['version'] ?? 1) . '版';
     $pdf->text($L, 80, $metaLine, 7.5, 'left', '#64748B');
@@ -347,6 +348,7 @@ function iboxRenderLedgerPdf(array $d, array $meta = []): string
             [0.22, '受領日 ' . ($received !== '' ? $date($received) : '　　年　　月　　日'), false, 'left'],
         ], 16);
     }
+    $y = $row($y, [[0.63, '自社報酬額 合計（税込）', true, 'right'], [0.37, $yen($v('fee_total')), false, 'right', '円']], 16);
 
     // 06 仲介者
     $y = $section($y + 6, '06', '仲介者');
@@ -363,7 +365,7 @@ function iboxRenderLedgerPdf(array $d, array $meta = []): string
     }
 
     // 07 特記事項（長い場合は次ページへ続ける）
-    if ($y > IboxPdf::PAGE_H - 130) { $pdf->addPage(); $y = 40.0; }
+    if ($y > IboxPdf::PAGE_H - 105) { $pdf->addPage(); $y = 40.0; }
     $y = $section($y + 6, '07', '特記事項');
     $lines = IboxPdf::wrap($v('remarks'), 8, $W - 10);
     $lineH = 11.0;
