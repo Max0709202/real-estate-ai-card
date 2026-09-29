@@ -94,6 +94,13 @@ Spec: `不動産AI名刺_情報BOX開発仕様書2026.9.24.docx`.
   07 (売買契約書) and 09 (重要事項説明書) that the owner can view — AI read first, then fixed
   patterns for the 全宅連 form. Missing either document → error, no ledger. PDF is produced by the
   built-in writer in `infobox-pdf-helper.php` (no library needed).
+- Invited participants who verify while logged in to an AI名刺 account get that account linked to
+  their participant row, so they can reopen the BOX from `infobox.php` later (unlinked on contact
+  change / suspension). The document viewer uses PDF.js from jsDelivr (page nav, zoom, print —
+  no standalone download button); the ledger PDF needs its CMaps, which are loaded from the same CDN.
+- Ledger versions are frozen per save (preview first, then confirm). Closing a fiscal year
+  (`ibox_ledger_closures`) blocks new versions for that year and records a 5-year retention date;
+  nothing is ever auto-deleted.
 - Word/Excel previews need LibreOffice (`soffice`, or `SOFFICE_BIN`) on the server; without it
   such uploads are refused with a "convert to PDF" message. Text extraction uses `pdftotext`
   (falls back to Ghostscript).

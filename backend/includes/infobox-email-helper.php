@@ -61,7 +61,7 @@ function iboxBuildInviteMail(array $box, array $recipient, array $sender, string
         '',
         iboxColorNotice(),
         '',
-        '個別チャットは相手とご本人だけが閲覧できます。全員チャットは関係者全員に公開されます。個人間のご相談は個別チャットをご利用ください。ローン審査結果は投稿しないでください。',
+        '個別チャットは相手とご本人だけが閲覧できます。全員チャットは関係者全員に公開されます（あとから参加された方も、これまでの全員チャットを閲覧できます）。個人間のご相談は個別チャットをご利用ください。ローン審査結果は投稿しないでください。',
         '',
         iboxAccessNotice($box, $recipient),
         'ご不明点は情報BOX内の個別チャットで担当者へご連絡ください。',
@@ -119,8 +119,9 @@ function iboxSendInvite(PDO $db, array $box, array $target, array $sender): arra
     }
 
     // 「送信中」への切り替えに成功した1リクエストだけが送る（連打・並行送信での重複を防ぐ）。
-    $stmt = $db->prepare("UPDATE ibox_participants SET notify_status = 'sending', updated_at = ? WHERE id = ? AND notify_status <> 'sending' AND status = 'active'");
-    $stmt->execute([iboxNow(), (int)$target['id']]);
+    // 送信途中でサーバーが止まり「送信中」のまま残った宛先は、10分経てば再送できるようにする。
+    $stmt = $db->prepare("UPDATE ibox_participants SET notify_status = 'sending', updated_at = ? WHERE id = ? AND status = 'active' AND (notify_status <> 'sending' OR updated_at < ?)");
+    $stmt->execute([iboxNow(), (int)$target['id'], date('Y-m-d H:i:s', time() - 600)]);
     if ($stmt->rowCount() === 0) {
         return ['ok' => false, 'status' => 'sending', 'message' => '送信処理中です。しばらくお待ちください。'];
     }

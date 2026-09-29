@@ -112,6 +112,21 @@
     return close;
   }
 
+  /** 開いているモーダルだけを印刷する（原本管理票など）。 */
+  function printModal(modalEl) {
+    var back = modalEl.parentNode;
+    back.classList.add('is-printing');
+    document.body.classList.add('ib-print-modal');
+    var done = function () {
+      back.classList.remove('is-printing');
+      document.body.classList.remove('ib-print-modal');
+      window.removeEventListener('afterprint', done);
+    };
+    window.addEventListener('afterprint', done);
+    window.print();
+    setTimeout(done, 1000);
+  }
+
   function confirmBox(title, text, okLabel, onOk, danger) {
     modal(title, '', '<p>' + esc(text) + '</p><div class="ib-actions"><button class="ib-btn" data-x>キャンセル</button>'
       + '<button class="ib-btn ' + (danger ? 'ib-btn-danger' : 'ib-btn-primary') + '" data-ok>' + esc(okLabel) + '</button></div>',
@@ -148,85 +163,114 @@
 
   /* ───────── 一覧（名刺所有者） ───────── */
   function renderList() {
-    Promise.all([api('box.php', { action: 'list' }), api('box.php', { action: 'properties' }), api('ledger.php', { action: 'index' })]).then(function (res) {
-      var list = res[0], props = res[1], ledgers = res[2];
+    api('box.php', { action: 'list' }).then(function (list) {
       if (!list.success) { showFatal(list.message); return; }
-      var boxes = list.data.boxes;
-      var properties = props.success ? props.data.properties : [];
-      var html = '<h1 class="ib-page-title">情報BOX</h1><p class="ib-page-lead">お取引ごとに、書類の共有・関係者との連絡・原本の受渡し・取引台帳の作成をまとめて行えます。</p>';
-
-      html += '<div class="ib-card"><h3>新しい情報BOXを作成</h3><div class="ib-form is-2col" id="ib-create">'
-        + field('property_id', '物件詳細から選ぶ', '', { type: 'select', options: [['', '選択しない（手入力）']].concat(properties.map(function (p) { return [p.id, p.property_name + (p.address ? '（' + p.address + '）' : '')]; })), wide: true, note: '物件詳細の情報（物件名・所在地・価格・種別）を取り込みます。元の物件詳細は変更されません。' })
-        + field('property_name', '物件名', '', { required: true })
-        + field('address', '所在地', '')
-        + field('price', '売買価格（円）', '', { placeholder: '未設定の場合は空欄' })
-        + field('property_type', '物件種別', 'mansion', { type: 'select', options: [['mansion', 'マンション'], ['house', '一戸建て']] })
-        + field('owner_side', 'あなたの立場', 'buyer', { type: 'select', options: [['buyer', '買主仲介'], ['seller', '売主仲介']] })
-        + field('contract_planned_date', '契約予定日', '', { type: 'date' })
-        + '<div class="ib-field is-wide"><label class="ib-check"><input type="checkbox" name="dual_agency"> 自社が両手仲介（買主側・売主側の両方を担当）</label></div>'
-        + '</div><div class="ib-actions"><button class="ib-btn ib-btn-primary" id="ib-create-btn">情報BOXを作成</button></div></div>';
-
-      html += '<div class="ib-card"><h3>お取引の情報BOX</h3>';
-      if (!boxes.length) html += '<div class="ib-empty">まだ情報BOXはありません。</div>';
-      else {
-        html += '<div class="ib-table-wrap"><table class="ib-table is-stack"><thead><tr><th>物件</th><th>取引ID</th><th>状態</th><th></th></tr></thead><tbody>';
-        boxes.forEach(function (b) {
-          html += '<tr><td><b>' + esc(b.property_name) + '</b><div class="ib-sub">' + esc(b.address) + '</div></td><td>' + esc(b.transaction_code) + '</td>'
-            + '<td>' + (b.status === 'ended' ? '<span class="ib-badge is-gray">取引終了 ' + esc(fmtDate(b.end_date)) + '</span>' : '<span class="ib-badge is-green">進行中</span>') + '</td>'
-            + '<td style="text-align:right"><a class="ib-btn ib-btn-sm" href="infobox.php?box=' + b.id + '">開く</a></td></tr>';
-        });
-        html += '</tbody></table></div>';
-      }
-      html += '</div>';
-
-      html += '<div class="ib-card"><h3>取引台帳の一覧（所有者専用）</h3><div class="ib-actions is-left" style="margin-top:0">'
-        + '<input type="number" id="ib-ledger-year" class="ib-search" style="width:140px;margin:0" placeholder="事業年度">'
-        + '<input type="text" id="ib-ledger-office" class="ib-search" style="width:220px;margin:0" placeholder="事務所名">'
-        + '<button class="ib-btn" id="ib-ledger-search">検索</button></div><div id="ib-ledger-index" style="margin-top:12px"></div></div>';
-      app.innerHTML = html;
-
-      renderLedgerIndex(ledgers.success ? ledgers.data.ledgers : []);
-      document.getElementById('ib-ledger-search').onclick = function () {
-        api('ledger.php', { action: 'index', year: document.getElementById('ib-ledger-year').value, office: document.getElementById('ib-ledger-office').value })
-          .then(function (r) { renderLedgerIndex(r.success ? r.data.ledgers : []); });
-      };
-
-      var create = document.getElementById('ib-create');
-      var propSelect = create.querySelector('[name=property_id]');
-      propSelect.onchange = function () {
-        var p = properties.filter(function (x) { return String(x.id) === propSelect.value; })[0];
-        if (!p) return;
-        create.querySelector('[name=property_name]').value = p.property_name || '';
-        create.querySelector('[name=address]').value = p.address || '';
-        create.querySelector('[name=price]').value = p.price === null ? '' : p.price;
-        create.querySelector('[name=property_type]').value = p.property_type;
-      };
-      document.getElementById('ib-create-btn').onclick = function () {
-        var btn = this;
-        var v = formValues(create);
-        v.action = 'create';
-        v.dual_agency = v.dual_agency === '1';
-        busy(btn, true);
-        post('box.php', v).then(function (r) {
-          busy(btn, false);
-          if (r.success) { window.location.href = 'infobox.php?box=' + r.data.box_id; return; }
-          if (r.existing_box_id) {
-            confirmBox('情報BOXは作成済みです', r.message + ' 既存の情報BOXを開きますか？', '開く', function () { window.location.href = 'infobox.php?box=' + r.existing_box_id; });
-            return;
-          }
-          toast(r.message, true);
-        });
-      };
+      var canCreate = list.data.can_create;
+      var extra = canCreate ? [api('box.php', { action: 'properties' }), api('ledger.php', { action: 'index' })] : [];
+      return Promise.all(extra).then(function (res) { drawList(list, res[0] || { success: false }, res[1] || { success: false }); });
     });
+  }
+
+  function drawList(list, props, ledgers) {
+    var canCreate = list.data.can_create;
+    var boxes = list.data.boxes;
+    var joined = list.data.joined || [];
+    var properties = props.success ? props.data.properties : [];
+    var html = '<h1 class="ib-page-title">情報BOX</h1><p class="ib-page-lead">お取引ごとに、書類の共有・関係者との連絡・原本の受渡し・取引台帳の作成をまとめて行えます。</p>';
+
+    if (joined.length) {
+      html += '<div class="ib-card"><h3>参加中の情報BOX（ご招待を受けたお取引）</h3><div class="ib-table-wrap"><table class="ib-table is-stack"><thead><tr><th>物件</th><th>あなたの役割</th><th>状態</th><th></th></tr></thead><tbody>'
+        + joined.map(function (b) {
+          return '<tr><td><b>' + esc(b.property_name) + '</b><div class="ib-sub">' + esc(b.address) + '</div></td><td>' + esc(b.role_label) + '</td>'
+            + '<td>' + (b.status === 'ended' ? '<span class="ib-badge is-gray">取引終了</span>' : '<span class="ib-badge is-green">進行中</span>') + '</td>'
+            + '<td style="text-align:right"><a class="ib-btn ib-btn-sm" href="infobox.php?box=' + b.id + '">開く</a></td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+    }
+    if (!canCreate) { app.innerHTML = html; return; }
+
+    html += '<div class="ib-card"><h3>新しい情報BOXを作成</h3><div class="ib-form is-2col" id="ib-create">'
+      + field('property_id', '物件詳細から選ぶ', '', { type: 'select', options: [['', '選択しない（手入力）']].concat(properties.map(function (p) { return [p.id, p.property_name + (p.address ? '（' + p.address + '）' : '')]; })), wide: true, note: '物件詳細の情報（物件名・所在地・価格・種別）を取り込みます。元の物件詳細は変更されません。' })
+      + field('property_name', '物件名', '', { required: true })
+      + field('address', '所在地', '')
+      + field('price', '売買価格（円）', '', { placeholder: '未設定の場合は空欄' })
+      + field('property_type', '物件種別', 'mansion', { type: 'select', options: [['mansion', 'マンション'], ['house', '一戸建て']] })
+      + field('owner_side', 'あなたの立場', 'buyer', { type: 'select', options: [['buyer', '買主仲介'], ['seller', '売主仲介']] })
+      + field('contract_planned_date', '契約予定日', '', { type: 'date' })
+      + '<div class="ib-field is-wide"><label class="ib-check"><input type="checkbox" name="dual_agency"> 自社が両手仲介（買主側・売主側の両方を担当）</label></div>'
+      + '</div><div class="ib-actions"><button class="ib-btn ib-btn-primary" id="ib-create-btn">情報BOXを作成</button></div></div>';
+
+    html += '<div class="ib-card"><h3>お取引の情報BOX</h3>';
+    if (!boxes.length) html += '<div class="ib-empty">まだ情報BOXはありません。</div>';
+    else {
+      html += '<div class="ib-table-wrap"><table class="ib-table is-stack"><thead><tr><th>物件</th><th>取引ID</th><th>状態</th><th></th></tr></thead><tbody>';
+      boxes.forEach(function (b) {
+        html += '<tr><td><b>' + esc(b.property_name) + '</b><div class="ib-sub">' + esc(b.address) + '</div></td><td>' + esc(b.transaction_code) + '</td>'
+          + '<td>' + (b.status === 'ended' ? '<span class="ib-badge is-gray">取引終了 ' + esc(fmtDate(b.end_date)) + '</span>' : '<span class="ib-badge is-green">進行中</span>') + '</td>'
+          + '<td style="text-align:right"><a class="ib-btn ib-btn-sm" href="infobox.php?box=' + b.id + '">開く</a></td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+
+    html += '<div class="ib-card"><h3>取引台帳の一覧（所有者専用）</h3><div class="ib-actions is-left" style="margin-top:0">'
+      + '<input type="number" id="ib-ledger-year" class="ib-search" style="width:140px;margin:0" placeholder="事業年度">'
+      + '<input type="text" id="ib-ledger-office" class="ib-search" style="width:220px;margin:0" placeholder="事務所名">'
+      + '<button class="ib-btn" id="ib-ledger-search">検索</button><button class="ib-btn" id="ib-ledger-close">この事業年度を閉鎖</button></div>'
+      + '<p class="ib-note">取引の都度記録し、事務所ごとに管理します。事業年度末に閉鎖すると、その年度の台帳は新しい版を作れなくなり、閉鎖後5年間以上保存されます（自動では削除しません）。</p>'
+      + '<div id="ib-ledger-index" style="margin-top:12px"></div></div>';
+    app.innerHTML = html;
+
+    renderLedgerIndex(ledgers.success ? ledgers.data.ledgers : []);
+    function searchLedgers() {
+      api('ledger.php', { action: 'index', year: document.getElementById('ib-ledger-year').value, office: document.getElementById('ib-ledger-office').value })
+        .then(function (r) { renderLedgerIndex(r.success ? r.data.ledgers : []); });
+    }
+    document.getElementById('ib-ledger-search').onclick = searchLedgers;
+    document.getElementById('ib-ledger-close').onclick = function () {
+      var year = document.getElementById('ib-ledger-year').value.trim();
+      var office = document.getElementById('ib-ledger-office').value.trim();
+      if (!/^\d{4}$/.test(year)) { toast('閉鎖する事業年度（例：2026）を入力してください。', true); return; }
+      confirmBox('事業年度を閉鎖しますか？', year + '年度' + (office ? '（' + office + '）' : '（全事務所）') + 'の取引台帳を閉鎖します。閉鎖後はこの年度の台帳に新しい版を作成できません。', '閉鎖する', function () {
+        post('ledger.php', { action: 'close_year', fiscal_year: year, office_name: office }).then(function (r) { toast(r.message, !r.success); if (r.success) searchLedgers(); });
+      });
+    };
+
+    var create = document.getElementById('ib-create');
+    var propSelect = create.querySelector('[name=property_id]');
+    propSelect.onchange = function () {
+      var p = properties.filter(function (x) { return String(x.id) === propSelect.value; })[0];
+      if (!p) return;
+      create.querySelector('[name=property_name]').value = p.property_name || '';
+      create.querySelector('[name=address]').value = p.address || '';
+      create.querySelector('[name=price]').value = p.price === null ? '' : p.price;
+      create.querySelector('[name=property_type]').value = p.property_type;
+    };
+    document.getElementById('ib-create-btn').onclick = function () {
+      var btn = this;
+      var v = formValues(create);
+      v.action = 'create';
+      v.dual_agency = v.dual_agency === '1';
+      busy(btn, true);
+      post('box.php', v).then(function (r) {
+        busy(btn, false);
+        if (r.success) { window.location.href = 'infobox.php?box=' + r.data.box_id; return; }
+        if (r.existing_box_id) {
+          confirmBox('情報BOXは作成済みです', r.message + ' 既存の情報BOXを開きますか？', '開く', function () { window.location.href = 'infobox.php?box=' + r.existing_box_id; });
+          return;
+        }
+        toast(r.message, true);
+      });
+    };
   }
 
   function renderLedgerIndex(rows) {
     var el = document.getElementById('ib-ledger-index');
     if (!rows.length) { el.innerHTML = '<div class="ib-empty">作成済みの取引台帳はありません。</div>'; return; }
-    el.innerHTML = '<div class="ib-table-wrap"><table class="ib-table is-stack"><thead><tr><th>事業年度</th><th>事務所</th><th>物件・取引ID</th><th>版・作成日</th><th></th></tr></thead><tbody>'
+    el.innerHTML = '<div class="ib-table-wrap"><table class="ib-table is-stack"><thead><tr><th>事業年度・台帳番号</th><th>事務所</th><th>物件・取引ID</th><th>版・作成日</th><th></th></tr></thead><tbody>'
       + rows.map(function (r) {
-        return '<tr><td>' + esc(r.fiscal_year ? r.fiscal_year + '年度' : '―') + '</td><td>' + esc(r.office_name) + '</td><td>' + esc(r.property_name) + '<div class="ib-sub">' + esc(r.transaction_code) + '</div></td>'
-          + '<td>第' + r.version + '版<div class="ib-sub">' + esc(fmtDate(r.created_at)) + '</div></td>'
+        return '<tr><td>' + esc(r.fiscal_year ? r.fiscal_year + '年度' : '―') + '<div class="ib-sub">' + esc(r.ledger_no) + '</div></td><td>' + esc(r.office_name) + '</td><td>' + esc(r.property_name) + '<div class="ib-sub">' + esc(r.transaction_code) + '</div></td>'
+          + '<td>第' + r.version + '版<div class="ib-sub">' + esc(fmtDate(r.created_at)) + '</div>'
+          + (r.closed_at ? '<div class="ib-sub">閉鎖 ' + esc(fmtDate(r.closed_at)) + '／保存期限 ' + esc(fmtDate(r.retain_until)) + ' 以降</div>' : '') + '</td>'
           + '<td style="text-align:right"><a class="ib-btn ib-btn-sm" target="_blank" rel="noopener" href="' + esc(r.url) + '">閲覧</a> <a class="ib-btn ib-btn-sm" href="infobox.php?box=' + r.box_id + '#ledger">台帳を開く</a></td></tr>';
       }).join('') + '</tbody></table></div>';
   }
@@ -407,7 +451,7 @@
     return html;
   }
 
-  function renderParticipants() {
+  function renderParticipants(notifyId) {
     api('participants.php', { action: 'list', box_id: BOX_ID }).then(function (r) {
       if (!r.success) { if (!r.reason) toast(r.message, true); return; }
       var d = r.data;
@@ -455,6 +499,7 @@
       if (addOther) addOther.onclick = function () { openParticipantForm('other', 'company', 'その他の関係者', null); };
       var notify = document.getElementById('ib-notify');
       if (notify) notify.onclick = function () { openNotify(rows); };
+      if (notifyId) openNotify(rows, notifyId);
     });
   }
 
@@ -474,7 +519,9 @@
       if (p && p.is_owner) imports = '<button class="ib-btn" data-import="card">自分の名刺から取得</button>';
       else if (S.box.property_id) imports = '<button class="ib-btn" data-import="property">物件詳細から取得</button>';
     }
-    content += '<div class="ib-actions">' + imports + '<button class="ib-btn" data-x>キャンセル</button><button class="ib-btn ib-btn-primary" data-save>保存</button></div>';
+    var canNotifyAfter = !(p && p.is_owner) && (!p || p.can_notify);
+    content += '<div class="ib-actions">' + imports + '<button class="ib-btn" data-x>キャンセル</button><button class="ib-btn" data-save>下書き保存</button>'
+      + (canNotifyAfter ? '<button class="ib-btn ib-btn-primary" data-save-notify>保存して関係者に通知</button>' : '') + '</div>';
     modal((p ? '修正：' : '登録：') + label, isPerson ? '個人の氏名・住所・メール・電話を入力します。' : '会社・事務所名、住所、担当者名、メール・電話を入力します。', content, function (m, close) {
       var form = m.querySelector('#ib-p-form');
       m.querySelector('[data-x]').onclick = close;
@@ -490,8 +537,7 @@
           });
         };
       });
-      m.querySelector('[data-save]').onclick = function () {
-        var btn = this;
+      function save(btn, thenNotify) {
         var vals = formValues(form);
         vals.action = 'save';
         vals.box_id = BOX_ID;
@@ -503,14 +549,18 @@
           if (!r.success) { toast(r.message, true); return; }
           close();
           toast(r.message);
-          renderParticipants();
+          // 下書き保存だけではメールを送らない。「関係者に通知」は対象確認画面へ進む。
+          renderParticipants(thenNotify ? (p ? p.id : r.data.created_id) : 0);
         });
-      };
+      }
+      m.querySelector('[data-save]').onclick = function () { save(this, false); };
+      var sn = m.querySelector('[data-save-notify]');
+      if (sn) sn.onclick = function () { save(this, true); };
     });
   }
 
   /* 画面6 関係者への通知対象の確認 */
-  function openNotify(rows) {
+  function openNotify(rows, onlyId) {
     var seen = {};
     var targets = [];
     rows.forEach(function (row) {
@@ -525,7 +575,8 @@
       + '<div class="ib-table-wrap"><table class="ib-table"><thead><tr><th></th><th>氏名・役割</th><th>送信先</th><th>状態</th><th>最終送信日時</th></tr></thead><tbody>'
       + targets.map(function (t) {
         var p = t.p;
-        var checked = p.notify_status === 'unsent' || p.notify_status === 'failed';
+        // 未送信・失敗を初期選択。保存直後に開いた場合は、その方だけを選択する（送信済みの再送は明示選択）。
+        var checked = onlyId ? p.id === onlyId : (p.notify_status === 'unsent' || p.notify_status === 'failed');
         var missing = [];
         if (!p.name) missing.push('氏名');
         if (p.email === undefined || !p.email) missing.push('メール');
@@ -642,7 +693,13 @@
           if (confirmDup) v.confirm_duplicate = 1;
           post('folders.php', v).then(function (res) {
             if (res.duplicate) {
-              confirmBox('同じフォルダーがあります', res.message, '別の用途として追加', function () { save(true); });
+              // 既存を開くか、別用途として追加するかを選ばせる（画面17・5-3）
+              modal('同じフォルダーがあります', '', '<p>' + esc(res.message) + '</p><div class="ib-actions"><button class="ib-btn" data-c>キャンセル</button>'
+                + '<button class="ib-btn" data-open>既存のフォルダーを開く</button><button class="ib-btn ib-btn-primary" data-add>別の用途として追加</button></div>', function (dm, dclose) {
+                dm.querySelector('[data-c]').onclick = dclose;
+                dm.querySelector('[data-open]').onclick = function () { dclose(); close(); go('folder-' + res.existing_folder_id); };
+                dm.querySelector('[data-add]').onclick = function () { dclose(); save(true); };
+              });
               return;
             }
             if (!res.success) { toast(res.message, true); return; }
@@ -684,7 +741,8 @@
       if (f.can_upload && !ro) {
         html += '<div class="ib-card"><h3>書類を追加</h3><div class="ib-drop" id="ib-drop"><p style="margin:0 0 10px">ここにファイルをドラッグ＆ドロップ</p>'
           + '<button class="ib-btn" id="ib-pick">ファイルを選択</button><input type="file" id="ib-file" class="ib-hidden" multiple accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx"></div>'
-          + '<p class="ib-note">PDF・JPEG・PNG・Word・Excel ／ 1ファイル20MBまで</p><p class="ib-note">変更・削除・共有先の指定は、アップロードした本人だけが行えます。</p></div>';
+          + '<p class="ib-note">PDF・JPEG・PNG・Word・Excel ／ 1ファイル20MBまで</p><p class="ib-note">変更・削除・共有先の指定は、アップロードした本人だけが行えます。</p>'
+          + '<p class="ib-note">ローン審査結果は登録しないでください。登記識別情報の秘密部分は共有せず、専門家の指定する方法で受け渡してください。</p></div>';
       }
 
       html += '<div class="ib-card"><h3>原本の受渡し管理</h3><p class="ib-note" style="margin-top:0">電子ファイルと原本は別に管理します。原本票だけではフォルダーは「アップロード済み」になりません。</p>';
@@ -739,6 +797,7 @@
             fd.append('action', 'replace');
             fd.append('box_id', BOX_ID);
             fd.append('document_id', doc.id);
+            fd.append('op_key', opKey());
             fd.append('file', input.files[0]);
             toast('差し替えています…');
             api('documents.php', null, { form: fd }).then(function (res) { toast(res.message, !res.success); if (res.success) renderFolder(folderId); });
@@ -850,31 +909,192 @@
   }
 
   /* 画面13 書類の閲覧と印刷（毎回サーバーで権限を確認して配信） */
+  var PDFJS_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
+  /** PDF.js の読み込み設定。取引台帳PDFは日本語の標準フォント（非埋め込み）を使うため、文字コード表（CMap）も渡す。 */
+  function pdfParams(p) {
+    p.cMapUrl = PDFJS_BASE.replace(/build\/$/, 'cmaps/');
+    p.cMapPacked = true;
+    p.standardFontDataUrl = PDFJS_BASE.replace(/build\/$/, 'standard_fonts/');
+    return p;
+  }
+  var pdfjsPromise = null;
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (pdfjsPromise) return pdfjsPromise;
+    pdfjsPromise = new Promise(function (resolve, reject) {
+      var sc = document.createElement('script');
+      sc.src = PDFJS_BASE + 'pdf.min.js';
+      sc.onload = function () {
+        if (!window.pdfjsLib) { reject(new Error('pdfjs')); return; }
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_BASE + 'pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      };
+      sc.onerror = function () { pdfjsPromise = null; reject(new Error('pdfjs')); };
+      document.head.appendChild(sc);
+    });
+    return pdfjsPromise;
+  }
+
+  /** 画像（dataURL / 同一オリジンURL）を、非表示の枠で印刷する（元ファイルのダウンロードボタンは出さない）。 */
+  function printImages(title, srcs) {
+    var frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    document.body.appendChild(frame);
+    var d = frame.contentWindow.document;
+    d.open();
+    d.write('<html><head><title>' + esc(title) + '</title><style>@page{margin:8mm}body{margin:0}img{display:block;width:100%;page-break-after:always}img:last-child{page-break-after:auto}</style></head><body>'
+      + srcs.map(function (src) { return '<img src="' + esc(src) + '">'; }).join('') + '</body></html>');
+    d.close();
+    var imgs = d.images, left = imgs.length;
+    function go() {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+      setTimeout(function () { if (frame.parentNode) frame.parentNode.removeChild(frame); }, 60000);
+    }
+    if (!left) { go(); return; }
+    Array.prototype.forEach.call(imgs, function (im) {
+      if (im.complete) { if (--left === 0) go(); return; }
+      im.onload = im.onerror = function () { if (--left === 0) go(); };
+    });
+  }
+
+  /**
+   * PDF（URL または Uint8Array）を全ページ縦に並べて描画する（取引台帳のプレビュー・印刷用）。
+   * 表示ライブラリを読めない場合は、ブラウザの表示機能で開く。
+   * @return Promise<canvas[]>
+   */
+  function renderPdfPages(areaEl, source) {
+    areaEl.innerHTML = '<div class="ib-empty">読み込み中…</div>';
+    return loadPdfJs().then(function (lib) {
+      return lib.getDocument(pdfParams(typeof source === 'string' ? { url: source, withCredentials: true } : { data: source })).promise;
+    }).then(function (pdf) {
+      areaEl.innerHTML = '';
+      var canvases = [];
+      var chain = Promise.resolve();
+      var width = areaEl.clientWidth - 44;
+      for (var i = 1; i <= pdf.numPages; i++) {
+        (function (n) {
+          chain = chain.then(function () { return pdf.getPage(n); }).then(function (pg) {
+            var base = pg.getViewport({ scale: 1 });
+            var vp = pg.getViewport({ scale: Math.max(2, (width / base.width) * (window.devicePixelRatio || 1)) });
+            var c = document.createElement('canvas');
+            c.width = vp.width; c.height = vp.height;
+            c.style.width = width + 'px';
+            c.style.marginBottom = '12px';
+            areaEl.appendChild(c);
+            canvases.push(c);
+            return pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+          });
+        })(i);
+      }
+      return chain.then(function () { return canvases; });
+    }, function () {
+      var src = typeof source === 'string' ? source : URL.createObjectURL(new Blob([source], { type: 'application/pdf' }));
+      areaEl.innerHTML = '<iframe class="ib-viewer-frame" src="' + esc(src) + '" title="PDF"></iframe>';
+      return [];
+    });
+  }
+
   function openViewer(doc, printNow) {
     var url = API + 'file.php?kind=doc&box_id=' + BOX_ID + '&id=' + doc.id + '&t=' + Date.now();
     var isImage = (doc.ext === 'JPG' || doc.ext === 'PNG');
-    var inner = isImage ? '<img class="ib-viewer-img" id="ib-viewer-img" src="' + esc(url) + '" alt="">'
-      : '<iframe class="ib-viewer-frame" id="ib-viewer-frame" src="' + esc(url) + '#toolbar=0" title="書類の閲覧"></iframe>';
-    modal(doc.name, '第' + doc.version + '版', inner + '<div class="ib-actions"><button class="ib-btn" data-x>閉じる</button><button class="ib-btn ib-btn-primary" data-print>印刷</button></div>'
+    var toolbar = '<div class="ib-pdf-toolbar">'
+      + (isImage ? '' : '<button class="ib-btn ib-btn-sm" data-prev>前へ</button><span data-pageinfo>－ / －</span><button class="ib-btn ib-btn-sm" data-next>次へ</button><span class="ib-pdf-sep"></span>')
+      + '<button class="ib-btn ib-btn-sm" data-zoomout aria-label="縮小">－</button><span data-zoom>100%</span><button class="ib-btn ib-btn-sm" data-zoomin aria-label="拡大">＋</button></div>';
+    var area = '<div class="ib-pdf-area" data-area>' + (isImage ? '<img class="ib-viewer-img" data-img src="' + esc(url) + '" alt="">' : '<canvas data-canvas></canvas><div class="ib-empty" data-loading>読み込み中…</div>') + '</div>';
+    modal(doc.name, '第' + doc.version + '版', toolbar + area + '<div class="ib-actions"><button class="ib-btn" data-x>閉じる</button><button class="ib-btn ib-btn-primary" data-print>印刷</button></div>'
       + '<p class="ib-note">画面表示・印刷後の複製を完全に防ぐものではありません。取り扱いにご注意ください。</p>', function (m, close) {
       m.querySelector('[data-x]').onclick = close;
-      function doPrint() {
-        if (isImage) {
-          var w = window.open('', '_blank');
-          if (!w) { toast('ポップアップを許可してください。', true); return; }
-          w.document.write('<html><head><title>' + esc(doc.name) + '</title></head><body style="margin:0"><img src="' + esc(url) + '" style="max-width:100%" onload="window.print()"></body></html>');
-          w.document.close();
-        } else {
-          var frame = m.querySelector('#ib-viewer-frame');
-          try { frame.contentWindow.focus(); frame.contentWindow.print(); }
-          catch (e) { window.open(url, '_blank'); }
+      var zoom = 1, pdf = null, page = 1, rendering = false;
+      var zoomLabel = m.querySelector('[data-zoom]');
+
+      if (isImage) {
+        var img = m.querySelector('[data-img]');
+        var applyImg = function () { img.style.width = Math.round(zoom * 100) + '%'; img.style.maxWidth = 'none'; zoomLabel.textContent = Math.round(zoom * 100) + '%'; };
+        m.querySelector('[data-zoomin]').onclick = function () { zoom = Math.min(4, zoom + 0.25); applyImg(); };
+        m.querySelector('[data-zoomout]').onclick = function () { zoom = Math.max(0.25, zoom - 0.25); applyImg(); };
+        applyImg();
+        var printImg = function () { printImages(doc.name, [url]); };
+        m.querySelector('[data-print]').onclick = printImg;
+        if (printNow) img.addEventListener('load', function () { setTimeout(printImg, 300); });
+        return;
+      }
+
+      var canvas = m.querySelector('[data-canvas]');
+      var info = m.querySelector('[data-pageinfo]');
+      function render() {
+        if (!pdf || rendering) return;
+        rendering = true;
+        pdf.getPage(page).then(function (pg) {
+          var ratio = window.devicePixelRatio || 1;
+          var areaW = m.querySelector('[data-area]').clientWidth - 44;
+          var base = pg.getViewport({ scale: 1 });
+          var fit = areaW / base.width;
+          var vp = pg.getViewport({ scale: fit * zoom * ratio });
+          canvas.width = vp.width;
+          canvas.height = vp.height;
+          canvas.style.width = (vp.width / ratio) + 'px';
+          return pg.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+        }).then(function () {
+          rendering = false;
+          info.textContent = page + ' / ' + pdf.numPages;
+          zoomLabel.textContent = Math.round(zoom * 100) + '%';
+        }, function () { rendering = false; });
+      }
+      function fallback() {
+        // 表示ライブラリを読めない環境では、ブラウザの表示機能で開く
+        m.querySelector('[data-area]').innerHTML = '<iframe class="ib-viewer-frame" src="' + esc(url) + '#toolbar=0" title="書類の閲覧"></iframe>';
+        m.querySelector('.ib-pdf-toolbar').style.display = 'none';
+        m.querySelector('[data-print]').onclick = function () {
+          var frame = m.querySelector('iframe');
+          try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) { toast('印刷できませんでした。', true); }
+        };
+      }
+      function printPdf() {
+        if (!pdf) return;
+        var btn = m.querySelector('[data-print]');
+        busy(btn, true);
+        btn.textContent = '印刷の準備中…';
+        var srcs = [];
+        var chain = Promise.resolve();
+        for (var i = 1; i <= pdf.numPages; i++) {
+          (function (n) {
+            chain = chain.then(function () { return pdf.getPage(n); }).then(function (pg) {
+              var vp = pg.getViewport({ scale: 2 });
+              var c = document.createElement('canvas');
+              c.width = vp.width; c.height = vp.height;
+              return pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise.then(function () { srcs.push(c.toDataURL('image/jpeg', 0.92)); });
+            });
+          })(i);
         }
+        chain.then(function () {
+          busy(btn, false);
+          btn.textContent = '印刷';
+          printImages(doc.name, srcs);
+        }, function () { busy(btn, false); btn.textContent = '印刷'; toast('印刷の準備に失敗しました。', true); });
       }
-      m.querySelector('[data-print]').onclick = doPrint;
-      if (printNow) {
-        var target = m.querySelector('#ib-viewer-frame') || m.querySelector('#ib-viewer-img');
-        target.addEventListener('load', function () { setTimeout(doPrint, 400); });
-      }
+      m.querySelector('[data-prev]').onclick = function () { if (pdf && page > 1) { page--; render(); } };
+      m.querySelector('[data-next]').onclick = function () { if (pdf && page < pdf.numPages) { page++; render(); } };
+      m.querySelector('[data-zoomin]').onclick = function () { zoom = Math.min(4, zoom + 0.25); render(); };
+      m.querySelector('[data-zoomout]').onclick = function () { zoom = Math.max(0.25, zoom - 0.25); render(); };
+      m.querySelector('[data-print]').onclick = printPdf;
+
+      loadPdfJs().then(function (lib) {
+        // 毎回サーバーで参加資格と共有先を確認して配信される（共有解除・期限切れ後は取得できない）
+        return lib.getDocument(pdfParams({ url: url, withCredentials: true })).promise;
+      }).then(function (loaded) {
+        pdf = loaded;
+        var ld = m.querySelector('[data-loading]');
+        if (ld) ld.parentNode.removeChild(ld);
+        render();
+        if (printNow) printPdf();
+      }, function (err) {
+        if (err && err.name === 'MissingPDFException' || (err && /404|403|Unexpected server response/.test(String(err.message)))) {
+          m.querySelector('[data-area]').innerHTML = '<div class="ib-error">この書類は表示できません（共有が解除されたか、削除・期限切れの可能性があります）。</div>';
+          return;
+        }
+        fallback();
+      });
     }, true);
   }
 
@@ -912,6 +1132,8 @@
     var content = '<div class="ib-field"><label>対象フォルダー</label><input type="text" readonly value="' + esc(f.name) + '"></div>'
       + (f.unneeded_state === 'requested' ? '<div class="ib-warn">申告内容：' + esc(f.unneeded_reason) + '</div>' : '')
       + '<div class="ib-form">' + field('reason', '理由', f.unneeded_reason || '', { type: 'textarea', required: true, placeholder: '例：原本のみで受け渡すため電子ファイル不要／該当する書類が存在しない など' }) + '</div>'
+      + '<div class="ib-actions is-left" style="margin-top:6px"><button class="ib-btn ib-btn-sm" data-preset="電子ファイル不要（原本のみで受け渡すため）">電子ファイル不要（原本のみ）</button>'
+      + '<button class="ib-btn ib-btn-sm" data-preset="該当する書類が存在しないため">書類が存在しない</button></div>'
       + (canManage ? '<p><label class="ib-check"><input type="checkbox" id="ib-un-confirm"> 内容を確認し、不要・書類なしとして確定します</label></p>' : '')
       + '<p class="ib-note">確定しても、あなたが閲覧できる書類が登録・共有されると表示は「アップロード済み」に戻ります。原本だけを扱う場合は「電子ファイル不要」と記録してください。</p>'
       + '<div class="ib-actions"><button class="ib-btn" data-x>キャンセル</button>'
@@ -919,6 +1141,7 @@
       + (canManage ? '<button class="ib-btn ib-btn-primary" data-confirm>確定する</button>' : '<button class="ib-btn ib-btn-primary" data-request>申告する</button>') + '</div>';
     modal('不要または書類なしの確認', canManage ? '確定できるのは、初期フォルダーは名刺所有者、追加フォルダーは作成者です。' : '担当者は不要・書類なしを申告できます。確定は名刺所有者が行います。', content, function (m, close) {
       m.querySelector('[data-x]').onclick = close;
+      m.querySelectorAll('[data-preset]').forEach(function (b) { b.onclick = function () { m.querySelector('[name=reason]').value = b.getAttribute('data-preset'); }; });
       function send(op) {
         post('folders.php', { action: 'unneeded', op: op, box_id: BOX_ID, folder_id: folderId, reason: m.querySelector('[name=reason]').value, confirmed: (m.querySelector('#ib-un-confirm') || {}).checked ? 1 : 0 })
           .then(function (res) { toast(res.message, !res.success); if (res.success) { close(); renderFolder(folderId); } });
@@ -986,7 +1209,7 @@
 
       modal('原本の受渡し管理', (detail.folder.template_id ? detail.folder.template_id + ' ' : '') + detail.folder.name, content, function (m, close) {
         m.querySelector('[data-x]').onclick = close;
-        m.querySelector('[data-printo]').onclick = function () { window.print(); };
+        m.querySelector('[data-printo]').onclick = function () { printModal(m); };
         var b;
         if ((b = m.querySelector('[data-save]'))) b.onclick = function () {
           var vals = formValues(m.querySelector('#ib-orig-form'));
@@ -1357,10 +1580,14 @@
         if (!d.has_sources.explanation) lack.push('重要事項説明書');
         html += '<div class="ib-error">' + esc(lack.join('と')) + 'が情報BOXに登録されていないため、取引台帳は作れません。書類フォルダーの「07 売買契約書」「09 重要事項説明書」に登録（または名刺所有者への共有）をしてください。</div>';
       }
+      var closeForm = d.draft && !Object.keys(missing).length;
       html += '<div class="ib-card"><h3>' + esc(b.property_name) + '</h3>'
-        + '<div class="ib-actions is-left" style="margin-top:0"><button class="ib-btn" id="ib-autofill"' + (d.has_sources.contract && d.has_sources.explanation ? '' : ' disabled') + '>契約書・重要事項説明書から自動取得</button>'
+        + '<div class="ib-grid-2" id="ib-ledger-summary"></div>'
+        + '<p style="margin:14px 0 6px">売主・買主／住所／物件表示／他の宅建業者／特約事項</p>'
+        + '<div class="ib-actions is-left" style="margin-top:0"><button class="ib-btn" id="ib-ledger-toggle">' + (closeForm ? '台帳の入力内容を確認' : '入力内容を閉じる') + '</button>'
+        + '<button class="ib-btn" id="ib-autofill"' + (d.has_sources.contract && d.has_sources.explanation ? '' : ' disabled') + '>契約書・重要事項説明書から自動取得</button>'
         + (d.draft ? '<span class="ib-note">下書き保存：' + esc(fmtDate(d.draft_updated_at, true)) + '</span>' : '') + '</div>'
-        + '<div id="ib-ledger-msg"></div><div id="ib-ledger-form">';
+        + '<div id="ib-ledger-msg"></div><div id="ib-ledger-form"' + (closeForm ? ' class="ib-hidden"' : '') + '>';
       groups.forEach(function (g) {
         html += '<div class="ib-ledger-group"><h4>' + esc(g) + '</h4><div class="ib-form is-2col">';
         d.fields.filter(function (f) { return f.group === g; }).forEach(function (f) {
@@ -1373,6 +1600,8 @@
               type: f.type === 'date' ? 'date' : (f.type === 'textarea' ? 'textarea' : 'text'),
               wide: f.type === 'textarea' || /address|location|remarks/.test(f.key),
               required: f.required || isMissing, missing: isMissing,
+              readonly: f.key === 'fee_total',
+              note: f.key === 'fee_total' ? '買主側・売主側の仲介手数料（税込）から自動で計算します。' : (f.key === 'price_total' ? '契約書の売買代金を記載します（契約予定価格ではありません）。' : ''),
               placeholder: f.type === 'money' ? '数字のみ（該当しない場合は「該当なし」）' : (f.required ? '該当しない場合は「該当なし」' : '')
             });
           }
@@ -1382,7 +1611,7 @@
       html += '</div>';
       if (d.versions.length) html += '<div class="ib-form" style="margin-top:14px">' + field('reason', '訂正の理由（新しい版として保存し、旧版も残します）', '', { type: 'textarea', required: true }) + '</div>';
       html += '<div class="ib-actions"><button class="ib-btn" id="ib-ledger-draft">下書き保存</button><button class="ib-btn ib-btn-primary" id="ib-ledger-pdf"'
-        + (d.has_sources.contract && d.has_sources.explanation ? '' : ' disabled') + '>PDFを作成して保存</button></div></div>';
+        + (d.has_sources.contract && d.has_sources.explanation ? '' : ' disabled') + '>PDFを作成して保存（プレビュー）</button></div></div>';
 
       html += '<div class="ib-card"><h3>本取引履歴　所有者専用</h3><table class="ib-table is-stack"><thead><tr><th>保存ファイル</th><th>作成日</th><th>操作</th></tr></thead><tbody>'
         + (d.versions.length ? d.versions.map(function (v) {
@@ -1403,6 +1632,25 @@
       }
       showMissing(missing);
 
+      // 上部の要約（契約日・取引終了日・売買金額・自社報酬額）と、自社報酬額の合計の自動計算
+      function num(v) { var h = String(v || '').replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }); return /^[\d,\s円]+$/.test(h) && /\d/.test(h) ? parseInt(h.replace(/\D/g, ''), 10) : null; }
+      function refreshSummary() {
+        var v = collect();
+        var a = num(v.fee_seller_total), c = num(v.fee_buyer_total);
+        if (a !== null || c !== null) { v.fee_total = String((a || 0) + (c || 0)); formEl.querySelector('[name=fee_total]').value = v.fee_total; }
+        var item = function (label, value) { return '<div class="ib-field"><label>' + esc(label) + '</label><input type="text" readonly value="' + esc(value) + '"></div>'; };
+        document.getElementById('ib-ledger-summary').innerHTML = item('契約日', v.contract_date ? jpDate(v.contract_date) : '未入力')
+          + item('取引終了日', b.end_date ? jpDate(b.end_date) : '未確定')
+          + item('売買金額（円）', num(v.price_total) !== null ? num(v.price_total).toLocaleString('ja-JP') : (v.price_total || '未入力'))
+          + item('自社報酬額（税込・円）', num(v.fee_total) !== null ? num(v.fee_total).toLocaleString('ja-JP') : (v.fee_total || '未入力'));
+      }
+      formEl.addEventListener('input', refreshSummary);
+      refreshSummary();
+      document.getElementById('ib-ledger-toggle').onclick = function () {
+        var hidden = formEl.classList.toggle('ib-hidden');
+        this.textContent = hidden ? '台帳の入力内容を確認' : '入力内容を閉じる';
+      };
+
       document.getElementById('ib-autofill').onclick = function () {
         var btn = this;
         var run = function (overwrite) {
@@ -1418,6 +1666,8 @@
               if (i.type === 'checkbox') i.checked = !!res.data.data[k]; else i.value = res.data.data[k];
             });
             showMissing(res.data.missing);
+            refreshSummary();
+            formEl.classList.remove('ib-hidden');
             msgEl.insertAdjacentHTML('afterbegin', '<div class="ib-notice">' + esc(res.message) + '<br><span class="ib-note">取得元：' + esc(res.data.sources.join('、')) + '</span>'
               + (res.data.notes.length ? '<br>' + esc(res.data.notes.join(' ')) : '') + '</div>');
           });
@@ -1435,30 +1685,58 @@
         });
       };
       var genKey = opKey();
+      function ledgerFailed(res) {
+        if (res.missing) { showMissing(res.missing); formEl.classList.remove('ib-hidden'); }
+        else msgEl.innerHTML = '<div class="ib-error">' + esc(res.message) + '</div>';
+        toast(res.message, true);
+      }
+      // プレビューを確認してから確定保存する（仕様 第4章）
       document.getElementById('ib-ledger-pdf').onclick = function () {
         var btn = this;
         var reasonEl = app.querySelector('[name=reason]');
+        if (reasonEl && !reasonEl.value.trim()) { toast('訂正の理由を入力してください。', true); reasonEl.focus(); return; }
+        var data = collect();
         busy(btn, true);
-        post('ledger.php', { action: 'generate', box_id: BOX_ID, data: collect(), reason: reasonEl ? reasonEl.value : '', op_key: genKey }).then(function (res) {
+        post('ledger.php', { action: 'preview', box_id: BOX_ID, data: data }).then(function (res) {
           busy(btn, false);
-          if (!res.success) {
-            if (res.missing) showMissing(res.missing);
-            else msgEl.innerHTML = '<div class="ib-error">' + esc(res.message) + '</div>';
-            toast(res.message, true);
-            return;
-          }
-          toast(res.message);
-          renderLedger();
+          if (!res.success) { ledgerFailed(res); return; }
+          var bin = atob(res.data.pdf_base64), bytes = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          modal('取引台帳のプレビュー', '内容を確認し、問題なければ確定保存してください。確定すると新しい版として保存され、変更できません（訂正は次の版になります）。',
+            '<div class="ib-pdf-area" data-area></div>'
+            + '<div class="ib-actions"><button class="ib-btn" data-x>修正に戻る</button><button class="ib-btn ib-btn-primary" data-ok>この内容で確定保存</button></div>', function (m, close) {
+              renderPdfPages(m.querySelector('[data-area]'), bytes);
+              var shut = close;
+              m.querySelector('[data-x]').onclick = shut;
+              m.querySelector('[data-ok]').onclick = function () {
+                var ok = this;
+                busy(ok, true);
+                post('ledger.php', { action: 'generate', box_id: BOX_ID, data: data, reason: reasonEl ? reasonEl.value : '', op_key: genKey }).then(function (r2) {
+                  busy(ok, false);
+                  if (!r2.success) { shut(); ledgerFailed(r2); return; }
+                  shut();
+                  toast(r2.message);
+                  renderLedger();
+                });
+              };
+            }, true);
         });
       };
       app.querySelectorAll('[data-lprint]').forEach(function (b) {
         b.onclick = function () {
           var url = b.getAttribute('data-lprint');
-          modal('取引台帳', '', '<iframe class="ib-viewer-frame" src="' + esc(url) + '"></iframe><div class="ib-actions"><button class="ib-btn" data-x>閉じる</button><button class="ib-btn ib-btn-primary" data-p>印刷</button></div>', function (m, close) {
-            var frame = m.querySelector('iframe');
+          modal('取引台帳', '', '<div class="ib-pdf-area" data-area></div><div class="ib-actions"><button class="ib-btn" data-x>閉じる</button><button class="ib-btn ib-btn-primary" data-p>印刷</button></div>', function (m, close) {
+            var pages = renderPdfPages(m.querySelector('[data-area]'), url);
+            var doPrint = function () {
+              pages.then(function (canvases) {
+                if (canvases.length) { printImages('取引台帳', canvases.map(function (c) { return c.toDataURL('image/jpeg', 0.92); })); return; }
+                var frame = m.querySelector('iframe');
+                try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) { window.open(url, '_blank'); }
+              });
+            };
             m.querySelector('[data-x]').onclick = close;
-            m.querySelector('[data-p]').onclick = function () { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e) { window.open(url, '_blank'); } };
-            frame.addEventListener('load', function () { setTimeout(function () { try { frame.contentWindow.print(); } catch (e) { /* 手動で印刷 */ } }, 400); });
+            m.querySelector('[data-p]').onclick = doPrint;
+            doPrint();
           }, true);
         };
       });

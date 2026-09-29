@@ -155,9 +155,11 @@ function iboxEnsureTables(PDO $db): void
         mime_type VARCHAR(127) NOT NULL,
         byte_size INT NOT NULL DEFAULT 0,
         sha256 CHAR(64) NULL DEFAULT NULL,
+        op_key VARCHAR(64) NULL DEFAULT NULL,
         created_by INT NOT NULL,
         created_at DATETIME NOT NULL,
-        UNIQUE KEY uk_ibox_document_versions (document_id, version)
+        UNIQUE KEY uk_ibox_document_versions (document_id, version),
+        UNIQUE KEY uk_ibox_document_versions_op (document_id, op_key)
     ) $opts");
 
     $db->exec("CREATE TABLE IF NOT EXISTS ibox_document_shares (
@@ -263,6 +265,17 @@ function iboxEnsureTables(PDO $db): void
         UNIQUE KEY uk_ibox_ledgers_version (box_id, version),
         UNIQUE KEY uk_ibox_ledgers_op (box_id, op_key),
         INDEX idx_ibox_ledgers_owner (owner_user_id, fiscal_year)
+    ) $opts");
+
+    // 事業年度末の台帳閉鎖（office_name が空なら全事務所）。閉鎖後も削除せず retain_until まで以上保持する。
+    $db->exec("CREATE TABLE IF NOT EXISTS ibox_ledger_closures (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        owner_user_id INT NOT NULL,
+        fiscal_year INT NOT NULL,
+        office_name VARCHAR(255) NOT NULL DEFAULT '',
+        closed_at DATETIME NOT NULL,
+        retain_until DATE NOT NULL,
+        UNIQUE KEY uk_ibox_ledger_closures (owner_user_id, fiscal_year, office_name)
     ) $opts");
 
     $db->exec("CREATE TABLE IF NOT EXISTS ibox_audit_logs (
@@ -781,6 +794,13 @@ function iboxResolveViewer(PDO $db, int $boxId): array
                 iboxSessionLogout($boxId);
             }
         }
+    }
+    if (!$p && $userId > 0) {
+        // 招待URLで本人確認したときにログイン中だった既存アカウントは、同じ関係者IDに紐づけてある。
+        // 継続閲覧者などは、以後この既存アカウントから再ログインして開ける（連絡先変更・参加停止で紐づけは外れる）。
+        $stmt = $db->prepare('SELECT * FROM ibox_participants WHERE box_id = ? AND user_id = ? AND is_owner = 0 ORDER BY id DESC LIMIT 1');
+        $stmt->execute([$boxId, $userId]);
+        $p = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
     if (!$p) return ['error' => 'この情報BOXを開く権限がありません。ご案内メールのURLからアクセスしてください。', 'code' => 401, 'reason' => 'unauthenticated'];
 
@@ -1403,10 +1423,53 @@ function iboxLookupInvite(PDO $db, string $rawToken): ?array
     return ['invite' => $invite, 'p' => $p, 'box' => $box, 'state' => $state];
 }
 
+/**
+ * 本人確認に成功した関係者を、ログイン中の既存アカウント（不動産AI名刺の users）に紐づける。
+ * 既に別アカウントに紐づいている場合や、この BOX の所有者自身の場合は何もしない。
+ */
+function iboxLinkParticipantAccount(PDO $db, array $p, array $box, int $userId): bool
+{
+    if ($userId <= 0 || $userId === (int)$box['owner_user_id'] || (int)$p['is_owner'] === 1) return false;
+    if (!empty($p['user_id']) && (int)$p['user_id'] !== $userId) return false;
+    $stmt = $db->prepare('UPDATE ibox_participants SET user_id = ? WHERE id = ? AND (user_id IS NULL OR user_id = ?)');
+    $stmt->execute([$userId, (int)$p['id'], $userId]);
+    return true;
+}
+
+/** アカウントに紐づいた、参加中（利用期限内）の他社の情報BOX。 */
+function iboxJoinedBoxes(PDO $db, int $userId): array
+{
+    if ($userId <= 0) return [];
+    $stmt = $db->prepare("SELECT p.*, b.id AS b_id FROM ibox_participants p JOIN ibox_boxes b ON b.id = p.box_id WHERE p.user_id = ? AND p.is_owner = 0 AND p.status = 'active' ORDER BY b.updated_at DESC");
+    $stmt->execute([$userId]);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $box = iboxLoadBox($db, (int)$p['box_id']);
+        if (!$box || !iboxEnabledForUser($db, (int)$box['owner_user_id']) || !iboxAccessState($box, $p)['ok']) continue;
+        $out[] = ['box' => $box, 'p' => $p];
+    }
+    return $out;
+}
+
+/** 画面8で表示する問い合わせ先（その方を登録・案内した担当者。無ければ名刺所有者）。 */
+function iboxInviterContact(PDO $db, array $p): string
+{
+    $inviter = !empty($p['registered_by']) ? iboxLoadParticipant($db, (int)$p['registered_by']) : null;
+    if (!$inviter) {
+        $stmt = $db->prepare('SELECT * FROM ibox_participants WHERE box_id = ? AND is_owner = 1 LIMIT 1');
+        $stmt->execute([(int)$p['box_id']]);
+        $inviter = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    if (!$inviter) return '';
+    return trim(trim((string)$inviter['company_name']) . ' ' . iboxParticipantName($inviter)
+        . (trim((string)$inviter['phone']) !== '' ? '（電話：' . trim((string)$inviter['phone']) . '）' : ''));
+}
+
 /** 連絡先の変更・参加停止のたびに呼ぶ。旧URL・既存セッションをまとめて失効させる。 */
 function iboxBumpAuthVersion(PDO $db, int $participantId): void
 {
-    $db->prepare('UPDATE ibox_participants SET auth_version = auth_version + 1, updated_at = ? WHERE id = ?')->execute([iboxNow(), $participantId]);
+    // 既存アカウントとの紐づけも外す（新しい連絡先で本人確認し直すまで入れない）
+    $db->prepare('UPDATE ibox_participants SET auth_version = auth_version + 1, user_id = NULL, updated_at = ? WHERE id = ? AND is_owner = 0')->execute([iboxNow(), $participantId]);
     $db->prepare('UPDATE ibox_invites SET revoked_at = ? WHERE participant_id = ? AND revoked_at IS NULL')->execute([iboxNow(), $participantId]);
 }
 

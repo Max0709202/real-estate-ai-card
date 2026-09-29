@@ -534,7 +534,8 @@ require_once __DIR__ . '/backend/includes/infobox-helper.php';
 $canUseInfobox = false;
 if (!$isGuestAccess && !empty($userId) && isset($db)) {
     try {
-        $canUseInfobox = iboxEnabledForUser($db, (int)$userId);
+        // 他社の情報BOXに招待され、アカウントを紐づけた方にも入口を出す（参加中のBOXだけが開ける）
+        $canUseInfobox = iboxEnabledForUser($db, (int)$userId) || (bool)iboxJoinedBoxes($db, (int)$userId);
     } catch (Exception $e) {
         error_log('edit.php infobox flag error: ' . $e->getMessage());
     }

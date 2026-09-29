@@ -9,6 +9,8 @@
  * ・認証前は物件・参加者・フォルダーを一切返さない。
  * ・電話番号は空白・ハイフン等を除いて照合する。
  * ・連続5回失敗で15分間ロックする。
+ * ・期限切れ・失敗は、理由と問い合わせ先（案内した担当者）を返す。
+ * ・不動産AI名刺にログイン中なら、そのアカウントを同じ関係者IDへ紐づける（以後アカウントから再ログインできる）。
  */
 require_once __DIR__ . '/_common.php';
 require_once __DIR__ . '/../../includes/infobox-email-helper.php';
@@ -56,36 +58,43 @@ try {
     $box = $ref['box'];
     $email = trim((string)($input['email'] ?? ''));
     $phone = trim((string)($input['phone'] ?? ''));
+    // 期限切れ・失敗は、理由と問い合わせ先（案内した担当者）を表示する（画面8）
+    $contact = iboxInviterContact($db, $p);
+    $fail = function (int $code, string $reason, string $message) use ($contact) {
+        sendJsonResponse(['success' => false, 'reason' => $reason, 'message' => $message, 'contact' => $contact], $code);
+    };
 
     if ($ref['state'] === 'revoked' || $p['status'] !== 'active') {
-        sendJsonResponse(['success' => false, 'reason' => 'revoked', 'message' => 'このURLは無効になりました（ご登録内容の変更、または参加停止のため）。ご案内担当者へお問い合わせください。'], 403);
+        $fail(403, 'revoked', 'このURLは無効になりました（ご登録内容の変更、または参加停止のため）。ご案内担当者へお問い合わせください。');
     }
     if (!iboxEnabledForUser($db, (int)$box['owner_user_id'])) {
-        sendErrorResponse('情報BOXは現在ご利用いただけません。ご案内担当者へお問い合わせください。', 403);
+        $fail(403, 'disabled', '情報BOXは現在ご利用いただけません。ご案内担当者へお問い合わせください。');
     }
 
     $error = iboxAccessCheckCredentials($db, $p, $email, $phone);
-    if ($error !== null) sendJsonResponse(['success' => false, 'reason' => 'mismatch', 'message' => $error], 401);
+    if ($error !== null) $fail(401, 'mismatch', $error);
 
     if ($action === 'reissue') {
         $ok = iboxSendReissue($db, $box, $p);
         iboxAudit($db, (int)$box['id'], (int)$p['id'], 'invite_reissue', 'participant', (int)$p['id'], ['sent' => $ok]);
-        if (!$ok) sendErrorResponse('メールを送信できませんでした。時間をおいて再度お試しいただくか、ご案内担当者へお問い合わせください。', 500);
+        if (!$ok) $fail(500, 'mail_failed', 'メールを送信できませんでした。時間をおいて再度お試しいただくか、ご案内担当者へお問い合わせください。');
         sendSuccessResponse([], 'ご登録のメールアドレスへ、新しいURLを送信しました。');
     }
 
     if ($action !== 'verify') sendErrorResponse('不明な操作です', 400);
     if ($ref['state'] === 'expired') {
-        sendJsonResponse(['success' => false, 'reason' => 'expired', 'message' => 'このURLの有効期限（' . IBOX_INVITE_DAYS . '日間）が切れています。「新しいURLを受け取る」から再発行できます。'], 403);
+        $fail(403, 'expired', 'このURLの有効期限（' . IBOX_INVITE_DAYS . '日間）が切れています。「新しいURLを受け取る」から再発行できます。');
     }
     $access = iboxAccessState($box, $p);
     if (!$access['ok']) {
-        sendJsonResponse(['success' => false, 'reason' => $access['reason'], 'message' => 'この情報BOXの利用期限を過ぎました。ご不明点はご案内担当者へお問い合わせください。'], 403);
+        $fail(403, (string)$access['reason'], 'この情報BOXの利用期限を過ぎました。ご不明点はご案内担当者へお問い合わせください。');
     }
 
+    // ログイン中の既存アカウントがあれば同じ関係者IDへ紐づける（以後はアカウントから開ける）
+    $linked = iboxLinkParticipantAccount($db, $p, $box, (int)($_SESSION['user_id'] ?? 0));
     iboxSessionLogin($p);
-    iboxAudit($db, (int)$box['id'], (int)$p['id'], 'auth_success', 'participant', (int)$p['id']);
-    sendSuccessResponse(['box_id' => (int)$box['id'], 'redirect' => 'infobox.php?box=' . (int)$box['id']], '認証しました');
+    iboxAudit($db, (int)$box['id'], (int)$p['id'], 'auth_success', 'participant', (int)$p['id'], ['account_linked' => $linked]);
+    sendSuccessResponse(['box_id' => (int)$box['id'], 'redirect' => 'infobox.php?box=' . (int)$box['id'], 'account_linked' => $linked], '認証しました');
 } catch (Throwable $e) {
     error_log('infobox/access.php error: ' . $e->getMessage());
     sendErrorResponse('サーバーエラーが発生しました', 500);

@@ -67,9 +67,10 @@ header('Referrer-Policy: no-referrer');
   var submit = document.getElementById('ib-access-submit');
   var reissue = document.getElementById('ib-access-reissue');
 
-  function show(text, isError) {
+  function show(text, isError, contact) {
     msg.className = isError ? 'ib-error' : 'ib-notice';
-    msg.textContent = text;
+    msg.style.whiteSpace = 'pre-line';
+    msg.textContent = text + (contact ? '\nお問い合わせ先：' + contact : '');
   }
   function post(action) {
     return fetch('backend/api/infobox/access.php', {
@@ -86,7 +87,7 @@ header('Referrer-Policy: no-referrer');
     post('verify').then(function (res) {
       if (res.success) { window.location.href = res.data.redirect; return; }
       submit.disabled = false;
-      show(res.message || '認証できませんでした。', true);
+      show(res.message || '認証できませんでした。', true, res.contact);
       reissue.classList.toggle('ib-hidden', res.reason !== 'expired');
     }).catch(function () {
       submit.disabled = false;
@@ -98,7 +99,7 @@ header('Referrer-Policy: no-referrer');
     reissue.disabled = true;
     post('reissue').then(function (res) {
       reissue.disabled = false;
-      show(res.message || (res.success ? '送信しました。' : '送信できませんでした。'), !res.success);
+      show(res.message || (res.success ? '送信しました。' : '送信できませんでした。'), !res.success, res.success ? '' : res.contact);
     }).catch(function () {
       reissue.disabled = false;
       show('通信に失敗しました。', true);

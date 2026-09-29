@@ -2,7 +2,7 @@
 /**
  * 情報BOX 本体（一覧・作成・概要・物件情報・取引終了）。
  *
- * GET  ?action=list                     … 所有者の BOX 一覧（所有者のみ）
+ * GET  ?action=list                     … 所有者の BOX 一覧と、アカウントに紐づいた参加中の BOX
  * GET  ?action=properties               … BOX に取り込める自分の物件（所有者のみ）
  * GET  ?action=get&box_id=              … 取引概要（閲覧者ごとに見られる範囲で集計）
  * GET  ?action=refetch&box_id=          … 物件詳細からの再取得（差分を返すだけで保存しない）
@@ -71,11 +71,22 @@ try {
     $action = $method === 'GET' ? (string)($_GET['action'] ?? '') : (string)(iboxApiInput()['action'] ?? '');
 
     if ($method === 'GET' && $action === 'list') {
-        $userId = iboxApiRequireEnabledUser($db);
-        $stmt = $db->prepare('SELECT * FROM ibox_boxes WHERE owner_user_id = ? ORDER BY status ASC, updated_at DESC');
-        $stmt->execute([$userId]);
-        $boxes = array_map('iboxBoxPayload', $stmt->fetchAll(PDO::FETCH_ASSOC));
-        sendSuccessResponse(['boxes' => $boxes]);
+        $userId = (int)($_SESSION['user_id'] ?? 0);
+        if ($userId <= 0) sendErrorResponse('再ログインをお願いします', 401);
+        $canCreate = iboxEnabledForUser($db, $userId);
+        // 自分のアカウントに紐づいた、他社の情報BOX（招待を受けて参加中のもの）
+        $joined = [];
+        foreach (iboxJoinedBoxes($db, $userId) as $row) {
+            $joined[] = iboxBoxPayload($row['box']) + ['role_label' => iboxParticipantRoleLabel($row['box'], $row['p'])];
+        }
+        if (!$canCreate && !$joined) sendErrorResponse('情報BOXは現在ご利用いただけません。', 403);
+        $boxes = [];
+        if ($canCreate) {
+            $stmt = $db->prepare('SELECT * FROM ibox_boxes WHERE owner_user_id = ? ORDER BY status ASC, updated_at DESC');
+            $stmt->execute([$userId]);
+            $boxes = array_map('iboxBoxPayload', $stmt->fetchAll(PDO::FETCH_ASSOC));
+        }
+        sendSuccessResponse(['boxes' => $boxes, 'joined' => $joined, 'can_create' => $canCreate]);
     }
 
     if ($method === 'GET' && $action === 'properties') {

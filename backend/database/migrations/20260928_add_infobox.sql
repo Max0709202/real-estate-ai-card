@@ -124,9 +124,11 @@ CREATE TABLE IF NOT EXISTS ibox_document_versions (
   mime_type VARCHAR(127) NOT NULL,
   byte_size INT NOT NULL DEFAULT 0,
   sha256 CHAR(64) NULL DEFAULT NULL,
+  op_key VARCHAR(64) NULL DEFAULT NULL,
   created_by INT NOT NULL,
   created_at DATETIME NOT NULL,
-  UNIQUE KEY uk_ibox_document_versions (document_id, version)
+  UNIQUE KEY uk_ibox_document_versions (document_id, version),
+  UNIQUE KEY uk_ibox_document_versions_op (document_id, op_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ibox_document_shares (
@@ -232,6 +234,16 @@ CREATE TABLE IF NOT EXISTS ibox_ledgers (
   UNIQUE KEY uk_ibox_ledgers_version (box_id, version),
   UNIQUE KEY uk_ibox_ledgers_op (box_id, op_key),
   INDEX idx_ibox_ledgers_owner (owner_user_id, fiscal_year)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ibox_ledger_closures (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  owner_user_id INT NOT NULL,
+  fiscal_year INT NOT NULL,
+  office_name VARCHAR(255) NOT NULL DEFAULT '',
+  closed_at DATETIME NOT NULL,
+  retain_until DATE NOT NULL,
+  UNIQUE KEY uk_ibox_ledger_closures (owner_user_id, fiscal_year, office_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ibox_audit_logs (

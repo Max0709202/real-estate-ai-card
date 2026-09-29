@@ -6,7 +6,9 @@
  * GET  ?action=index[&year=&office=]  … 自分の台帳一覧（事務所・事業年度別の検索）
  * POST {action:'autofill', box_id, overwrite}   … 売買契約書・重要事項説明書から自動取得
  * POST {action:'save_draft', box_id, data}      … 下書き保存（取引終了前でも登録・保存できる）
- * POST {action:'generate', box_id, data, reason, op_key} … PDF を作成して新しい版として保存
+ * POST {action:'preview', box_id, data}        … 確定前のプレビュー（PDFを返すだけで保存しない）
+ * POST {action:'generate', box_id, data, reason, op_key} … プレビュー確認後に PDF を新しい版として確定保存
+ * POST {action:'close_year', fiscal_year, office_name} … 事業年度末の閉鎖（閉鎖後5年間以上保持。削除はしない）
  *
  * ・売買契約書と重要事項説明書が無い場合は、台帳を作らずエラーを返す（お客様のご指示）。
  * ・必須項目の不足は項目別に返し、完成PDFを作らない。「該当なし」と未入力は区別する。
@@ -72,7 +74,32 @@ try {
             'created_at' => $r['created_at'],
             'url' => 'backend/api/infobox/file.php?kind=ledger&box_id=' . (int)$r['box_id'] . '&id=' . (int)$r['id'],
         ], $stmt->fetchAll(PDO::FETCH_ASSOC));
-        sendSuccessResponse(['ledgers' => $rows]);
+        $stmt = $db->prepare('SELECT fiscal_year, office_name, closed_at, retain_until FROM ibox_ledger_closures WHERE owner_user_id = ? ORDER BY fiscal_year DESC, office_name ASC');
+        $stmt->execute([$userId]);
+        $closures = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $closure = $row['fiscal_year'] ? iboxLedgerClosure($db, $userId, (int)$row['fiscal_year'], (string)$row['office_name']) : null;
+            $row['closed_at'] = $closure['closed_at'] ?? null;
+            $row['retain_until'] = $closure['retain_until'] ?? null;
+        }
+        unset($row);
+        sendSuccessResponse(['ledgers' => $rows, 'closures' => $closures]);
+    }
+
+    if ($method === 'POST' && (iboxApiInput()['action'] ?? '') === 'close_year') {
+        iboxApiRequirePost();
+        $userId = iboxApiRequireEnabledUser($db);
+        $input = iboxApiInput();
+        $year = (int)($input['fiscal_year'] ?? 0);
+        $office = iboxApiText($input['office_name'] ?? '');
+        if ($year < 2000 || $year > (int)date('Y')) sendErrorResponse('閉鎖する事業年度を正しく入力してください。', 400);
+        $closedAt = iboxNow();
+        // 閉鎖後5年間以上保存（期間経過で自動削除はしない）
+        $retain = date('Y-m-d', strtotime($closedAt . ' +5 years'));
+        $stmt = $db->prepare('INSERT IGNORE INTO ibox_ledger_closures (owner_user_id, fiscal_year, office_name, closed_at, retain_until) VALUES (?, ?, ?, ?, ?)');
+        $stmt->execute([$userId, $year, $office, $closedAt, $retain]);
+        if ($stmt->rowCount() === 0) sendErrorResponse('この事業年度（事務所）は既に閉鎖済みです。', 409);
+        sendSuccessResponse(['retain_until' => $retain], $year . '年度' . ($office !== '' ? '（' . $office . '）' : '') . 'の取引台帳を閉鎖しました。' . date('Y年n月j日', strtotime($retain)) . 'まで以上保存します。');
     }
 
     if ($method === 'GET') {
@@ -128,6 +155,30 @@ try {
         sendSuccessResponse(['missing' => iboxLedgerMissing($data, $box)], '下書きを保存しました');
     }
 
+    if ($action === 'preview' || $action === 'generate') {
+        $data = iboxLedgerSanitize((array)($input['data'] ?? []));
+        $closure = iboxLedgerClosure($db, (int)$box['owner_user_id'], (int)$data['fiscal_year'], $data['office_name']);
+        if ($closure) {
+            sendErrorResponse($data['fiscal_year'] . '年度の取引台帳は閉鎖済み（' . date('Y年n月j日', strtotime($closure['closed_at'])) . '）のため、新しい版を作成できません。', 409);
+        }
+    }
+
+    if ($action === 'preview') {
+        $sources = iboxLedgerSourceDocs($db, $box, $me);
+        if (!$sources['contract'] || !$sources['explanation']) {
+            sendErrorResponse('売買契約書と重要事項説明書が情報BOXに登録されていないため、取引台帳は作れません。', 422);
+        }
+        iboxLedgerSaveDraft($db, (int)$box['id'], $data);
+        $missing = iboxLedgerMissing($data, $box);
+        if ($missing) {
+            sendJsonResponse(['success' => false, 'message' => '必須項目が未入力のため、PDFを作成できません。該当しない項目は「該当なし」と入力してください。', 'missing' => $missing], 422);
+        }
+        $stmt = $db->prepare('SELECT COALESCE(MAX(version), 0) + 1 FROM ibox_ledgers WHERE box_id = ?');
+        $stmt->execute([(int)$box['id']]);
+        $pdf = iboxRenderLedgerPdf($data, ['version' => (int)$stmt->fetchColumn(), 'transaction_code' => $box['transaction_code']]);
+        sendSuccessResponse(['pdf_base64' => base64_encode($pdf), 'data' => $data], 'プレビューを作成しました。内容を確認して「確定保存」してください。');
+    }
+
     if ($action === 'generate') {
         $sources = iboxLedgerSourceDocs($db, $box, $me);
         if (!$sources['contract'] || !$sources['explanation']) {
@@ -159,7 +210,7 @@ try {
             $db->prepare('INSERT INTO ibox_ledgers (box_id, owner_user_id, version, ledger_no, office_name, fiscal_year, data_json, pdf_name, reason, op_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                 ->execute([
                     (int)$box['id'], (int)$box['owner_user_id'], $version,
-                    $data['contract_no'] !== '' ? $data['contract_no'] : $box['transaction_code'],
+                    $data['ledger_no'] !== '' ? $data['ledger_no'] : $box['transaction_code'],
                     $data['office_name'], (int)$data['fiscal_year'] ?: null,
                     json_encode($data, JSON_UNESCAPED_UNICODE), $pdfName, $reason !== '' ? $reason : null, $opKey, iboxNow(),
                 ]);
