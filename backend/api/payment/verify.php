@@ -73,6 +73,9 @@ try {
         try {
             $stripePaymentIntent = PaymentIntent::retrieve($payment['stripe_payment_intent_id']);
             $stripeStatus = $stripePaymentIntent->status;
+            if ($stripeStatus === 'succeeded') {
+                stripe_set_default_payment_method_from_intent($stripePaymentIntent->id);
+            }
 
             // If Stripe says succeeded but DB says pending, update DB
             if ($stripeStatus === 'succeeded' && $payment['payment_status'] === 'pending') {

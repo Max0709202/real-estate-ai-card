@@ -122,6 +122,8 @@ try {
     $taxAmount = 0;
     $totalAmount = 0;
     $monthlyAmount = 0;
+    // 料金改定日より前に作成されたアカウントは旧月額を据え置く（税別）
+    $userMonthlyExTax = pricing_monthly_ex_tax_for_user($db, $userId);
 
     // 更新手続き（初期費用なし・銀行は年額のみ／カードは初回月額のみ）
     if ($wantsRenewal) {
@@ -140,8 +142,8 @@ try {
             $amount = (int) (defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000);
             $monthlyAmount = 0;
         } elseif ($paymentMethod === 'credit_card') {
-            $amount = (int) PRICING_NEW_USER_MONTHLY;
-            $monthlyAmount = (int) PRICING_NEW_USER_MONTHLY;
+            $amount = $userMonthlyExTax;
+            $monthlyAmount = $userMonthlyExTax;
         } else {
             sendErrorResponse('無効な支払い方法です', 400);
         }
@@ -152,7 +154,7 @@ try {
         $amount = PRICING_NEW_USER_INITIAL;
         $taxAmount = $amount * TAX_RATE;
         $totalAmount = $amount + $taxAmount;
-        $monthlyAmount = PRICING_NEW_USER_MONTHLY;
+        $monthlyAmount = $userMonthlyExTax;
     } else {
         // データベーススキーマに合わせて変換（'new' -> 'new_user', 'existing' -> 'existing_user'）
         $paymentType = $paymentTypeInput;
@@ -169,7 +171,7 @@ try {
             $totalAmount = $amount + $taxAmount;
 
             // 月額料金も計算
-            $monthlyAmount = PRICING_NEW_USER_MONTHLY; // ¥500
+            $monthlyAmount = $userMonthlyExTax;
         } elseif ($paymentType === 'existing_user') {
             $amount = PRICING_EXISTING_USER_INITIAL; // ¥20,000
             $taxAmount = $amount * TAX_RATE;
@@ -293,6 +295,8 @@ try {
             'currency' => 'jpy',
             'customer' => $stripeCustomerId,
             'payment_method_types' => ['card'],
+            // 月額の自動請求に使うため、カードを顧客に保存する
+            'setup_future_usage' => 'off_session',
             'metadata' => [
                 'user_id' => (string)$userId,
                 'payment_id' => (string)$paymentId,
@@ -428,23 +432,20 @@ try {
                 $productId = $product->id;
             }
 
-            // Priceを検索または作成
-            try {
-                if (method_exists('Stripe\Price', 'search') && $productId) {
-                    $prices = Price::search([
-                        'query' => "product:'{$productId}' AND active:'true' AND currency:'jpy' AND type:'recurring'",
-                    ]);
-                    if ($prices && count($prices->data) > 0) {
-                        $priceId = $prices->data[0]->id;
-                    }
-                }
-            } catch (\Throwable $searchErr) {
-                error_log("Price::search fallback: " . $searchErr->getMessage());
-            }
-            if (!$priceId && $productId) {
-                $pricesList = Price::all(['limit' => 20, 'active' => true]);
+            // Priceを検索または作成（ユーザーに適用する月額・税込と金額が一致する価格を使う）
+            // 既存の契約は元の価格に紐付いたままのため、請求額は変わらない
+            $monthlyIncTax = pricing_amount_inc_tax_yen($monthlyAmount);
+            if ($productId) {
+                $pricesList = Price::all([
+                    'product' => $productId,
+                    'active' => true,
+                    'currency' => 'jpy',
+                    'type' => 'recurring',
+                    'limit' => 100,
+                ]);
                 foreach ($pricesList->data as $pr) {
-                    if (isset($pr->product) && $pr->product === $productId && isset($pr->currency) && $pr->currency === 'jpy' && isset($pr->recurring)) {
+                    if ((int) $pr->unit_amount === $monthlyIncTax
+                        && isset($pr->recurring->interval) && $pr->recurring->interval === 'month') {
                         $priceId = $pr->id;
                         break;
                     }
@@ -453,7 +454,7 @@ try {
             if (!$priceId && $productId) {
                 $price = Price::create([
                     'product' => $productId,
-                    'unit_amount' => (int)$monthlyAmount, // JPYは最小単位が1円のため、100倍不要
+                    'unit_amount' => $monthlyIncTax, // JPYは最小単位が1円のため、100倍不要
                     'currency' => 'jpy',
                     'recurring' => [
                         'interval' => 'month'
@@ -465,18 +466,46 @@ try {
             if (!$priceId) {
                 error_log("Create Payment Intent: could not get or create Price for subscription, skipping subscription");
             } else {
-            // Subscription作成
-            $subscription = Subscription::create([
+            // 月額は今回の決済から1か月後に初回請求（今回の決済で保存したカードで自動決済）。
+            // 決済が完了しないままお試し期間が終わった場合は自動で解約される。
+            $firstMonthlyBillingAt = strtotime('+1 month');
+            $subscriptionMetadata = [
+                'user_id' => (string)$userId,
+                'payment_id' => (string)$paymentId,
+                'business_card_id' => (string)$userInfo['business_card_id']
+            ] + $stripeReferralMetadata;
+
+            // 決済画面からやり直した場合は、未払いの契約を使い回して二重請求を防ぐ
+            $subscription = null;
+            $trialingSubs = Subscription::all([
                 'customer' => $stripeCustomerId,
-                'items' => [[
-                    'price' => $priceId
-                ]],
-                'metadata' => [
-                    'user_id' => (string)$userId,
-                    'payment_id' => (string)$paymentId,
-                    'business_card_id' => (string)$userInfo['business_card_id']
-                ] + $stripeReferralMetadata
+                'status' => 'trialing',
+                'limit' => 10,
             ]);
+            foreach ($trialingSubs->data as $ts) {
+                $tsPriceId = $ts->items->data[0]->price->id ?? null;
+                if ($tsPriceId === $priceId && (string) ($ts->metadata['user_id'] ?? '') === (string) $userId) {
+                    $subscription = Subscription::update($ts->id, [
+                        'trial_end' => $firstMonthlyBillingAt,
+                        'metadata' => $subscriptionMetadata,
+                    ]);
+                    break;
+                }
+            }
+
+            if (!$subscription) {
+                $subscription = Subscription::create([
+                    'customer' => $stripeCustomerId,
+                    'items' => [[
+                        'price' => $priceId
+                    ]],
+                    'trial_end' => $firstMonthlyBillingAt,
+                    'trial_settings' => [
+                        'end_behavior' => ['missing_payment_method' => 'cancel'],
+                    ],
+                    'metadata' => $subscriptionMetadata
+                ]);
+            }
 
             $stripeSubscriptionId = $subscription->id;
 

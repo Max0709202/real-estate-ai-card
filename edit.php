@@ -73,6 +73,7 @@ $showUpdatePaymentMethodButton = false;
 $isEraMember = false;
 $isMonthlyBillingUser = false;
 $subscriptionNextBillingDisplay = "―";
+$userMonthlyExTax = (int) PRICING_NEW_USER_MONTHLY; // 料金改定日より前のアカウントは旧月額
 
 // Determine user type: from session (logged-in user), URL parameter, or guest access
 if ($isGuestAccess) {
@@ -125,6 +126,7 @@ try {
     $userType = !empty($userRowForCard['user_type']) ? $userRowForCard['user_type'] : $userType;
     $isEraMember = ((int)($userRowForCard['is_era_member'] ?? 0)) === 1;
     $isMonthlyBillingUser = user_has_monthly_billing($userType, $isEraMember);
+    $userMonthlyExTax = pricing_monthly_ex_tax_for_user($db, $userId);
     $subscriptionNextBillingDisplay = subscription_next_billing_display($subscriptionInfo ?: null, $userType, $isEraMember);
 
     // Calculate end date (period end date)
@@ -1634,13 +1636,13 @@ function editSectionIcon(string $key): string
                             <!-- 更新手続き向け（初期費用なし） -->
                             <div class="payment-method-detail payment-method-credit">
                                 <p>更新時の初期費用: ¥0（税込）</p>
-                                <p>月額費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_MONTHLY)); ?>（税込）</p>
+                                <p>月額費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen($userMonthlyExTax)); ?>（税込）</p>
                             </div>
                         <?php elseif ($userType === 'new' || $isCanceledAccount): ?>
                             <!-- 新規登録 / 復活アカウント向け -->
                             <div class="payment-method-detail payment-method-credit">
                                 <p>初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_INITIAL)); ?>（税込）</p>
-                                <p>月額費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_MONTHLY)); ?>（税込）</p>
+                                <p>月額費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen($userMonthlyExTax)); ?>（税込）</p>
                             </div>
                             <?php if ($isCanceledAccount): ?>
                                 <p style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">※停止されたアカウントの復活には、新規登録と同じ初期費用と月額費用がかかります。</p>

@@ -235,6 +235,75 @@ function pricing_amount_inc_tax_yen($amountExTax) {
 }
 
 /**
+ * アカウント作成日時から適用する月額料金（税別）を返す。
+ * 料金改定日より前に作成されたアカウントは旧月額（PRICING_LEGACY_USER_MONTHLY）を据え置く。
+ *
+ * @param string|null $userCreatedAt users.created_at
+ */
+function pricing_monthly_ex_tax_for_created_at($userCreatedAt) {
+    $newAmount = (int) PRICING_NEW_USER_MONTHLY;
+    if (!defined('PRICING_MONTHLY_CHANGE_DATE') || !defined('PRICING_LEGACY_USER_MONTHLY') || empty($userCreatedAt)) {
+        return $newAmount;
+    }
+    $createdTs = strtotime((string) $userCreatedAt);
+    $changeTs = strtotime(PRICING_MONTHLY_CHANGE_DATE);
+    if ($createdTs === false || $changeTs === false) {
+        return $newAmount;
+    }
+    return $createdTs < $changeTs ? (int) PRICING_LEGACY_USER_MONTHLY : $newAmount;
+}
+
+/**
+ * ユーザーIDから適用する月額料金（税別）を返す。
+ *
+ * @param PDO $db
+ * @param int $userId
+ */
+function pricing_monthly_ex_tax_for_user($db, $userId) {
+    $stmt = $db->prepare("SELECT created_at, NOW() AS db_now FROM users WHERE id = ?");
+    $stmt->execute([(int) $userId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row || empty($row['created_at'])) {
+        return pricing_monthly_ex_tax_for_created_at(null);
+    }
+    // DBのタイムゾーンがPHP（日本時間）と異なる場合に備え、時差を補正してから比較する
+    $createdTs = strtotime((string) $row['created_at']);
+    $dbNowTs = strtotime((string) $row['db_now']);
+    if ($createdTs !== false && $dbNowTs !== false) {
+        $offset = (int) (round((time() - $dbNowTs) / 900) * 900); // 15分単位に丸める
+        return pricing_monthly_ex_tax_for_created_at(date('Y-m-d H:i:s', $createdTs + $offset));
+    }
+    return pricing_monthly_ex_tax_for_created_at($row['created_at']);
+}
+
+/**
+ * 初回カード決済で保存したカードを、顧客の既定の支払い方法（月額の自動請求用）に設定する。
+ * 何度呼んでも同じ結果になる（決済確認APIとwebhookの両方から呼ばれる）。
+ *
+ * @param string $paymentIntentId
+ */
+function stripe_set_default_payment_method_from_intent($paymentIntentId) {
+    if (empty($paymentIntentId) || !class_exists('\Stripe\Stripe') || !defined('STRIPE_SECRET_KEY') || STRIPE_SECRET_KEY === '') {
+        return;
+    }
+    try {
+        \Stripe\Stripe::setApiKey(STRIPE_SECRET_KEY);
+        $pi = \Stripe\PaymentIntent::retrieve($paymentIntentId);
+        if ($pi->status !== 'succeeded' || ($pi->setup_future_usage ?? null) !== 'off_session'
+            || empty($pi->customer) || empty($pi->payment_method)) {
+            return;
+        }
+        $customerId = is_string($pi->customer) ? $pi->customer : $pi->customer->id;
+        $paymentMethodId = is_string($pi->payment_method) ? $pi->payment_method : $pi->payment_method->id;
+        \Stripe\Customer::update($customerId, [
+            'invoice_settings' => ['default_payment_method' => $paymentMethodId],
+        ]);
+    } catch (\Throwable $e) {
+        error_log('Set default payment method failed (' . $paymentIntentId . '): ' . $e->getMessage());
+    }
+}
+
+/**
  * 名刺公開URL用の一意な url_slug（英数字のみ、既定12文字）を生成する。
  * 連番（tech_tool_url_counter）ではなく暗号論的乱数を用いる。
  *

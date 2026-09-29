@@ -107,7 +107,10 @@ define('STRIPE_BILLING_PORTAL_CONFIGURATION_ID', getenv('STRIPE_BILLING_PORTAL_C
 
 // 価格設定
 define('PRICING_NEW_USER_INITIAL', 30000); // 税別
-define('PRICING_NEW_USER_MONTHLY', 500); // 税別
+define('PRICING_NEW_USER_MONTHLY', 2700); // 税別（税込2,970円）
+// 月額料金改定：この日時より前に作成されたアカウントは旧月額を据え置く
+define('PRICING_LEGACY_USER_MONTHLY', 500); // 税別（税込550円）
+define('PRICING_MONTHLY_CHANGE_DATE', '2026-09-29 05:00:00'); // 日本時間
 define('PRICING_EXISTING_USER_INITIAL', 20000); // 税別
 define('PRICING_RENEWAL_BANK_ANNUAL', 5000); // 税別（銀行振込・年間更新）
 define('TAX_RATE', 0.1); // 10%
