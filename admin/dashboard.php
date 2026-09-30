@@ -11,6 +11,7 @@ require_once __DIR__ . '/../backend/includes/loan-simulation-helper.php';
 require_once __DIR__ . '/../backend/includes/chat-crm-helper.php';
 require_once __DIR__ . '/../backend/includes/referral-tracking-helper.php';
 require_once __DIR__ . '/../backend/includes/org-hierarchy-helper.php';
+require_once __DIR__ . '/../backend/includes/chat-helpers.php';
 
 startSessionIfNotStarted();
 
@@ -27,6 +28,7 @@ ensureChatVerifiedPhonesTable($db);
 ensureLoanSimulationInputsTable($db);
 ensureChatCrmCasesTable($db);
 ensureReferralTrackingColumns($db, ['users', 'payments', 'subscriptions']);
+ensureAiAgentHiddenColumn($db);
 
 // 最終パスワード変更情報取得
 $stmt = $db->prepare("
@@ -151,6 +153,7 @@ $sql = "
         bc.url_slug,
         bc.company_slug,
         bc.is_published as is_open,
+        bc.ai_agent_hidden,
         bc.admin_notes,
         bc.payment_status,
         bc.usage_expires_at,
@@ -193,7 +196,7 @@ $sql = "
     $whereClause
     GROUP BY bc.id, u.id, u.email, u.user_type, u.is_era_member, u.agent, u.utm_source, u.utm_medium, u.utm_campaign, u.first_accessed_at,
              bc.company_name, bc.name, bc.mobile_phone, bc.url_slug, bc.company_slug,
-             bc.is_published, bc.admin_notes, bc.payment_status, bc.usage_expires_at, bc.created_at, u.last_login_at,
+             bc.is_published, bc.ai_agent_hidden, bc.admin_notes, bc.payment_status, bc.usage_expires_at, bc.created_at, u.last_login_at,
              s.next_billing_date, s.cancelled_at
     ORDER BY $sortField $sortOrder
     LIMIT ? OFFSET ?
@@ -586,6 +589,7 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                         <th class="sortable" data-sort="user_type">分類</th>
                         <th class="sortable" data-sort="payment_status">入金状況</th>
                         <th class="sortable" data-sort="is_open">OPEN</th>
+                        <th title="チェックを外すと、名刺ページにAIエージェントを表示しません（名刺部だけの利用）">AI</th>
                         <th class="sortable" data-sort="company_name">社名</th>
                         <th class="sortable" data-sort="url_slug">企業URL</th>
                         <th class="sortable" data-sort="name">名前</th>
@@ -733,6 +737,13 @@ function renderAdminLoanSimulationRows($db, $businessCardId) {
                             <?php if ($tooltip && !$isActuallyOpen): ?>
                                 <!-- <span style="font-size: 0.75rem; color: #999; margin-left: 0.5rem;" title="<?php echo htmlspecialchars($tooltip); ?>">※</span> -->
                             <?php endif; ?>
+                        </td>
+                        <td data-label="AI">
+                            <input type="checkbox" class="ai-agent-checkbox"
+                                   data-bc-id="<?php echo $user['id']; ?>"
+                                   title="チェックを外すと、名刺ページにAIエージェントを表示しません（名刺部だけの利用）"
+                                   <?php echo empty($user['ai_agent_hidden']) ? 'checked' : ''; ?>
+                                   <?php echo !$isAdmin ? 'disabled' : ''; ?>>
                         </td>
                         <td data-label="社名"><?php echo htmlspecialchars($user['company_name'] ?? ''); ?></td>
                         <td data-label="企業URL">

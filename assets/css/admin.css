@@ -639,7 +639,8 @@ body {
 /* Checkboxes */
 .user-select-checkbox,
 .payment-checkbox,
-.open-checkbox {
+.open-checkbox,
+.ai-agent-checkbox {
     width: 20px;
     height: 20px;
     cursor: pointer;
