@@ -1714,10 +1714,11 @@
     // 本人確認（SMS認証・登録）が済んで招待可能になったか。
     var inviteReady = false;
 
-    // 招待ボタンの表示可否。本人確認が済んだ通常セッションでのみ表示する。
+    // 招待ボタンの表示可否。本人確認が済んだ通常セッションで表示する。
+    // デモでは押すと「デモではご利用いただけません」の案内を出すため表示する。
     function updateInviteButtonVisibility() {
         if (!inviteBtn) return;
-        inviteBtn.hidden = !(inviteReady && !isDemo && !!sessionId);
+        inviteBtn.hidden = !(!!sessionId && (isDemo || inviteReady));
     }
 
     function closeInvitePanel() {
@@ -1726,7 +1727,8 @@
     }
 
     function showInvitePanel() {
-        if (!sessionId || isDemo) return;
+        if (!sessionId) return;
+        if (isDemo) { showInviteDemoNotice(); return; }
         closeInvitePanel();
         var host = document.getElementById('chat-widget-panel') || document.body;
         var overlay = document.createElement('div');
@@ -1746,6 +1748,30 @@
         if (closeX) closeX.addEventListener('click', closeInvitePanel);
         overlay.addEventListener('click', function (e) { if (e.target === overlay) closeInvitePanel(); });
         loadInviteBody();
+    }
+
+    // デモ名刺ではご家族の招待は使えないため、案内のみ表示する。
+    function showInviteDemoNotice() {
+        closeInvitePanel();
+        var host = document.getElementById('chat-widget-panel') || document.body;
+        var overlay = document.createElement('div');
+        overlay.id = 'chat-widget-invite-overlay';
+        overlay.setAttribute('style', 'position:absolute;inset:0;z-index:50;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px;');
+        overlay.innerHTML = ''
+            + '<div role="dialog" aria-label="ご家族を招待" style="background:#fff;max-width:420px;width:100%;border-radius:10px;padding:20px;box-sizing:border-box;font-size:14px;color:#333;">'
+            + '  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+            + '    <strong style="font-size:15px;">ご家族を招待</strong>'
+            + '    <button type="button" id="chat-invite-close" aria-label="閉じる" style="border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:#888;">&times;</button>'
+            + '  </div>'
+            + '  <p style="margin:0 0 16px;line-height:1.7;">AIエージェント機能はデモではご利用いただけません。</p>'
+            + '  <button type="button" id="chat-invite-ok" style="width:100%;background:#0757d7;color:#fff;border:none;border-radius:4px;padding:10px;font-size:14px;cursor:pointer;">閉じる</button>'
+            + '</div>';
+        host.appendChild(overlay);
+        var closeX = document.getElementById('chat-invite-close');
+        if (closeX) closeX.addEventListener('click', closeInvitePanel);
+        var okBtn = document.getElementById('chat-invite-ok');
+        if (okBtn) okBtn.addEventListener('click', closeInvitePanel);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) closeInvitePanel(); });
     }
 
     function inviteRoleLabel(role) {
