@@ -302,6 +302,10 @@ $communicationMethods = array_merge($messageApps, $snsApps);
 
 // Chatbot: show only for standard plan (or when plan_type not set, default to enabled)
 $chatbotEnabled = (!isset($card['plan_type']) || (string)$card['plan_type'] === 'standard');
+// 運営の管理画面で「AIエージェント非表示」にした名刺は、名刺部だけを表示する。
+if (!empty($card['ai_agent_hidden'])) {
+    $chatbotEnabled = false;
+}
 $shareUrl = rtrim(BASE_URL, '/') . '/card.php?slug=' . urlencode($card['url_slug'] ?? '');
 if ($chatOnly) {
     $shareUrl .= '&chat=1';
