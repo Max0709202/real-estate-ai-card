@@ -101,7 +101,9 @@ Spec: `不動産AI名刺_情報BOX開発仕様書2026.9.24.docx`.
 - Ledger versions are frozen per save (preview first, then confirm). Closing a fiscal year
   (`ibox_ledger_closures`) blocks new versions for that year and records a 5-year retention date;
   nothing is ever auto-deleted.
-- Word/Excel previews need LibreOffice (`soffice`, or `SOFFICE_BIN`) on the server; without it
+- Word/Excel previews need LibreOffice (`soffice`, or `SOFFICE_BIN`) on the server — on shared hosting
+  (Xserver) use the extracted AppImage and, if the server has no Japanese fonts, point
+  `SOFFICE_FONT_DIR` at a folder with one (both via `putenv()` in `backend/config/secrets.php`). Without it
   such uploads are refused with a "convert to PDF" message. Text extraction uses `pdftotext`
   (falls back to Ghostscript).
 - Shared logic: `backend/includes/infobox-*.php`. Migration:
