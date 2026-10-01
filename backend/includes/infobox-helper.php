@@ -1331,7 +1331,12 @@ function iboxSofficeBinary(): ?string
     return null;
 }
 
-/** Word・Excel を PDF に変換する。成功時は PDF のパス、失敗時は null。 */
+/**
+ * Word・Excel を PDF に変換する。成功時は PDF のパス、失敗時は null。
+ *
+ * 共有サーバー（Xserver 等）で日本語フォントが入っていない場合は、
+ * 環境変数 SOFFICE_FONT_DIR に日本語フォントを置いたフォルダーを指定する（文字化け防止）。
+ */
 function iboxConvertOfficeToPdf(string $srcPath, string $outDir): ?string
 {
     $bin = iboxSofficeBinary();
@@ -1340,18 +1345,27 @@ function iboxConvertOfficeToPdf(string $srcPath, string $outDir): ?string
     @mkdir($work, 0700, true);
     $ext = strtolower(pathinfo($srcPath, PATHINFO_EXTENSION));
     $tmpSrc = $work . '/src.' . $ext;
-    if (!@copy($srcPath, $tmpSrc)) return null;
-    $cmd = 'HOME=' . escapeshellarg($work) . ' timeout 90 ' . escapeshellarg($bin)
-        . ' --headless --norestore --convert-to pdf --outdir ' . escapeshellarg($work) . ' ' . escapeshellarg($tmpSrc) . ' 2>&1';
-    @shell_exec($cmd);
-    $pdf = $work . '/src.pdf';
     $result = null;
-    if (is_file($pdf) && filesize($pdf) > 0) {
-        $dest = $outDir . '/' . iboxRandomName('pdf');
-        if (@rename($pdf, $dest) || @copy($pdf, $dest)) $result = $dest;
-    }
-    foreach (glob($work . '/{,.}*', GLOB_BRACE) ?: [] as $f) {
-        if (is_file($f)) @unlink($f);
+    if (@copy($srcPath, $tmpSrc)) {
+        $env = 'HOME=' . escapeshellarg($work);
+        $fontDir = getenv('SOFFICE_FONT_DIR');
+        if ($fontDir && is_dir($fontDir)) {
+            // 指定フォルダーのフォントを、サーバー既定のフォント設定に追加して使う
+            $conf = $work . '/fonts.conf';
+            file_put_contents($conf, '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig>'
+                . '<dir>' . htmlspecialchars($fontDir, ENT_XML1) . '</dir>'
+                . '<include ignore_missing="yes">/etc/fonts/fonts.conf</include>'
+                . '<cachedir>' . htmlspecialchars($work . '/fontcache', ENT_XML1) . '</cachedir></fontconfig>');
+            $env .= ' FONTCONFIG_FILE=' . escapeshellarg($conf);
+        }
+        $cmd = $env . ' timeout 90 ' . escapeshellarg($bin)
+            . ' --headless --norestore --convert-to pdf --outdir ' . escapeshellarg($work) . ' ' . escapeshellarg($tmpSrc) . ' 2>&1';
+        @shell_exec($cmd);
+        $pdf = $work . '/src.pdf';
+        if (is_file($pdf) && filesize($pdf) > 0) {
+            $dest = $outDir . '/' . iboxRandomName('pdf');
+            if (@rename($pdf, $dest) || @copy($pdf, $dest)) $result = $dest;
+        }
     }
     @exec('rm -rf ' . escapeshellarg($work));
     return $result;
