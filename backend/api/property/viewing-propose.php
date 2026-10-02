@@ -129,14 +129,16 @@ try {
     // sendSuccessResponse() は exit するため、送信処理はレスポンスより先に登録しておく。
     viewingApiAfterResponse(function () use ($db, $fresh, $isReschedule) {
         if ($isReschedule) {
-            viewingMailSend($db, $fresh, 'M08');
-            return;
+            $res = viewingMailSend($db, $fresh, 'M08');
+        } else {
+            // 売主（仲介）会社へ打診済みの案件は、日程が合わなかった後の再調整として送る（書き出しを変える）。
+            $stmt = $db->prepare("SELECT COUNT(*) FROM property_viewing_events
+                                  WHERE viewing_id = ? AND mail_code = 'M03' AND result = 'sent'");
+            $stmt->execute([(int)$fresh['id']]);
+            $res = viewingMailSend($db, $fresh, 'M03', ['readjust' => (int)$stmt->fetchColumn() > 0]);
         }
-        // 売主（仲介）会社へ打診済みの案件は、日程が合わなかった後の再調整として送る（書き出しを変える）。
-        $stmt = $db->prepare("SELECT COUNT(*) FROM property_viewing_events
-                              WHERE viewing_id = ? AND mail_code = 'M03' AND result = 'sent'");
-        $stmt->execute([(int)$fresh['id']]);
-        viewingMailSend($db, $fresh, 'M03', ['readjust' => (int)$stmt->fetchColumn() > 0]);
+        // 調整依頼が届いた場合のみ、48・72・96時間後の売主側リマインドを予約する（★2026/10/2 追加ご依頼）。
+        if ($res['sent'] > 0) viewingSellerReminderSchedule($db, (int)$fresh['id']);
     });
     sendSuccessResponse(
         viewingApiCasePayload($db, $fresh, $property, 'agent'),

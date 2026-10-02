@@ -200,6 +200,142 @@ if (!function_exists('viewingReminderFlushDue')) {
     }
 }
 
+/* ──────────────────────────────────────────────────────────
+ * 売主仲介会社への内見調整リマインド（★2026/10/2 追加ご依頼）
+ * 売主仲介会社へ調整依頼（M03／M08）を送ってから回答がない場合、
+ *   48時間後・72時間後・96時間後に売主仲介会社へリマインド（R01〜R03）を送り、
+ *   同時に不動産AI名刺所有者（担当エージェント）へ通知（R11〜R13）する。
+ * 売主側が回答した（状態が「売主側回答待ち」でなくなった）時点で以降の回は送らない。
+ * 調整依頼を送り直した場合は、未送信の回を取り消し、新しい依頼の送信時刻から数え直す。
+ * ────────────────────────────────────────────────────────── */
+
+if (!function_exists('viewingSellerReminderHours')) {
+    /** 送信回 => 調整依頼の送信からの経過時間（時間）。 */
+    function viewingSellerReminderHours(): array
+    {
+        return [1 => 48, 2 => 72, 3 => 96];
+    }
+}
+
+if (!function_exists('viewingSellerReminderEnsureTable')) {
+    function viewingSellerReminderEnsureTable(PDO $db): void
+    {
+        static $done = false;
+        if ($done) return;
+        // 調整依頼1回（request_at）× 送信回（seq）で1行＝1回だけ送る。
+        $db->exec("CREATE TABLE IF NOT EXISTS property_viewing_seller_reminders (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          viewing_id INT NOT NULL,
+          request_at DATETIME NOT NULL,
+          seq TINYINT NOT NULL,
+          send_at DATETIME NOT NULL,
+          status ENUM('scheduled','sending','sent','cancelled','failed') NOT NULL DEFAULT 'scheduled',
+          attempts INT NOT NULL DEFAULT 0,
+          sent_at DATETIME NULL DEFAULT NULL,
+          error_message VARCHAR(500) NULL DEFAULT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uk_property_viewing_seller_reminders (viewing_id, request_at, seq),
+          INDEX idx_property_viewing_seller_reminders_due (status, send_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $done = true;
+    }
+}
+
+if (!function_exists('viewingSellerReminderSchedule')) {
+    /**
+     * 売主仲介会社への調整依頼（M03／M08）の送信成功後に呼ぶ。
+     * 以前の依頼に対する未送信の回は取り消し、今回の送信時刻から48・72・96時間後を予約する。
+     */
+    function viewingSellerReminderSchedule(PDO $db, int $viewingId): int
+    {
+        try {
+            viewingSellerReminderEnsureTable($db);
+            $db->prepare("UPDATE property_viewing_seller_reminders SET status = 'cancelled', error_message = ?
+                          WHERE viewing_id = ? AND status = 'scheduled'")
+               ->execute(['調整依頼を送り直したため取り消し', $viewingId]);
+
+            $now = viewingNow();
+            $ins = $db->prepare("INSERT IGNORE INTO property_viewing_seller_reminders (viewing_id, request_at, seq, send_at)
+                                 VALUES (?, ?, ?, ?)");
+            $n = 0;
+            foreach (viewingSellerReminderHours() as $seq => $hours) {
+                $ins->execute([$viewingId, $now->format('Y-m-d H:i:s'), $seq, $now->modify('+' . $hours . ' hours')->format('Y-m-d H:i:s')]);
+                $n += $ins->rowCount();
+            }
+            viewingLogEvent($db, $viewingId, 'seller_reminder_scheduled', ['detail' => '48・72・96時間後の売主側リマインドを予約']);
+            return $n;
+        } catch (Throwable $e) {
+            error_log('viewingSellerReminderSchedule error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+}
+
+if (!function_exists('viewingSellerReminderFlushDue')) {
+    /**
+     * 送信時刻を過ぎた売主側リマインドを送る（cron から呼ぶ）。
+     * 送信直前に案件の状態を取り直し、回答済み・キャンセル済みの案件には送らない。
+     * 売主仲介会社へ送れた回だけ、担当エージェントへ通知する（「送信しました」と事実どおり伝えるため）。
+     *
+     * @return array{sent:int, cancelled:int, failed:int}
+     */
+    function viewingSellerReminderFlushDue(PDO $db, int $limit = 50): array
+    {
+        $out = ['sent' => 0, 'cancelled' => 0, 'failed' => 0];
+        viewingEnsureTables($db);
+        viewingSellerReminderEnsureTable($db);
+
+        $stmt = $db->prepare("SELECT * FROM property_viewing_seller_reminders
+                              WHERE status = 'scheduled' AND send_at <= ?
+                              ORDER BY send_at ASC LIMIT " . max(1, min(200, $limit)));
+        $stmt->execute([viewingNow()->format('Y-m-d H:i:s')]);
+        $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $mark = $db->prepare("UPDATE property_viewing_seller_reminders
+                              SET status = ?, sent_at = ?, error_message = ? WHERE id = ?");
+        foreach ($jobs as $job) {
+            // 2つのcron（process-notification-queue / process-viewing-reminders）が同時に動いても
+            // 同じ回を二重送信しないよう、送信中（sending）へ切り替えられた1プロセスだけが送る。
+            $claim = $db->prepare("UPDATE property_viewing_seller_reminders
+                                   SET status = 'sending', attempts = attempts + 1 WHERE id = ? AND status = 'scheduled'");
+            $claim->execute([(int)$job['id']]);
+            if ($claim->rowCount() === 0) continue;
+
+            $case = viewingLoad($db, (int)$job['viewing_id']);
+            $reason = '';
+            if (!$case) {
+                $reason = '案件が見つかりません';
+            } elseif ((string)$case['status'] !== 'seller_pending') {
+                $reason = '売主側の回答待ちではないため送信しません（' . (viewingStatusDefs()[$case['status']]['label'] ?? $case['status']) . '）';
+            } else {
+                // 停止していた等で後の回もすでに送信時刻を過ぎている場合は、後の回だけを送る（続けて何通も送らない）。
+                $later = $db->prepare("SELECT COUNT(*) FROM property_viewing_seller_reminders
+                                       WHERE viewing_id = ? AND request_at = ? AND seq > ? AND status = 'scheduled' AND send_at <= ?");
+                $later->execute([(int)$job['viewing_id'], $job['request_at'], (int)$job['seq'], viewingNow()->format('Y-m-d H:i:s')]);
+                if ((int)$later->fetchColumn() > 0) $reason = '後の回の送信時刻を過ぎているため省略';
+            }
+            if ($reason !== '') {
+                $mark->execute(['cancelled', null, mb_substr($reason, 0, 500), (int)$job['id']]);
+                $out['cancelled']++;
+                continue;
+            }
+
+            $seq = (int)$job['seq'];
+            $res = viewingMailSend($db, $case, sprintf('R%02d', $seq));
+            if ($res['sent'] > 0) {
+                $mark->execute(['sent', viewingNow()->format('Y-m-d H:i:s'), null, (int)$job['id']]);
+                $out['sent']++;
+                viewingMailSend($db, $case, sprintf('R%02d', 10 + $seq));
+            } else {
+                $mark->execute(['failed', null, 'メールを送信できませんでした。', (int)$job['id']]);
+                $out['failed']++;
+            }
+        }
+        return $out;
+    }
+}
+
 if (!function_exists('viewingReminderList')) {
     /** 担当者画面に出すリマインドの予約状況。 */
     function viewingReminderList(PDO $db, int $viewingId): array

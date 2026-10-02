@@ -39,6 +39,9 @@ try {
     // 送信時刻は固定のため、この5分毎のcronに相乗りさせる（専用cronは不要）。
     $viewing = viewingReminderFlushDue($db, $maxPerRun);
     echo "Viewing reminder: {$viewing['sent']} sent, {$viewing['cancelled']} cancelled, {$viewing['failed']} failed\n";
+    // 売主仲介会社への内見調整リマインド（調整依頼から48・72・96時間後）と所有者への通知。
+    $sellerRemind = viewingSellerReminderFlushDue($db, $maxPerRun);
+    echo "Viewing seller reminder: {$sellerRemind['sent']} sent, {$sellerRemind['cancelled']} cancelled, {$sellerRemind['failed']} failed\n";
     exit(0);
 } catch (Exception $e) {
     error_log('Notification Queue Processor Error: ' . $e->getMessage());

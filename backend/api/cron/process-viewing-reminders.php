@@ -24,6 +24,8 @@ try {
     $db = (new Database())->getConnection();
     $r = viewingReminderFlushDue($db, $maxPerRun);
     echo "Viewing reminder: {$r['sent']} sent, {$r['cancelled']} cancelled, {$r['failed']} failed\n";
+    $s = viewingSellerReminderFlushDue($db, $maxPerRun);
+    echo "Viewing seller reminder: {$s['sent']} sent, {$s['cancelled']} cancelled, {$s['failed']} failed\n";
     exit(0);
 } catch (Exception $e) {
     error_log('Viewing Reminder Processor Error: ' . $e->getMessage());
