@@ -3748,6 +3748,8 @@
                 rules: rules,
                 slots: isChange ? [] : data.slots,   // 変更時は前回の候補を引き継がず選び直す
                 blocked: data.blocked,
+                confirmed: data.confirmed || [],     // 本人の確定済みの内見は「内見確定」と表示する
+                onConfirmedClick: propViewingConfirmedPopup,
                 onChange: function (list) {
                     picked.innerHTML = '<div class="vcal-picked__title">選択中の日時（' + list.length + '／' + rules.min_slots + '枠以上）</div>' +
                         (list.length
@@ -3846,6 +3848,32 @@
         if (changeBtn) changeBtn.addEventListener('click', function () { propViewingOpen(p, 'input'); });
         var cancelBtn = box.querySelector('#vw-cancel');
         if (cancelBtn) cancelBtn.addEventListener('click', function () { propViewingCancel(p, data); });
+    }
+
+    /** カレンダーの「内見確定」を押したときに、その内見の予定を表示する。 */
+    function propViewingConfirmedPopup(item) {
+        var cp = { id: item.property_id };
+        var html = '<div class="vw-panel">' +
+            '<div class="vw-box"><div class="vw-box__title">対象物件</div><div>' + PUI.esc(item.property_label) + '</div></div>' +
+            '<div class="vw-box vw-box--accent"><div class="vw-box__title">確定した内見日時</div>' +
+            '<div>' + PUI.esc(item.confirmed_text) + '</div></div>' +
+            '<div class="vw-box"><div class="vw-box__title">当日の待ち合わせ場所と時間</div>' +
+            '<div class="vw-pre">' + PUI.esc(item.meeting_note || '担当者よりご案内いたします。') + '</div></div>' +
+            '<div class="vw-actions">' +
+            '<button type="button" class="prop-btn prop-btn--ghost" id="vw-p-change">内見日時の変更依頼</button>' +
+            '<button type="button" class="prop-btn prop-btn--danger" id="vw-p-cancel">内見キャンセル</button>' +
+            '</div>' +
+            '<div class="vw-hint">変更・キャンセルは、できるだけお早めにお知らせください。</div>' +
+            '</div>';
+        var m = PUI.modal('内見のご予定', html);
+        m.body.querySelector('#vw-p-change').addEventListener('click', function () {
+            m.close();
+            propViewingOpen(cp, 'input');
+        });
+        m.body.querySelector('#vw-p-cancel').addEventListener('click', function () {
+            m.close();
+            propViewingCancel(cp, { property: { label: item.property_label }, viewing: { confirmed_text: item.confirmed_text } });
+        });
     }
 
     /** キャンセル理由の入力。理由は必須。「その他」は自由記入も必須。 */

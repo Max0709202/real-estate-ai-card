@@ -106,6 +106,43 @@ if (!function_exists('viewingApiBlocked')) {
     }
 }
 
+if (!function_exists('viewingApiBuyerConfirmed')) {
+    /**
+     * 買主本人の確定済みの内見（買主へ連絡済みのもの）。
+     * 担当者の予定として「選択不可」になる枠のうち、本人の内見は「内見確定」と表示するために使う。
+     * 買主画面に返すため、鍵情報・売主側の連絡先は含めない。
+     */
+    function viewingApiBuyerConfirmed(PDO $db, string $sessionId, int $cardId): array
+    {
+        if ($sessionId === '' || $cardId <= 0) return [];
+        try {
+            $stmt = $db->prepare("SELECT property_id, confirmed_start_at, confirmed_end_at, meeting_note FROM property_viewings
+                                  WHERE session_id = ? AND business_card_id = ? AND status = 'buyer_notified'
+                                    AND confirmed_start_at IS NOT NULL AND confirmed_end_at IS NOT NULL
+                                    AND confirmed_end_at > ?
+                                  ORDER BY confirmed_start_at");
+            $stmt->execute([$sessionId, $cardId, viewingNow()->format('Y-m-d H:i:s')]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            error_log('viewingApiBuyerConfirmed error: ' . $e->getMessage());
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $prop = viewingLoadProperty($db, (int)$r['property_id']) ?: [];
+            $out[] = [
+                'property_id'    => (int)$r['property_id'],
+                'property_label' => $prop ? viewingPropertyLabel($prop) : '',
+                'start_at'       => $r['confirmed_start_at'],
+                'end_at'         => $r['confirmed_end_at'],
+                'confirmed_text' => viewingFormatRange($r['confirmed_start_at'], $r['confirmed_end_at']),
+                'meeting_note'   => (string)($r['meeting_note'] ?? ''),
+            ];
+        }
+        return $out;
+    }
+}
+
 if (!function_exists('viewingApiCasePayload')) {
     /**
      * 画面へ返す案件の内容。role により出し分ける。
@@ -137,6 +174,8 @@ if (!function_exists('viewingApiCasePayload')) {
         $out['blocked'] = viewingApiBlocked($db, $cardId, $case ? (int)$case['id'] : 0);
         // 定休日の設定はエージェントの画面でのみ扱う。
         if ($isAgent) $out['settings'] = ['closed_weekdays' => viewingAgentClosedWeekdays($db, $cardId)];
+        // 買主本人の確定済みの内見。カレンダーに「内見確定」と表示し、押すと内容を確認できるようにする。
+        if ($role === 'buyer') $out['confirmed'] = viewingApiBuyerConfirmed($db, (string)($property['session_id'] ?? ''), $cardId);
 
         if (!$case) return $out;
 

@@ -238,8 +238,14 @@ if (!function_exists('viewingMailBuild')) {
                     'subject' => "【内見調整のお願い】{$label}",
                     'lines' => array_merge($sellerTo, [
                         '',
+                    ], !empty($extra['readjust']) ? [
+                        // 日程が合わず再調整を打診するとき（2回目以降も同じ書き出し）。
+                        ($company !== '' ? $company . 'の' : '') . ($person !== '' ? $person : '担当') . 'と申します。',
+                        '内見の再調整でご連絡させていただきました。',
+                    ] : [
                         '突然のご連絡失礼いたします。',
                         ($company !== '' ? $company . 'の' : '') . ($person !== '' ? $person : '担当') . 'と申します。',
+                    ], [
                         '',
                         "当社のお客様が、貴社お取り扱いの{$label}の内見を希望されております。",
                         '購入予定者と私の日程調整は済ませております。',

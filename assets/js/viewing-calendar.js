@@ -17,7 +17,7 @@
 (function (w) {
   'use strict';
 
-  var STATE_LABEL = { buyer: '希望', agent: '担当者対応可', seller: '確定', blocked: '選択不可' };
+  var STATE_LABEL = { buyer: '希望', agent: '担当者対応可', seller: '確定', blocked: '選択不可', confirmed: '内見確定' };
   var WDAY = ['日', '月', '火', '水', '木', '金', '土'];
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -77,7 +77,9 @@
    *   slots       [{ id, start_at, end_at, state }]  サーバーに保存済みの候補
    *   blocked     ["Y-m-d H:i:s", ...]               選択不可の開始時刻（担当者の予定・確定済みの内見・定休日）
    *   selected    ["Y-m-d H:i:s", ...]               初期選択（買主モード）
+   *   confirmed   [{ start_at, ... }]                買主本人の確定済みの内見（「内見確定」と表示する）
    *   onChange    function(selectedArray)            選択が変わったとき
+   *   onConfirmedClick function(item)               「内見確定」の枠を押したとき
    * @return {{ getSelected: function, refresh: function }}
    */
   function render(host, opts) {
@@ -97,6 +99,9 @@
     });
     var blocked = {};
     (opts.blocked || []).forEach(function (b) { blocked[String(b).slice(0, 16) + ':00'] = true; });
+    // 本人の確定済みの内見。担当者の予定として選択不可になる枠より優先して「内見確定」と表示する。
+    var confirmed = {};
+    (opts.confirmed || []).forEach(function (c) { confirmed[String(c.start_at).slice(0, 16) + ':00'] = c; });
 
     // 現在の選択。買主モードは希望枠、エージェントモードは黄にする枠。
     var selected = {};
@@ -137,6 +142,7 @@
       if (startAt <= new Date()) info.past = true;
       if (cellDate < today || cellDate > limit) info.past = true;
 
+      if (confirmed[k] && !info.past) { info.state = 'confirmed'; info.label = STATE_LABEL.confirmed; return info; }
       if (blocked[k]) { info.state = 'blocked'; info.label = STATE_LABEL.blocked; return info; }
       if (info.past) return info;
 
@@ -199,8 +205,9 @@
           if (info.state) cls += ' is-' + info.state;
           if (info.past) cls += ' is-past';
           if (info.selectable) cls += ' is-selectable';
+          var clickable = info.selectable || info.state === 'confirmed';
           html += '<td class="' + cls + '" data-key="' + esc(info.key) + '"' +
-            (info.selectable ? ' tabindex="0" role="button"' : '') +
+            (clickable ? ' tabindex="0" role="button"' : '') +
             ' aria-label="' + esc(hhmm + '〜' + endText + ' ' + (info.label || '')) + '">' +
             (info.label ? '<span class="vcal-cell__tag">' + esc(info.label) + '</span>' : '') + '</td>';
         });
@@ -212,6 +219,7 @@
         '<span class="vcal-lg is-buyer">希望（買主）</span>' +
         '<span class="vcal-lg is-agent">担当者対応可</span>' +
         '<span class="vcal-lg is-seller">選択中／確定</span>' +
+        ((opts.confirmed || []).length ? '<span class="vcal-lg is-confirmed">内見確定</span>' : '') +
         '<span class="vcal-lg is-blocked">選択不可</span>' +
         '</div>';
 
@@ -233,6 +241,20 @@
           if (b.disabled) return;
           weekStart.setDate(weekStart.getDate() + (b.getAttribute('data-nav') === 'next' ? 7 : -7));
           draw();
+        });
+      });
+
+      // 「内見確定」の枠は、押すと確定内容を表示する（選択はしない）。
+      root.querySelectorAll('.vcal-cell.is-confirmed').forEach(function (td) {
+        function open() {
+          var item = confirmed[td.getAttribute('data-key')];
+          if (item && typeof opts.onConfirmedClick === 'function') opts.onConfirmedClick(item);
+        }
+        td.addEventListener('click', open);
+        td.addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          open();
         });
       });
 
