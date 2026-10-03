@@ -5,7 +5,7 @@
  * 画面の流れ（仕様 §5・§6・§7・§8）:
  *   1. 買主の希望日時（赤）から対応できる日時を選ぶ → 黄
  *   2. 売主仲介会社情報を確認・修正し、「売主（仲介）会社へ内見を打診する」
- *      ★このとき「購入検討者属性」を自由入力できる（売主側の回答画面に表示される）
+ *      ★このとき「購入検討者属性/メッセージ」を自由入力できる（売主側の回答画面に表示される）
  *   3. 売主側の承諾後、鍵の受け渡し情報を確認し、買主向けの待ち合わせ案内を入力して送信
  *   4. キャンセル時は「売主（仲介）会社へキャンセルを通知」で先方へ連絡する
  *
@@ -47,6 +47,14 @@
     return '<div class="vw-box"><div class="vw-box__title">送信状況</div>' +
       (rows ? '<dl class="vw-dl">' + rows + '</dl>' : '') + fails +
       '<div class="vw-hint">開封・アクセス・回答完了は別々に記録しています。記録がない項目は「未確認」であり、未開封とは限りません。</div></div>';
+  }
+
+  /** 売主（仲介）会社からのメッセージ（回答画面「3. メッセージ」）。買主には表示しない。 */
+  function sellerMessageHtml(v) {
+    if (!v.seller_message) return '';
+    return '<div class="vw-box vw-box--accent"><div class="vw-box__title">売主（仲介）会社からのメッセージ</div>' +
+      '<div style="white-space:pre-wrap;word-break:break-word;">' + esc(v.seller_message) + '</div>' +
+      (v.seller_message_at ? '<div class="vw-hint">受信：' + esc(v.seller_message_at) + '</div>' : '') + '</div>';
   }
 
   /** 鍵の受け渡し情報（売主側が入力したもの）。買主には表示しない。 */
@@ -134,6 +142,7 @@
         '<strong>売主（仲介）会社へ旧日時の取消連絡が必要です。</strong></div>';
     }
 
+    html += sellerMessageHtml(v);
     html += keyHtml(v);
 
     if (v.status === 'unavailable') {
@@ -182,8 +191,8 @@
     html += '<div class="vcal-picked" data-vw="picked"></div>';
     html += '<div data-vw="calendar"></div>';
 
-    // ★購入検討者属性（自由入力）。売主（仲介）会社の回答画面に表示される。
-    html += '<div class="vw-box vw-box--accent"><div class="vw-box__title">購入検討者属性</div>' +
+    // ★購入検討者属性/メッセージ（自由入力）。売主（仲介）会社の回答画面に表示される。
+    html += '<div class="vw-box vw-box--accent"><div class="vw-box__title">購入検討者属性/メッセージ</div>' +
       '<div class="vw-field">' +
       '<textarea data-vw="attrs" rows="4" placeholder="例）30代ご夫婦・お子様1名／ご自宅の住み替え（売却済み）／自己資金1,500万円・事前審査承認済み（〇〇銀行）／ご内見は2件目"></textarea>' +
       '<div class="vw-hint">ここに入力した内容は、売主（仲介）会社が回答URLを開いたときにカレンダーとあわせて表示されます。</div>' +
@@ -199,7 +208,7 @@
 
     pane.innerHTML = html;
 
-    // 購入検討者属性は draw のたびに値を入れ直す（HTMLに埋め込むと改行が崩れるため）。
+    // 購入検討者属性/メッセージは draw のたびに値を入れ直す（HTMLに埋め込むと改行が崩れるため）。
     var attrs = pane.querySelector('[data-vw="attrs"]');
     if (attrs) attrs.value = v.buyer_attributes || '';
 

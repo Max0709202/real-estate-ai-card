@@ -203,6 +203,9 @@ if (!function_exists('viewingApiCasePayload')) {
             $v['key_method_label'] = $case['key_method'] ? ($keyDefs[$case['key_method']]['label'] ?? $case['key_method']) : '';
             $v['key_data']         = $case['key_data'] ?? [];
             $v['buyer_attributes'] = (string)($case['buyer_attributes'] ?? '');
+            // 売主仲介会社からのメッセージ（回答画面「3. メッセージ」）。
+            $v['seller_message']    = (string)($case['seller_message'] ?? '');
+            $v['seller_message_at'] = $case['seller_message_at'] ?? null;
             $v['seller_cancel_notified_at'] = $case['seller_cancel_notified_at'];
             $v['events'] = viewingEventSummary($db, (int)$case['id']);
             // 現在の確定日時に対するリマインドの予約状況（画面に実際の予約内容を表示するため）。

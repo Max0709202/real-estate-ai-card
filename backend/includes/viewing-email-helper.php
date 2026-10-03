@@ -207,6 +207,11 @@ if (!function_exists('viewingMailBuild')) {
         $target  = trim((string)($extra['target'] ?? '')) ?: $confirmed;
         $prev    = trim((string)($extra['prev'] ?? '')) ?: $ctx['prev'];
         $changed = !empty($extra['changed']);   // 日時変更の確定か
+        // 売主仲介会社が回答画面「3. メッセージ」に入力した内容（★2026/10/3 追加ご依頼）。M05／N01／N02 に載せる。
+        $sellerMsg = trim((string)($ctx['case']['seller_message'] ?? ''));
+        $sellerMsgLines = $sellerMsg !== ''
+            ? array_merge(['■売主（仲介）会社からのメッセージ'], preg_split('/\R/u', $sellerMsg), [''])
+            : [];
 
         // 売主側リマインド（R01〜R13）の共通部分。
         if ($code !== '' && $code[0] === 'R') {
@@ -481,6 +486,7 @@ if (!function_exists('viewingMailBuild')) {
                         '内見日時：' . $confirmed,
                     ], [
                         '',
+                    ], $sellerMsgLines, [
                         '下記URLから鍵の受け渡し情報をご確認ください。',
                         '買主との待ち合わせ場所・時間を入力し、確定案内を送信してください。',
                         '',
@@ -667,18 +673,19 @@ if (!function_exists('viewingMailBuild')) {
             case 'N01':
                 return [
                     'subject' => "【内見不可（成約・申込済み）】{$label}",
-                    'lines' => [
+                    'lines' => array_merge([
                         "{$label}について、売主（仲介）会社より「成約・申込済み」のご回答がありました。",
                         '',
                         '買主：' . $buyer . '様',
                         '',
+                    ], $sellerMsgLines, [
                         '内見はできない状態です。買主へのご案内は、内容をご確認のうえ下記URLから送信してください。',
                         'この案件の未送信のリマインドはすべて取り消しています。',
                         '',
                         '内容の確認：' . $ctx['url_agent'],
                         '',
                         '不動産AI名刺',
-                    ],
+                    ]),
                     'cta' => ['label' => '内容を確認する', 'url' => $ctx['url_agent']],
                 ];
 
@@ -707,17 +714,18 @@ if (!function_exists('viewingMailBuild')) {
             case 'N02':
                 return [
                     'subject' => "【候補日時では内見不可】{$label}",
-                    'lines' => [
+                    'lines' => array_merge([
                         "{$label}について、売主（仲介）会社より「候補日時では内見不可」のご回答がありました。",
                         '',
                         '買主：' . $buyer . '様',
                         '',
+                    ], $sellerMsgLines, [
                         '成約・申込済みとは別の回答です。買主へ別の候補日時を3つ以上お選びいただき、再調整をお願いいたします。',
                         '',
                         '再調整：' . $ctx['url_agent'],
                         '',
                         '不動産AI名刺',
-                    ],
+                    ]),
                     'cta' => ['label' => '再調整する', 'url' => $ctx['url_agent']],
                 ];
         }

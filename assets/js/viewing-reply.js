@@ -4,6 +4,7 @@
  * ・鍵の受け渡しは方法を1つ選び、その方法の入力欄だけを表示する
  * ・必須項目がそろうまで「この内容で内見を承諾」は押せない
  * ・「成約・申込済み」「候補日時では内見不可」は鍵情報の入力なしで回答できる
+ * ・「3. メッセージ」（任意）は、どの回答にも添えて担当エージェントへ届ける
  */
 (function () {
   'use strict';
@@ -83,6 +84,8 @@
   }
 
   function post(payload) {
+    var messageInput = document.getElementById('vr-message');
+    payload.message = messageInput ? messageInput.value.trim() : '';
     setBusy(true);
     return fetch(apiBase + '/property/viewing-seller.php', {
       method: 'POST',

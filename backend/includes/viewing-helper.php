@@ -82,6 +82,8 @@ if (!function_exists('viewingEnsureTables')) {
           cancelled_at DATETIME NULL DEFAULT NULL,
           seller_cancel_notified_at DATETIME NULL DEFAULT NULL,
           unavailable_reason VARCHAR(24) NULL DEFAULT NULL,
+          seller_message TEXT NULL DEFAULT NULL,
+          seller_message_at DATETIME NULL DEFAULT NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           UNIQUE KEY uk_property_viewings_prop_session (property_id, session_id),
@@ -160,6 +162,9 @@ if (!function_exists('viewingEnsureColumns')) {
         $cols = [
             // 購入検討者属性（エージェントの自由入力。売主仲介会社の回答画面に表示する）。
             'buyer_attributes' => "ADD COLUMN buyer_attributes TEXT NULL DEFAULT NULL AFTER is_rescheduling",
+            // 売主仲介会社から担当エージェントへのメッセージ（回答画面「3. メッセージ」。★2026/10/3 追加ご依頼）。
+            'seller_message'    => "ADD COLUMN seller_message TEXT NULL DEFAULT NULL AFTER unavailable_reason",
+            'seller_message_at' => "ADD COLUMN seller_message_at DATETIME NULL DEFAULT NULL AFTER seller_message",
         ];
         foreach ($cols as $name => $ddl) {
             try {

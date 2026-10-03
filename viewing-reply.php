@@ -5,10 +5,11 @@
  *
  * 画面の構成（仕様 §6 ／ 2026/9/20 追加ご依頼）:
  *   ① 物件（物件名＋金額）と、担当エージェントのプロフィール・連絡先
- *   ② ★購入検討者属性（エージェントの自由入力）
+ *   ② ★購入検討者属性/メッセージ（エージェントの自由入力）
  *   ③ カレンダー（エージェントが対応可能とした候補日時＝黄色）から1枠を選ぶ → 緑
  *   ④ 鍵の受け渡し方法の選択と入力（方法ごとに必須項目が変わる。写真・資料の添付も可）
- *   ⑤「この内容で内見を承諾」／「成約・申込済み」／「候補日時では内見不可」
+ *   ⑤ ★メッセージ（任意。回答と一緒に担当エージェントへ届く／2026/10/3 追加ご依頼）
+ *   ⑥「この内容で内見を承諾」／「成約・申込済み」／「候補日時では内見不可」
  *
  * 買主の赤い候補や他案件の予定は表示しない。
  */
@@ -95,10 +96,10 @@ $apiBase = rtrim(parse_url(API_BASE_URL, PHP_URL_PATH) ?: '/backend/api', '/');
     <?php endif; ?>
   </section>
 
-  <!-- ② 購入検討者属性（2026/9/20 追加ご依頼） -->
+  <!-- ② 購入検討者属性/メッセージ（2026/9/20 追加ご依頼・2026/10/3 名称変更） -->
   <?php if ($buyerAttrs !== ''): ?>
   <section class="vr-card vr-card--attrs">
-    <div class="vr-section-title">購入検討者属性</div>
+    <div class="vr-section-title">購入検討者属性/メッセージ</div>
     <div class="vr-attrs"><?= nl2br($esc($buyerAttrs)) ?></div>
   </section>
   <?php endif; ?>
@@ -186,9 +187,17 @@ $apiBase = rtrim(parse_url(API_BASE_URL, PHP_URL_PATH) ?: '/backend/api', '/');
       </fieldset>
     <?php endforeach; ?>
 
+    <!-- ⑤ 担当エージェントへのメッセージ（任意） -->
+    <div class="vr-section-title">3. メッセージ</div>
+    <p class="vr-guide">担当者へお伝えしたいことがございましたら、ご入力ください。ご回答とあわせて担当者へお届けします。</p>
+    <div class="vr-field">
+      <label for="vr-message">担当者へのメッセージ<span class="vr-opt">任意</span></label>
+      <textarea id="vr-message" rows="4" maxlength="2000" placeholder="例）当日は売主様が在宅予定です。駐車場はございませんので、近隣のコインパーキングをご利用ください。"></textarea>
+    </div>
+
     <div id="vr-msg" class="vr-msg" hidden></div>
 
-    <!-- ⑤ 回答ボタン -->
+    <!-- ⑥ 回答ボタン -->
     <div class="vr-actions">
       <button type="button" class="vr-btn vr-btn--primary" data-action="accept">この内容で内見を承諾</button>
       <button type="button" class="vr-btn vr-btn--ghost" data-action="no_slot">候補日時では内見不可</button>
@@ -206,6 +215,6 @@ $apiBase = rtrim(parse_url(API_BASE_URL, PHP_URL_PATH) ?: '/backend/api', '/');
     このページは、不動産AI名刺（<a href="https://www.ai-fcard.com/" target="_blank" rel="noopener">https://www.ai-fcard.com/</a>）の内見調整機能から開かれています。
   </footer>
 </div>
-<script src="assets/js/viewing-reply.js?v=20260920"></script>
+<script src="assets/js/viewing-reply.js?v=20261003"></script>
 </body>
 </html>

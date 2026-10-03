@@ -6,6 +6,8 @@
  * POST { t, action:'accept',   slot_id, key_method, key:{...} }  1枠を選び鍵情報を入力して承諾
  * POST { t, action:'contracted' }     成約・申込済みにより内見不可
  * POST { t, action:'no_slot' }        候補日時では内見不可（成約済みとは別の回答）
+ *   いずれの回答にも message（任意）を付けられる。担当エージェントへのメッセージとして保存し、
+ *   エージェント宛てのメール（M05／N01／N02）と担当者画面に表示する（★2026/10/3 追加ご依頼）。
  *
  * ★2026/9/20 追加ご依頼
  *   回答画面には、カレンダーのほかに「購入検討者属性」（エージェントの自由入力）を表示する。
@@ -76,6 +78,9 @@ try {
     }
 
     $action = trim((string)($input['action'] ?? ''));
+    // 「3. メッセージ」（任意）。回答のたびに最新の内容で上書きする（空なら消す）。
+    $message = mb_substr(trim(str_replace("\r\n", "\n", (string)($input['message'] ?? ''))), 0, 2000);
+    $messageAt = $message !== '' ? viewingNow()->format('Y-m-d H:i:s') : null;
     if (!viewingIsOpen($case)) {
         sendErrorResponse('この内見はすでに' . (viewingStatusDefs()[$case['status']]['label'] ?? '終了') . 'です。', 409, $payload($case));
     }
@@ -84,13 +89,15 @@ try {
     if ($action === 'contracted' || $action === 'no_slot') {
         $isContracted = ($action === 'contracted');
         if ($isContracted) {
-            $db->prepare("UPDATE property_viewings SET status = 'unavailable', unavailable_reason = 'contracted' WHERE id = ?")
-               ->execute([(int)$case['id']]);
+            $db->prepare("UPDATE property_viewings SET status = 'unavailable', unavailable_reason = 'contracted',
+                          seller_message = ?, seller_message_at = ? WHERE id = ?")
+               ->execute([$message, $messageAt, (int)$case['id']]);
             viewingReminderCancelAll($db, (int)$case['id'], '売主側より成約・申込済みの回答');
         } else {
             // 候補日時では調整不可。成約済みとは別の回答として受け付け、案件は継続する。
-            $db->prepare("UPDATE property_viewings SET status = 'agent_review', unavailable_reason = 'no_slot' WHERE id = ?")
-               ->execute([(int)$case['id']]);
+            $db->prepare("UPDATE property_viewings SET status = 'agent_review', unavailable_reason = 'no_slot',
+                          seller_message = ?, seller_message_at = ? WHERE id = ?")
+               ->execute([$message, $messageAt, (int)$case['id']]);
         }
         $fresh = viewingLoad($db, (int)$case['id']);
         viewingLogEvent($db, (int)$case['id'], 'replied', [
@@ -138,11 +145,12 @@ try {
         $stmt = $db->prepare("UPDATE property_viewings SET
                     status = 'confirmed', confirmed_slot_id = ?, confirmed_start_at = ?, confirmed_end_at = ?,
                     confirmed_version = confirmed_version + 1, confirmed_at = ?,
-                    key_method = ?, key_json = ?, unavailable_reason = NULL
+                    key_method = ?, key_json = ?, unavailable_reason = NULL,
+                    seller_message = ?, seller_message_at = ?
                   WHERE id = ? AND status = 'seller_pending'");
         $stmt->execute([
             $slotId, $slot['start_at'], $slot['end_at'], viewingNow()->format('Y-m-d H:i:s'),
-            $method, json_encode($keyData, JSON_UNESCAPED_UNICODE), (int)$case['id'],
+            $method, json_encode($keyData, JSON_UNESCAPED_UNICODE), $message, $messageAt, (int)$case['id'],
         ]);
         if ($stmt->rowCount() === 0) {
             // 旧候補への回答・承諾済み案件への再承諾は受け付けない。
