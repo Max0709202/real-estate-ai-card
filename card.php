@@ -1408,6 +1408,7 @@ if (!empty($card['profile_photo'])) {
                 <button type="button" class="chat-widget-geo-btn" data-geo-map="1">現在地情報をマップ表示</button>
                 <button type="button" class="chat-widget-geo-btn" data-geo-info="1">現在地情報を取得する</button>
             </div>
+            <div class="chat-contact-head chat-ai-head"><strong>AI担当</strong><span>不動産取引に関連する情報をAIが回答し整理します。</span></div>
             <div id="chat-widget-messages" class="chat-widget-messages"></div>
             <div class="chat-widget-quick-actions" id="chat-widget-quick-actions"></div>
             <div id="chat-widget-feature-panel" class="chat-widget-feature-panel" hidden></div>

@@ -1310,6 +1310,32 @@ function logEmail($recipientEmail, $subject, $emailType, $status, $deliveryTimeM
 }
 
 /**
+ * すべてのメール末尾に付ける自動配信・返信不可の案内文。
+ */
+const AUTO_MAIL_FOOTER_TEXT = '本メールは「不動産AI名刺」から自動配信されています。送信専用のため、ご返信いただいても確認・対応はできかねます。あらかじめご了承ください。';
+
+function appendAutoMailFooterHtml(string $html): string {
+    if (strpos($html, AUTO_MAIL_FOOTER_TEXT) !== false) {
+        return $html;
+    }
+    $footer = '<div style="margin-top:24px;padding-top:12px;border-top:1px solid #e0e0e0;font-size:12px;color:#888;line-height:1.6;">'
+        . htmlspecialchars(AUTO_MAIL_FOOTER_TEXT, ENT_QUOTES, 'UTF-8')
+        . '</div>';
+    $pos = strripos($html, '</body>');
+    if ($pos !== false) {
+        return substr($html, 0, $pos) . $footer . substr($html, $pos);
+    }
+    return $html . $footer;
+}
+
+function appendAutoMailFooterText(string $text): string {
+    if (strpos($text, AUTO_MAIL_FOOTER_TEXT) !== false) {
+        return $text;
+    }
+    return rtrim($text) . "\n\n――――――――――\n" . AUTO_MAIL_FOOTER_TEXT . "\n";
+}
+
+/**
  * Send email with logging and timing
  */
 
@@ -1432,9 +1458,10 @@ function sendEmail(
         $mail->Encoding = 'quoted-printable';
 
         // Subject + body
+        // 不動産AI名刺から送るすべてのメールに、自動配信・返信不可の案内を末尾に付ける。
         $mail->Subject = $subject;
-        $mail->Body    = $htmlMessage;
-        $mail->AltBody = $textMessage !== '' ? $textMessage : trim(strip_tags($htmlMessage));
+        $mail->Body    = appendAutoMailFooterHtml($htmlMessage);
+        $mail->AltBody = appendAutoMailFooterText($textMessage !== '' ? $textMessage : trim(strip_tags($htmlMessage)));
 
         // Optional: set a message-id domain for better deliverability
         // $mail->MessageID = sprintf('<%s@%s>', bin2hex(random_bytes(16)), 'ai-fcard.com');

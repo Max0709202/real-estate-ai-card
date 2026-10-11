@@ -3225,7 +3225,7 @@
         }
 
         var html = '';
-        html += '<div class="chat-feature-head"><strong>条件整理</strong><span>AIチャットから抽出した条件を保存します</span></div>';
+        html += '<div class="chat-feature-head"><div class="chat-feature-head-text"><strong>条件整理</strong><span>希望条件を入力してください。また、AIチャットから抽出した条件も自動反映します。</span></div></div>';
         html += '<label class="chat-feature-field">相談種別<select name="deal_type"><option value="purchase"' + (dealType === 'purchase' ? ' selected' : '') + '>購入</option><option value="sale"' + (dealType === 'sale' ? ' selected' : '') + '>売却</option><option value="both"' + (dealType === 'both' ? ' selected' : '') + '>買い替え</option><option value="rent"' + (dealType === 'rent' ? ' selected' : '') + '>賃貸</option></select></label>';
         html += '<div class="chat-feature-grid">';
         if (dealType === 'sale') {
@@ -3249,7 +3249,7 @@
         if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
         var p = c.progress || {};
         var stages = crmArray(p.stages);
-        var html = '<div class="chat-feature-head"><strong>進捗管理</strong><span>進捗率 ' + crmFields(p.progress_percent || 0) + '%</span></div>';
+        var html = '<div class="chat-feature-head"><div class="chat-feature-head-text"><strong>進捗管理</strong><span>引き渡し希望日を入力するとスケジュールを逆算して表示します。</span></div><span>進捗率 ' + crmFields(p.progress_percent || 0) + '%</span></div>';
         html += '<label class="chat-feature-field">引き渡し希望日<input type="date" name="target_date" value="' + crmFields(p.target_date || '') + '"></label>';
         html += '<label class="chat-feature-field">現在のステージ<input name="current_stage" value="' + crmFields(p.current_stage || '') + '"></label>';
         html += '<label class="chat-feature-field">AIコメント<textarea name="ai_comment">' + crmFields(p.ai_comment || '') + '</textarea></label>';
@@ -3333,7 +3333,7 @@
         if (propFavOnly && !favCount) propFavOnly = false;
         var shown = propFavOnly ? items.filter(PUI.isFavorite) : items;
 
-        var html = '<div class="prop-toolbar"><h4>物件選定</h4>' +
+        var html = '<div class="prop-toolbar"><div class="chat-feature-head-text prop-toolbar__title"><h4>物件選定</h4><span>検討中の物件を確認できます。</span></div>' +
             '<button type="button" class="prop-fav-filter' + (propFavOnly ? ' is-active' : '') + '" id="prop-cust-favfilter"' +
             ' aria-pressed="' + (propFavOnly ? 'true' : 'false') + '" title="気になる物件だけを表示">' +
             PUI.icon(propFavOnly ? 'heartFilled' : 'heart') + 'お気に入り' +
@@ -3938,7 +3938,7 @@
         var loanBorrowUrl = siteBase + '/loan-simulator.php?slug=' + encodeURIComponent(cardSlug) + '&form=borrow-income';
         var loanRepaymentImage = siteBase + '/assets/images/lp_icon/loan_repayment.png';
         var loanBorrowImage = siteBase + '/assets/images/lp_icon/loan_borrowable.png';
-        var html = '<div class="chat-feature-head"><strong>ツール</strong><span>リンク集</span></div>';
+        var html = '<div class="chat-feature-head"><div class="chat-feature-head-text"><strong>ツール</strong><span>不動産売買に必要なWEBツールをご利用いただけます。</span></div></div>';
         html += '<div class="chat-feature-tools chat-feature-tools-grid">';
         tools.forEach(function (tool) {
             html += '<a class="chat-feature-tool-card" href="' + crmAttr(tool.tool_url || '#') + '" target="_blank" rel="noopener noreferrer">';
@@ -3961,29 +3961,94 @@
         renderFeaturePanel(html);
     }
 
+    // 「2026-10-10T14:00」→「2026/10/10 14:00」（表示用）
+    function formatScheduleDatetime(value) {
+        var m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+        if (!m) return String(value || '');
+        return m[1] + '/' + m[2] + '/' + m[3] + (m[4] ? ' ' + m[4] + ':' + m[5] : '');
+    }
+
+    // 種類・日時が空のまま登録されてしまった過去の日程（空登録）は表示・保存の対象から外す。
+    function validScheduleItems(list) {
+        return crmArray(list).filter(function (item) {
+            return item && String(item.datetime || '').trim() !== '';
+        });
+    }
+
     function renderSchedulesTab() {
         var c = crmCase();
         if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
         var schedules = c.schedules || {};
-        var normal = crmArray(schedules.normal);
+        var normal = validScheduleItems(schedules.normal);
         var viewings = crmArray(schedules.viewings);
-        var html = '<div class="chat-feature-head"><strong>日程調整</strong><span>候補日時の管理</span></div>';
+        var html = '<div class="chat-feature-head"><div class="chat-feature-head-text"><strong>日程調整</strong><span>' + escapeHtml(agentName || '担当者') + '（担当者）と日程調整ができます</span></div></div>';
         html += '<div class="chat-feature-grid">';
-        html += '<label>種類<select name="schedule_kind"><option>面談</option><option>内覧</option><option>重要事項説明</option><option>売買契約</option><option>引き渡し（決済）</option></select></label>';
+        html += '<label>種類<select name="schedule_kind"><option value="">選択してください</option><option>面談</option><option>内覧</option><option>重要事項説明</option><option>売買契約</option><option>引き渡し（決済）</option></select></label>';
         html += '<label>日時<input type="datetime-local" name="schedule_datetime"></label>';
         html += '<label>ステータス<select name="schedule_status"><option>候補</option><option>担当者確認中</option><option>顧客確認待ち</option><option>売主確認待ち</option><option>確定済み</option><option>変更依頼中</option><option>キャンセル済み</option></select></label>';
         html += '<label>メモ<textarea name="schedule_message"></textarea></label>';
         html += '</div>';
-        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-add" data-add-feature="schedule">追加</button><button type="button" class="chat-feature-save" data-save-feature="schedules">保存</button></div>';
+        html += '<p class="chat-feature-error" data-schedule-error hidden>種類と日時を入力後スケジュールを追加してください</p>';
+        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-add" data-add-feature="schedule">追加</button></div>';
         html += '<div class="chat-feature-list">';
         normal.forEach(function (item) {
-            html += '<div class="chat-feature-card"><strong>' + crmFields(item.kind || '日程') + '</strong><div>' + crmFields(item.datetime || '') + '</div><p>' + crmFields(item.status || '') + '</p></div>';
+            html += '<div class="chat-feature-card"><strong>' + crmFields(item.kind || '日程') + '</strong><div>' + crmFields(formatScheduleDatetime(item.datetime)) + '</div><p>' + crmFields(item.status || '') + '</p>' +
+                (item.message ? '<p>' + crmFields(item.message) + '</p>' : '') + '</div>';
         });
         viewings.forEach(function (item) {
             html += '<div class="chat-feature-card"><strong>' + crmFields(item.property_name || '内覧') + '</strong><div>' + crmFields(item.time || '') + '</div><p>' + crmFields(item.address || '') + '</p></div>';
         });
         html += '</div>';
         renderFeaturePanel(html);
+    }
+
+    // 日程の「追加」: 種類・日時の入力を確認し、内容を見せて担当へ連絡してよいか確かめてから保存する。
+    // 保存すると担当者へ「日程調整の連絡」メールが届く（crm/save.php → 通知キュー）。
+    function confirmAddSchedule(addBtn) {
+        var root = featurePanel;
+        var errorEl = root.querySelector('[data-schedule-error]');
+        var kind = ((root.querySelector('[name="schedule_kind"]') || {}).value || '').trim();
+        var datetime = ((root.querySelector('[name="schedule_datetime"]') || {}).value || '').trim();
+        if (!kind || !datetime) {
+            if (errorEl) errorEl.hidden = false;
+            return;
+        }
+        if (errorEl) errorEl.hidden = true;
+        var status = (root.querySelector('[name="schedule_status"]') || {}).value || '';
+        var message = ((root.querySelector('[name="schedule_message"]') || {}).value || '').trim();
+        var payload = collectSchedulesPayload();
+        if (!PUI || typeof PUI.modal !== 'function') {
+            submitSchedule(addBtn, payload);
+            return;
+        }
+        var body = '<dl class="chat-schedule-confirm">' +
+            '<dt>種類</dt><dd>' + escapeHtml(kind) + '</dd>' +
+            '<dt>日時</dt><dd>' + escapeHtml(formatScheduleDatetime(datetime)) + '</dd>' +
+            '<dt>ステータス</dt><dd>' + escapeHtml(status) + '</dd>' +
+            (message ? '<dt>メモ</dt><dd>' + escapeHtml(message) + '</dd>' : '') +
+            '</dl>' +
+            '<p class="chat-schedule-confirm-question">この日程を担当へ連絡しますか？</p>' +
+            '<div class="prop-form-actions">' +
+            '<button type="button" class="prop-btn prop-btn--ghost" data-schedule-cancel>キャンセル</button>' +
+            '<button type="button" class="prop-btn prop-btn--primary" data-schedule-send>送信</button>' +
+            '</div>';
+        var m = PUI.modal('【追加日程内容】', body);
+        m.body.querySelector('[data-schedule-cancel]').addEventListener('click', m.close);
+        m.body.querySelector('[data-schedule-send]').addEventListener('click', function () {
+            m.close();
+            submitSchedule(addBtn, payload);
+        });
+    }
+
+    function submitSchedule(addBtn, payload) {
+        if (addBtn) addBtn.disabled = true;
+        saveCrmFeature('schedules', payload).then(function () {
+            renderSchedulesTab();
+        }).catch(function () {
+            appendBotMessage('追加に失敗しました。');
+        }).finally(function () {
+            if (addBtn) addBtn.disabled = false;
+        });
     }
 
     /**
@@ -4191,7 +4256,7 @@
             deal_type: crmCase().deal_type || 'purchase',
             schedules: {
                 deal_type: crmCase().deal_type || 'purchase',
-                normal: crmArray((crmCase().schedules || {}).normal).concat([{
+                normal: validScheduleItems((crmCase().schedules || {}).normal).concat([{
                     id: Date.now(),
                     kind: (root.querySelector('[name="schedule_kind"]') || {}).value || '',
                     datetime: (root.querySelector('[name="schedule_datetime"]') || {}).value || '',
@@ -4779,6 +4844,10 @@
             }
             if (addBtn) {
                 var addFeature = addBtn.getAttribute('data-add-feature');
+                if (addFeature === 'schedule') {
+                    confirmAddSchedule(addBtn);
+                    return;
+                }
                 var payloadAdd = null;
                 if (addFeature === 'property') payloadAdd = collectPropertiesPayload();
                 else if (addFeature === 'schedule') payloadAdd = collectSchedulesPayload();

@@ -49,9 +49,9 @@
      * マウスとタッチの両方を同じ処理で扱えるよう Pointer Events を使う。
      */
 
-    function readStoredPosition() {
+    function readStoredPosition(key) {
         try {
-            var raw = window.localStorage.getItem(POSITION_KEY);
+            var raw = window.localStorage.getItem(key || POSITION_KEY);
             if (!raw) return null;
             var pos = JSON.parse(raw);
             if (!pos || typeof pos.left !== 'number' || typeof pos.top !== 'number') return null;
@@ -62,9 +62,9 @@
         }
     }
 
-    function storePosition(pos) {
+    function storePosition(pos, key) {
         try {
-            window.localStorage.setItem(POSITION_KEY, JSON.stringify(pos));
+            window.localStorage.setItem(key || POSITION_KEY, JSON.stringify(pos));
         } catch (e) { /* 保存できなくても移動自体はできる */ }
     }
 
@@ -89,7 +89,12 @@
         return clamped;
     }
 
-    function makeDraggable(el) {
+    // 非表示（display:none）の要素は大きさが測れないため、位置の調整を見送る。
+    function isShown(el) {
+        return el.getClientRects().length > 0;
+    }
+
+    function makeDraggable(el, key) {
         // Pointer Events が無い環境では、これまでどおり左下固定のまま使えるようにする。
         if (!window.PointerEvent) return;
 
@@ -110,8 +115,6 @@
             startY = e.clientY;
             originLeft = rect.left;
             originTop = rect.top;
-            el.classList.add('is-dragging');
-            try { el.setPointerCapture(e.pointerId); } catch (err) {}
         });
 
         el.addEventListener('pointermove', function (e) {
@@ -119,7 +122,12 @@
             var dx = e.clientX - startX;
             var dy = e.clientY - startY;
             if (!moved && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
-            moved = true;
+            if (!moved) {
+                // 動き始めてから捕まえる。押しただけのときは中のボタンへ click を届けるため。
+                moved = true;
+                el.classList.add('is-dragging');
+                try { el.setPointerCapture(e.pointerId); } catch (err) {}
+            }
             // 指やマウスで運んでいる間は選択やスクロールを起こさない。
             e.preventDefault();
             applyPosition(el, { left: originLeft + dx, top: originTop + dy });
@@ -132,7 +140,7 @@
             try { el.releasePointerCapture(e.pointerId); } catch (err) {}
             if (!moved) return;
             var rect = el.getBoundingClientRect();
-            storePosition(applyPosition(el, { left: rect.left, top: rect.top }));
+            storePosition(applyPosition(el, { left: rect.left, top: rect.top }), key);
         }
 
         el.addEventListener('pointerup', endDrag);
@@ -143,16 +151,17 @@
             if (!moved) return;
             moved = false;
             e.preventDefault();
-            e.stopPropagation();
+            // el 自身がボタンの場合（「顧客一覧に戻る」）も本来の動作を止める。
+            e.stopImmediatePropagation();
         }, true);
 
         // 画面サイズが変わっても掴める位置に留める（保存済みの位置も入れ直す）。
         window.addEventListener('resize', function () {
-            if (!el.style.left) return;
+            if (!el.style.left || !isShown(el)) return;
             storePosition(applyPosition(el, {
                 left: parseFloat(el.style.left) || 0,
                 top: parseFloat(el.style.top) || 0
-            }));
+            }), key);
         });
     }
 
@@ -170,10 +179,39 @@
             wrap.classList.add('font-scale-switch-above-chat');
         }
 
+        // 最初は「文字サイズ」だけを表示し、タップで「標準・大・特大」を開閉する。
         var label = document.createElement('span');
         label.className = 'font-scale-switch-label';
         label.textContent = '文字サイズ';
+        label.setAttribute('role', 'button');
+        label.setAttribute('tabindex', '0');
+        label.setAttribute('aria-expanded', 'false');
         wrap.appendChild(label);
+
+        function setOpen(open) {
+            wrap.classList.toggle('is-open', open);
+            label.setAttribute('aria-expanded', String(open));
+            // 開いて横幅が広がったときに画面の外へはみ出さないよう、移動済みの位置を収め直す。
+            if (wrap.style.left) {
+                applyPosition(wrap, {
+                    left: parseFloat(wrap.style.left) || 0,
+                    top: parseFloat(wrap.style.top) || 0
+                });
+            }
+        }
+        label.addEventListener('click', function () {
+            setOpen(!wrap.classList.contains('is-open'));
+        });
+        label.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setOpen(!wrap.classList.contains('is-open'));
+            }
+        });
+        // 切替UIの外をタップしたら閉じる。
+        document.addEventListener('pointerdown', function (e) {
+            if (wrap.classList.contains('is-open') && !wrap.contains(e.target)) setOpen(false);
+        });
 
         var buttons = document.createElement('div');
         buttons.className = 'font-scale-switch-buttons';
@@ -206,6 +244,24 @@
         if (stored) applyPosition(wrap, stored);
         makeDraggable(wrap);
     }
+
+    // 他の画面部品（顧客詳細の「顧客一覧に戻る」など）も、文字サイズ切替と同じように
+    // つまんで移動でき、動かした位置を次回も使えるようにする。key は位置の保存名。
+    function restorePosition(el, key) {
+        var stored = readStoredPosition(key);
+        if (stored && isShown(el)) applyPosition(el, stored);
+    }
+
+    window.AppFloating = {
+        makeDraggable: function (el, key) {
+            if (!el || !key || el.dataset.floatingReady === '1') return;
+            el.dataset.floatingReady = '1';
+            restorePosition(el, key);
+            makeDraggable(el, key);
+        },
+        // 非表示から表示に切り替えたあとに呼ぶ（保存位置を画面内に収めて入れ直す）。
+        restorePosition: restorePosition
+    };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', buildSwitch);

@@ -673,8 +673,13 @@ function editSectionIcon(string $key): string
         .chat-draft-preview-actions {
             display: flex;
             justify-content: flex-end;
+            align-items: center;
             gap: 0.5rem;
             flex-wrap: wrap;
+        }
+        .chat-draft-preview-note {
+            font-size: 0.8rem;
+            color: #6b7686;
         }
         .btn-payment-red {
             background: #dc3545;
@@ -1786,8 +1791,7 @@ function editSectionIcon(string $key): string
                         <h3>顧客詳細</h3>
                         <div id="chat-history-detail-content"></div>
                         <div class="chat-history-detail-actions">
-                            <button type="button" class="btn-secondary" id="chat-history-detail-back">一覧に戻る</button>
-                            <button type="button" class="btn-danger" id="chat-history-detail-delete">この対応履歴をゴミ箱へ</button>
+                            <button type="button" class="btn-secondary chat-history-detail-back-float" id="chat-history-detail-back">顧客一覧に戻る</button>
                         </div>
                     </div>
                 </div>
@@ -4306,6 +4310,18 @@ function editSectionIcon(string $key): string
                     });
             }
 
+            // 電話番号の表示用整形（SMS認証で保存される +81 形式を国内表記にする）。
+            // 例: +819035093183 → 090-3509-3183。保存値そのものは変えない。
+            function formatPhoneForDisplay(phone) {
+                var raw = String(phone || '').trim();
+                var digits = raw.replace(/[^\d+]/g, '');
+                if (digits.indexOf('+81') === 0) digits = '0' + digits.slice(3).replace(/^0/, '');
+                else if (digits.indexOf('+') === 0) return raw;
+                if (!/^0\d{9,10}$/.test(digits)) return raw;
+                if (/^0[5789]0\d{8}$/.test(digits)) return digits.slice(0, 3) + '-' + digits.slice(3, 7) + '-' + digits.slice(7);
+                return digits;
+            }
+
             // 顧客情報（顧客名・電話・メール）の表示と、その場で直せる入力欄。
             // 表示モードと編集モードを同じ枠の中で差し替える。
             function renderCustomerContact(contact) {
@@ -4325,7 +4341,7 @@ function editSectionIcon(string $key): string
 
                 html += '<div class="chat-contact-data" id="customer-contact-view">';
                 html += '<p><strong>顧客名:</strong> ' + escapeHtml(name || '未入力') + '</p>';
-                html += '<p><strong>電話:</strong> ' + escapeHtml(phone || '未入力') + '</p>';
+                html += '<p><strong>電話:</strong> ' + escapeHtml(phone ? formatPhoneForDisplay(phone) : '未入力') + '</p>';
                 html += '<p><strong>メール:</strong> ' + emailHtml + '</p>';
                 html += '</div>';
 
@@ -4422,6 +4438,8 @@ function editSectionIcon(string $key): string
                 detailEl.style.display = 'block';
                 listEl.style.display = 'none';
                 setInviteAreaVisible(false);
+                // 非表示中は位置を測れないため、表示したタイミングで移動済みの位置を入れ直す。
+                if (backBtn && window.AppFloating) window.AppFloating.restorePosition(backBtn, 'app_detail_back_pos');
                 fetch(apiBase + '/session.php?id=' + encodeURIComponent(sessionId), { credentials: 'include' })
                     .then(function(r) { return r.json(); })
                     .then(function(res) {
@@ -4464,11 +4482,15 @@ function editSectionIcon(string $key): string
                         html += '<div class="chat-draft-preview" id="agent-chat-draft-preview" hidden>';
                         html += '<div class="chat-draft-preview-head"><span id="agent-chat-draft-title">AI文案プレビュー</span></div>';
                         html += '<div class="chat-draft-preview-body" id="agent-chat-draft-body"></div>';
-                        html += '<div class="chat-draft-preview-actions"><button type="button" class="btn-secondary" id="agent-chat-draft-close">閉じる</button><button type="button" class="btn-primary" id="agent-chat-draft-apply">採用</button></div>';
+                        html += '<div class="chat-draft-preview-actions"><button type="button" class="btn-secondary" id="agent-chat-draft-close">閉じる</button><span class="chat-draft-preview-note">※メッセージはまだ送信されません。</span><button type="button" class="btn-primary" id="agent-chat-draft-apply">回答案として採用</button></div>';
                         html += '</div>';
                         html += '<textarea id="agent-chat-input" class="chat-compose-input" rows="3" placeholder="顧客へのメッセージを入力。「自動回答作成」で文案を生成、「ブラッシュアップ」で推敲できます。"></textarea>';
                         html += '<div class="chat-compose-actions"><span class="chat-compose-status" id="agent-chat-status"></span><button type="button" class="btn-primary" id="agent-chat-send">送信</button></div>';
                         html += '</div>';
+
+                        // 日程調整（お客様がチャットの「日程調整」タブから送った日程。閲覧のみ）
+                        html += '<h4>日程調整</h4>';
+                        html += '<div class="chat-contact-data chat-schedule-list" id="customer-schedule-list"><p class="chat-thread-empty">読み込み中...</p></div>';
 
                         // ③ AIチャット履歴（AI整理サマリー・閲覧のみ）
                         html += renderAiChatSummary();
@@ -4505,10 +4527,61 @@ function editSectionIcon(string $key): string
                         initCustomerContactEdit(sessionId);
                         initAgentChat(sessionId);
                         loadAiChatSummary(sessionId);
+                        loadCustomerSchedules(sessionId);
                         if (window.PropertyAgent) { try { window.PropertyAgent.init(sessionId); } catch (e) { console.error(e); } }
                     })
                     .catch(function() {
                         detailContent.innerHTML = '<p>取得に失敗しました。</p>';
+                    });
+            }
+
+            // 「2026-10-10T14:00」→「2026/10/10 14:00」
+            function formatScheduleDatetime(value) {
+                var m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+                if (!m) return String(value || '');
+                return m[1] + '/' + m[2] + '/' + m[3] + (m[4] ? ' ' + m[4] + ':' + m[5] : '');
+            }
+
+            // 顧客詳細の「日程調整」欄を読み込む。crm/get.php を開くと日程調整のメール通知も既読になる。
+            function loadCustomerSchedules(sessionId) {
+                fetch(apiBase + '/crm/get.php?id=' + encodeURIComponent(sessionId), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        var target = document.getElementById('customer-schedule-list');
+                        if (!target || currentDetailSessionId !== sessionId) return;
+                        var schedules = (res && res.success && res.data && res.data.case && res.data.case.schedules) || {};
+                        // 日時が空のまま登録された日程（以前の不具合で増えた空データ）は表示しない。
+                        var normal = (Array.isArray(schedules.normal) ? schedules.normal : []).filter(function(item) {
+                            return item && String(item.datetime || '').trim() !== '';
+                        });
+                        var viewings = Array.isArray(schedules.viewings) ? schedules.viewings : [];
+                        if (!normal.length && !viewings.length) {
+                            target.innerHTML = '<p class="chat-thread-empty">お客様からの日程調整の連絡はまだありません。</p>';
+                            return;
+                        }
+                        // 新しく追加された日程を上に表示する。
+                        normal = normal.slice().sort(function(a, b) { return (Number(b.id) || 0) - (Number(a.id) || 0); });
+                        var html = '';
+                        normal.forEach(function(item) {
+                            var sentAt = Number(item.id) > 1000000000000 ? new Date(Number(item.id)).toLocaleString('ja-JP') : '';
+                            html += '<div class="chat-schedule-item">';
+                            html += '<p><strong>' + escapeHtml(item.kind || '日程') + '</strong>　' + escapeHtml(formatScheduleDatetime(item.datetime)) + '</p>';
+                            if (item.status) html += '<p>ステータス: ' + escapeHtml(item.status) + '</p>';
+                            if (item.message) html += '<p>メモ: ' + escapeHtml(item.message) + '</p>';
+                            if (sentAt) html += '<p class="chat-schedule-item-meta">連絡日時: ' + escapeHtml(sentAt) + '</p>';
+                            html += '</div>';
+                        });
+                        viewings.forEach(function(item) {
+                            html += '<div class="chat-schedule-item">';
+                            html += '<p><strong>' + escapeHtml(item.property_name || '内覧') + '</strong>　' + escapeHtml(item.time || '') + '</p>';
+                            if (item.address) html += '<p>' + escapeHtml(item.address) + '</p>';
+                            html += '</div>';
+                        });
+                        target.innerHTML = html;
+                    })
+                    .catch(function() {
+                        var target = document.getElementById('customer-schedule-list');
+                        if (target) target.innerHTML = '<p class="chat-thread-empty">日程を取得できませんでした。</p>';
                     });
             }
 
@@ -5049,6 +5122,8 @@ function editSectionIcon(string $key): string
                 backBtn.addEventListener('click', function() {
                     backToSessionList();
                 });
+                // 画面下に浮かせて表示し、文字サイズ切替と同じようにつまんで移動できるようにする。
+                if (window.AppFloating) window.AppFloating.makeDraggable(backBtn, 'app_detail_back_pos');
             }
 
             // ---- 顧客ページの事前作成（入力 → 確認 → 送信）----
@@ -5247,8 +5322,8 @@ function editSectionIcon(string $key): string
 
             // メール通知リンクからのディープリンク（?focus=contact|property|schedule&session=<id>）。
             // 該当顧客の詳細を自動で開く。担当連絡・物件選定の未読は詳細表示の副作用
-            // （read.php / property/list.php 呼び出し）で解除される。日程調整は専用UIが
-            // 詳細内に無いため crm/get.php を明示的に叩いて未読解除する。
+            // （read.php / property/list.php 呼び出し）で解除される。日程調整の未読は
+            // 詳細内の「日程調整」欄の読み込み（crm/get.php）で解除される。
             (function handleNotificationDeepLink() {
                 try {
                     var params = new URLSearchParams(window.location.search);
@@ -5265,13 +5340,10 @@ function editSectionIcon(string $key): string
                     if (navChat) navChat.click();
                     setTimeout(function() {
                         showDetail(session);
-                        if (focus === 'schedule') {
-                            fetch(apiBase + '/crm/get.php?id=' + encodeURIComponent(session), { credentials: 'include' }).catch(function() {});
-                        }
                         // 内見日程タブは物件の詳細を開いたときにスクロールするため、見出しへのスクロールはしない。
                         if (openViewing) return;
                         setTimeout(function() {
-                            var label = focus === 'property' ? '物件選定' : (focus === 'schedule' ? '日程' : '担当連絡');
+                            var label = focus === 'property' ? '物件選定' : (focus === 'schedule' ? '日程調整' : '担当連絡');
                             var heads = detailContent ? detailContent.querySelectorAll('h4') : [];
                             for (var i = 0; i < heads.length; i++) {
                                 if ((heads[i].textContent || '').indexOf(label) !== -1) {

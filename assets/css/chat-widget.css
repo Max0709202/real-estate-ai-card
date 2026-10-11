@@ -372,6 +372,7 @@
     background: #f8fbff;
 }
 .chat-widget-panel.is-feature-view .chat-widget-messages,
+.chat-widget-panel.is-feature-view .chat-ai-head,
 .chat-widget-panel.is-feature-view .chat-widget-quick-actions,
 .chat-widget-panel.is-feature-view .chat-widget-geo-actions,
 .chat-widget-panel.is-feature-view .chat-widget-input-wrap,
@@ -739,6 +740,26 @@
     font-size: 0.9rem;
     color: #0b4f9f;
 }
+.chat-feature-head-text {
+    min-width: 0;
+}
+/* 見出しの下に説明文を1行添える（担当連絡の見出しと同じ並び） */
+.chat-feature-head-text strong,
+.chat-feature-head-text h4 {
+    display: block;
+}
+.chat-feature-head-text span {
+    display: block;
+    margin-top: 0.1rem;
+}
+.prop-toolbar__title {
+    flex: 1 1 auto;
+}
+.prop-toolbar__title span {
+    font-size: 0.78rem;
+    color: #5f6b7a;
+    line-height: 1.5;
+}
 .chat-feature-head span,
 .chat-feature-summary p,
 .chat-feature-small {
@@ -801,6 +822,51 @@
 .chat-feature-grid textarea {
     min-height: 68px;
     resize: vertical;
+}
+/* iPhone の日付・日時入力は標準の見た目だと横幅をはみ出すため、他の入力欄と同じ幅に収める。 */
+.chat-feature-field input[type="date"],
+.chat-feature-field input[type="datetime-local"],
+.chat-feature-grid input[type="date"],
+.chat-feature-grid input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.4em;
+    text-align: left;
+}
+.chat-feature-field input[type="date"]::-webkit-date-and-time-value,
+.chat-feature-grid input[type="date"]::-webkit-date-and-time-value,
+.chat-feature-grid input[type="datetime-local"]::-webkit-date-and-time-value {
+    text-align: left;
+}
+.chat-feature-grid label {
+    min-width: 0;
+}
+.chat-feature-error {
+    margin: 0 0 0.6rem;
+    font-size: 0.78rem;
+    color: #c62828;
+}
+.chat-schedule-confirm {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem 0.8rem;
+    margin: 0 0 0.8rem;
+    font-size: 0.9rem;
+}
+.chat-schedule-confirm dt {
+    color: #5f6b7a;
+}
+.chat-schedule-confirm dd {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.chat-schedule-confirm-question {
+    margin: 0 0 0.6rem;
+    font-weight: 600;
 }
 /* 相談種別で1セクションのみ表示（購入/売却/賃貸単独）のときは全幅にする。 */
 .chat-feature-grid section:only-child {

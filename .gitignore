@@ -13,3 +13,6 @@ config.staging.php
 /backend/vendor/
 backend/config/secrets.php
 /staging.ai-fcard.com
+.claude/settings.local.json*
+trajector-doctor-*.tar.gz
+trajector-doctor-*/
