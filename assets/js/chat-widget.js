@@ -86,6 +86,17 @@
             return (v === 'contact' || v === 'property') ? v : null;
         } catch (e) { return null; }
     })();
+    // 内見メール（M02/M06/M12/M13 など）のリンク（card.php?...&property=<id>&viewing=detail|input）。
+    // 物件タブを開いたあと、そのまま該当物件の内見画面まで進める。
+    var deepLinkProperty = (function () {
+        try {
+            var q = new URLSearchParams(window.location.search);
+            var id = parseInt(q.get('property') || '', 10);
+            var view = q.get('viewing') || '';
+            if (!id || id <= 0) return null;
+            return { id: id, view: (view === 'input' || view === 'detail') ? view : '' };
+        } catch (e) { return null; }
+    })();
     // 該当タブを実際に開いたか。まだこの端末がSMS認証を終えていない（＝どのお客様か
     // 確定していない）間は開かずに保留し、認証で本人のご相談へ合流したあとに開く。
     var deepLinkHandled = false;
@@ -3240,7 +3251,7 @@
         }
 
         var html = '';
-        html += '<div class="chat-feature-head"><strong>条件整理</strong><span>AIチャットから抽出した条件を保存します</span></div>';
+        html += '<div class="chat-feature-head"><div class="chat-feature-head-text"><strong>条件整理</strong><span>希望条件を入力してください。また、AIチャットから抽出した条件も自動反映します。</span></div></div>';
         html += '<label class="chat-feature-field">相談種別<select name="deal_type"><option value="purchase"' + (dealType === 'purchase' ? ' selected' : '') + '>購入</option><option value="sale"' + (dealType === 'sale' ? ' selected' : '') + '>売却</option><option value="both"' + (dealType === 'both' ? ' selected' : '') + '>買い替え</option><option value="rent"' + (dealType === 'rent' ? ' selected' : '') + '>賃貸</option></select></label>';
         html += '<div class="chat-feature-grid">';
         if (dealType === 'sale') {
@@ -3264,7 +3275,7 @@
         if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
         var p = c.progress || {};
         var stages = crmArray(p.stages);
-        var html = '<div class="chat-feature-head"><strong>進捗管理</strong><span>進捗率 ' + crmFields(p.progress_percent || 0) + '%</span></div>';
+        var html = '<div class="chat-feature-head"><div class="chat-feature-head-text"><strong>進捗管理</strong><span>引き渡し希望日を入力するとスケジュールを逆算して表示します。</span></div><span>進捗率 ' + crmFields(p.progress_percent || 0) + '%</span></div>';
         html += '<label class="chat-feature-field">引き渡し希望日<input type="date" name="target_date" value="' + crmFields(p.target_date || '') + '"></label>';
         html += '<label class="chat-feature-field">現在のステージ<input name="current_stage" value="' + crmFields(p.current_stage || '') + '"></label>';
         html += '<label class="chat-feature-field">AIコメント<textarea name="ai_comment">' + crmFields(p.ai_comment || '') + '</textarea></label>';
@@ -3348,7 +3359,7 @@
         if (propFavOnly && !favCount) propFavOnly = false;
         var shown = propFavOnly ? items.filter(PUI.isFavorite) : items;
 
-        var html = '<div class="prop-toolbar"><h4>物件選定</h4>' +
+        var html = '<div class="prop-toolbar"><div class="chat-feature-head-text prop-toolbar__title"><h4>物件選定</h4><span>検討中の物件を確認できます。</span></div>' +
             '<button type="button" class="prop-fav-filter' + (propFavOnly ? ' is-active' : '') + '" id="prop-cust-favfilter"' +
             ' aria-pressed="' + (propFavOnly ? 'true' : 'false') + '" title="気になる物件だけを表示">' +
             PUI.icon(propFavOnly ? 'heartFilled' : 'heart') + 'お気に入り' +
@@ -3678,14 +3689,270 @@
         box.querySelector('#prop-cust-viewing').addEventListener('click', function () {
             // 内見予約の依頼は、これまで通りSMS認証が必要。
             if (viewOnly) { propRequireAuth(); return; }
-            var note = prompt('内見のご希望（日程・時間帯など）があればご記入ください（任意）', '');
-            if (note === null) return;
-            propApi('/viewing-request.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ property_id: p.id, session_id: sessionId, visitor_id: visitorId, note: note }) })
-                .then(function (res) {
-                    if (!res.success) { alert(res.message || '依頼に失敗しました'); return; }
-                    alert('内見予約を依頼しました。担当連絡をご確認ください。');
-                    if (typeof renderFeatureTab === 'function') { setActiveChatTab('contact'); renderFeatureTab('contact'); }
-                });
+            propViewingOpen(p);
+        });
+    }
+
+    /* ===== 内見日程調整（買主側・§4/§7/§8）===== */
+
+    /**
+     * 内見日程の画面を開く。案件の状態に応じて、希望日時の入力／確定内容の確認を出し分ける。
+     * @param {Object} p    物件
+     * @param {string} view 'auto'（既定）｜'input'（希望日時の入力）｜'detail'（確定内容）
+     */
+    function propViewingOpen(p, view) {
+        pushChatView({ chatView: 'property', chatPropertyId: p.id });
+        renderFeaturePanel('<div class="prop-wrap"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>');
+        propApi('/viewing-get.php?property_id=' + encodeURIComponent(p.id) + '&' + propAuthQS())
+            .then(function (res) {
+                if (!res.success) { alert(res.message || '取得に失敗しました'); propOpenDetail(p.id); return; }
+                propViewingRender(p, res.data, view || 'auto');
+            })
+            .catch(function () { alert('通信に失敗しました'); propOpenDetail(p.id); });
+    }
+
+    function propViewingRender(p, data, view) {
+        var v = data.viewing;
+        // 確定済み（買主へ連絡済み）なら確定内容を、それ以外は希望日時の入力を表示する。
+        var showDetail = (view === 'detail') ||
+            (view === 'auto' && v && (v.status === 'buyer_notified' || v.status === 'cancelled' || v.status === 'unavailable'));
+        if (showDetail) propViewingRenderDetail(p, data);
+        // 内見メールのリンクから、まだSMS認証していない端末で開いた場合（閲覧トークンのみ）は、
+        // 希望日時を選んでも送信できないため、入力画面を出す前にSMS認証へ進んでもらう。
+        else if (propViewOnly()) propViewingRequireAuth(p);
+        else propViewingRenderInput(p, data);
+    }
+
+    /** SMS認証へ案内し、認証が済んだらこの物件の希望日時の入力画面を開き直す。 */
+    function propViewingRequireAuth(p) {
+        deepLinkTab = 'property';
+        deepLinkProperty = { id: p.id, view: 'input' };
+        deepLinkHandled = false;
+        propRequireAuth();
+    }
+
+    /** 希望日時の入力（初回・再入力・日時変更で共通）。 */
+    function propViewingRenderInput(p, data) {
+        var v = data.viewing;
+        var rules = data.rules;
+        var isChange = !!(v && v.confirmed_text);
+        var head = isChange ? '内見日時の変更を依頼する' : '内見のご希望日時を選ぶ';
+
+        var html = '<div class="prop-wrap vw-panel" id="prop-viewing">' +
+            '<div class="prop-toolbar"><button type="button" class="prop-btn prop-btn--ghost" id="vw-back">← 物件詳細</button></div>' +
+            '<div class="prop-section-title">' + PUI.esc(head) + '</div>' +
+            '<div class="vw-box"><div class="vw-box__title">対象物件</div><div>' + PUI.esc(data.property.label) + '</div></div>';
+
+        if (isChange) {
+            html += '<div class="vw-box vw-box--warn">変更前の日時：' + PUI.esc(v.confirmed_text) +
+                '<div class="vw-hint">新しい候補日時を送信された時点で、変更前のご予約は解除されます。</div></div>';
+        }
+        if (v && v.status === 'buyer_reinput') {
+            html += '<div class="vw-box vw-box--warn">ご希望いただいた日時では調整が難しい状況です。恐れ入りますが、別の候補日時をお選びください。</div>';
+        }
+        if (v && v.unavailable_reason === 'no_slot') {
+            html += '<div class="vw-box vw-box--warn">売主側より「候補日時では内見不可」のご回答がありました。別の候補日時をお選びください。</div>';
+        }
+        html += '<p class="vw-panel__guide">ご希望の日時を' + rules.min_slots + 'つ以上お選びください。内見時間は1枠1時間です。' +
+            'ドラッグ（スマートフォンはタップ）で選べます。もう一度押すと解除できます。</p>' +
+            '<div class="vcal-picked" id="vw-picked"></div>' +
+            '<div id="vw-cal"></div>' +
+            '<div class="vw-actions">' +
+            '<button type="button" class="prop-btn prop-btn--primary" id="vw-submit">この日時で内見を依頼する</button>' +
+            '</div></div>';
+
+        renderFeaturePanel(html);
+        var box = featurePanel.querySelector('#prop-viewing');
+        box.querySelector('#vw-back').addEventListener('click', function () { propOpenDetail(p.id); });
+
+        var picked = box.querySelector('#vw-picked');
+        var submit = box.querySelector('#vw-submit');
+        var cal = null;
+        if (window.ViewingCalendar) {
+            cal = window.ViewingCalendar.render(box.querySelector('#vw-cal'), {
+                mode: 'buyer',
+                rules: rules,
+                slots: isChange ? [] : data.slots,   // 変更時は前回の候補を引き継がず選び直す
+                blocked: data.blocked,
+                confirmed: data.confirmed || [],     // 本人の確定済みの内見は「内見確定」と表示する
+                onConfirmedClick: propViewingConfirmedPopup,
+                onChange: function (list) {
+                    picked.innerHTML = '<div class="vcal-picked__title">選択中の日時（' + list.length + '／' + rules.min_slots + '枠以上）</div>' +
+                        (list.length
+                            ? '<div class="vcal-picked__list">' + list.map(function (x) {
+                                return '<span class="vcal-picked__item">' + PUI.esc(window.ViewingCalendar.formatRange(x, rules.slot)) + '</span>';
+                              }).join('') + '</div>'
+                            : '<div class="vcal-picked__empty">カレンダーからご希望の日時をお選びください。</div>');
+                    // 3枠以上選択した場合のみ送信できる。
+                    submit.disabled = (list.length < rules.min_slots);
+                }
+            });
+        }
+
+        submit.addEventListener('click', function () {
+            if (submit.disabled) return;
+            var list = cal ? cal.getSelected() : [];
+            if (list.length < rules.min_slots) { alert('ご希望の日時を' + rules.min_slots + 'つ以上お選びください。'); return; }
+            // 送信ボタンの連打による重複依頼を防ぐ。
+            submit.disabled = true;
+            submit.textContent = '送信中...';
+            propApi('/viewing-slots.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ property_id: p.id, session_id: sessionId, visitor_id: visitorId, slots: list })
+            }).then(function (res) {
+                submit.textContent = 'この日時で内見を依頼する';
+                if (!res.success) {
+                    alert(res.message || '送信に失敗しました');
+                    // 担当者の予定が変わっていた場合は、最新の選択不可を反映して選び直していただく。
+                    if (res.errors && res.errors.blocked) propViewingOpen(p, 'input');
+                    else submit.disabled = false;
+                    return;
+                }
+                alert('内見依頼を送信しました。担当者からの連絡をお待ちください。');
+                propViewingRenderDetail(p, res.data);
+            }).catch(function () {
+                submit.disabled = false;
+                submit.textContent = 'この日時で内見を依頼する';
+                alert('通信に失敗しました');
+            });
+        });
+    }
+
+    /** 確定内容・調整状況の確認。買主には売主側の鍵情報や他案件の情報は表示しない。 */
+    function propViewingRenderDetail(p, data) {
+        var v = data.viewing;
+        var html = '<div class="prop-wrap vw-panel" id="prop-viewing">' +
+            '<div class="prop-toolbar"><button type="button" class="prop-btn prop-btn--ghost" id="vw-back">← 物件詳細</button></div>' +
+            '<div class="prop-section-title">内見のご予定</div>' +
+            '<div class="vw-box"><div class="vw-box__title">対象物件</div><div>' + PUI.esc(data.property.label) + '</div></div>';
+
+        if (!v) {
+            html += '<div class="vw-box">内見のご依頼はまだありません。</div>' +
+                '<div class="vw-actions"><button type="button" class="prop-btn prop-btn--primary" id="vw-new">内見予約を依頼する</button></div>';
+        } else if (v.status === 'cancelled') {
+            html += '<div class="vw-box vw-box--warn">内見のキャンセルを受け付けました。売主側への連絡は担当者が行います。' +
+                (v.prev_text ? '<div class="vw-hint">キャンセルした日時：' + PUI.esc(v.prev_text) + '</div>' : '') + '</div>' +
+                '<div class="vw-actions"><button type="button" class="prop-btn prop-btn--primary" id="vw-new">別の日時で内見を依頼する</button></div>';
+        } else if (v.status === 'unavailable') {
+            html += '<div class="vw-box vw-box--warn">申し訳ございません。お申し込み・ご成約により、この物件は内見いただけない状況です。' +
+                '詳しくは担当者よりご連絡いたします。</div>';
+        } else if (v.status === 'buyer_notified') {
+            html += '<div class="vw-box vw-box--accent"><div class="vw-box__title">確定した内見日時</div>' +
+                '<div>' + PUI.esc(v.confirmed_text) + '</div>' +
+                (v.prev_text ? '<div class="vw-hint">変更前：' + PUI.esc(v.prev_text) + '</div>' : '') + '</div>' +
+                '<div class="vw-box"><div class="vw-box__title">当日の待ち合わせ場所と時間</div>' +
+                '<div class="vw-pre">' + PUI.esc(v.meeting_note || '担当者よりご案内いたします。') + '</div></div>' +
+                // 変更・キャンセルのご連絡は、これまで通りSMS認証を行ってから利用いただく。
+                (propViewOnly()
+                    ? '<div class="vw-hint">日時の変更・キャンセルのご連絡には、ご本人確認（SMS認証）が必要です。</div>'
+                    : '<div class="vw-actions">' +
+                      '<button type="button" class="prop-btn prop-btn--ghost" id="vw-change">内見日時の変更依頼</button>' +
+                      '<button type="button" class="prop-btn prop-btn--danger" id="vw-cancel">内見キャンセル</button>' +
+                      '</div>' +
+                      '<div class="vw-hint">変更・キャンセルは、できるだけお早めにお知らせください。</div>');
+        } else {
+            // 調整中（担当者確認待ち／売主側回答待ち／確定・連絡待ち）。
+            var waiting = v.is_rescheduling ? '日時変更の調整中です。' : '担当者が日程を調整しています。';
+            html += '<div class="vw-box">' + PUI.esc(waiting) + '確定しましたら、担当者よりご連絡いたします。' +
+                '<div class="vw-hint">現在の状況：' + PUI.esc(v.status_label) + '</div></div>';
+            if (data.slots && data.slots.length) {
+                html += '<div class="vw-box"><div class="vw-box__title">ご希望いただいた日時</div><div class="vcal-picked__list">' +
+                    data.slots.map(function (s) { return '<span class="vcal-picked__item">' + PUI.esc(s.text) + '</span>'; }).join('') +
+                    '</div></div>';
+            }
+            html += '<div class="vw-actions"><button type="button" class="prop-btn prop-btn--ghost" id="vw-change">希望日時を選び直す</button></div>';
+        }
+        html += '</div>';
+
+        renderFeaturePanel(html);
+        var box = featurePanel.querySelector('#prop-viewing');
+        box.querySelector('#vw-back').addEventListener('click', function () { propOpenDetail(p.id); });
+
+        var newBtn = box.querySelector('#vw-new');
+        if (newBtn) newBtn.addEventListener('click', function () { propViewingOpen(p, 'input'); });
+        var changeBtn = box.querySelector('#vw-change');
+        if (changeBtn) changeBtn.addEventListener('click', function () { propViewingOpen(p, 'input'); });
+        var cancelBtn = box.querySelector('#vw-cancel');
+        if (cancelBtn) cancelBtn.addEventListener('click', function () { propViewingCancel(p, data); });
+    }
+
+    /** カレンダーの「内見確定」を押したときに、その内見の予定を表示する。 */
+    function propViewingConfirmedPopup(item) {
+        var cp = { id: item.property_id };
+        var html = '<div class="vw-panel">' +
+            '<div class="vw-box"><div class="vw-box__title">対象物件</div><div>' + PUI.esc(item.property_label) + '</div></div>' +
+            '<div class="vw-box vw-box--accent"><div class="vw-box__title">確定した内見日時</div>' +
+            '<div>' + PUI.esc(item.confirmed_text) + '</div></div>' +
+            '<div class="vw-box"><div class="vw-box__title">当日の待ち合わせ場所と時間</div>' +
+            '<div class="vw-pre">' + PUI.esc(item.meeting_note || '担当者よりご案内いたします。') + '</div></div>' +
+            '<div class="vw-actions">' +
+            '<button type="button" class="prop-btn prop-btn--ghost" id="vw-p-change">内見日時の変更依頼</button>' +
+            '<button type="button" class="prop-btn prop-btn--danger" id="vw-p-cancel">内見キャンセル</button>' +
+            '</div>' +
+            '<div class="vw-hint">変更・キャンセルは、できるだけお早めにお知らせください。</div>' +
+            '</div>';
+        var m = PUI.modal('内見のご予定', html);
+        m.body.querySelector('#vw-p-change').addEventListener('click', function () {
+            m.close();
+            propViewingOpen(cp, 'input');
+        });
+        m.body.querySelector('#vw-p-cancel').addEventListener('click', function () {
+            m.close();
+            propViewingCancel(cp, { property: { label: item.property_label }, viewing: { confirmed_text: item.confirmed_text } });
+        });
+    }
+
+    /** キャンセル理由の入力。理由は必須。「その他」は自由記入も必須。 */
+    function propViewingCancel(p, data) {
+        var v = data.viewing;
+        var REASONS = [
+            ['no_interest', '内見予定の物件に興味がなくなった'],
+            ['other_agency', '他社で購入を決めた'],
+            ['stop_buying', '物件購入をやめた'],
+            ['other', 'その他']
+        ];
+        var html = '<div class="vw-panel">' +
+            '<div class="vw-box"><div class="vw-box__title">キャンセルする内見</div>' +
+            '<div>' + PUI.esc(data.property.label) + '</div>' +
+            '<div class="vw-hint">' + PUI.esc(v.confirmed_text || '') + '</div></div>' +
+            '<div class="vw-field"><label>キャンセル理由（必須）</label>' +
+            REASONS.map(function (r) {
+                return '<label class="prop-status-opt" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">' +
+                    '<input type="radio" name="vw-reason" value="' + r[0] + '"><span>' + PUI.esc(r[1]) + '</span></label>';
+            }).join('') + '</div>' +
+            '<div class="vw-field" id="vw-reason-other" hidden><label>理由をご記入ください（必須）</label>' +
+            '<textarea id="vw-reason-text" rows="3"></textarea></div>' +
+            '</div>';
+
+        var m = PUI.modal('内見のキャンセル', html);
+        var otherBox = m.body.querySelector('#vw-reason-other');
+        m.body.querySelectorAll('input[name="vw-reason"]').forEach(function (el) {
+            el.addEventListener('change', function () { otherBox.hidden = (el.value !== 'other'); });
+        });
+
+        var actions = document.createElement('div');
+        actions.className = 'prop-form-actions';
+        actions.innerHTML = '<button type="button" class="prop-btn prop-btn--ghost" id="vw-c-close">やめる</button>' +
+            '<button type="button" class="prop-btn prop-btn--danger" id="vw-c-do">この内見をキャンセルする</button>';
+        m.body.appendChild(actions);
+        m.body.querySelector('#vw-c-close').addEventListener('click', m.close);
+        m.body.querySelector('#vw-c-do').addEventListener('click', function () {
+            var sel = m.body.querySelector('input[name="vw-reason"]:checked');
+            if (!sel) { alert('キャンセル理由をお選びください。'); return; }
+            var text = (m.body.querySelector('#vw-reason-text') || {}).value || '';
+            if (sel.value === 'other' && !text.trim()) { alert('「その他」を選ばれた場合は、理由をご記入ください。'); return; }
+            var btn = m.body.querySelector('#vw-c-do');
+            btn.disabled = true;
+            propApi('/viewing-cancel.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ property_id: p.id, session_id: sessionId, visitor_id: visitorId, reason: sel.value, reason_text: text })
+            }).then(function (res) {
+                btn.disabled = false;
+                if (!res.success) { alert(res.message || 'キャンセルできませんでした'); return; }
+                m.close();
+                alert('内見のキャンセルを受け付けました。売主側への連絡は担当者が行います。');
+                propViewingRenderDetail(p, res.data);
+            }).catch(function () { btn.disabled = false; alert('通信に失敗しました'); });
         });
     }
 
@@ -3697,7 +3964,7 @@
         var loanBorrowUrl = siteBase + '/loan-simulator.php?slug=' + encodeURIComponent(cardSlug) + '&form=borrow-income';
         var loanRepaymentImage = siteBase + '/assets/images/lp_icon/loan_repayment.png';
         var loanBorrowImage = siteBase + '/assets/images/lp_icon/loan_borrowable.png';
-        var html = '<div class="chat-feature-head"><strong>ツール</strong><span>リンク集</span></div>';
+        var html = '<div class="chat-feature-head"><div class="chat-feature-head-text"><strong>ツール</strong><span>不動産売買に必要なWEBツールをご利用いただけます。</span></div></div>';
         html += '<div class="chat-feature-tools chat-feature-tools-grid">';
         tools.forEach(function (tool) {
             html += '<a class="chat-feature-tool-card" href="' + crmAttr(tool.tool_url || '#') + '" target="_blank" rel="noopener noreferrer">';
@@ -3720,29 +3987,94 @@
         renderFeaturePanel(html);
     }
 
+    // 「2026-10-10T14:00」→「2026/10/10 14:00」（表示用）
+    function formatScheduleDatetime(value) {
+        var m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+        if (!m) return String(value || '');
+        return m[1] + '/' + m[2] + '/' + m[3] + (m[4] ? ' ' + m[4] + ':' + m[5] : '');
+    }
+
+    // 種類・日時が空のまま登録されてしまった過去の日程（空登録）は表示・保存の対象から外す。
+    function validScheduleItems(list) {
+        return crmArray(list).filter(function (item) {
+            return item && String(item.datetime || '').trim() !== '';
+        });
+    }
+
     function renderSchedulesTab() {
         var c = crmCase();
         if (!c) return renderFeaturePanel('<div class="chat-feature-empty">読み込み中...</div>');
         var schedules = c.schedules || {};
-        var normal = crmArray(schedules.normal);
+        var normal = validScheduleItems(schedules.normal);
         var viewings = crmArray(schedules.viewings);
-        var html = '<div class="chat-feature-head"><strong>日程調整</strong><span>候補日時の管理</span></div>';
+        var html = '<div class="chat-feature-head"><div class="chat-feature-head-text"><strong>日程調整</strong><span>' + escapeHtml(agentName || '担当者') + '（担当者）と日程調整ができます</span></div></div>';
         html += '<div class="chat-feature-grid">';
-        html += '<label>種類<select name="schedule_kind"><option>面談</option><option>内覧</option><option>重要事項説明</option><option>売買契約</option><option>引き渡し（決済）</option></select></label>';
+        html += '<label>種類<select name="schedule_kind"><option value="">選択してください</option><option>面談</option><option>内覧</option><option>重要事項説明</option><option>売買契約</option><option>引き渡し（決済）</option></select></label>';
         html += '<label>日時<input type="datetime-local" name="schedule_datetime"></label>';
         html += '<label>ステータス<select name="schedule_status"><option>候補</option><option>担当者確認中</option><option>顧客確認待ち</option><option>売主確認待ち</option><option>確定済み</option><option>変更依頼中</option><option>キャンセル済み</option></select></label>';
         html += '<label>メモ<textarea name="schedule_message"></textarea></label>';
         html += '</div>';
-        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-add" data-add-feature="schedule">追加</button><button type="button" class="chat-feature-save" data-save-feature="schedules">保存</button></div>';
+        html += '<p class="chat-feature-error" data-schedule-error hidden>種類と日時を入力後スケジュールを追加してください</p>';
+        html += '<div class="chat-feature-actions"><button type="button" class="chat-feature-add" data-add-feature="schedule">追加</button></div>';
         html += '<div class="chat-feature-list">';
         normal.forEach(function (item) {
-            html += '<div class="chat-feature-card"><strong>' + crmFields(item.kind || '日程') + '</strong><div>' + crmFields(item.datetime || '') + '</div><p>' + crmFields(item.status || '') + '</p></div>';
+            html += '<div class="chat-feature-card"><strong>' + crmFields(item.kind || '日程') + '</strong><div>' + crmFields(formatScheduleDatetime(item.datetime)) + '</div><p>' + crmFields(item.status || '') + '</p>' +
+                (item.message ? '<p>' + crmFields(item.message) + '</p>' : '') + '</div>';
         });
         viewings.forEach(function (item) {
             html += '<div class="chat-feature-card"><strong>' + crmFields(item.property_name || '内覧') + '</strong><div>' + crmFields(item.time || '') + '</div><p>' + crmFields(item.address || '') + '</p></div>';
         });
         html += '</div>';
         renderFeaturePanel(html);
+    }
+
+    // 日程の「追加」: 種類・日時の入力を確認し、内容を見せて担当へ連絡してよいか確かめてから保存する。
+    // 保存すると担当者へ「日程調整の連絡」メールが届く（crm/save.php → 通知キュー）。
+    function confirmAddSchedule(addBtn) {
+        var root = featurePanel;
+        var errorEl = root.querySelector('[data-schedule-error]');
+        var kind = ((root.querySelector('[name="schedule_kind"]') || {}).value || '').trim();
+        var datetime = ((root.querySelector('[name="schedule_datetime"]') || {}).value || '').trim();
+        if (!kind || !datetime) {
+            if (errorEl) errorEl.hidden = false;
+            return;
+        }
+        if (errorEl) errorEl.hidden = true;
+        var status = (root.querySelector('[name="schedule_status"]') || {}).value || '';
+        var message = ((root.querySelector('[name="schedule_message"]') || {}).value || '').trim();
+        var payload = collectSchedulesPayload();
+        if (!PUI || typeof PUI.modal !== 'function') {
+            submitSchedule(addBtn, payload);
+            return;
+        }
+        var body = '<dl class="chat-schedule-confirm">' +
+            '<dt>種類</dt><dd>' + escapeHtml(kind) + '</dd>' +
+            '<dt>日時</dt><dd>' + escapeHtml(formatScheduleDatetime(datetime)) + '</dd>' +
+            '<dt>ステータス</dt><dd>' + escapeHtml(status) + '</dd>' +
+            (message ? '<dt>メモ</dt><dd>' + escapeHtml(message) + '</dd>' : '') +
+            '</dl>' +
+            '<p class="chat-schedule-confirm-question">この日程を担当へ連絡しますか？</p>' +
+            '<div class="prop-form-actions">' +
+            '<button type="button" class="prop-btn prop-btn--ghost" data-schedule-cancel>キャンセル</button>' +
+            '<button type="button" class="prop-btn prop-btn--primary" data-schedule-send>送信</button>' +
+            '</div>';
+        var m = PUI.modal('【追加日程内容】', body);
+        m.body.querySelector('[data-schedule-cancel]').addEventListener('click', m.close);
+        m.body.querySelector('[data-schedule-send]').addEventListener('click', function () {
+            m.close();
+            submitSchedule(addBtn, payload);
+        });
+    }
+
+    function submitSchedule(addBtn, payload) {
+        if (addBtn) addBtn.disabled = true;
+        saveCrmFeature('schedules', payload).then(function () {
+            renderSchedulesTab();
+        }).catch(function () {
+            appendBotMessage('追加に失敗しました。');
+        }).finally(function () {
+            if (addBtn) addBtn.disabled = false;
+        });
     }
 
     /**
@@ -3762,6 +4094,16 @@
         try {
             renderFeatureTab(deepLinkTab);
             pushChatView({ chatView: 'tab', chatTab: deepLinkTab });
+            // 内見メールのリンクは、該当物件の内見画面（確定内容 or 希望日時の入力）まで開く。
+            if (deepLinkTab === 'property' && deepLinkProperty) {
+                var target = deepLinkProperty;
+                deepLinkProperty = null;
+                propApi('/get.php?id=' + target.id + '&' + propAuthQS()).then(function (res) {
+                    if (!res || !res.success) return;
+                    if (target.view) propViewingOpen(res.data.property, target.view);
+                    else propRenderDetail(res.data.property);
+                }).catch(function () {});
+            }
         } catch (e) {}
     }
 
@@ -3940,7 +4282,7 @@
             deal_type: crmCase().deal_type || 'purchase',
             schedules: {
                 deal_type: crmCase().deal_type || 'purchase',
-                normal: crmArray((crmCase().schedules || {}).normal).concat([{
+                normal: validScheduleItems((crmCase().schedules || {}).normal).concat([{
                     id: Date.now(),
                     kind: (root.querySelector('[name="schedule_kind"]') || {}).value || '',
                     datetime: (root.querySelector('[name="schedule_datetime"]') || {}).value || '',
@@ -4528,6 +4870,10 @@
             }
             if (addBtn) {
                 var addFeature = addBtn.getAttribute('data-add-feature');
+                if (addFeature === 'schedule') {
+                    confirmAddSchedule(addBtn);
+                    return;
+                }
                 var payloadAdd = null;
                 if (addFeature === 'property') payloadAdd = collectPropertiesPayload();
                 else if (addFeature === 'schedule') payloadAdd = collectSchedulesPayload();

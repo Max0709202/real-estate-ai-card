@@ -44,7 +44,7 @@
       }).join('') + '</select>';
   }
 
-  function renderList() {
+  function renderList(onLoaded) {
     P.innerHTML = '<div class="prop-toolbar"><h4>物件選定</h4>' + sortSelectHtml() +
       '<button type="button" class="prop-btn prop-btn--ghost" id="prop-folder-add">' + UI.icon('folder') + 'フォルダーを作成</button>' +
       '<button type="button" class="prop-btn prop-btn--primary" id="prop-add">' + UI.icon('plus') + '物件を追加</button></div>' +
@@ -57,11 +57,11 @@
     P.querySelector('#prop-folder-add').addEventListener('click', function () { openFolderForm(null); });
     var sel = P.querySelector('#prop-sort');
     if (sel) sel.addEventListener('change', function () { SORT = sel.value; loadList(); });
-    loadList();
+    loadList(onLoaded);
   }
 
-  /* 一覧の読み込み（並び替えはサーバー側で行う）。 */
-  function loadList() {
+  /* 一覧の読み込み（並び替えはサーバー側で行う）。onLoaded は読み込み完了後に1回だけ呼ぶ。 */
+  function loadList(onLoaded) {
     var body = P.querySelector('#prop-list-body');
     if (!body) return;
     body.innerHTML = '<div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div>';
@@ -70,6 +70,7 @@
       ITEMS = res.data.properties || [];
       FOLDERS = res.data.folders || [];
       renderListBody();
+      if (typeof onLoaded === 'function') onLoaded();
     });
   }
 
@@ -605,11 +606,17 @@
   }
 
   /* ===== 詳細（§9-§15, §19） ===== */
-  function openDetail(id) {
+  /* tab を指定すると、詳細を開いた直後にそのタブを表示して画面内へスクロールする（メールのリンクから開く場合）。 */
+  function openDetail(id, tab) {
     P.innerHTML = '<div id="prop-detail" class="prop-wrap"><div class="prop-empty"><span class="prop-spinner"></span> 読み込み中...</div></div>';
     api('/get.php?id=' + id).then(function (res) {
       if (!res.success) { P.querySelector('#prop-detail').innerHTML = '<div class="prop-empty">取得に失敗しました。</div>'; return; }
       renderDetail(res.data.property);
+      if (!tab) return;
+      var t = P.querySelector('.prop-tab[data-tab="' + tab + '"]');
+      if (!t) return;
+      t.click();
+      t.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -637,6 +644,7 @@
       // 顧客画面（chat-widget.js）と同じ並び・同じ呼び方にそろえる。
       '<div class="prop-tabs">' +
         '<button class="prop-tab is-active" data-tab="basic">基本情報</button>' +
+        '<button class="prop-tab" data-tab="viewing">内見日程</button>' +
         '<button class="prop-tab" data-tab="map">マップ</button>' +
         '<button class="prop-tab" data-tab="hazard">ハザード</button>' +
         '<button class="prop-tab" data-tab="flyer">販売図面</button>' +
@@ -644,6 +652,7 @@
         '<button class="prop-tab" data-tab="document">追加資料</button>' +
       '</div>' +
       '<div class="prop-tabpane is-active" data-pane="basic">' + UI.basicInfoHtml(p, true) + '</div>' +
+      '<div class="prop-tabpane" data-pane="viewing"></div>' +
       '<div class="prop-tabpane" data-pane="map"></div>' +
       '<div class="prop-tabpane" data-pane="hazard"></div>' +
       '<div class="prop-tabpane" data-pane="flyer"></div>' +
@@ -710,6 +719,8 @@
         t.classList.add('is-active');
         var name = t.getAttribute('data-tab');
         d.querySelector('[data-pane="' + name + '"]').classList.add('is-active');
+        // 内見日程（買主の希望日時 → 売主（仲介）会社への打診 → 確定連絡）
+        if (name === 'viewing' && w.PropertyViewingAgent) w.PropertyViewingAgent.render(d.querySelector('[data-pane="viewing"]'), p);
         if (name === 'hazard') loadHazard(p);
         if (name === 'flyer') loadImages(p, 'flyer');
         if (name === 'photo') loadImages(p, 'photo');
@@ -1605,14 +1616,15 @@
         function p(n) { var h = (n & 255).toString(16); return h.length < 2 ? '0' + h : h; }
         return '#' + p(r) + p(g) + p(b);
       }
-      /* 編集画面での塗りつぶしの見え方。下地（図面）が少し透けるよう、どの色も
-         不透明度90%で表示する（.prop-mask-rect の既定と同じ見え方）。
+      /* 編集画面での塗りつぶしの見え方。1か所目のマスク（既定の土台マスク）だけは、
+         自社帯を重ねる位置を合わせやすいよう下地（図面）が少し透ける不透明度90%で表示する。
+         2か所目以降のマスクは隠すだけの用途のため、透けない不透明で表示する。
          顧客用プレビューと実際の出力は、これまでどおり不透明で塗る。 */
       var EDIT_FILL_ALPHA = 0.9;
-      function editorFill(hex) {
+      function editorFill(hex, translucent) {
         var h = normHex(hex) || '#ffffff';
         return 'rgba(' + parseInt(h.substr(1, 2), 16) + ',' + parseInt(h.substr(3, 2), 16) + ',' +
-          parseInt(h.substr(5, 2), 16) + ',' + EDIT_FILL_ALPHA + ')';
+          parseInt(h.substr(5, 2), 16) + ',' + (translucent ? EDIT_FILL_ALPHA : 1) + ')';
       }
 
       /* 画面上のクリック位置から、販売図面のその場所の色を取り出す。
@@ -1735,8 +1747,8 @@
             if (isBand && bandUrl) {
               el.style.backgroundImage = 'url("' + bandUrl + '")';
             } else if (!isBand) {
-              // 塗りつぶす色を編集画面でもそのまま見せる（下地が少し透ける半透明のまま）。
-              el.style.backgroundColor = editorFill(r.c);
+              // 塗りつぶす色を編集画面でもそのまま見せる（1か所目だけ下地が少し透ける）。
+              el.style.backgroundColor = editorFill(r.c, maskNo(i) === 1);
             }
             el.innerHTML = '<button type="button" class="prop-mask-del" aria-label="削除">×</button>' +
               '<span class="prop-mask-tag' + (isBand ? '' : ' prop-mask-tag--mask') + '">' +
@@ -1862,7 +1874,7 @@
           mask.c = hex;
           pickedColor = hex; // 何も選んでいないときの色見本の表示に使う（新しいマスクは白のまま）
           var el = canvas.querySelector('.prop-mask-rect[data-i="' + selectedIndex + '"]');
-          if (el) el.style.backgroundColor = editorFill(hex);
+          if (el) el.style.backgroundColor = editorFill(hex, maskNo(selectedIndex) === 1);
           if (colorInput) colorInput.value = hex;
           return true;
         }
@@ -1958,14 +1970,24 @@
     });
   }
 
+  // メールのリンクから開いたときに、顧客詳細の表示後に開く物件（1回だけ使う）。
+  var PENDING_OPEN = null;
+
   function init(sessionId) {
     if (!UI) { return; }
     SID = sessionId;
     P = document.getElementById('property-panel');
     if (!P) return;
     P.classList.add('prop-wrap');
-    renderList();
+    var pending = (PENDING_OPEN && PENDING_OPEN.sessionId === sessionId) ? PENDING_OPEN : null;
+    PENDING_OPEN = null;
+    renderList(pending ? function () { openDetail(pending.propertyId, pending.tab); } : null);
   }
 
-  w.PropertyAgent = { init: init };
+  /** 次に sessionId の顧客詳細を開いたとき、該当物件の詳細（tab 指定時はそのタブ）を自動で開く。 */
+  function openOnInit(sessionId, propertyId, tab) {
+    PENDING_OPEN = { sessionId: sessionId, propertyId: propertyId, tab: tab || '' };
+  }
+
+  w.PropertyAgent = { init: init, openOnInit: openOnInit };
 })(window);

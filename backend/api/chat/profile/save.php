@@ -69,6 +69,8 @@ try {
     }
 
     $data = chatIntakeLoad($db, $sessionId, $businessCardId);
+    // 登録完了メールは「この保存で登録（SMS認証・お名前・メール）がそろった」ときだけ送る。
+    $wasProfileComplete = chatIntakeProfileComplete($data);
 
     if ($name !== '') {
         [$ln, $fn] = chatIntakeParseNameParts($name);
@@ -99,12 +101,32 @@ try {
     }
 
     $data['_current_field'] = chatIntakeNextField($data);
+    $sendRegistrationMail = !$wasProfileComplete
+        && chatIntakeProfileComplete($data)
+        && empty($data['_registration_mail_sent_at']);
+    if ($sendRegistrationMail) {
+        // 二重送信を防ぐため、送信済みの印を先に保存しておく。
+        $data['_registration_mail_sent_at'] = date('c');
+    }
     chatIntakeSave($db, $sessionId, $businessCardId, $data);
 
     // 事前作成された顧客ページの場合、本人の登録が済んだ時点で招待を完了扱いにする。
     // 以降は招待の申告値ではなく、ここで登録された氏名・メールアドレスが正となる。
     if (chatIntakeProfileComplete($data) && function_exists('customerInviteMarkRegistered')) {
         customerInviteMarkRegistered($db, $sessionId);
+    }
+
+    // 登録が完了したお客様へ「登録完了」メールを送る。送信に失敗しても登録自体は完了させる。
+    if ($sendRegistrationMail && function_exists('customerRegistrationSendEmail')) {
+        try {
+            customerRegistrationSendEmail(
+                (string)($data['customer_email'] ?? $email),
+                (string)($data['customer_name'] ?? $name),
+                $card
+            );
+        } catch (Throwable $e) {
+            error_log('Registration complete mail error: ' . $e->getMessage());
+        }
     }
 
     sendSuccessResponse([

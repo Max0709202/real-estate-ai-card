@@ -33,8 +33,34 @@ function getCardBySlugForChat($db, $slug) {
  * @return bool
  */
 function canUseChatbot($card) {
+    // 運営の管理画面で「AIエージェント非表示」にした名刺（名刺部だけの利用者）は使えない。
+    if (!empty($card['ai_agent_hidden'])) {
+        return false;
+    }
     $plan = isset($card['plan_type']) ? $card['plan_type'] : 'standard';
     return strtolower($plan) === 'standard';
+}
+
+/**
+ * 管理画面の「AIエージェント表示/非表示」で使う列を実行時に補完する。
+ * 既定は 0（表示）なので、既存の名刺の表示は変わらない。
+ *
+ * @param PDO $db
+ * @return void
+ */
+function ensureAiAgentHiddenColumn($db) {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    try {
+        foreach ($db->query("SHOW COLUMNS FROM business_cards") as $row) {
+            if ($row['Field'] === 'ai_agent_hidden') return;
+        }
+        $db->exec("ALTER TABLE business_cards ADD COLUMN ai_agent_hidden TINYINT(1) NOT NULL DEFAULT 0");
+    } catch (Throwable $e) {
+        error_log('business_cards ai_agent_hidden schema update failed: ' . $e->getMessage());
+    }
 }
 
 /**

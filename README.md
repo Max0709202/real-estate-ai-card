@@ -76,6 +76,39 @@ Also ensure `BASE_URL` is correct for your environment.
 - Migration: `backend/database/migrations/20260731_add_user_org_hierarchy.sql`
   (the helper also adds the columns at runtime if the migration has not been applied).
 
+## 情報BOX (per-transaction document sharing)
+
+Spec: `不動産AI名刺_情報BOX開発仕様書2026.9.24.docx`.
+
+- **On/off per company**, like the hierarchy feature: `admin/infobox-settings.php` (operator only)
+  sets `org_license_settings.infobox_enabled` by license key. OFF hides the マイページ menu and
+  every `backend/api/infobox/*` endpoint refuses; data is kept.
+- Pages: `infobox.php` (owner's list, or `?box=<id>`), `infobox-access.php?t=<token>`
+  (invited participants verify registered email + phone; 7-day URL, 5 failures → 15 min lock,
+  30 min idle / 8 h max session).
+- **Top rule:** a document is visible only to its uploader and the people the uploader chose —
+  the card owner and admins included. Every read path goes through `iboxDocVisibleTo()`;
+  files are served only by `backend/api/infobox/file.php` (re-checked on every request) and
+  `backend/uploads/infobox/` denies direct HTTP access.
+- 取引台帳: `backend/api/infobox/ledger.php` fills the form from the documents in folders
+  07 (売買契約書) and 09 (重要事項説明書) that the owner can view — AI read first, then fixed
+  patterns for the 全宅連 form. Missing either document → error, no ledger. PDF is produced by the
+  built-in writer in `infobox-pdf-helper.php` (no library needed).
+- Invited participants who verify while logged in to an AI名刺 account get that account linked to
+  their participant row, so they can reopen the BOX from `infobox.php` later (unlinked on contact
+  change / suspension). The document viewer uses PDF.js from jsDelivr (page nav, zoom, print —
+  no standalone download button); the ledger PDF needs its CMaps, which are loaded from the same CDN.
+- Ledger versions are frozen per save (preview first, then confirm). Closing a fiscal year
+  (`ibox_ledger_closures`) blocks new versions for that year and records a 5-year retention date;
+  nothing is ever auto-deleted.
+- Word/Excel previews need LibreOffice (`soffice`, or `SOFFICE_BIN`) on the server — on shared hosting
+  (Xserver) use the extracted AppImage and, if the server has no Japanese fonts, point
+  `SOFFICE_FONT_DIR` at a folder with one (both via `putenv()` in `backend/config/secrets.php`). Without it
+  such uploads are refused with a "convert to PDF" message. Text extraction uses `pdftotext`
+  (falls back to Ghostscript).
+- Shared logic: `backend/includes/infobox-*.php`. Migration:
+  `backend/database/migrations/20260928_add_infobox.sql` (tables are also created at runtime).
+
 ## Migrations / Schema Notes
 
 Run required migrations before deploying features that depend on them, especially:

@@ -1,0 +1,188 @@
+/* 内見日時のご回答（売主（仲介）会社向けページ / viewing-reply.php）
+   ログイン不要・スマートフォンからの回答を想定した1カラムレイアウト。
+   候補日時の色は仕様 §3 に合わせ、選択中を緑にする。色だけで判断させないよう文字も併記する。 */
+
+:root {
+  --vr-text: #1f2430;
+  --vr-muted: #5b6470;
+  --vr-line: #e2e6ec;
+  --vr-bg: #f5f7fa;
+  --vr-primary: #0066cc;
+  --vr-green: #1f9d57;
+  --vr-red: #e8384f;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--vr-bg);
+  color: var(--vr-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.vr-page { max-width: 720px; margin: 0 auto; padding: 16px 16px 48px; }
+
+.vr-head { padding: 12px 4px 16px; }
+.vr-head__title { font-size: 20px; font-weight: 700; }
+.vr-head__sub { font-size: 12px; color: var(--vr-muted); }
+
+.vr-card {
+  background: #fff;
+  border: 1px solid var(--vr-line);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.vr-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 4px 0 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--vr-primary);
+}
+.vr-card + .vr-card .vr-section-title:first-child { margin-top: 0; }
+
+.vr-prop__label { font-size: 12px; color: var(--vr-muted); }
+.vr-prop__name { font-size: 19px; font-weight: 700; margin: 2px 0 6px; line-height: 1.5; }
+.vr-prop__meta { font-size: 13px; color: var(--vr-muted); }
+
+.vr-note {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* 購入検討者属性（担当エージェントの自由入力） */
+.vr-card--attrs { border-color: #bcd9ff; background: #f5faff; }
+.vr-attrs { white-space: pre-wrap; word-break: break-word; }
+
+.vr-agent__name { font-weight: 700; }
+.vr-agent__row { font-size: 14px; color: var(--vr-muted); }
+.vr-agent__row a, .vr-link { color: var(--vr-primary); }
+
+.vr-guide { font-size: 13px; color: var(--vr-muted); margin: 0 0 12px; }
+.vr-guide--small { font-size: 12px; margin-top: 12px; }
+
+/* 候補日時（1枠だけ選ぶ） */
+.vr-slots { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.vr-slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--vr-line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.vr-slot input { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--vr-green); }
+.vr-slot__text { flex: 1; font-weight: 600; }
+.vr-slot__state {
+  display: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--vr-green);
+  border: 1px solid var(--vr-green);
+  border-radius: 999px;
+  padding: 1px 10px;
+}
+.vr-slot:has(input:checked) { border-color: var(--vr-green); background: #eefaf3; }
+.vr-slot:has(input:checked) .vr-slot__state { display: inline-block; }
+
+/* 鍵の受け渡し */
+.vr-methods { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.vr-method {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 1px solid var(--vr-line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.vr-method input { accent-color: var(--vr-primary); margin: 0; }
+.vr-method:has(input:checked) { border-color: var(--vr-primary); background: #eef5ff; font-weight: 600; }
+
+.vr-fields { border: 0; padding: 0; margin: 0 0 8px; }
+.vr-field { margin-bottom: 12px; }
+.vr-field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.vr-field input[type="text"], .vr-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--vr-line);
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+  color: inherit;
+}
+.vr-field input[type="text"]:focus, .vr-field textarea:focus {
+  outline: 2px solid rgba(0, 102, 204, .35);
+  border-color: var(--vr-primary);
+}
+.vr-req, .vr-opt {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+.vr-req { color: #fff; background: var(--vr-red); }
+.vr-opt { color: var(--vr-muted); background: #eef0f4; }
+
+.vr-attach-note { font-size: 12px; color: var(--vr-muted); margin-top: 4px; }
+.vr-attach-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+
+/* メッセージ */
+.vr-msg {
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  border: 1px solid var(--vr-line);
+  background: #fff;
+  margin-bottom: 14px;
+}
+.vr-msg--error { border-color: #f5b5bd; background: #fff0f2; color: #a01526; }
+.vr-msg--info  { border-color: #ffd591; background: #fff7e6; }
+.vr-msg--done  { border-color: #9ddcbb; background: #eefaf3; }
+
+/* ボタン */
+.vr-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.vr-btn {
+  display: block;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--vr-line);
+  background: #fff;
+  color: var(--vr-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vr-btn--primary { background: var(--vr-primary); border-color: var(--vr-primary); color: #fff; }
+.vr-btn:disabled { opacity: .55; cursor: default; }
+
+.vr-foot { font-size: 12px; color: var(--vr-muted); text-align: center; margin-top: 20px; }
+.vr-foot a { color: var(--vr-primary); }
+
+@media (min-width: 600px) {
+  .vr-actions { flex-direction: row; }
+  .vr-btn { width: auto; flex: 1; }
+}
+
+/* 担当エージェントの名刺画像（edit.php の「名刺登録」で登録したもの） */
+.vr-agent__card { margin-top: 10px; }
+.vr-agent__card img {
+  max-width: 100%;
+  max-height: 220px;
+  border: 1px solid var(--vr-line);
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
+}

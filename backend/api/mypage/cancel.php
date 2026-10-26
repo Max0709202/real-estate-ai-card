@@ -75,13 +75,13 @@ try {
                 // Determine monthly amount based on user type and payment status
                 $monthlyAmount = 0;
                 if ($businessCard['user_type'] === 'new' || $businessCard['user_type'] === null) {
-                    $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                    $monthlyAmount = pricing_monthly_ex_tax_for_user($db, $userId);
                 } elseif ($businessCard['user_type'] === 'existing') {
                     // Existing users are one-time initial-fee users, so monthly amount remains 0
                     $monthlyAmount = 0;
                 } else {
                     // Default: treat as new user
-                    $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                    $monthlyAmount = pricing_monthly_ex_tax_for_user($db, $userId);
                 }
 
                 // Try to find existing Stripe subscription for this customer

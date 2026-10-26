@@ -388,6 +388,48 @@ async function updatePublishedStatus(businessCardId, isPublished, checkboxElemen
     }
 }
 
+// AIエージェントの表示/非表示。チェックを外すと名刺部だけの表示になる。
+document.querySelectorAll('.ai-agent-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', async function() {
+        const visible = this.checked;
+        const message = visible
+            ? 'この名刺でAIエージェントを表示しますか？'
+            : 'この名刺でAIエージェントを非表示にしますか？\n（名刺部だけの表示になります）';
+        if (!confirm(message)) {
+            this.checked = !visible;
+            return;
+        }
+
+        try {
+            const response = await fetch('../backend/api/admin/users.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    business_card_id: this.dataset.bcId,
+                    action: 'update_ai_agent',
+                    ai_agent_visible: visible ? 1 : 0
+                }),
+                credentials: 'include'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showSuccess(result.message, { autoClose: 2000 });
+            } else {
+                this.checked = !visible;
+                showError(result.message || 'AIエージェントの表示設定の変更に失敗しました');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            this.checked = !visible;
+            showError('エラーが発生しました');
+        }
+    });
+});
+
 // 統括（全閲覧）の指名。名前の前の☑で、その方を組織階層の最上層にする。
 // 統括になると、同じ宅建業免許番号の自社メンバーと、その担当顧客をマイページから閲覧できる。
 document.querySelectorAll('.org-admin-checkbox').forEach(checkbox => {

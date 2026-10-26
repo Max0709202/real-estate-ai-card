@@ -178,12 +178,13 @@ $bdSub2Inc = 0;
 $bdTotalInc = 0;
 if ($paymentInfo) {
     $initialEx = (int) (defined('PRICING_NEW_USER_INITIAL') ? PRICING_NEW_USER_INITIAL : 30000);
-    $annualEx = (int) (defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000);
+    // 年額は料金改定の前後で異なるため、請求額（税別）から初期費用を差し引いて求める
+    $annualEx = (int) round((float) ($paymentInfo['amount'] ?? 0)) - $initialEx;
     $rate = defined('TAX_RATE') ? (float) TAX_RATE : 0.1;
     if (
         ($paymentInfo['payment_type'] ?? '') === 'new_user'
         && ($paymentInfo['payment_method'] ?? '') === 'bank_transfer'
-        && (int) round((float) ($paymentInfo['amount'] ?? 0)) >= $initialEx + $annualEx
+        && $annualEx > 0
     ) {
         $showInitialPlusAnnualBreakdown = true;
         $bdInitialEx = $initialEx;

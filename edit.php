@@ -73,6 +73,8 @@ $showUpdatePaymentMethodButton = false;
 $isEraMember = false;
 $isMonthlyBillingUser = false;
 $subscriptionNextBillingDisplay = "―";
+$userMonthlyExTax = (int) PRICING_NEW_USER_MONTHLY; // 料金改定日より前のアカウントは旧月額
+$userBankAnnualExTax = (int) PRICING_RENEWAL_BANK_ANNUAL; // 料金改定日より前のアカウントは旧年額
 
 // Determine user type: from session (logged-in user), URL parameter, or guest access
 if ($isGuestAccess) {
@@ -125,6 +127,8 @@ try {
     $userType = !empty($userRowForCard['user_type']) ? $userRowForCard['user_type'] : $userType;
     $isEraMember = ((int)($userRowForCard['is_era_member'] ?? 0)) === 1;
     $isMonthlyBillingUser = user_has_monthly_billing($userType, $isEraMember);
+    $userMonthlyExTax = pricing_monthly_ex_tax_for_user($db, $userId);
+    $userBankAnnualExTax = pricing_bank_annual_ex_tax_for_user($db, $userId);
     $subscriptionNextBillingDisplay = subscription_next_billing_display($subscriptionInfo ?: null, $userType, $isEraMember);
 
     // Calculate end date (period end date)
@@ -528,6 +532,19 @@ if (!$isGuestAccess && !empty($userId) && isset($db)) {
     }
 }
 
+// 情報BOX（取引ごとの書類共有・関係者連絡・取引台帳）。
+// 階層機能と同じく、運営が管理画面で ON にした会社（免許番号）だけにメニューを表示する。
+require_once __DIR__ . '/backend/includes/infobox-helper.php';
+$canUseInfobox = false;
+if (!$isGuestAccess && !empty($userId) && isset($db)) {
+    try {
+        // 他社の情報BOXに招待され、アカウントを紐づけた方にも入口を出す（参加中のBOXだけが開ける）
+        $canUseInfobox = iboxEnabledForUser($db, (int)$userId) || (bool)iboxJoinedBoxes($db, (int)$userId);
+    } catch (Exception $e) {
+        error_log('edit.php infobox flag error: ' . $e->getMessage());
+    }
+}
+
 // Default greeting messages
 $defaultGreetings = [
     [
@@ -573,6 +590,7 @@ function editSectionIcon(string $key): string
         'org'      => 'network',              // 組織・メンバー顧客
         'ai'       => 'brain-circuit',        // AI育成
         'band'     => 'panel-bottom',         // 自社帯登録
+        'infobox'  => 'folder-lock',          // 情報BOX
     ];
 
     // 同じアイコンを複数回出す場合にファイル読み込みを繰り返さない
@@ -603,6 +621,7 @@ function editSectionIcon(string $key): string
     <link rel="stylesheet" href="assets/css/modal.css">
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/property.css?v=<?php echo filemtime(__DIR__ . '/assets/css/property.css'); ?>">
+    <link rel="stylesheet" href="assets/css/viewing-calendar.css?v=<?php echo filemtime(__DIR__ . '/assets/css/viewing-calendar.css'); ?>">
 
     <!-- Cropper.js CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
@@ -654,8 +673,13 @@ function editSectionIcon(string $key): string
         .chat-draft-preview-actions {
             display: flex;
             justify-content: flex-end;
+            align-items: center;
             gap: 0.5rem;
             flex-wrap: wrap;
+        }
+        .chat-draft-preview-note {
+            font-size: 0.8rem;
+            color: #6b7686;
         }
         .btn-payment-red {
             background: #dc3545;
@@ -941,11 +965,19 @@ function editSectionIcon(string $key): string
                         <span class="step-label">組織・メンバー顧客</span>
                     </a>
                     <?php endif; ?>
+                    <?php if ($canUseInfobox): ?>
+                    <a href="#infobox" class="nav-item" data-step="infobox" data-section="infobox-section">
+                        <span class="step-label">情報BOX</span>
+                    </a>
+                    <?php endif; ?>
                     <a href="#agent-training" class="nav-item" data-step="agent" data-section="agent-training-section">
                         <span class="step-label">AI育成</span>
                     </a>
                     <a href="#flyer-band" class="nav-item" data-step="flyer-band" data-section="flyer-band-section">
                         <span class="step-label">自社帯登録</span>
+                    </a>
+                    <a href="#name-card" class="nav-item" data-step="name-card" data-section="name-card-section">
+                        <span class="step-label">名刺登録</span>
                     </a>
                 </nav>
             </div>
@@ -1611,13 +1643,13 @@ function editSectionIcon(string $key): string
                             <!-- 更新手続き向け（初期費用なし） -->
                             <div class="payment-method-detail payment-method-credit">
                                 <p>更新時の初期費用: ¥0（税込）</p>
-                                <p>月額費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_MONTHLY)); ?>（税込）</p>
+                                <p>月額費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen($userMonthlyExTax)); ?>（税込）</p>
                             </div>
                         <?php elseif ($userType === 'new' || $isCanceledAccount): ?>
                             <!-- 新規登録 / 復活アカウント向け -->
                             <div class="payment-method-detail payment-method-credit">
                                 <p>初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_INITIAL)); ?>（税込）</p>
-                                <p>月額費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_MONTHLY)); ?>（税込）</p>
+                                <p>月額費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen($userMonthlyExTax)); ?>（税込）</p>
                             </div>
                             <?php if ($isCanceledAccount): ?>
                                 <p style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">※停止されたアカウントの復活には、新規登録と同じ初期費用と月額費用がかかります。</p>
@@ -1638,13 +1670,13 @@ function editSectionIcon(string $key): string
                             <?php if (($canRenew ?? false) && (($paymentMethod ?? '') === 'bank_transfer')): ?>
                                 <div class="payment-method-detail payment-method-bank">
                                     <p>更新時の初期費用: ¥0（税込）</p>
-                                    <p>年間費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000)); ?>（税込）</p>
+                                    <p>年間費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen($userBankAnnualExTax)); ?>（税込）</p>
                                     <p>お振込みの場合は、1年間の一括払いのみとなります。2か月分お得になります。</p>
                                 </div>
                             <?php elseif ($userType === 'new' || $isCanceledAccount): ?>
                                 <div class="payment-method-detail payment-method-bank">
                                     <p>初期費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(PRICING_NEW_USER_INITIAL)); ?>（税込）</p>
-                                    <p>年間費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen(defined('PRICING_RENEWAL_BANK_ANNUAL') ? PRICING_RENEWAL_BANK_ANNUAL : 5000)); ?>（税込）</p>
+                                    <p>年間費用: ¥<?php echo number_format(pricing_amount_inc_tax_yen($userBankAnnualExTax)); ?>（税込）</p>
                                     <p>お振込みの場合は、1年間の一括払いのみとなります。2か月分お得になります。</p>
                                 </div>
                                 <?php if ($isCanceledAccount): ?>
@@ -1759,8 +1791,7 @@ function editSectionIcon(string $key): string
                         <h3>顧客詳細</h3>
                         <div id="chat-history-detail-content"></div>
                         <div class="chat-history-detail-actions">
-                            <button type="button" class="btn-secondary" id="chat-history-detail-back">一覧に戻る</button>
-                            <button type="button" class="btn-danger" id="chat-history-detail-delete">この対応履歴をゴミ箱へ</button>
+                            <button type="button" class="btn-secondary chat-history-detail-back-float" id="chat-history-detail-back">顧客一覧に戻る</button>
                         </div>
                     </div>
                 </div>
@@ -1846,6 +1877,27 @@ function editSectionIcon(string $key): string
                 <?php endif; ?>
 
                 <!-- Agent training -->
+                <?php if ($canUseInfobox): ?>
+                <!-- 情報BOX（運営が ON にした会社のみ） -->
+                <div id="infobox-section" class="edit-section" style="display: none;">
+                    <div class="section-hero section-hero--comm">
+                        <?php echo editSectionIcon('infobox'); ?>
+                        <div class="section-hero-text">
+                            <h2>情報BOX</h2>
+                            <p class="step-description">
+                                お取引ごとに、必要な書類・書類を用意する担当者・閲覧できる人がひと目で分かる共有スペースです。<br>
+                                買主・売主・相手仲介会社・司法書士・土地家屋調査士をご招待し、書類の共有、原本の受渡し管理、チャットでの連絡ができます。<br>
+                                書類は、アップロードした本人が指定した相手だけが閲覧・印刷できます（名刺所有者や管理者も、指定がなければ閲覧できません）。<br>
+                                売買契約書と重要事項説明書を登録すると、<strong>取引台帳</strong>を自動で作成できます。
+                            </p>
+                        </div>
+                    </div>
+                    <div class="section-note" style="margin-top: 1rem;">
+                        <a href="infobox.php" class="btn-primary" style="display: inline-block; text-decoration: none; padding: 0.75rem 1.5rem;">情報BOXを開く</a>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <div id="agent-training-section" class="edit-section" style="display: none;">
                     <div class="section-hero section-hero--ai">
                         <?php echo editSectionIcon('ai'); ?>
@@ -1953,6 +2005,30 @@ function editSectionIcon(string $key): string
                         </div>
                         <div style="text-align: center; margin-top: 1rem;">
                             <button type="button" class="btn-delete" id="flyer-band-delete-btn" style="display: none;">帯を削除</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 名刺登録（内見打診メールM03のリンク先で、売主（仲介）会社に提示する名刺画像） -->
+                <div id="name-card-section" class="edit-section" style="display: none;">
+                    <div class="section-hero section-hero--band">
+                        <?php echo editSectionIcon('band'); ?>
+                        <div class="section-hero-text">
+                            <h2>名刺登録</h2>
+                            <p class="step-description">内見の打診メールを受け取った売主（仲介）会社が回答URLを開いたときに、あなたのプロフィールと一緒に表示される名刺画像を登録します。ファイルを選ぶか、枠内にドラッグ＆ドロップしてください。</p>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>名刺画像</h3>
+                        <div class="upload-area upload-area--band" data-upload-id="name_card">
+                            <input type="file" id="name_card" accept="image/*" style="display: none;">
+                            <button type="button" class="btn-upload" onclick="document.getElementById('name_card').click()">名刺登録</button>
+                            <div class="upload-preview"></div>
+                            <small>名刺の画像を選択するか、ここにドラッグ&amp;ドロップしてください（自動でリサイズされます）<br>対応形式：JPEG、PNG、GIF、WebP</small>
+                        </div>
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <button type="button" class="btn-delete" id="name-card-delete-btn" style="display: none;">名刺を削除</button>
                         </div>
                     </div>
                 </div>
@@ -2088,6 +2164,8 @@ function editSectionIcon(string $key): string
     <script src="assets/js/mobile-menu.js"></script>
     <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>"></script>
     <script src="assets/js/property-map.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-map.js'); ?>"></script>
+    <script src="assets/js/viewing-calendar.js?v=<?php echo filemtime(__DIR__ . '/assets/js/viewing-calendar.js'); ?>"></script>
+    <script src="assets/js/property-viewing-agent.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-viewing-agent.js'); ?>"></script>
     <script src="assets/js/property-agent.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-agent.js'); ?>"></script>
     <script>
         // Direct Input button handler and mobile touch support
@@ -4232,6 +4310,18 @@ function editSectionIcon(string $key): string
                     });
             }
 
+            // 電話番号の表示用整形（SMS認証で保存される +81 形式を国内表記にする）。
+            // 例: +819035093183 → 090-3509-3183。保存値そのものは変えない。
+            function formatPhoneForDisplay(phone) {
+                var raw = String(phone || '').trim();
+                var digits = raw.replace(/[^\d+]/g, '');
+                if (digits.indexOf('+81') === 0) digits = '0' + digits.slice(3).replace(/^0/, '');
+                else if (digits.indexOf('+') === 0) return raw;
+                if (!/^0\d{9,10}$/.test(digits)) return raw;
+                if (/^0[5789]0\d{8}$/.test(digits)) return digits.slice(0, 3) + '-' + digits.slice(3, 7) + '-' + digits.slice(7);
+                return digits;
+            }
+
             // 顧客情報（顧客名・電話・メール）の表示と、その場で直せる入力欄。
             // 表示モードと編集モードを同じ枠の中で差し替える。
             function renderCustomerContact(contact) {
@@ -4251,7 +4341,7 @@ function editSectionIcon(string $key): string
 
                 html += '<div class="chat-contact-data" id="customer-contact-view">';
                 html += '<p><strong>顧客名:</strong> ' + escapeHtml(name || '未入力') + '</p>';
-                html += '<p><strong>電話:</strong> ' + escapeHtml(phone || '未入力') + '</p>';
+                html += '<p><strong>電話:</strong> ' + escapeHtml(phone ? formatPhoneForDisplay(phone) : '未入力') + '</p>';
                 html += '<p><strong>メール:</strong> ' + emailHtml + '</p>';
                 html += '</div>';
 
@@ -4348,6 +4438,8 @@ function editSectionIcon(string $key): string
                 detailEl.style.display = 'block';
                 listEl.style.display = 'none';
                 setInviteAreaVisible(false);
+                // 非表示中は位置を測れないため、表示したタイミングで移動済みの位置を入れ直す。
+                if (backBtn && window.AppFloating) window.AppFloating.restorePosition(backBtn, 'app_detail_back_pos');
                 fetch(apiBase + '/session.php?id=' + encodeURIComponent(sessionId), { credentials: 'include' })
                     .then(function(r) { return r.json(); })
                     .then(function(res) {
@@ -4390,11 +4482,15 @@ function editSectionIcon(string $key): string
                         html += '<div class="chat-draft-preview" id="agent-chat-draft-preview" hidden>';
                         html += '<div class="chat-draft-preview-head"><span id="agent-chat-draft-title">AI文案プレビュー</span></div>';
                         html += '<div class="chat-draft-preview-body" id="agent-chat-draft-body"></div>';
-                        html += '<div class="chat-draft-preview-actions"><button type="button" class="btn-secondary" id="agent-chat-draft-close">閉じる</button><button type="button" class="btn-primary" id="agent-chat-draft-apply">採用</button></div>';
+                        html += '<div class="chat-draft-preview-actions"><button type="button" class="btn-secondary" id="agent-chat-draft-close">閉じる</button><span class="chat-draft-preview-note">※メッセージはまだ送信されません。</span><button type="button" class="btn-primary" id="agent-chat-draft-apply">回答案として採用</button></div>';
                         html += '</div>';
                         html += '<textarea id="agent-chat-input" class="chat-compose-input" rows="3" placeholder="顧客へのメッセージを入力。「自動回答作成」で文案を生成、「ブラッシュアップ」で推敲できます。"></textarea>';
                         html += '<div class="chat-compose-actions"><span class="chat-compose-status" id="agent-chat-status"></span><button type="button" class="btn-primary" id="agent-chat-send">送信</button></div>';
                         html += '</div>';
+
+                        // 日程調整（お客様がチャットの「日程調整」タブから送った日程。閲覧のみ）
+                        html += '<h4>日程調整</h4>';
+                        html += '<div class="chat-contact-data chat-schedule-list" id="customer-schedule-list"><p class="chat-thread-empty">読み込み中...</p></div>';
 
                         // ③ AIチャット履歴（AI整理サマリー・閲覧のみ）
                         html += renderAiChatSummary();
@@ -4431,10 +4527,61 @@ function editSectionIcon(string $key): string
                         initCustomerContactEdit(sessionId);
                         initAgentChat(sessionId);
                         loadAiChatSummary(sessionId);
+                        loadCustomerSchedules(sessionId);
                         if (window.PropertyAgent) { try { window.PropertyAgent.init(sessionId); } catch (e) { console.error(e); } }
                     })
                     .catch(function() {
                         detailContent.innerHTML = '<p>取得に失敗しました。</p>';
+                    });
+            }
+
+            // 「2026-10-10T14:00」→「2026/10/10 14:00」
+            function formatScheduleDatetime(value) {
+                var m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+                if (!m) return String(value || '');
+                return m[1] + '/' + m[2] + '/' + m[3] + (m[4] ? ' ' + m[4] + ':' + m[5] : '');
+            }
+
+            // 顧客詳細の「日程調整」欄を読み込む。crm/get.php を開くと日程調整のメール通知も既読になる。
+            function loadCustomerSchedules(sessionId) {
+                fetch(apiBase + '/crm/get.php?id=' + encodeURIComponent(sessionId), { credentials: 'include' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        var target = document.getElementById('customer-schedule-list');
+                        if (!target || currentDetailSessionId !== sessionId) return;
+                        var schedules = (res && res.success && res.data && res.data.case && res.data.case.schedules) || {};
+                        // 日時が空のまま登録された日程（以前の不具合で増えた空データ）は表示しない。
+                        var normal = (Array.isArray(schedules.normal) ? schedules.normal : []).filter(function(item) {
+                            return item && String(item.datetime || '').trim() !== '';
+                        });
+                        var viewings = Array.isArray(schedules.viewings) ? schedules.viewings : [];
+                        if (!normal.length && !viewings.length) {
+                            target.innerHTML = '<p class="chat-thread-empty">お客様からの日程調整の連絡はまだありません。</p>';
+                            return;
+                        }
+                        // 新しく追加された日程を上に表示する。
+                        normal = normal.slice().sort(function(a, b) { return (Number(b.id) || 0) - (Number(a.id) || 0); });
+                        var html = '';
+                        normal.forEach(function(item) {
+                            var sentAt = Number(item.id) > 1000000000000 ? new Date(Number(item.id)).toLocaleString('ja-JP') : '';
+                            html += '<div class="chat-schedule-item">';
+                            html += '<p><strong>' + escapeHtml(item.kind || '日程') + '</strong>　' + escapeHtml(formatScheduleDatetime(item.datetime)) + '</p>';
+                            if (item.status) html += '<p>ステータス: ' + escapeHtml(item.status) + '</p>';
+                            if (item.message) html += '<p>メモ: ' + escapeHtml(item.message) + '</p>';
+                            if (sentAt) html += '<p class="chat-schedule-item-meta">連絡日時: ' + escapeHtml(sentAt) + '</p>';
+                            html += '</div>';
+                        });
+                        viewings.forEach(function(item) {
+                            html += '<div class="chat-schedule-item">';
+                            html += '<p><strong>' + escapeHtml(item.property_name || '内覧') + '</strong>　' + escapeHtml(item.time || '') + '</p>';
+                            if (item.address) html += '<p>' + escapeHtml(item.address) + '</p>';
+                            html += '</div>';
+                        });
+                        target.innerHTML = html;
+                    })
+                    .catch(function() {
+                        var target = document.getElementById('customer-schedule-list');
+                        if (target) target.innerHTML = '<p class="chat-thread-empty">日程を取得できませんでした。</p>';
                     });
             }
 
@@ -4975,6 +5122,8 @@ function editSectionIcon(string $key): string
                 backBtn.addEventListener('click', function() {
                     backToSessionList();
                 });
+                // 画面下に浮かせて表示し、文字サイズ切替と同じようにつまんで移動できるようにする。
+                if (window.AppFloating) window.AppFloating.makeDraggable(backBtn, 'app_detail_back_pos');
             }
 
             // ---- 顧客ページの事前作成（入力 → 確認 → 送信）----
@@ -5173,8 +5322,8 @@ function editSectionIcon(string $key): string
 
             // メール通知リンクからのディープリンク（?focus=contact|property|schedule&session=<id>）。
             // 該当顧客の詳細を自動で開く。担当連絡・物件選定の未読は詳細表示の副作用
-            // （read.php / property/list.php 呼び出し）で解除される。日程調整は専用UIが
-            // 詳細内に無いため crm/get.php を明示的に叩いて未読解除する。
+            // （read.php / property/list.php 呼び出し）で解除される。日程調整の未読は
+            // 詳細内の「日程調整」欄の読み込み（crm/get.php）で解除される。
             (function handleNotificationDeepLink() {
                 try {
                     var params = new URLSearchParams(window.location.search);
@@ -5182,14 +5331,19 @@ function editSectionIcon(string $key): string
                     var focus = params.get('focus') || '';
                     if (!session) return;
                     if (['contact', 'property', 'schedule'].indexOf(focus) === -1) focus = 'contact';
+                    // 内見のメール（?property=<id>&viewing=1）からは、該当物件の「内見日程」タブまで直接開く。
+                    var propertyId = parseInt(params.get('property') || '', 10);
+                    var openViewing = focus === 'property' && propertyId > 0 && params.get('viewing') === '1';
+                    if (openViewing && window.PropertyAgent && window.PropertyAgent.openOnInit) {
+                        window.PropertyAgent.openOnInit(session, propertyId, 'viewing');
+                    }
                     if (navChat) navChat.click();
                     setTimeout(function() {
                         showDetail(session);
-                        if (focus === 'schedule') {
-                            fetch(apiBase + '/crm/get.php?id=' + encodeURIComponent(session), { credentials: 'include' }).catch(function() {});
-                        }
+                        // 内見日程タブは物件の詳細を開いたときにスクロールするため、見出しへのスクロールはしない。
+                        if (openViewing) return;
                         setTimeout(function() {
-                            var label = focus === 'property' ? '物件選定' : (focus === 'schedule' ? '日程' : '担当連絡');
+                            var label = focus === 'property' ? '物件選定' : (focus === 'schedule' ? '日程調整' : '担当連絡');
                             var heads = detailContent ? detailContent.querySelectorAll('h4') : [];
                             for (var i = 0; i < heads.length; i++) {
                                 if ((heads[i].textContent || '').indexOf(label) !== -1) {

@@ -48,14 +48,14 @@ try {
             // Determine monthly amount
             $monthlyAmount = 0;
             if ($user['user_type'] === 'new' || $user['user_type'] === null) {
-                $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                $monthlyAmount = pricing_monthly_ex_tax_for_user($db, $user['user_id']);
             } elseif ($user['user_type'] === 'existing') {
                 $monthlyAmount = 0;
             } else {
-                $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                $monthlyAmount = pricing_monthly_ex_tax_for_user($db, $user['user_id']);
             }
             $hasMonthlyBilling = user_has_monthly_billing($user['user_type'] ?? null, $user['is_era_member'] ?? 0);
-            $monthlyAmount = $hasMonthlyBilling ? (defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500) : 0;
+            $monthlyAmount = $hasMonthlyBilling ? pricing_monthly_ex_tax_for_user($db, $user['user_id']) : 0;
             $nextBillingSql = $hasMonthlyBilling ? 'DATE_ADD(NOW(), INTERVAL 1 MONTH)' : 'NULL';
             
             // Try to find existing Stripe subscription

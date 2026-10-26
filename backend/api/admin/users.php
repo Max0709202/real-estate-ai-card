@@ -329,6 +329,41 @@ try {
                 'business_card_id' => $bcId,
                 'is_published' => $isPublished
             ], "公開状態を{$statusText}に変更しました");
+        } elseif ($action === 'update_ai_agent') {
+            // AIエージェント機能の表示/非表示（名刺部だけの利用者向け）
+            if (!isset($input['ai_agent_visible'])) {
+                sendErrorResponse('AIエージェントの表示/非表示が必要です', 400);
+            }
+
+            require_once __DIR__ . '/../../includes/chat-helpers.php';
+            ensureAiAgentHiddenColumn($db);
+
+            $aiAgentHidden = (int)$input['ai_agent_visible'] ? 0 : 1;
+
+            $stmt = $db->prepare("SELECT user_id, url_slug FROM business_cards WHERE id = ?");
+            $stmt->execute([$bcId]);
+            $bcInfo = $stmt->fetch();
+
+            if (!$bcInfo) {
+                sendErrorResponse('ビジネスカードが見つかりません', 404);
+            }
+
+            $stmt = $db->prepare("UPDATE business_cards SET ai_agent_hidden = ? WHERE id = ?");
+            $stmt->execute([$aiAgentHidden, $bcId]);
+
+            $stmt = $db->prepare("SELECT email FROM users WHERE id = ?");
+            $stmt->execute([$bcInfo['user_id']]);
+            $userInfo = $stmt->fetch();
+            $userEmail = $userInfo['email'] ?? 'Unknown';
+
+            $statusText = $aiAgentHidden ? '非表示' : '表示';
+            logAdminChange($db, $_SESSION['admin_id'], $_SESSION['admin_email'] ?? '', 'other', 'business_card', $bcId,
+                "AIエージェント{$statusText}: ユーザー {$userEmail} (URL: {$bcInfo['url_slug']})");
+
+            sendSuccessResponse([
+                'business_card_id' => $bcId,
+                'ai_agent_visible' => $aiAgentHidden ? 0 : 1
+            ], "AIエージェントを{$statusText}にしました");
         }
 
     } elseif ($method === 'DELETE') {

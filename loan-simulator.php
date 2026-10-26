@@ -124,7 +124,7 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
                 <div class="loan-sim-field">
                     <label>頭金（万円）任意</label>
                     <input type="number" id="borrow-income-down-payment" min="0" max="99999" step="100" value="0" placeholder="0">
-                    <span class="hint">ご用意できる自己資金です。借入可能額から差し引いて試算します。</span>
+                    <span class="hint">ご用意できる自己資金です。頭金を差し引いた金額を借入可能額として試算します。</span>
                 </div>
                 <div class="loan-sim-field">
                     <label>返済負担率（%）</label>
@@ -463,14 +463,15 @@ $apiBase = rtrim(BASE_URL, '/') . '/backend/api/loan';
                 if (data.success && data.data) {
                     var d = data.data;
                     var hasDownPayment = Number(d.down_payment) > 0;
-                    // 頭金を入れたときは、差し引いた後の金額を結果として表示する。
+                    // 頭金を入れたときは、差し引いた後の金額（実際の借入額）を結果として表示し、
+                    // 年収から算出した総額は「頭金を含めた購入可能額」として併記する。
                     var borrowable = hasDownPayment ? d.net_borrowable : d.max_borrowable;
                     var monthly = hasDownPayment ? d.net_monthly_payment : d.max_monthly_payment;
                     var html = '<h4>結果</h4>' +
                         '<div class="loan-sim-result-line highlight">借入可能額: 約' + formatYen(borrowable) + '</div>' +
                         '<div class="loan-sim-result-line">想定月額返済: 約' + formatYen(monthly) + '</div>';
                     if (hasDownPayment) {
-                        html += '<div class="loan-sim-result-line">年収からの借入可能額: 約' + formatYen(d.max_borrowable) + '</div>' +
+                        html += '<div class="loan-sim-result-line">頭金を含めた購入可能額: 約' + formatYen(d.max_borrowable) + '</div>' +
                             '<div class="loan-sim-result-line">頭金: ' + formatYen(d.down_payment) + '</div>';
                     }
                     html += '<div class="loan-sim-result-line">年収: ' + formatYen(d.annual_income) + '</div>' +

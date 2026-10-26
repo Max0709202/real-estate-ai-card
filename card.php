@@ -302,6 +302,10 @@ $communicationMethods = array_merge($messageApps, $snsApps);
 
 // Chatbot: show only for standard plan (or when plan_type not set, default to enabled)
 $chatbotEnabled = (!isset($card['plan_type']) || (string)$card['plan_type'] === 'standard');
+// 運営の管理画面で「AIエージェント非表示」にした名刺は、名刺部だけを表示する。
+if (!empty($card['ai_agent_hidden'])) {
+    $chatbotEnabled = false;
+}
 $shareUrl = rtrim(BASE_URL, '/') . '/card.php?slug=' . urlencode($card['url_slug'] ?? '');
 if ($chatOnly) {
     $shareUrl .= '&chat=1';
@@ -353,6 +357,7 @@ if (!empty($card['profile_photo'])) {
     <?php if ($chatbotEnabled): ?>
     <link rel="stylesheet" href="assets/css/chat-widget.css?v=<?php echo filemtime(__DIR__ . '/assets/css/chat-widget.css'); ?>">
     <link rel="stylesheet" href="assets/css/property.css?v=<?php echo filemtime(__DIR__ . '/assets/css/property.css'); ?>">
+    <link rel="stylesheet" href="assets/css/viewing-calendar.css?v=<?php echo filemtime(__DIR__ . '/assets/css/viewing-calendar.css'); ?>">
     <?php endif; ?>
     <?php if (!$chatOnly): ?>
     <script src="assets/js/pwa-a2hs.js?v=<?php echo filemtime(__DIR__ . '/assets/js/pwa-a2hs.js'); ?>" defer></script>
@@ -1403,6 +1408,7 @@ if (!empty($card['profile_photo'])) {
                 <button type="button" class="chat-widget-geo-btn" data-geo-map="1">現在地情報をマップ表示</button>
                 <button type="button" class="chat-widget-geo-btn" data-geo-info="1">現在地情報を取得する</button>
             </div>
+            <div class="chat-contact-head chat-ai-head"><strong>AI担当</strong><span>不動産取引に関連する情報をAIが回答し整理します。</span></div>
             <div id="chat-widget-messages" class="chat-widget-messages"></div>
             <div class="chat-widget-quick-actions" id="chat-widget-quick-actions"></div>
             <div id="chat-widget-feature-panel" class="chat-widget-feature-panel" hidden></div>
@@ -1442,6 +1448,7 @@ if (!empty($card['profile_photo'])) {
     <script src="assets/js/referral-tracking.js?v=<?php echo filemtime(__DIR__ . '/assets/js/referral-tracking.js'); ?>"></script>
     <script src="assets/js/property-core.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-core.js'); ?>" defer></script>
     <script src="assets/js/property-map.js?v=<?php echo filemtime(__DIR__ . '/assets/js/property-map.js'); ?>" defer></script>
+    <script src="assets/js/viewing-calendar.js?v=<?php echo filemtime(__DIR__ . '/assets/js/viewing-calendar.js'); ?>" defer></script>
     <script src="assets/js/chat-widget.js?v=<?php echo filemtime(__DIR__ . '/assets/js/chat-widget.js'); ?>" defer></script>
     <?php $vapidPublicKey = getenv('VAPID_PUBLIC_KEY') ?: ''; if ($vapidPublicKey !== ''): ?>
     <!-- ホーム画面アイコンのアプリバッジ（Web Push / PWA） -->

@@ -70,7 +70,7 @@ $paymentTypeForSummary = $paymentInfo['payment_type'] ?? 'new_user';
 if (!in_array($paymentTypeForSummary, ['new_user', 'existing_user', 'renewal'], true)) {
     $paymentTypeForSummary = 'new_user';
 }
-$monthlyExTaxYen = (int) (defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500);
+$monthlyExTaxYen = pricing_monthly_ex_tax_for_user($db, $paymentInfo['user_id']);
 $monthlyTaxYen = (int) round($monthlyExTaxYen * (defined('TAX_RATE') ? (float) TAX_RATE : 0.1));
 $monthlyIncTaxYen = pricing_amount_inc_tax_yen($monthlyExTaxYen);
 ?>

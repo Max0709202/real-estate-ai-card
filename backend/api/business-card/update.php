@@ -72,7 +72,7 @@ try {
      */
 
     $fields = [
-        'company_name', 'company_logo', 'flyer_band', 'profile_photo', 'card_header_bg',
+        'company_name', 'company_logo', 'flyer_band', 'name_card_image', 'profile_photo', 'card_header_bg',
         'real_estate_license_prefecture', 'real_estate_license_renewal_number',
         'real_estate_license_registration_number', 'company_postal_code',
         'company_address', 'company_phone', 'company_website',

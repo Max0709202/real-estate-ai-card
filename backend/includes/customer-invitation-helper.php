@@ -355,6 +355,89 @@ function customerInviteBuildEmail(string $agentName, string $customerName, strin
 }
 
 /**
+ * お客様の登録（SMS認証 → お名前 → メールアドレス）が完了したときに、
+ * お客様へ送る「登録完了」メールの件名・本文を組み立てる。
+ *
+ * @return array [subject, html, text]
+ */
+function customerRegistrationBuildEmail(string $agentName, string $customerName, string $url, string $companyName = ''): array
+{
+    $customer = trim($customerName);
+    $customerLabel = $customer !== '' ? $customer . '様' : 'お客様';
+    $sender = customerInviteSenderLabel($agentName, $companyName);
+
+    $subject = '【不動産AI名刺】ご登録が完了しました';
+
+    $lines = [
+        "{$customerLabel}",
+        'このたびは「不動産AI名刺」にご登録いただき、誠にありがとうございます。',
+        'ご登録が完了しました。',
+        "担当：{$sender}",
+        '',
+        "{$customerLabel}専用のAIエージェントページでは、",
+        '・いつでも相談できるAIエージェント',
+        '・物件のご提案の確認',
+        '・担当者とのメッセージのやり取り',
+        '・内見などの日程調整',
+        '・お取引の進捗確認',
+        'などをご利用いただけます。',
+        '',
+        '機種変更や別の端末からでも、ご登録の電話番号でSMS認証いただくと続きからご利用いただけます。',
+    ];
+
+    $divider = '━━━━━━━━━━━━━━';
+    $text = implode("\n", $lines) . "\n\n"
+        . $divider . "\n"
+        . "{$customerLabel}専用 AIエージェントページ\n"
+        . $url . "\n"
+        . $divider . "\n\n"
+        . "今後ともどうぞよろしくお願いいたします。\n";
+
+    $htmlLines = '';
+    foreach ($lines as $line) {
+        $htmlLines .= $line === ''
+            ? '<p style="margin:0;">&nbsp;</p>'
+            : '<p style="margin:0;">' . htmlspecialchars($line, ENT_QUOTES, 'UTF-8') . '</p>';
+    }
+    $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+    $safeCustomerLabel = htmlspecialchars($customerLabel, ENT_QUOTES, 'UTF-8');
+
+    $html = '<div style="font-family:sans-serif;font-size:14px;line-height:1.9;color:#333;">'
+        . $htmlLines
+        . '<div style="margin:24px 0;padding:16px 0;border-top:1px solid #0757d7;border-bottom:1px solid #0757d7;">'
+        . '<p style="margin:0 0 12px;font-weight:bold;">' . $safeCustomerLabel . '専用 AIエージェントページ</p>'
+        . '<p style="margin:0;"><a href="' . $safeUrl . '" style="display:inline-block;padding:12px 24px;background:#0757d7;color:#fff;text-decoration:none;border-radius:4px;">AIエージェントページを開く</a></p>'
+        . '<p style="margin:12px 0 0;font-size:12px;word-break:break-all;"><a href="' . $safeUrl . '" style="color:#0757d7;">' . $safeUrl . '</a></p>'
+        . '</div>'
+        . '<p style="margin:0;">今後ともどうぞよろしくお願いいたします。</p>'
+        . '</div>';
+
+    return [$subject, $html, $text];
+}
+
+/**
+ * 登録完了メールをお客様へ送る。
+ *
+ * @param array $card business_cards の行（name / company_name / url_slug を使う）
+ * @return bool 送信できたら true
+ */
+function customerRegistrationSendEmail(string $to, string $customerName, array $card): bool
+{
+    $slug = (string)($card['url_slug'] ?? '');
+    if ($to === '' || $slug === '') {
+        return false;
+    }
+    $url = rtrim(BASE_URL, '/') . '/card.php?slug=' . rawurlencode($slug);
+    [$subject, $html, $text] = customerRegistrationBuildEmail(
+        (string)($card['name'] ?? ''),
+        $customerName,
+        $url,
+        (string)($card['company_name'] ?? '')
+    );
+    return sendEmail($to, $subject, $html, $text, 'customer_registration');
+}
+
+/**
  * 招待メールを送信する。
  *
  * @return bool 送信できたら true

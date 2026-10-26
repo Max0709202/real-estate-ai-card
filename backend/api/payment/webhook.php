@@ -235,16 +235,16 @@ try {
                                 // Determine monthly amount based on payment_type
                                 $monthlyAmount = 0;
                                 if ($payment['payment_type'] === 'renewal' || $payment['payment_type'] === 'new_user' || $payment['user_type'] === 'new') {
-                                    $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                                    $monthlyAmount = pricing_monthly_ex_tax_for_user($db, $payment['user_id']);
                                 } elseif ($payment['payment_type'] === 'existing_user' || $payment['user_type'] === 'existing') {
                                     // Existing users are one-time initial-fee users, so monthly amount remains 0
                                     $monthlyAmount = 0;
                                 } else {
                                     // Default: treat as new user if payment_type is unclear
-                                    $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                                    $monthlyAmount = pricing_monthly_ex_tax_for_user($db, $payment['user_id']);
                                 }
                                 $hasMonthlyBilling = user_has_monthly_billing($payment['user_type'] ?? null, $payment['is_era_member'] ?? 0);
-                                $monthlyAmount = $hasMonthlyBilling ? (defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500) : 0;
+                                $monthlyAmount = $hasMonthlyBilling ? pricing_monthly_ex_tax_for_user($db, $payment['user_id']) : 0;
                                 $nextBillingSql = $hasMonthlyBilling ? 'DATE_ADD(NOW(), INTERVAL 1 MONTH)' : 'NULL';
 
                                 // Try to find existing Stripe subscription for this customer
@@ -540,6 +540,7 @@ try {
             case 'payment_intent.succeeded':
                 $paymentIntent = $event['data']['object'];
                 $paymentIntentId = $paymentIntent['id'];
+                stripe_set_default_payment_method_from_intent($paymentIntentId);
                 
                 $stmt = $db->prepare("
                     UPDATE payments 
@@ -649,16 +650,16 @@ try {
                             // Determine monthly amount based on payment_type
                             $monthlyAmount = 0;
                             if ($payment['payment_type'] === 'renewal' || $payment['payment_type'] === 'new_user' || $payment['user_type'] === 'new') {
-                                $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                                $monthlyAmount = pricing_monthly_ex_tax_for_user($db, $payment['user_id']);
                             } elseif ($payment['payment_type'] === 'existing_user' || $payment['user_type'] === 'existing') {
                                 // Existing users are one-time initial-fee users, so monthly amount remains 0
                                 $monthlyAmount = 0;
                             } else {
                                 // Default: treat as new user if payment_type is unclear
-                                $monthlyAmount = defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500;
+                                $monthlyAmount = pricing_monthly_ex_tax_for_user($db, $payment['user_id']);
                             }
                             $hasMonthlyBilling = user_has_monthly_billing($payment['user_type'] ?? null, $payment['is_era_member'] ?? 0);
-                            $monthlyAmount = $hasMonthlyBilling ? (defined('PRICING_NEW_USER_MONTHLY') ? PRICING_NEW_USER_MONTHLY : 500) : 0;
+                            $monthlyAmount = $hasMonthlyBilling ? pricing_monthly_ex_tax_for_user($db, $payment['user_id']) : 0;
                             $nextBillingSql = $hasMonthlyBilling ? 'DATE_ADD(NOW(), INTERVAL 1 MONTH)' : 'NULL';
 
                             // Try to find existing Stripe subscription for this customer
